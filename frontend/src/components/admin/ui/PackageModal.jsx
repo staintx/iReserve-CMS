@@ -128,59 +128,154 @@ function getPackageSnapshot(data, imgFile, galFiles, galRemove) {
  */
 function ScaffoldFields({ value, onChange, compact = false }) {
   const set = (patch) => onChange({ ...value, ...patch });
-  const input = compact
-    ? "w-20 rounded border border-blue-300 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-    : "w-24 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none";
-  const label = compact
-    ? "text-xs font-bold text-gray-700"
-    : "text-sm font-bold text-gray-700";
+  const compactInput =
+    "w-20 rounded border border-blue-300 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary";
+  const compactLabel = "text-xs font-bold text-gray-700";
+
+  if (compact) {
+    return (
+      <div className="flex flex-col gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={compactLabel}>Size</span>
+          <input
+            type="number"
+            min="1"
+            placeholder="Width"
+            className={compactInput}
+            value={value.width_ft || ""}
+            onChange={(e) => set({ width_ft: e.target.value })}
+          />
+          <span className="text-xs text-gray-400">×</span>
+          <input
+            type="number"
+            min="1"
+            placeholder="Length"
+            className={compactInput}
+            value={value.length_ft || ""}
+            onChange={(e) => set({ length_ft: e.target.value })}
+          />
+          <span className="text-xs text-gray-400">ft</span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={compactLabel}>Fits</span>
+          <input
+            type="number"
+            min="0"
+            placeholder="Min"
+            className={compactInput}
+            value={value.guest_min || ""}
+            onChange={(e) => set({ guest_min: e.target.value })}
+          />
+          <span className="text-xs text-gray-400">to</span>
+          <input
+            type="number"
+            min="0"
+            placeholder="Max"
+            className={compactInput}
+            value={value.guest_max || ""}
+            onChange={(e) => set({ guest_max: e.target.value })}
+          />
+          <span className="text-xs text-gray-400">guests</span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={compactLabel}>Base Setup Price</span>
+          <div className="relative">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">
+              ₱
+            </span>
+            <input
+              type="number"
+              min="0"
+              placeholder="0"
+              className="w-28 rounded border border-blue-300 bg-white pl-6 pr-2 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
+              value={value.price !== undefined ? value.price : ""}
+              onChange={(e) => set({ price: e.target.value })}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={label}>Size</span>
-        <input
-          type="number"
-          min="1"
-          placeholder="Width"
-          className={input}
-          value={value.width_ft}
-          onChange={(e) => set({ width_ft: e.target.value })}
-        />
-        <span className="text-sm text-gray-400">×</span>
-        <input
-          type="number"
-          min="1"
-          placeholder="Length"
-          className={input}
-          value={value.length_ft}
-          onChange={(e) => set({ length_ft: e.target.value })}
-        />
-        <span className="text-xs text-gray-400">ft</span>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div>
+        <label className="block text-xs font-bold text-gray-700 mb-1">
+          Scaffold Size (ft) <span className="text-red-400">*</span>
+        </label>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            min="1"
+            placeholder="Width"
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
+            value={value.width_ft || ""}
+            onChange={(e) => set({ width_ft: e.target.value })}
+          />
+          <span className="text-gray-400 font-semibold">×</span>
+          <input
+            type="number"
+            min="1"
+            placeholder="Length"
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
+            value={value.length_ft || ""}
+            onChange={(e) => set({ length_ft: e.target.value })}
+          />
+        </div>
+        <p className="mt-1 text-[11px] text-gray-400">Width × Length (e.g. 20 × 20)</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={label}>Fits</span>
+      <div>
+        <label className="block text-xs font-bold text-gray-700 mb-1">
+          Minimum Guests <span className="text-red-400">*</span>
+        </label>
         <input
           type="number"
-          min="0"
-          placeholder="Min guests"
-          className={input}
-          value={value.guest_min}
+          min="1"
+          placeholder="e.g. 50"
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
+          value={value.guest_min || ""}
           onChange={(e) => set({ guest_min: e.target.value })}
         />
-        <span className="text-sm text-gray-400">to</span>
-        <input
-          type="number"
-          min="0"
-          placeholder="Max guests"
-          className={input}
-          value={value.guest_max}
-          onChange={(e) => set({ guest_max: e.target.value })}
-        />
-        <span className="text-xs text-gray-400">guests</span>
+        <p className="mt-1 text-[11px] text-gray-400">Min guests allowed for this size</p>
       </div>
 
+      <div>
+        <label className="block text-xs font-bold text-gray-700 mb-1">
+          Maximum Guests <span className="text-red-400">*</span>
+        </label>
+        <input
+          type="number"
+          min="1"
+          placeholder="e.g. 80"
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
+          value={value.guest_max || ""}
+          onChange={(e) => set({ guest_max: e.target.value })}
+        />
+        <p className="mt-1 text-[11px] text-gray-400">Max guests allowed for this size</p>
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-gray-700 mb-1">
+          Base Setup Price (₱) <span className="text-red-400">*</span>
+        </label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">
+            ₱
+          </span>
+          <input
+            type="number"
+            min="0"
+            placeholder="e.g. 15000"
+            className="w-full rounded-lg border border-gray-200 bg-white pl-7 pr-3 py-2 text-sm font-bold text-slate-900 focus:border-primary focus:outline-none"
+            value={value.price !== undefined ? value.price : ""}
+            onChange={(e) => set({ price: e.target.value })}
+          />
+        </div>
+        <p className="mt-1 text-[11px] text-gray-400">Starting setup price for this size</p>
+      </div>
     </div>
   );
 }
@@ -507,9 +602,7 @@ export default function PackageModal({
     length_ft: "",
     guest_min: "",
     guest_max: "",
-    // Whether the offer covers the set-up at this size. "20x40 = FREE SET-UP"
-    // is expressed here, as data on the size, rather than as a rule in code.
-    // There is no price: what a size costs is settled on the quotation.
+    price: "",
     free_setup: false,
   });
 
@@ -674,10 +767,9 @@ export default function PackageModal({
     node?.querySelector("input")?.focus();
   }, [foodItems.length]);
 
-  // A package is built for one event-space size, so once it has one the add
-  // form gives way to "Replace". (Combos never reach this section — they sell
-  // no event space — so there is no second case to keep open for.)
-  const canAddScaffold = scaffoldOptions.length === 0;
+  // Any package can support multiple scaffold sizes, each with its own
+  // guest limits and base setup price.
+  const canAddScaffold = true;
 
   // Menu items grouped the way the customer-facing menu reads, so the dish
   // suggestions under "Chicken BBQ" are the mains the kitchen actually sells.
@@ -1017,11 +1109,11 @@ export default function PackageModal({
   };
 
   const SCAFFOLD_PRESETS = [
-    { label: "20x20 Setup", width_ft: 20, length_ft: 20, guest_min: 50, guest_max: 80 },
-    { label: "20x40 Setup", width_ft: 20, length_ft: 40, guest_min: 100, guest_max: 150 },
-    { label: "40x40 Setup", width_ft: 40, length_ft: 40, guest_min: 150, guest_max: 220 },
-    { label: "20x60 Setup", width_ft: 20, length_ft: 60, guest_min: 180, guest_max: 250 },
-    { label: "40x60 Setup", width_ft: 40, length_ft: 60, guest_min: 250, guest_max: 350 },
+    { label: "20x20 Setup", width_ft: 20, length_ft: 20, guest_min: 50, guest_max: 80, price: "" },
+    { label: "20x40 Setup", width_ft: 20, length_ft: 40, guest_min: 81, guest_max: 120, price: "" },
+    { label: "40x40 Setup", width_ft: 40, length_ft: 40, guest_min: 121, guest_max: 200, price: "" },
+    { label: "20x60 Setup", width_ft: 20, length_ft: 60, guest_min: 180, guest_max: 250, price: "" },
+    { label: "40x60 Setup", width_ft: 40, length_ft: 60, guest_min: 250, guest_max: 350, price: "" },
   ];
 
   const [editingScaffoldIdx, setEditingScaffoldIdx] = useState(null);
@@ -1031,12 +1123,13 @@ export default function PackageModal({
     length_ft: "",
     guest_min: "",
     guest_max: "",
+    price: "",
     free_setup: false,
   });
 
   // ============ HANDLERS - Scaffold Options ============
   const handleAddScaffoldOption = () => {
-    const { label, width_ft, length_ft, guest_min, guest_max, free_setup } =
+    const { label, width_ft, length_ft, guest_min, guest_max, price, free_setup } =
       newScaffoldOption;
     if (!width_ft || !length_ft) return;
     const area = Number(width_ft) * Number(length_ft);
@@ -1052,18 +1145,18 @@ export default function PackageModal({
           area_ft2: area,
           guest_min: guest_min ? Number(guest_min) : undefined,
           guest_max: guest_max ? Number(guest_max) : undefined,
+          price: price !== undefined && price !== "" ? Number(price) : 0,
           free_setup: Boolean(free_setup),
         },
       ],
     }));
-    // Cleared, not hidden. Hiding the form after one add is what left an offer
-    // stranded at a single size with no way to add the rest.
     setNewScaffoldOption({
       label: "",
       width_ft: "",
       length_ft: "",
       guest_min: "",
       guest_max: "",
+      price: "",
       free_setup: false,
     });
   };
@@ -1077,8 +1170,6 @@ export default function PackageModal({
       return {
         ...prev,
         scaffold_size_options: nextOptions,
-        // A default pointing at a size that no longer exists would silently
-        // fall back to whatever happens to be first.
         default_scaffold_option_id:
           removed && String(prev.default_scaffold_option_id) === String(removed._id)
             ? ""
@@ -1096,12 +1187,13 @@ export default function PackageModal({
       length_ft: opt.length_ft || "",
       guest_min: opt.guest_min || "",
       guest_max: opt.guest_max || "",
+      price: opt.price !== undefined ? opt.price : "",
       free_setup: Boolean(opt.free_setup),
     });
   };
 
   const handleSaveEditScaffold = (idx) => {
-    const { width_ft, length_ft, guest_min, guest_max, free_setup } =
+    const { width_ft, length_ft, guest_min, guest_max, price, free_setup } =
       editScaffoldData;
     if (!width_ft || !length_ft) return;
     const area = Number(width_ft) * Number(length_ft);
@@ -1117,6 +1209,7 @@ export default function PackageModal({
         area_ft2: area,
         guest_min: guest_min ? Number(guest_min) : undefined,
         guest_max: guest_max ? Number(guest_max) : undefined,
+        price: price !== undefined && price !== "" ? Number(price) : 0,
         free_setup: Boolean(free_setup),
       };
       return { ...prev, scaffold_size_options: nextOptions };
@@ -1137,6 +1230,7 @@ export default function PackageModal({
       length_ft: preset.length_ft,
       guest_min: preset.guest_min,
       guest_max: preset.guest_max,
+      price: preset.price !== undefined && preset.price !== "" ? preset.price : prev.price,
     }));
   };
 
@@ -1375,9 +1469,24 @@ export default function PackageModal({
       return;
     }
 
-    if (!isOffer && !formData.setup_price) {
-      notify("Base setup price is required.", "error");
-      return;
+    if (!isOffer) {
+      const scaffolds = formData.scaffold_size_options || [];
+      if (scaffolds.length === 0) {
+        notify("Add at least one scaffold size with guest limits and base setup price.", "error");
+        return;
+      }
+      const invalidScaffold = scaffolds.find(
+        (opt) =>
+          !opt.width_ft ||
+          !opt.length_ft ||
+          opt.price === undefined ||
+          opt.price === "" ||
+          Number(opt.price) < 0
+      );
+      if (invalidScaffold) {
+        notify("Every scaffold size needs valid dimensions and a base setup price.", "error");
+        return;
+      }
     }
 
     // A combo with no food is not a combo, and a nameless row would be saved
@@ -1470,20 +1579,42 @@ export default function PackageModal({
         return true;
       });
 
+      const rawScaffolds = isOffer || isFoodOnly
+        ? []
+        : (formData.scaffold_size_options || []).map((option) => ({
+            ...option,
+            width_ft: Number(option.width_ft),
+            length_ft: Number(option.length_ft),
+            area_ft2: option.area_ft2 || Number(option.width_ft) * Number(option.length_ft),
+            guest_min: option.guest_min !== undefined && option.guest_min !== "" ? Number(option.guest_min) : undefined,
+            guest_max: option.guest_max !== undefined && option.guest_max !== "" ? Number(option.guest_max) : undefined,
+            price: option.free_setup ? 0 : Number(option.price) || 0,
+            free_setup: Boolean(option.free_setup),
+          }));
+
+      const defaultScaffold =
+        rawScaffolds.find(
+          (o) => String(o._id || o.id) === String(formData.default_scaffold_option_id)
+        ) || rawScaffolds[0];
+
+      const derivedSetupPrice = defaultScaffold ? defaultScaffold.price : 0;
+      const allMins = rawScaffolds
+        .map((s) => Number(s.guest_min))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      const allMaxs = rawScaffolds
+        .map((s) => Number(s.guest_max))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      const derivedGuestMin = allMins.length > 0 ? Math.min(...allMins) : "";
+      const derivedGuestMax = allMaxs.length > 0 ? Math.max(...allMaxs) : "";
+
       const normalizedFormData = {
         ...formData,
         event_type: "",
         // The event-space build, which only a regular package has.
-        scaffold_size_options: isOffer || isFoodOnly
-          ? []
-          : (formData.scaffold_size_options || []).map((option) => ({
-              ...option,
-              price: option.free_setup ? 0 : Number(option.price) || 0,
-              free_setup: Boolean(option.free_setup),
-            })),
+        scaffold_size_options: rawScaffolds,
         default_scaffold_option_id: isOffer || isFoodOnly
           ? ""
-          : formData.default_scaffold_option_id || "",
+          : formData.default_scaffold_option_id || (defaultScaffold?._id || ""),
         setup_equipment: isOffer || isFoodOnly ? [] : formData.setup_equipment || [],
         add_ons: isOffer || isFoodOnly
           ? []
@@ -1494,8 +1625,10 @@ export default function PackageModal({
               }))
               .filter((addon) => addon.name),
         inclusions: normalizedInclusions,
-        // Only a Special Offer carries these.
-        setup_price: isOffer ? "" : formData.setup_price || "",
+        // Derived from scaffold size options for regular packages
+        setup_price: isOffer ? "" : String(derivedSetupPrice),
+        guest_min: isOffer ? formData.guest_min || "" : String(derivedGuestMin),
+        guest_max: isOffer ? formData.guest_max || "" : String(derivedGuestMax),
         guest_count: isOffer ? formData.guest_count || "" : "",
         price_per_guest: isOffer ? formData.price_per_guest || "" : "",
         // Saved in the order shown; the server renumbers `sort_order` from it.
@@ -1885,122 +2018,82 @@ export default function PackageModal({
             </div>
           </section>
 
-          {/* SECTION 3: Pricing & Guest Count --------------------------------
-              What this package is sold on, and nothing else. A regular package
-              is sold on a base set-up price; a combo on a guest count and a
-              rate per pax, both fixed. Only the fields the chosen type actually
-              uses are shown, so neither reads as half-filled. */}
-          <section>
-            <h3 className="font-bold text-foreground mb-1">
-              {isOffer ? "Pricing" : "Pricing & Guest Rules"}
-            </h3>
-            <p className="mb-4 text-xs text-gray-500">
-              {isOffer
-                ? "Special Offers are priced per pax. Customers will specify their guest count when booking."
-                : "The starting price for this package. The quotation remains the final pricing authority."}
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Base Setup Price — regular packages only */}
-              {!isOffer && (
-                <div>
+          {/* SECTION 3: Pricing & Guest Count — Special Offers only */}
+          {isOffer && (
+            <section>
+              <h3 className="font-bold text-foreground mb-1">Pricing</h3>
+              <p className="mb-4 text-xs text-gray-500">
+                Special Offers are priced per pax. Customers will specify their guest count when booking.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 sm:col-span-1">
                   <label className="block text-sm text-gray-600 mb-1">
-                    Base Setup Price (₱) <span className="text-red-400">*</span>
+                    Price Per Pax (₱) <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="number"
                     min="0"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                    placeholder="0"
-                    value={formData.setup_price}
+                    className="w-full border border-amber-300 bg-amber-50/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                    placeholder="e.g. 350"
+                    value={formData.price_per_guest}
                     onChange={(e) => {
                       if (Number(e.target.value) < 0) return;
-                      setFormData({ ...formData, setup_price: e.target.value });
+                      setFormData({
+                        ...formData,
+                        price_per_guest: e.target.value,
+                      });
                     }}
                   />
                 </div>
-              )}
 
-              {/* Combo pricing */}
-              {isOffer && (
-                <>
-                  <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-sm text-gray-600 mb-1">
-                      Price Per Pax (₱) <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full border border-amber-300 bg-amber-50/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-                      placeholder="e.g. 350"
-                      value={formData.price_per_guest}
-                      onChange={(e) => {
-                        if (Number(e.target.value) < 0) return;
-                        setFormData({
-                          ...formData,
-                          price_per_guest: e.target.value,
-                        });
-                      }}
-                    />
-                  </div>
+                {Number(formData.price_per_guest) > 0 && (
+                  <p className="col-span-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-900">
+                    Pricing: <strong>₱{Number(formData.price_per_guest).toLocaleString("en-PH")} / pax</strong> · Customer will specify guest count during booking.
+                  </p>
+                )}
 
-                  {Number(formData.price_per_guest) > 0 && (
-                    <p className="col-span-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-900">
-                      Pricing: <strong>₱{Number(formData.price_per_guest).toLocaleString("en-PH")} / pax</strong> · Customer will specify guest count during booking.
-                    </p>
-                  )}
-                </>
-              )}
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">
+                    Minimum Guests
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none border-amber-300 bg-amber-50/40 focus:border-amber-500"
+                    placeholder="e.g. 50"
+                    value={formData.guest_min}
+                    onChange={(e) => {
+                      if (Number(e.target.value) < 0) return;
+                      setFormData({ ...formData, guest_min: e.target.value });
+                    }}
+                  />
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    Minimum guest count required to book this combo.
+                  </p>
+                </div>
 
-              {/* Minimum & Maximum Guests */}
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">
-                  Minimum Guests
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none ${
-                    isOffer
-                      ? "border-amber-300 bg-amber-50/40 focus:border-amber-500"
-                      : "border-gray-200 focus:border-primary"
-                  }`}
-                  placeholder="e.g. 50"
-                  value={formData.guest_min}
-                  onChange={(e) => {
-                    if (Number(e.target.value) < 0) return;
-                    setFormData({ ...formData, guest_min: e.target.value });
-                  }}
-                />
-                <p className="mt-1 text-[11px] text-gray-400">
-                  Minimum guest count required to book this package.
-                </p>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">
+                    Maximum Guests
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none border-amber-300 bg-amber-50/40 focus:border-amber-500"
+                    placeholder="e.g. 80"
+                    value={formData.guest_max}
+                    onChange={(e) => {
+                      if (Number(e.target.value) < 0) return;
+                      setFormData({ ...formData, guest_max: e.target.value });
+                    }}
+                  />
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    Absolute limit: customer cannot select or enter more guests than this.
+                  </p>
+                </div>
               </div>
-
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">
-                  Maximum Guests
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none ${
-                    isOffer
-                      ? "border-amber-300 bg-amber-50/40 focus:border-amber-500"
-                      : "border-gray-200 focus:border-primary"
-                  }`}
-                  placeholder="e.g. 80"
-                  value={formData.guest_max}
-                  onChange={(e) => {
-                    if (Number(e.target.value) < 0) return;
-                    setFormData({ ...formData, guest_max: e.target.value });
-                  }}
-                />
-                <p className="mt-1 text-[11px] text-gray-400">
-                  Absolute limit: customer cannot select or enter more guests than this.
-                </p>
-              </div>
-            </div>
-          </section>
+            </section>
+          )}
 
           {/* SECTION 4: Combo Food ------------------------------------------
               What the combo serves, written out. A combo is a decided meal, so
@@ -2338,21 +2431,20 @@ export default function PackageModal({
               A regular package supports one size — its own. A Special Offer may
               list several, and may mark one as covering the set-up (the client's
               "20x40 = FREE SET-UP"), which is why the flag lives on the size. */}
+          {/* SECTION 5: Scaffold Size, Guest Capacity & Pricing — regular packages only */}
           {!isOffer && (
           <section>
             <div className="mb-4">
-              <h3 className="font-bold text-foreground">Scaffold Size & Capacity</h3>
+              <h3 className="font-bold text-foreground">Scaffold Size, Guest Capacity &amp; Pricing</h3>
               <p className="text-xs text-gray-500">
-                The event-space size this package is built for, and the guest
-                range it fits. Pricing stays on the quotation.
+                Each scaffold size has its own guest limits and base setup price. Configure one or more sizes for this package.
               </p>
             </div>
 
-            <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
-              {/* Saved sizes. Each row is editable in place, so nothing has to
-                  be deleted and re-entered to correct a number. */}
+            <div className="space-y-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
+              {/* Saved sizes */}
               {scaffoldOptions.length > 0 && (
-                <ul className="space-y-2">
+                <ul className="space-y-2.5">
                   {scaffoldOptions.map((opt, idx) => {
                     const editing = editingScaffoldIdx === idx;
 
@@ -2360,27 +2452,35 @@ export default function PackageModal({
                       return (
                         <li
                           key={idx}
-                          className="rounded-lg border border-blue-200 bg-blue-50/70 p-3 shadow-2xs"
+                          className="rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 shadow-2xs"
                         >
+                          <div className="mb-2 flex items-center justify-between border-b border-blue-200/60 pb-1.5">
+                            <span className="text-xs font-bold text-blue-900 uppercase tracking-wider">
+                              Edit Scaffold #{idx + 1}
+                            </span>
+                            <span className="text-[11px] text-blue-700">
+                              Update dimensions, capacity, or setup price
+                            </span>
+                          </div>
                           <ScaffoldFields
                             value={editScaffoldData}
                             onChange={setEditScaffoldData}
                             compact
                           />
-                          <div className="mt-2 flex gap-1.5">
+                          <div className="mt-3 flex gap-2">
                             <button
                               type="button"
                               onClick={() => handleSaveEditScaffold(idx)}
-                              className="flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-primary/90"
+                              className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-primary/90 cursor-pointer"
                             >
-                              <Check size={12} /> Save
+                              <Check size={13} /> Save Changes
                             </button>
                             <button
                               type="button"
                               onClick={handleCancelEditScaffold}
-                              className="flex items-center gap-1 rounded bg-gray-200 px-2.5 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-300"
+                              className="flex items-center gap-1 rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-300 cursor-pointer"
                             >
-                              <X size={12} /> Cancel
+                              <X size={13} /> Cancel
                             </button>
                           </div>
                         </li>
@@ -2394,10 +2494,9 @@ export default function PackageModal({
                     return (
                       <li
                         key={idx}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-white p-3 shadow-sm transition-colors hover:border-gray-200"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white p-3.5 shadow-xs transition-colors hover:border-gray-200"
                       >
                         <div className="flex min-w-0 items-center gap-3">
-                          {/* Only a list of several needs a default chosen. */}
                           {scaffoldOptions.length > 1 && (
                             <input
                               type="radio"
@@ -2406,33 +2505,33 @@ export default function PackageModal({
                               onChange={() =>
                                 handleSetDefaultScaffoldOption(opt._id || opt.id || idx)
                               }
-                              className="shrink-0 accent-primary"
-                              title="Show this size first"
+                              className="shrink-0 accent-primary cursor-pointer"
+                              title="Set as default scaffold size"
                             />
                           )}
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-medium">
-                              {opt.label || `${opt.width_ft}ft × ${opt.length_ft}ft`}
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-sm font-bold text-slate-800">
+                                {opt.label || `${opt.width_ft}ft × ${opt.length_ft}ft Setup`}
+                              </span>
                               {scaffoldOptions.length > 1 && isDefault && (
-                                <span className="ml-2 rounded-full bg-primary px-2 py-0.5 text-xs text-white">
+                                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
                                   Default
                                 </span>
                               )}
                             </div>
-                            <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-gray-500">
-                              <span>
-                                {opt.width_ft}ft × {opt.length_ft}ft
+                            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 text-xs text-gray-500">
+                              <span className="font-medium text-slate-700">
+                                📐 {opt.width_ft} × {opt.length_ft} ft ({opt.area_ft2 || opt.width_ft * opt.length_ft} ft²)
                               </span>
                               <span>·</span>
-                              <span>{opt.area_ft2 || opt.width_ft * opt.length_ft} ft²</span>
-                              {(opt.guest_min || opt.guest_max) && (
-                                <>
-                                  <span>·</span>
-                                  <span className="font-medium text-primary">
-                                    👥 {opt.guest_min || 0} – {opt.guest_max || "∞"} guests
-                                  </span>
-                                </>
-                              )}
+                              <span className="font-medium text-blue-700">
+                                👥 {opt.guest_min || 0} – {opt.guest_max || "∞"} guests
+                              </span>
+                              <span>·</span>
+                              <span className="font-bold text-emerald-700">
+                                ₱{Number(opt.price || 0).toLocaleString("en-PH")} Base Setup
+                              </span>
                               {opt.free_setup && (
                                 <>
                                   <span>·</span>
@@ -2444,22 +2543,22 @@ export default function PackageModal({
                             </div>
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
+                        <div className="flex shrink-0 items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleStartEditScaffold(idx, opt)}
-                            className="rounded p-1 text-gray-400 transition-colors hover:bg-primary/5 hover:text-primary"
-                            title="Edit size"
+                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-primary/10 hover:text-primary cursor-pointer"
+                            title="Edit scaffold configuration"
                           >
-                            <Pencil size={13} />
+                            <Pencil size={14} />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleRemoveScaffoldOption(idx)}
-                            className="rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                            title="Remove size"
+                            className="rounded-lg p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                            title="Remove scaffold configuration"
                           >
-                            <Trash2 size={13} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </li>
@@ -2468,72 +2567,61 @@ export default function PackageModal({
                 </ul>
               )}
 
-              {/* The add form. It used to vanish the moment an option was added,
-                  which left an offer stuck at one size with no way back — the
-                  bug this replaces. An offer keeps the form available; a regular
-                  package supports one size, so it offers "Replace" instead of a
-                  second row. */}
-              {canAddScaffold ? (
-                <div className="rounded-lg border border-dashed border-gray-300 bg-white p-3">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                    {scaffoldOptions.length === 0 ? "Add a size" : "Add another size"}
+              {/* Add Scaffold Form */}
+              <div className="rounded-xl border border-dashed border-gray-300 bg-white p-4 shadow-2xs">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    {scaffoldOptions.length === 0 ? "Add Scaffold Configuration" : "Add Another Scaffold Option"}
                   </p>
-                  <ScaffoldFields
-                    value={newScaffoldOption}
-                    onChange={setNewScaffoldOption}
-                  />
+                  <span className="text-[11px] text-gray-400">
+                    Each scaffold controls guest limits &amp; base setup price
+                  </span>
+                </div>
 
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Btn
-                      variant="primary"
-                      size="sm"
-                      onClick={handleAddScaffoldOption}
-                      disabled={!newScaffoldOption.width_ft || !newScaffoldOption.length_ft}
-                    >
-                      <Plus size={12} className="mr-1" /> Add size
-                    </Btn>
-                    <span className="text-[11px] text-gray-400">
-                      Standard sizes:
+                <ScaffoldFields
+                  value={newScaffoldOption}
+                  onChange={setNewScaffoldOption}
+                />
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100">
+                  <Btn
+                    variant="primary"
+                    size="sm"
+                    onClick={handleAddScaffoldOption}
+                    disabled={
+                      !newScaffoldOption.width_ft ||
+                      !newScaffoldOption.length_ft ||
+                      newScaffoldOption.price === "" ||
+                      newScaffoldOption.price === undefined
+                    }
+                  >
+                    <Plus size={13} className="mr-1" /> Add Scaffold
+                  </Btn>
+
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                    <span className="text-[11px] text-gray-400 mr-1">
+                      Standard presets:
                     </span>
                     {SCAFFOLD_PRESETS.map((preset, idx) => (
                       <button
                         key={idx}
                         type="button"
                         onClick={() => handleApplyScaffoldPreset(preset)}
-                        className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 shadow-2xs transition-all hover:border-primary hover:bg-primary/5 hover:text-primary"
+                        className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-700 shadow-2xs transition-all hover:border-primary/40 hover:bg-powder hover:text-primary cursor-pointer"
                       >
                         {preset.label}
                       </button>
                     ))}
                   </div>
                 </div>
-              ) : (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2.5">
-                  <p className="text-xs text-gray-500">
-                    A regular package supports one size. Edit the one above, or
-                    replace it.
-                  </p>
-                  <Btn
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        scaffold_size_options: [],
-                        default_scaffold_option_id: "",
-                      }));
-                      setEditingScaffoldIdx(null);
-                    }}
-                  >
-                    Replace size
-                  </Btn>
-                </div>
-              )}
+              </div>
 
               {scaffoldOptions.length === 0 && (
-                <p className="text-center text-xs italic text-gray-400">
-                  No size configured yet.
-                </p>
+                <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50/60 p-3.5 text-center">
+                  <p className="text-xs font-medium text-amber-800">
+                    No scaffold size configured yet. Use the form above to add at least one scaffold option with size, guest limits, and base setup price.
+                  </p>
+                </div>
               )}
             </div>
           </section>

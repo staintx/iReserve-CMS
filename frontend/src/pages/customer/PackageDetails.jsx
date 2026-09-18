@@ -4,7 +4,7 @@ import CustomerLayout from "../../components/layout/CustomerLayout";
 import CustomerFooter from "../../components/layout/CustomerFooter";
 import useBusinessInfo, { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
 import { CustomerAPI } from "../../api/customer";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, X, Sparkles, Utensils } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, ChevronDown, X, Sparkles, Utensils } from "lucide-react";
 import {
   capacityLabel,
   eventTypeForPackage,
@@ -175,6 +175,40 @@ export default function PackageDetails() {
     );
   };
 
+  // Sizes are a regular package's: they describe the event space it builds.
+  // A combo is food, so it has none to show — and showing an empty table, or
+  // one inherited from a record that used to be a package, would promise a
+  // set-up the combo does not include.
+  const scaffoldOptions = useMemo(() => {
+    return !offer && Array.isArray(data?.scaffold_size_options)
+      ? data.scaffold_size_options.filter(
+          (option) => option?.label || option?.width_ft || option?.price,
+        )
+      : [];
+  }, [offer, data]);
+
+  const [selectedScaffoldId, setSelectedScaffoldId] = useState(null);
+
+  useEffect(() => {
+    if (data && !offer && scaffoldOptions.length > 0) {
+      const defaultOpt =
+        scaffoldOptions.find(
+          (o) => String(o._id) === String(data.default_scaffold_option_id),
+        ) || scaffoldOptions[0];
+      if (defaultOpt) {
+        setSelectedScaffoldId(String(defaultOpt._id));
+      }
+    }
+  }, [data, offer, scaffoldOptions]);
+
+  const activeScaffold = useMemo(() => {
+    if (!scaffoldOptions.length) return null;
+    return (
+      scaffoldOptions.find((o) => String(o._id) === String(selectedScaffoldId)) ||
+      scaffoldOptions[0]
+    );
+  }, [scaffoldOptions, selectedScaffoldId]);
+
   const bookingState = data
     ? {
         resetWizard: true,
@@ -190,23 +224,25 @@ export default function PackageDetails() {
         packageName: data.name,
         packagePrice: offer
           ? perPax
-          : data.setup_price || perGuestPrice(data) || 0,
+          : (activeScaffold?.price || data.setup_price || perGuestPrice(data) || 0),
         // A combo allows flexible guest count input starting from 1 or min pax
-        guestMin: offer ? data.guest_min || 1 : data.guest_min || null,
-        guestMax: offer ? data.guest_max || data.guest_count || null : data.guest_max || null,
+        guestMin: offer
+          ? data.guest_min || 1
+          : (activeScaffold?.guest_min || data.guest_min || null),
+        guestMax: offer
+          ? data.guest_max || data.guest_count || null
+          : (activeScaffold?.guest_max || data.guest_max || null),
+        selectedScaffoldOptionId: activeScaffold?._id || null,
+        scaffoldWidth: activeScaffold?.width_ft || null,
+        scaffoldLength: activeScaffold?.length_ft || null,
+        scaffoldBaseArea:
+          activeScaffold?.area_ft2 ||
+          (activeScaffold?.width_ft && activeScaffold?.length_ft
+            ? activeScaffold.width_ft * activeScaffold.length_ft
+            : null),
+        scaffoldPrice: activeScaffold?.price || null,
       }
     : null;
-
-  // Sizes are a regular package's: they describe the event space it builds.
-  // A combo is food, so it has none to show — and showing an empty table, or
-  // one inherited from a record that used to be a package, would promise a
-  // set-up the combo does not include.
-  const scaffoldOptions =
-    !offer && Array.isArray(data?.scaffold_size_options)
-      ? data.scaffold_size_options.filter(
-          (option) => option?.label || option?.width_ft || option?.price,
-        )
-      : [];
 
   // A package's inclusions carry the inventory class they came from and are
   // grouped by it; a combo's are plain lines the admin typed, so they are
@@ -397,13 +433,23 @@ export default function PackageDetails() {
                       <dd>
                         {offer && perPax > 0
                           ? `${peso(perPax)} per plate / pax`
-                          : priceLabel(data)}
+                          : activeScaffold?.price
+                            ? `${peso(activeScaffold.price)} Base setup`
+                            : priceLabel(data)}
                       </dd>
                     </div>
-                    {!offer && capacity && (
+                    {!offer && (
                       <div>
                         <dt>Estimated Guest</dt>
-                        <dd>{capacity}</dd>
+                        <dd>
+                          {activeScaffold?.guest_min || activeScaffold?.guest_max
+                            ? activeScaffold.guest_min && activeScaffold.guest_max
+                              ? `${activeScaffold.guest_min}–${activeScaffold.guest_max} guests`
+                              : activeScaffold.guest_max
+                                ? `Up to ${activeScaffold.guest_max} guests`
+                                : `From ${activeScaffold.guest_min} guests`
+                            : capacity}
+                        </dd>
                       </div>
                     )}
                     {!offer && (inclusionGroups.length > 0 || comboInclusions.length > 0) && (
@@ -417,11 +463,45 @@ export default function PackageDetails() {
                     )}
                   </dl>
 
+                  {/* Scaffold size dropdown when multiple sizes available */}
+                  {!offer && scaffoldOptions.length > 1 && (
+                    <div className="mb-4">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                        Scaffold Size
+                      </label>
+                      <div className="relative inline-block w-full max-w-sm">
+                        <select
+                          value={activeScaffold?._id || ""}
+                          onChange={(e) => setSelectedScaffoldId(e.target.value)}
+                          className="w-full h-10 pl-3.5 pr-9 text-sm font-semibold bg-white border border-slate-300 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#4C81E0] focus:border-[#4C81E0] shadow-2xs text-slate-800"
+                        >
+                          {scaffoldOptions.map((opt) => {
+                            const dims = `${opt.width_ft} × ${opt.length_ft} ft`;
+                            const guests = opt.guest_min && opt.guest_max
+                              ? `${opt.guest_min}–${opt.guest_max} guests`
+                              : opt.guest_max
+                                ? `up to ${opt.guest_max} guests`
+                                : "";
+                            const priceStr = opt.price ? peso(opt.price) : "";
+                            const extra = [guests, priceStr].filter(Boolean).join(" · ");
+                            return (
+                              <option key={opt._id} value={opt._id}>
+                                {opt.label || dims}{extra ? ` (${extra})` : ""}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <ChevronDown
+                          size={16}
+                          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   {/* Sizes live with the rest of what a customer needs before
                       they decide — price, guests, includes — rather than
-                      buried in the body. Price is intentionally left off each
-                      row: the Price fact above already gives the starting
-                      price, and the exact quote comes from the booking flow. */}
+                      buried in the body. */}
                   {scaffoldOptions.length > 0 && (
                     <div className="ls-detail-sizes">
                       <p className="ls-detail-sizes-label">Available sizes</p>
@@ -432,34 +512,51 @@ export default function PackageDetails() {
                               <th scope="col">Size</th>
                               <th scope="col">Area</th>
                               <th scope="col">Guests</th>
-                              <th scope="col">Set-up</th>
+                              <th scope="col">Base Setup Price</th>
                             </tr>
                           </thead>
                           <tbody>
                             {scaffoldOptions.map((option, index) => {
+                              const isSelected = String(option._id) === String(activeScaffold?._id);
                               const dims =
                                 option.width_ft && option.length_ft
                                   ? `${option.width_ft} × ${option.length_ft} ft`
                                   : "—";
+                              const area =
+                                option.area_ft2 || (option.width_ft && option.length_ft ? `${option.width_ft * option.length_ft} sq ft` : "—");
                               const guests =
                                 option.guest_min && option.guest_max
                                   ? `${option.guest_min}–${option.guest_max}`
                                   : option.guest_max
                                     ? `Up to ${option.guest_max}`
-                                    : "—";
+                                    : option.guest_min
+                                      ? `From ${option.guest_min}`
+                                      : "—";
 
                               return (
-                                <tr key={option._id || `${option.label}-${index}`}>
-                                  <th scope="row">{option.label || `Option ${index + 1}`}</th>
-                                  <td>{dims}</td>
+                                <tr
+                                  key={option._id || `${option.label}-${index}`}
+                                  onClick={() => setSelectedScaffoldId(String(option._id))}
+                                  className={isSelected ? "bg-blue-50/50 font-medium cursor-pointer" : "cursor-pointer hover:bg-slate-50"}
+                                >
+                                  <th scope="row">
+                                    <div className="flex items-center gap-1.5">
+                                      <span>{option.label || dims}</span>
+                                      {isSelected && (
+                                        <span className="text-[10px] font-bold text-[#4C81E0] bg-blue-100/60 px-1.5 py-0.5 rounded">
+                                          Selected
+                                        </span>
+                                      )}
+                                    </div>
+                                  </th>
+                                  <td>{typeof area === "number" ? `${area} sq ft` : area}</td>
                                   <td>{guests}</td>
-                                  {/* What a size costs is a quotation
-                                      decision, so this says whether the package
-                                      covers it — never a number. */}
-                                  <td>
-                                    {option.free_setup
-                                      ? "Free with this package"
-                                      : "Priced on quotation"}
+                                  <td className="font-semibold text-slate-900">
+                                    {option.price
+                                      ? peso(option.price)
+                                      : option.free_setup
+                                        ? "Free with this package"
+                                        : "Priced on quotation"}
                                   </td>
                                 </tr>
                               );

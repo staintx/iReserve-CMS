@@ -313,28 +313,61 @@ const normalizeOfferType = (value) =>
  * are still priced from.
  */
 const normalizeScaffoldOptions = (options, existing = []) => {
+  let parsedOptions = options;
+  if (typeof options === "string") {
+    try {
+      parsedOptions = JSON.parse(options);
+    } catch {
+      parsedOptions = [];
+    }
+  }
+
   const priceById = new Map(
     (Array.isArray(existing) ? existing : [])
       .filter((option) => option?._id && option.price != null)
       .map((option) => [String(option._id), option.price]),
   );
 
-  return (Array.isArray(options) ? options : []).map((option) => {
+  return (Array.isArray(parsedOptions) ? parsedOptions : []).map((option) => {
     const carriedPrice = option._id ? priceById.get(String(option._id)) : undefined;
     const free_setup = option.free_setup === true || option.free_setup === "true";
+    const explicitPrice =
+      option.price !== undefined && option.price !== "" && option.price !== null
+        ? Number(option.price)
+        : option.baseSetupPrice !== undefined &&
+            option.baseSetupPrice !== "" &&
+            option.baseSetupPrice !== null
+          ? Number(option.baseSetupPrice)
+          : carriedPrice;
+
+    const resolvedPrice = free_setup
+      ? 0
+      : explicitPrice !== undefined && !isNaN(explicitPrice)
+        ? explicitPrice
+        : 0;
 
     return {
       ...option,
-      guest_min: option.guest_min ? Number(option.guest_min) : undefined,
-      guest_max: option.guest_max ? Number(option.guest_max) : undefined,
+      width_ft: Number(option.width_ft),
+      length_ft: Number(option.length_ft),
+      area_ft2:
+        option.area_ft2 ||
+        Number(option.width_ft) * Number(option.length_ft) ||
+        0,
+      guest_min:
+        option.guest_min !== undefined &&
+        option.guest_min !== "" &&
+        option.guest_min !== null
+          ? Number(option.guest_min)
+          : undefined,
+      guest_max:
+        option.guest_max !== undefined &&
+        option.guest_max !== "" &&
+        option.guest_max !== null
+          ? Number(option.guest_max)
+          : undefined,
       free_setup,
-      // Free set-up settles the price at zero; otherwise whatever was stored
-      // before survives, and a new option simply has none.
-      ...(free_setup
-        ? { price: 0 }
-        : carriedPrice !== undefined
-          ? { price: carriedPrice }
-          : {}),
+      price: resolvedPrice,
     };
   });
 };
@@ -636,6 +669,29 @@ exports.create = async (req, res) => {
       payload.default_scaffold_option_id =
         scaffold_size_options[0]._id || scaffold_size_options[0].id || "0";
     }
+
+    // Auto-derive package setup_price and guest bounds from scaffold_size_options if not explicitly provided
+    if (scaffold_size_options.length > 0) {
+      const defaultOpt =
+        scaffold_size_options.find(
+          (o) => String(o._id || o.id) === String(payload.default_scaffold_option_id)
+        ) || scaffold_size_options[0];
+      if (payload.setup_price === undefined || payload.setup_price === "" || payload.setup_price === null) {
+        payload.setup_price = defaultOpt?.price || 0;
+      }
+      if (payload.guest_min === undefined || payload.guest_min === null) {
+        const mins = scaffold_size_options
+          .map((o) => Number(o.guest_min))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        if (mins.length > 0) payload.guest_min = Math.min(...mins);
+      }
+      if (payload.guest_max === undefined || payload.guest_max === null) {
+        const maxs = scaffold_size_options
+          .map((o) => Number(o.guest_max))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        if (maxs.length > 0) payload.guest_max = Math.max(...maxs);
+      }
+    }
   } else {
     delete payload.default_scaffold_option_id;
   }
@@ -809,6 +865,29 @@ exports.update = async (req, res) => {
     data.setup_equipment = [];
     data.add_ons = [];
     data.default_scaffold_option_id = null;
+  } else if (Array.isArray(data.scaffold_size_options) && data.scaffold_size_options.length > 0) {
+    const activeScaffold = data.scaffold_size_options;
+    const defaultOpt =
+      activeScaffold.find(
+        (o) =>
+          String(o._id || o.id) ===
+          String(data.default_scaffold_option_id || current.default_scaffold_option_id)
+      ) || activeScaffold[0];
+    if (req.body.setup_price === undefined || req.body.setup_price === "" || req.body.setup_price === null) {
+      data.setup_price = defaultOpt?.price || 0;
+    }
+    if (req.body.guest_min === undefined || req.body.guest_min === "" || req.body.guest_min === null) {
+      const mins = activeScaffold
+        .map((o) => Number(o.guest_min))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      if (mins.length > 0) data.guest_min = Math.min(...mins);
+    }
+    if (req.body.guest_max === undefined || req.body.guest_max === "" || req.body.guest_max === null) {
+      const maxs = activeScaffold
+        .map((o) => Number(o.guest_max))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      if (maxs.length > 0) data.guest_max = Math.max(...maxs);
+    }
   }
 
   const validationError = await validatePackageItems({
@@ -1254,3 +1333,5 @@ exports.createBulk = async (req, res) => {
     res.status(500).json({ error: "Failed to create bulk packages", details: error.message });
   }
 };
+
+exports.normalizeScaffoldOptions = normalizeScaffoldOptions;

@@ -15,6 +15,7 @@ export default function MenuModal({ item, onClose, onSave }) {
   const [formData, setFormData] = useState({
     name: "",
     category: "Main Course",
+    price: "",
     description: "",
     status: "available",
     available: true
@@ -29,6 +30,7 @@ export default function MenuModal({ item, onClose, onSave }) {
       setFormData({
         name: item.name || "",
         category: isCustom ? "Others" : (item.category || "Main Course"),
+        price: item.price !== undefined && item.price !== null ? item.price : "",
         description: item.description || "",
         status: item.available === false ? "unavailable" : "available",
         available: item.available !== false
@@ -39,6 +41,7 @@ export default function MenuModal({ item, onClose, onSave }) {
       setFormData({
         name: "",
         category: "Main Course",
+        price: "",
         description: "",
         status: "available",
         available: true
@@ -82,6 +85,7 @@ export default function MenuModal({ item, onClose, onSave }) {
       const data = new FormData();
       data.append("name", trimmedName);
       data.append("category", finalCategory);
+      data.append("price", formData.price ? Number(formData.price) : 0);
       data.append("description", formData.description || "");
       data.append("available", formData.status === "available");
       
@@ -136,20 +140,38 @@ export default function MenuModal({ item, onClose, onSave }) {
             />
           </div>
 
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Category</label>
-            <select 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
-              value={isOtherCategory ? "Others" : formData.category} 
-              onChange={handleCategoryChange}
-            >
-              {PREDEFINED_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-              <option value="Others">Others</option>
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Category</label>
+              <select 
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
+                value={isOtherCategory ? "Others" : formData.category} 
+                onChange={handleCategoryChange}
+              >
+                {PREDEFINED_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+                <option value="Others">Others</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Price (₱)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold">₱</span>
+                <input 
+                  type="number" 
+                  min="0"
+                  step="0.01"
+                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:border-primary" 
+                  placeholder="0.00" 
+                  value={formData.price} 
+                  onChange={e => setFormData({...formData, price: e.target.value})} 
+                />
+              </div>
+            </div>
           </div>
 
           {isOtherCategory && (

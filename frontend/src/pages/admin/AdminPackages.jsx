@@ -10,6 +10,15 @@ import {
   Sparkles,
   Users,
   Tag,
+  LayoutGrid,
+  List,
+  Copy,
+  CheckCircle2,
+  XCircle,
+  Package as PackageIcon,
+  Utensils,
+  Layers,
+  Calendar,
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -21,8 +30,9 @@ import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import PackageModal from "../../components/admin/ui/PackageModal";
 import AIPackageParserModal from "../../components/admin/ui/AIPackageParserModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
-// One list for the whole product: the booking wizard offers these, and the
-// Quotation Builder corrects into the same set.
+import DataTable from "../../components/admin/table/DataTable";
+import Pagination from "../../components/admin/table/Pagination";
+import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import { EVENT_TYPES } from "../../lib/eventTypes";
 import {
   OFFER_TYPES,
@@ -34,12 +44,6 @@ import {
   offerFoodByCategory,
 } from "../../lib/specialOffers";
 
-/**
- * Regular packages and Special Offers are the same kind of record, managed in
- * the same place. The tabs separate them so each list is about one thing, and
- * so the create action can open the form already set to the type the admin was
- * looking at.
- */
 const TABS = [
   {
     id: OFFER_TYPES.REGULAR,
@@ -60,6 +64,8 @@ const TABS = [
   },
 ];
 
+const PAGE_SIZE = 12;
+
 function getRegularPackageCategories(pkg) {
   const categoriesMap = new Map();
 
@@ -68,7 +74,7 @@ function getRegularPackageCategories(pkg) {
     categoriesMap.set(cleanCat, (categoriesMap.get(cleanCat) || 0) + count);
   };
 
-  // 1. Process inclusions array (e.g. "[Event Setup & Furniture] Stage Setup", etc.)
+  // 1. Process inclusions array
   if (Array.isArray(pkg?.inclusions)) {
     pkg.inclusions.forEach((inc) => {
       if (!inc || typeof inc !== "string") return;
@@ -104,11 +110,13 @@ export default function AdminPackages() {
   const { notify } = useToast();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState(OFFER_TYPES.REGULAR);
+  const [viewMode, setViewMode] = useState("cards"); // 'cards' | 'table'
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Filter states
   const [filters, setFilters] = useState({
     event_type: "",
-    available: "", // "true", "false", or ""
+    available: "",
   });
   const [showFilters, setShowFilters] = useState(false);
 
@@ -144,6 +152,34 @@ export default function AdminPackages() {
     setActivePkg(null);
   };
 
+  const handleDuplicate = async (pkg) => {
+    try {
+      const cloned = {
+        ...pkg,
+        name: `${pkg.name} (Copy)`,
+      };
+      delete cloned._id;
+      delete cloned.createdAt;
+      delete cloned.updatedAt;
+      await AdminAPI.createPackage(cloned);
+      notify(`Duplicated "${pkg.name}" successfully`, "success");
+      loadData();
+    } catch {
+      notify("Failed to duplicate package", "error");
+    }
+  };
+
+  const handleToggleAvailability = async (pkg) => {
+    try {
+      const newStatus = !pkg.available;
+      await AdminAPI.updatePackage(pkg._id, { available: newStatus });
+      notify(`"${pkg.name}" is now ${newStatus ? "available" : "unavailable"}`, "success");
+      loadData();
+    } catch {
+      notify("Failed to update status", "error");
+    }
+  };
+
   const handleDelete = (id) => {
     AdminAPI.deletePackage(id)
       .then(() => {
@@ -154,8 +190,8 @@ export default function AdminPackages() {
       .catch((err) =>
         notify(
           err.response?.data?.message || "Failed to delete package",
-          "error",
-        ),
+          "error"
+        )
       );
   };
 
@@ -168,14 +204,12 @@ export default function AdminPackages() {
   const activeTab = TABS.find((entry) => entry.id === tab) || TABS[0];
   const isOfferTab = activeTab.id === OFFER_TYPES.SPECIAL;
 
-  // Packages written before Special Offers existed carry no offer_type, so
-  // "regular" is everything that is not explicitly an offer.
   const inTab = useMemo(
     () =>
       packages.filter((pkg) =>
-        isOfferTab ? isSpecialOffer(pkg) : !isSpecialOffer(pkg),
+        isOfferTab ? isSpecialOffer(pkg) : !isSpecialOffer(pkg)
       ),
-    [packages, isOfferTab],
+    [packages, isOfferTab]
   );
 
   const tabCounts = useMemo(
@@ -183,7 +217,7 @@ export default function AdminPackages() {
       [OFFER_TYPES.REGULAR]: packages.filter((pkg) => !isSpecialOffer(pkg)).length,
       [OFFER_TYPES.SPECIAL]: packages.filter(isSpecialOffer).length,
     }),
-    [packages],
+    [packages]
   );
 
   const filteredPackages = useMemo(() => {
@@ -207,14 +241,21 @@ export default function AdminPackages() {
     });
   }, [inTab, search, filters]);
 
+  // Reset page when tab/filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [tab, search, filters]);
+
+  const totalItems = filteredPackages.length;
+  const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
+  const paginatedPackages = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredPackages.slice(start, start + PAGE_SIZE);
+  }, [filteredPackages, currentPage]);
+
   const fmt = (n) =>
     "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0 });
 
-  /**
-   * The one line that says what this package costs. A combo is priced per pax
-   * against its own guest count; a regular package is priced by the scaffold
-   * size the customer picks.
-   */
   const priceLine = (pkg) => {
     if (isSpecialOffer(pkg)) {
       const perPax = offerPricePerPax(pkg);
@@ -227,10 +268,8 @@ export default function AdminPackages() {
       }
       return {
         headline: `${fmt(perPax)} / pax`,
-        // The combo's real food price, because "₱350 / pax" alone is the one
-        // number an admin is most likely to read as the total.
         detail: pax
-          ? `${fmt(offerBaseFoodPrice(pkg))} for ${pax} guests — set-up and extras quoted separately`
+          ? `${fmt(offerBaseFoodPrice(pkg))} for ${pax} guests`
           : "Set-up and extras quoted separately",
       };
     }
@@ -256,8 +295,6 @@ export default function AdminPackages() {
     if (pkg.setup_price) {
       return { headline: fmt(pkg.setup_price), detail: "Base setup fee" };
     }
-    // Scaffold sizes carry no price, so a package with only sizes configured
-    // has no figure to show. Saying so beats printing a ₱0 nobody set.
     if (pkg.scaffold_size_options?.length > 0) {
       return {
         headline: "Priced on quotation",
@@ -269,9 +306,171 @@ export default function AdminPackages() {
     return { headline: "Setup Package", detail: null };
   };
 
+  // Helper to count dishes and addons
+  const getPackageMetrics = (pkg) => {
+    const offer = isSpecialOffer(pkg);
+    const dishCount = offer
+      ? (pkg.offer_food_items || []).length
+      : (pkg.menu_items || []).length;
+    const addonCount = (pkg.add_ons || []).length + (pkg.setup_equipment || []).length;
+    return { dishCount, addonCount };
+  };
+
+  // Row actions for three-dot menu
+  const getRowActions = (pkg) => [
+    {
+      key: "edit",
+      label: "Edit Package",
+      icon: Eye,
+      onSelect: () => handleOpenModal(pkg),
+    },
+    {
+      key: "duplicate",
+      label: "Duplicate",
+      icon: Copy,
+      onSelect: () => handleDuplicate(pkg),
+    },
+    {
+      key: "toggle",
+      label: pkg.available ? "Set Unavailable" : "Set Available",
+      icon: pkg.available ? XCircle : CheckCircle2,
+      onSelect: () => handleToggleAvailability(pkg),
+    },
+    { divider: true },
+    {
+      key: "delete",
+      label: "Delete Package",
+      icon: Trash2,
+      destructive: true,
+      onSelect: () => setCancelTarget(pkg),
+    },
+  ];
+
+  // Table columns for Table View
+  const tableColumns = [
+    {
+      key: "thumbnail",
+      header: "Photo",
+      width: "56px",
+      render: (pkg) =>
+        pkg.image_url ? (
+          <img
+            src={pkg.image_url}
+            alt={pkg.name}
+            className="w-10 h-8 rounded-md object-cover border border-border/70"
+          />
+        ) : (
+          <div className="w-10 h-8 rounded-md bg-muted/40 border border-border/60 flex items-center justify-center text-muted-foreground/60">
+            <PackageIcon size={14} />
+          </div>
+        ),
+    },
+    {
+      key: "name",
+      header: "Package Name",
+      render: (pkg) => (
+        <div className="min-w-0 max-w-[280px]">
+          <button
+            type="button"
+            onClick={() => handleOpenModal(pkg)}
+            className="font-bold text-foreground text-left hover:text-primary transition-colors truncate block text-[13px] cursor-pointer"
+          >
+            {pkg.name}
+          </button>
+          <span className="text-[11px] text-muted-foreground block truncate">
+            {pkg.description || "No description"}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "eventType",
+      header: "Event Type",
+      render: (pkg) => (
+        <span className="text-[11px] font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+          {pkg.event_type || "All Events"}
+        </span>
+      ),
+    },
+    {
+      key: "dishes",
+      header: "Dishes Included",
+      render: (pkg) => {
+        const { dishCount } = getPackageMetrics(pkg);
+        return (
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground tabular-nums">
+            <Utensils size={13} className="text-primary" />
+            {dishCount} {dishCount === 1 ? "dish" : "dishes"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "addons",
+      header: "Add-ons / Setup",
+      render: (pkg) => {
+        const { addonCount } = getPackageMetrics(pkg);
+        return (
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground tabular-nums">
+            <Layers size={13} className="text-slate-500" />
+            {addonCount} {addonCount === 1 ? "item" : "items"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "pricing",
+      header: "Pricing",
+      render: (pkg) => {
+        const p = priceLine(pkg);
+        return (
+          <div>
+            <p className="font-bold text-foreground text-xs">{p.headline}</p>
+            {p.detail && <p className="text-[10.5px] text-muted-foreground">{p.detail}</p>}
+          </div>
+        );
+      },
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (pkg) => <Badge status={pkg.available ? "available" : "unavailable"} dot />,
+    },
+    {
+      key: "updatedAt",
+      header: "Last Updated",
+      render: (pkg) => {
+        const d = pkg.updatedAt || pkg.createdAt;
+        return (
+          <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+            {d
+              ? new Date(d).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : "—"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "",
+      width: "48px",
+      headerClassName: "text-right",
+      className: "text-right",
+      render: (pkg) => (
+        <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+          <RowActionsMenu actions={getRowActions(pkg)} />
+        </div>
+      ),
+    },
+  ];
+
   return (
     <AdminLayout>
-      <div className="space-y-4 bg-background min-h-screen">
+      <div className="space-y-4 bg-background min-h-screen pb-10">
         {/* ============ HEADER ============ */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
@@ -280,12 +479,12 @@ export default function AdminPackages() {
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">{activeTab.blurb}</p>
           </div>
-          {/* Creating from a tab opens the form already set to that type */}
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
             <button
               type="button"
               onClick={() => setShowAIModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-primary bg-powder border border-primary/20 shadow-2xs hover:bg-powder/80 transition-all cursor-pointer active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-primary bg-powder border border-primary/20 shadow-2xs hover:bg-powder/80 transition-all cursor-pointer active:scale-95"
             >
               <Sparkles size={13} className="text-primary" />
               <span>Import with Zelle AI</span>
@@ -296,13 +495,12 @@ export default function AdminPackages() {
           </div>
         </div>
 
-        {/* ============ TABS ============ */}
+        {/* ============ TABS (Cool SaaS Blue Accent) ============ */}
         <div
           className="flex items-center gap-1 border-b border-border/80"
           role="tablist"
           aria-label="Package type"
         >
-
           {TABS.map((entry) => {
             const selected = entry.id === activeTab.id;
             const isOffer = entry.id === OFFER_TYPES.SPECIAL;
@@ -317,23 +515,19 @@ export default function AdminPackages() {
                   setSearch("");
                   clearFilters();
                 }}
-                className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
+                className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors cursor-pointer ${
                   selected
-                    ? isOffer
-                      ? "border-amber-500 text-amber-700"
-                      : "border-primary text-primary"
-                    : "border-transparent text-gray-500 hover:text-gray-800"
+                    ? "border-primary text-primary font-bold"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {isOffer && <Tag size={14} />}
+                {isOffer ? <Tag size={14} /> : <PackageIcon size={14} />}
                 {entry.label}
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
                     selected
-                      ? isOffer
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-primary/10 text-primary"
-                      : "bg-gray-100 text-gray-500"
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {tabCounts[entry.id] || 0}
@@ -345,286 +539,357 @@ export default function AdminPackages() {
 
         <div className="space-y-4">
           {/* Search & Filters Bar */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            {/* Search */}
-            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-3 py-2 flex-1 max-w-md shadow-2xs">
-              <Search size={14} className="text-muted-foreground/70 flex-shrink-0" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={
-                  isOfferTab
-                    ? "Search combos by name..."
-                    : "Search packages by name..."
-                }
-                className="bg-transparent text-xs sm:text-sm focus:outline-none flex-1 text-foreground"
-              />
-              {search && (
+          <AdminCard className="!p-3 sm:!p-3.5 space-y-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              {/* Search */}
+              <div className="flex items-center gap-2 bg-muted/60 border border-border/70 rounded-md px-3 py-1.5 flex-1 max-w-md shadow-2xs focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15 transition-all">
+                <Search size={14} className="text-muted-foreground/70 shrink-0" />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={
+                    isOfferTab
+                      ? "Search combos by name..."
+                      : "Search packages by name..."
+                  }
+                  className="bg-transparent text-xs sm:text-sm focus:outline-none flex-1 text-foreground"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Controls & View Switcher */}
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                {/* Filter Toggle Button */}
                 <button
-                  onClick={() => setSearch("")}
-                  className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                  type="button"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors border cursor-pointer shadow-2xs ${
+                    hasActiveFilters || showFilters
+                      ? "bg-primary/10 border-primary text-primary"
+                      : "bg-muted/60 border-border/70 text-foreground hover:bg-muted"
+                  }`}
                 >
-                  <X size={14} />
+                  <Filter size={13} />
+                  <span>Filters</span>
+                  {hasActiveFilters && <span className="w-1.5 h-1.5 bg-primary rounded-full" />}
+                  <ChevronDown
+                    size={13}
+                    className={`transition-transform ${showFilters ? "rotate-180" : ""}`}
+                  />
                 </button>
-              )}
+
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 hover:text-red-600 font-semibold cursor-pointer"
+                  >
+                    <X size={13} /> Clear
+                  </button>
+                )}
+
+                {/* View Switcher: Cards vs Table */}
+                <div className="flex items-center border border-border/80 rounded-md p-0.5 bg-muted/60 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("cards")}
+                    className={`p-1.5 rounded text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                      viewMode === "cards"
+                        ? "bg-white text-primary shadow-2xs font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    title="Card Grid View"
+                  >
+                    <LayoutGrid size={14} />
+                    <span className="hidden sm:inline">Cards</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("table")}
+                    className={`p-1.5 rounded text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                      viewMode === "table"
+                        ? "bg-white text-primary shadow-2xs font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    title="Compact Table View"
+                  >
+                    <List size={14} />
+                    <span className="hidden sm:inline">Table</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Filter Toggle Button */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors border cursor-pointer shadow-2xs ${
-                hasActiveFilters || showFilters
-                  ? "bg-primary/10 border-primary text-primary"
-                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              <Filter size={14} />
-              Filters
-              {hasActiveFilters && <span className="w-2 h-2 bg-primary rounded-full" />}
-              <ChevronDown
-                size={14}
-                className={`transition-transform ${showFilters ? "rotate-180" : ""}`}
-              />
-            </button>
+            {/* Filter Panel */}
+            {showFilters && (
+              <div className="pt-3 border-t border-border/70 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+                {/* Event Type Filter */}
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                    Event Type
+                  </label>
+                  <select
+                    value={filters.event_type}
+                    onChange={(e) =>
+                      setFilters({ ...filters, event_type: e.target.value })
+                    }
+                    className="w-full border border-border rounded-md px-2.5 py-1.5 text-xs bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">All Event Types</option>
+                    {EVENT_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            {/* Active Filter Count */}
-            {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm text-red-500 hover:text-red-600 font-semibold cursor-pointer"
-              >
-                <X size={14} />
-                Clear filters
-              </button>
+                {/* Availability Filter */}
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                    Availability
+                  </label>
+                  <select
+                    value={filters.available}
+                    onChange={(e) =>
+                      setFilters({ ...filters, available: e.target.value })
+                    }
+                    className="w-full border border-border rounded-md px-2.5 py-1.5 text-xs bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">All Status</option>
+                    <option value="true">Available</option>
+                    <option value="false">Unavailable</option>
+                  </select>
+                </div>
+              </div>
             )}
-          </div>
+          </AdminCard>
 
-          {/* Filter Panel */}
-          {showFilters && (
-            <div className="bg-white border border-slate-200 rounded-md p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl shadow-lg">
-              {/* Event Type Filter */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
-                  Event Type
-                </label>
-                <select
-                  value={filters.event_type}
-                  onChange={(e) =>
-                    setFilters({ ...filters, event_type: e.target.value })
-                  }
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary bg-white"
-                >
-                  <option value="">All Event Types</option>
-                  {EVENT_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Availability Filter */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
-                  Availability
-                </label>
-                <select
-                  value={filters.available}
-                  onChange={(e) =>
-                    setFilters({ ...filters, available: e.target.value })
-                  }
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary bg-white"
-                >
-                  <option value="">All Status</option>
-                  <option value="true">Available</option>
-                  <option value="false">Unavailable</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {/* Results Summary */}
+          {/* Results Count */}
           {!loading && (
-            <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>
-                Showing{" "}
-                <strong className="text-foreground">{filteredPackages.length}</strong>{" "}
+                Showing <strong className="text-foreground">{filteredPackages.length}</strong>{" "}
                 of <strong className="text-foreground">{inTab.length}</strong>{" "}
                 {isOfferTab ? "combos" : "packages"}
               </span>
               {hasActiveFilters && (
-                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                <span className="text-[11px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">
                   Filtered
                 </span>
               )}
             </div>
           )}
 
-          {/* Packages Grid */}
+          {/* Content Views */}
           {loading ? (
-            <div className="text-center py-16">
+            <div className="text-center py-16 bg-card rounded-lg border border-border/80">
               <div className="inline-block w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-3"></div>
-              <p className="text-gray-500">Loading packages...</p>
+              <p className="text-sm text-muted-foreground">Loading packages...</p>
             </div>
-          ) : filteredPackages.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filteredPackages.map((pkg) => {
-                const offer = isSpecialOffer(pkg);
-                const price = priceLine(pkg);
-                const pax = offer ? offerGuestCount(pkg) : null;
-                const offerCategories = offer ? offerFoodByCategory(pkg) : [];
-                const regularCategories = !offer ? getRegularPackageCategories(pkg) : [];
-
-                return (
-                  <AdminCard
-                    key={pkg._id}
-                    className={`!p-5 transition-all duration-200 group flex flex-col justify-between ${
-                      offer
-                        ? "border-amber-200 bg-gradient-to-b from-amber-50/60 to-white hover:border-amber-400 hover:shadow-md"
-                        : "hover:shadow-md hover:border-primary/30"
-                    }`}
-                  >
-                    <div>
-                      {/* Card Header */}
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-bold text-foreground truncate text-base">
-                            {pkg.name}
-                          </h3>
-                        </div>
-                        <Badge status={pkg.available ? "available" : "unavailable"} />
-                      </div>
-
-                      {/* Package Image */}
-                      {pkg.image_url && (
-                        <div className="w-full h-36 mb-3 rounded-md overflow-hidden bg-gray-100 border border-slate-200/60">
-                          <img
-                            src={pkg.image_url}
-                            alt={pkg.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        </div>
-                      )}
-
-                      {/* Type badges (for regular packages only) */}
-                      {!offer && (
-                        <div className="mb-3 flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
-                            Event Setup
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Pricing */}
-                      <div className="mb-3">
-                        <p
-                          className={`text-lg font-bold ${
-                            offer ? "text-amber-700" : "text-foreground"
-                          }`}
-                        >
-                          {price.headline}
-                        </p>
-                        {!offer && price.detail && (
-                          <p className="text-xs text-gray-500 mt-0.5">{price.detail}</p>
-                        )}
-                      </div>
-
-                      {/* Category Summary */}
-                      <div>
-                        <p className="text-xs font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">
-                          CATEGORIES
-                        </p>
-                        {offer ? (
-                          offerCategories.length > 0 ? (
-                            <ul className="space-y-1.5 mb-4">
-                              {offerCategories.map((cat, i) => (
-                                <li
-                                  key={i}
-                                  className="text-sm text-foreground flex items-center gap-2 truncate"
-                                >
-                                  <div className="w-1.5 h-1.5 bg-amber-500 rounded-full flex-shrink-0" />
-                                  <span className="font-medium text-slate-800">
-                                    {cat.category || "Included"}
-                                  </span>
-                                  <span className="text-slate-400 font-normal">
-                                    — {cat.items.length} {cat.items.length === 1 ? "item" : "items"}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p className="text-xs text-gray-400 italic mb-4">
-                              No food categories configured yet
-                            </p>
-                          )
-                        ) : (
-                          regularCategories.length > 0 ? (
-                            <ul className="space-y-1.5 mb-4">
-                              {regularCategories.map((cat, i) => (
-                                <li
-                                  key={i}
-                                  className="text-sm text-foreground flex items-center gap-2 truncate"
-                                >
-                                  <div className="w-1.5 h-1.5 bg-primary rounded-full flex-shrink-0" />
-                                  <span className="font-medium text-slate-800">
-                                    {cat.category}
-                                  </span>
-                                  <span className="text-slate-400 font-normal">
-                                    — {cat.count} {cat.count === 1 ? "item" : "items"}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p className="text-xs text-gray-400 italic mb-4">
-                              No categories configured yet
-                            </p>
-                          )
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Card Actions */}
-                    <div className="flex gap-2 pt-3 border-t border-gray-100 mt-2">
-                      <Btn
-                        variant="secondary"
-                        size="sm"
-                        className="flex-1 justify-center"
-                        onClick={() => handleOpenModal(pkg)}
-                      >
-                        <Eye size={13} /> View Package
-                      </Btn>
-                      <Btn
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                        onClick={() => setCancelTarget(pkg)}
-                      >
-                        <Trash2 size={13} />
-                      </Btn>
-                    </div>
-                  </AdminCard>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-10 bg-card rounded-lg border border-border/80 p-4">
-              <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
-                {isOfferTab ? (
-                  <Tag size={20} className="text-amber-500" />
-                ) : (
-                  <Search size={20} className="text-muted-foreground" />
-                )}
+          ) : filteredPackages.length === 0 ? (
+            <div className="text-center py-12 bg-card rounded-lg border border-border/80 p-6">
+              <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3 text-muted-foreground">
+                {isOfferTab ? <Tag size={20} /> : <PackageIcon size={20} />}
               </div>
-
-              <h3 className="text-lg font-semibold text-foreground mb-1">
+              <h3 className="text-base font-semibold text-foreground mb-1">
                 {isOfferTab ? "No combos found" : "No packages found"}
               </h3>
-              <p className="text-sm text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 {hasActiveFilters || search
                   ? "Try adjusting your filters or search criteria"
                   : activeTab.empty}
               </p>
+            </div>
+          ) : viewMode === "table" ? (
+            /* Table View */
+            <div className="bg-card rounded-lg border border-border/80 shadow-2xs overflow-hidden">
+              <DataTable
+                columns={tableColumns}
+                rows={paginatedPackages}
+                getRowId={(pkg) => pkg._id}
+                onRowClick={(pkg) => handleOpenModal(pkg)}
+                minWidth="840px"
+                pinLastColumn={true}
+              />
+              <Pagination
+                page={currentPage}
+                totalPages={totalPages}
+                total={totalItems}
+                pageSize={PAGE_SIZE}
+                shownCount={paginatedPackages.length}
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          ) : (
+            /* Card Grid View */
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {paginatedPackages.map((pkg) => {
+                  const offer = isSpecialOffer(pkg);
+                  const price = priceLine(pkg);
+                  const { dishCount, addonCount } = getPackageMetrics(pkg);
+                  const offerCategories = offer ? offerFoodByCategory(pkg) : [];
+                  const regularCategories = !offer ? getRegularPackageCategories(pkg) : [];
+
+                  return (
+                    <AdminCard
+                      key={pkg._id}
+                      className="!p-5 transition-all duration-200 group flex flex-col justify-between hover:shadow-md hover:border-primary/40 border border-border/80 bg-card cursor-pointer"
+                      onClick={() => handleOpenModal(pkg)}
+                    >
+                      <div>
+                        {/* Card Header with Three-Dot Actions */}
+                        <div className="flex justify-between items-start mb-2 gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-bold text-foreground truncate text-base group-hover:text-primary transition-colors">
+                              {pkg.name}
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <Badge status={pkg.available ? "available" : "unavailable"} dot />
+                            <RowActionsMenu actions={getRowActions(pkg)} />
+                          </div>
+                        </div>
+
+                        {/* Package Image */}
+                        {pkg.image_url ? (
+                          <div className="w-full h-36 mb-3 rounded-md overflow-hidden bg-muted/30 border border-border/70 relative">
+                            <img
+                              src={pkg.image_url}
+                              alt={pkg.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-full h-24 mb-3 rounded-md border border-dashed border-border/80 bg-muted/20 flex items-center justify-center text-muted-foreground/60">
+                            <PackageIcon size={24} />
+                          </div>
+                        )}
+
+                        {/* Metric chips: dishes & addons */}
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                            <Utensils size={11} className="text-primary" />
+                            {dishCount} {dishCount === 1 ? "dish" : "dishes"}
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                            <Layers size={11} className="text-slate-500" />
+                            {addonCount} {addonCount === 1 ? "item" : "items"}
+                          </span>
+                          {pkg.event_type && (
+                            <span className="text-[11px] font-medium text-muted-foreground px-2 py-0.5 rounded-md bg-muted/60">
+                              {pkg.event_type}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Pricing */}
+                        <div className="mb-3 p-2.5 rounded-md bg-muted/40 border border-border/60">
+                          <p className="text-base font-bold text-foreground">
+                            {price.headline}
+                          </p>
+                          {price.detail && (
+                            <p className="text-[11px] text-muted-foreground mt-0.5">{price.detail}</p>
+                          )}
+                        </div>
+
+                        {/* Category Summary */}
+                        <div>
+                          <p className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">
+                            CATEGORIES INCLUDED
+                          </p>
+                          {offer ? (
+                            offerCategories.length > 0 ? (
+                              <ul className="space-y-1 mb-2">
+                                {offerCategories.slice(0, 3).map((cat, i) => (
+                                 <li
+                                    key={i}
+                                    className="text-xs text-foreground flex items-center gap-2 truncate"
+                                  >
+                                    <div className="w-1.5 h-1.5 bg-primary rounded-full shrink-0" />
+                                    <span className="font-medium text-slate-800">
+                                      {cat.category || "Included"}
+                                    </span>
+                                    <span className="text-slate-400 font-normal">
+                                      — {cat.items.length} {cat.items.length === 1 ? "item" : "items"}
+                                    </span>
+                                  </li>
+                                ))}
+                                {offerCategories.length > 3 && (
+                                  <li className="text-[11px] text-muted-foreground italic">
+                                    +{offerCategories.length - 3} more categories
+                                  </li>
+                                )}
+                              </ul>
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic mb-2">
+                                No food categories configured yet
+                              </p>
+                            )
+                          ) : (
+                            regularCategories.length > 0 ? (
+                              <ul className="space-y-1 mb-2">
+                                {regularCategories.slice(0, 3).map((cat, i) => (
+                                  <li
+                                    key={i}
+                                    className="text-xs text-foreground flex items-center gap-2 truncate"
+                                  >
+                                    <div className="w-1.5 h-1.5 bg-primary rounded-full shrink-0" />
+                                    <span className="font-medium text-slate-800">
+                                      {cat.category}
+                                    </span>
+                                    <span className="text-slate-400 font-normal">
+                                      — {cat.count} {cat.count === 1 ? "item" : "items"}
+                                    </span>
+                                  </li>
+                                ))}
+                                {regularCategories.length > 3 && (
+                                  <li className="text-[11px] text-muted-foreground italic">
+                                    +{regularCategories.length - 3} more items
+                                  </li>
+                                )}
+                              </ul>
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic mb-2">
+                                No setup categories configured yet
+                              </p>
+                            )
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card Bottom CTA */}
+                      <div className="pt-3 border-t border-border/70 flex items-center justify-between mt-2">
+                        <span className="text-xs font-semibold text-primary group-hover:underline flex items-center gap-1">
+                          <Eye size={13} /> View Builder
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {pkg.updatedAt ? new Date(pkg.updatedAt).toLocaleDateString() : ""}
+                        </span>
+                      </div>
+                    </AdminCard>
+                  );
+                })}
+              </div>
+
+              <Pagination
+                page={currentPage}
+                totalPages={totalPages}
+                total={totalItems}
+                pageSize={PAGE_SIZE}
+                shownCount={paginatedPackages.length}
+                onPageChange={setCurrentPage}
+              />
             </div>
           )}
         </div>
@@ -646,8 +911,6 @@ export default function AdminPackages() {
       {showModal && (
         <PackageModal
           pkg={activePkg}
-          // An existing package keeps its own type; a new one starts as
-          // whichever tab the admin was on.
           defaultOfferType={activeTab.id}
           onClose={handleCloseModal}
           onSave={(keepOpen, updatedPkg) => {

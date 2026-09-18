@@ -155,6 +155,16 @@ exports.createInquiry = asyncHandler(async (req, res) => {
       let minLimit = null;
 
       if (matched) {
+        payload.selected_scaffold_option_id = String(matched._id || matched.id || payload.selected_scaffold_option_id);
+        payload.scaffold_width = matched.width_ft || payload.scaffold_width;
+        payload.scaffold_length = matched.length_ft || payload.scaffold_length;
+        payload.scaffold_base_area =
+          matched.area_ft2 ||
+          (payload.scaffold_width && payload.scaffold_length
+            ? payload.scaffold_width * payload.scaffold_length
+            : payload.scaffold_base_area);
+        payload.scaffold_price = matched.price !== undefined ? matched.price : payload.scaffold_price;
+
         if (matched.guest_max != null && Number(matched.guest_max) > 0) {
           maxLimit = Number(matched.guest_max);
         }

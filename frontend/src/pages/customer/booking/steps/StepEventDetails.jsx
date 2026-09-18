@@ -1,3 +1,4 @@
+import { useEffect, useMemo } from "react";
 import { PartyPopper, MapPin, Package, Palette, Users, Truck, Store, Sparkles, User, Heart } from "lucide-react";
 import {
   Card,
@@ -36,6 +37,7 @@ export default function StepEventDetails({
   barangays,
   isCustomBooking,
   selectedPackageName,
+  packageDetails,
   guestMin = 1,
   guestMax = null,
   estimate,
@@ -58,6 +60,73 @@ export default function StepEventDetails({
   // For Special Offers
   const isOffer = Boolean(offer);
   const perPax = isOffer ? offerPricePerPax(offer) : 0;
+
+  const scaffoldOptions = useMemo(() => {
+    if (isOffer || !packageDetails?.scaffold_size_options) return [];
+    return packageDetails.scaffold_size_options.filter(
+      (o) => o?.width_ft || o?.price || o?.label,
+    );
+  }, [isOffer, packageDetails]);
+
+  const activeScaffoldOption = useMemo(() => {
+    if (!scaffoldOptions.length) return null;
+    return (
+      scaffoldOptions.find(
+        (o) => String(o._id) === String(form.selected_scaffold_option_id),
+      ) || scaffoldOptions[0]
+    );
+  }, [scaffoldOptions, form.selected_scaffold_option_id]);
+
+  const handleScaffoldChange = (optionId) => {
+    const selectedOpt = scaffoldOptions.find(
+      (o) => String(o._id) === String(optionId),
+    );
+    if (!selectedOpt) return;
+
+    const optMin = Number(selectedOpt.guest_min) || 1;
+    const optMax = selectedOpt.guest_max ? Number(selectedOpt.guest_max) : null;
+    const curr = parseInt(form.guest_count, 10) || optMin;
+
+    let nextGuestCount = curr;
+    if (curr < optMin) {
+      nextGuestCount = optMin;
+    } else if (optMax && curr > optMax) {
+      nextGuestCount = optMax;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      selected_scaffold_option_id: String(selectedOpt._id),
+      scaffold_width: selectedOpt.width_ft,
+      scaffold_length: selectedOpt.length_ft,
+      scaffold_base_area:
+        selectedOpt.area_ft2 ||
+        (selectedOpt.width_ft && selectedOpt.length_ft
+          ? selectedOpt.width_ft * selectedOpt.length_ft
+          : undefined),
+      scaffold_price: selectedOpt.price,
+      scaffold_guest_min: selectedOpt.guest_min,
+      scaffold_guest_max: selectedOpt.guest_max,
+      guest_count: String(nextGuestCount),
+    }));
+  };
+
+  useEffect(() => {
+    if (!isOffer && scaffoldOptions.length > 0) {
+      const exists = scaffoldOptions.some(
+        (o) => String(o._id) === String(form.selected_scaffold_option_id),
+      );
+      if (!exists) {
+        const defaultOpt =
+          scaffoldOptions.find(
+            (o) => String(o._id) === String(packageDetails?.default_scaffold_option_id),
+          ) || scaffoldOptions[0];
+        if (defaultOpt) {
+          handleScaffoldChange(defaultOpt._id);
+        }
+      }
+    }
+  }, [scaffoldOptions, isOffer, form.selected_scaffold_option_id, packageDetails?.default_scaffold_option_id]);
 
   // Selected fulfillment option for Special Offers
   const isWithSetup = form.service_type === SERVICE_TYPES.FULL_SERVICE;
@@ -428,6 +497,42 @@ export default function StepEventDetails({
                     value={form.event_type_other}
                     onChange={(val) => setForm({ ...form, event_type_other: val })}
                     hasError={!!errors.event_type_other}
+                  />
+                </Field>
+              )}
+
+              {/* Scaffold Size Selection */}
+              {!isOffer && scaffoldOptions.length > 0 && (
+                <Field
+                  label="Scaffold size"
+                  required
+                  hint={
+                    activeScaffoldOption
+                      ? `Base setup: ₱${Number(activeScaffoldOption.price || 0).toLocaleString("en-PH")} · Fits ${activeScaffoldOption.guest_min || 1}–${activeScaffoldOption.guest_max || "more"} guests`
+                      : "Choose the scaffold size for your event"
+                  }
+                  error={errors.scaffold_size}
+                >
+                  <TSelect
+                    value={activeScaffoldOption?._id || ""}
+                    onChange={handleScaffoldChange}
+                    options={scaffoldOptions.map((opt) => {
+                      const dims = `${opt.width_ft} × ${opt.length_ft} ft`;
+                      const guestStr = opt.guest_min && opt.guest_max
+                        ? `${opt.guest_min}–${opt.guest_max} guests`
+                        : opt.guest_max
+                          ? `up to ${opt.guest_max} guests`
+                          : opt.guest_min
+                            ? `from ${opt.guest_min} guests`
+                            : "";
+                      const priceStr = opt.price ? `₱${Number(opt.price).toLocaleString("en-PH")}` : "";
+                      const details = [guestStr, priceStr].filter(Boolean).join(" · ");
+                      return {
+                        value: String(opt._id),
+                        label: `${opt.label || dims}${details ? ` (${details})` : ""}`,
+                      };
+                    })}
+                    placeholder="Select scaffold size"
                   />
                 </Field>
               )}

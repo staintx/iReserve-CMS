@@ -465,7 +465,18 @@ export default function StepPackageSelection({
                       key={option._id}
                       type="button"
                       aria-pressed={isActive}
-                      onClick={() =>
+                      onClick={() => {
+                        const optMin = Number(option.guest_min) || 1;
+                        const optMax = option.guest_max ? Number(option.guest_max) : null;
+                        const curr = parseInt(form.guest_count, 10);
+                        let nextGuests = form.guest_count;
+                        if (Number.isFinite(curr)) {
+                          if (curr < optMin) nextGuests = String(optMin);
+                          else if (optMax && curr > optMax) nextGuests = String(optMax);
+                        } else {
+                          nextGuests = String(optMin);
+                        }
+
                         updateForm({
                           selected_scaffold_option_id: String(option._id),
                           scaffold_width: option.width_ft || undefined,
@@ -478,8 +489,9 @@ export default function StepPackageSelection({
                           scaffold_price: option.price || undefined,
                           scaffold_guest_min: option.guest_min || undefined,
                           scaffold_guest_max: option.guest_max || undefined,
-                        })
-                      }
+                          guest_count: nextGuests,
+                        });
+                      }}
                       className={cn(
                         "w-full rounded-lg border p-2.5 text-left transition-all cursor-pointer",
                         isActive

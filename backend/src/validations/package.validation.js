@@ -99,12 +99,10 @@ exports.packageSchema = Joi.object({
             width_ft: Joi.number().optional(),
             length_ft: Joi.number().optional(),
             area_ft2: Joi.number().optional(),
-            // No `price`. A scaffold option is a supported size and capacity;
-            // any charge for it is decided on the quotation. Legacy rows may
-            // still carry one, which `.unknown(true)` below lets through
-            // untouched so an old package is never rejected on load.
-            guest_min: Joi.number().optional().allow(null),
-            guest_max: Joi.number().optional().allow(null),
+            price: Joi.number().min(0).optional().allow(null, ""),
+            baseSetupPrice: Joi.number().min(0).optional().allow(null, ""),
+            guest_min: Joi.number().optional().allow(null, ""),
+            guest_max: Joi.number().optional().allow(null, ""),
             free_setup: Joi.boolean().optional(),
             _id: Joi.string().optional(),
           }).unknown(true),
@@ -221,12 +219,10 @@ exports.packageUpdateSchema = Joi.object({
             width_ft: Joi.number().optional(),
             length_ft: Joi.number().optional(),
             area_ft2: Joi.number().optional(),
-            // No `price`. A scaffold option is a supported size and capacity;
-            // any charge for it is decided on the quotation. Legacy rows may
-            // still carry one, which `.unknown(true)` below lets through
-            // untouched so an old package is never rejected on load.
-            guest_min: Joi.number().optional().allow(null),
-            guest_max: Joi.number().optional().allow(null),
+            price: Joi.number().min(0).optional().allow(null, ""),
+            baseSetupPrice: Joi.number().min(0).optional().allow(null, ""),
+            guest_min: Joi.number().optional().allow(null, ""),
+            guest_max: Joi.number().optional().allow(null, ""),
             free_setup: Joi.boolean().optional(),
             _id: Joi.string().optional(),
           }).unknown(true),

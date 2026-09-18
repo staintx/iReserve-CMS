@@ -422,6 +422,14 @@ export function GuestCounter({ value, onChange, min = 1, max = null }) {
     }
   }, [effectiveMax, numeric, onChange]);
 
+  // Auto-clamp if current numeric value is below configured min
+  React.useEffect(() => {
+    if (effectiveMin && numeric > 0 && numeric < effectiveMin) {
+      onChange(effectiveMin);
+      setDraft(String(effectiveMin));
+    }
+  }, [effectiveMin, numeric, onChange]);
+
   // Follow the form while the customer is not mid-edit.
   React.useEffect(() => {
     if (!focused) setDraft(String(value ?? ""));
@@ -443,7 +451,7 @@ export function GuestCounter({ value, onChange, min = 1, max = null }) {
     setFocused(false);
     const parsed = parseInt(String(draft).replace(/[^0-9]/g, ""), 10);
     if (!Number.isFinite(parsed) || parsed < effectiveMin) {
-      const fallback = clamp(numeric || effectiveMin);
+      const fallback = clamp(effectiveMin);
       setDraft(String(fallback));
       onChange(fallback);
       return;

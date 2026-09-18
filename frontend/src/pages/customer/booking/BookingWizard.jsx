@@ -142,6 +142,11 @@ export default function BookingWizard() {
   const initialPackageName = location.state?.packageName || "";
   const initialGuestMin = location.state?.guestMin || null;
   const initialGuestMax = location.state?.guestMax || null;
+  const initialScaffoldOptionId = location.state?.selectedScaffoldOptionId || "";
+  const initialScaffoldWidth = location.state?.scaffoldWidth || undefined;
+  const initialScaffoldLength = location.state?.scaffoldLength || undefined;
+  const initialScaffoldBaseArea = location.state?.scaffoldBaseArea || undefined;
+  const initialScaffoldPrice = location.state?.scaffoldPrice || undefined;
 
   const isCustomBooking = !initialPackageId;
   const matchedServiceType = Object.values(SERVICE_TYPES).find(
@@ -173,6 +178,13 @@ export default function BookingWizard() {
       service_type: matchedServiceType || SERVICE_TYPES.FULL_SERVICE,
       include_food: matchedServiceType !== SERVICE_TYPES.SETUP_ONLY,
       package_id: initialPackageId || "",
+      selected_scaffold_option_id: initialScaffoldOptionId || "",
+      scaffold_width: initialScaffoldWidth,
+      scaffold_length: initialScaffoldLength,
+      scaffold_base_area: initialScaffoldBaseArea,
+      scaffold_price: initialScaffoldPrice,
+      scaffold_guest_min: initialGuestMin || undefined,
+      scaffold_guest_max: initialGuestMax || undefined,
       venue_type: "",
       venue_type_other: "",
       booking_for: "myself",
@@ -659,6 +671,62 @@ export default function BookingWizard() {
       return changed ? next : prev;
     });
   }, [isOffer, offerPax]);
+
+  // Sync scaffold options when regular packageDetails loads
+  useEffect(() => {
+    if (!packageDetails || isOffer) return;
+    const opts = packageDetails.scaffold_size_options;
+    if (!Array.isArray(opts) || opts.length === 0) return;
+
+    setForm((prev) => {
+      const currentMatched = opts.find(
+        (o) => String(o._id) === String(prev.selected_scaffold_option_id),
+      );
+      const chosen =
+        currentMatched ||
+        opts.find((o) => String(o._id) === String(packageDetails.default_scaffold_option_id)) ||
+        opts[0];
+
+      if (!chosen) return prev;
+
+      const min = Number(chosen.guest_min) || 1;
+      const max = chosen.guest_max ? Number(chosen.guest_max) : null;
+      let nextGuests = prev.guest_count;
+      const parsed = Number(prev.guest_count);
+      if (Number.isFinite(parsed)) {
+        if (parsed < min) nextGuests = String(min);
+        else if (max && parsed > max) nextGuests = String(max);
+      } else {
+        nextGuests = String(min);
+      }
+
+      const area =
+        chosen.area_ft2 ||
+        (chosen.width_ft && chosen.length_ft ? chosen.width_ft * chosen.length_ft : undefined);
+
+      if (
+        prev.selected_scaffold_option_id === String(chosen._id) &&
+        prev.scaffold_price === chosen.price &&
+        prev.scaffold_guest_min === chosen.guest_min &&
+        prev.scaffold_guest_max === chosen.guest_max &&
+        prev.guest_count === nextGuests
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        selected_scaffold_option_id: String(chosen._id),
+        scaffold_width: chosen.width_ft,
+        scaffold_length: chosen.length_ft,
+        scaffold_base_area: area,
+        scaffold_price: chosen.price,
+        scaffold_guest_min: chosen.guest_min,
+        scaffold_guest_max: chosen.guest_max,
+        guest_count: nextGuests,
+      };
+    });
+  }, [packageDetails, isOffer]);
 
   // A setup package brings its own equipment; carry it onto the inquiry so the
   // team sees what has to be reserved. A combo brings none — it is food, and
@@ -1493,6 +1561,7 @@ export default function BookingWizard() {
             barangays={barangays}
             isCustomBooking={isCustomBooking}
             selectedPackageName={packageDetails?.name || initialPackageName}
+            packageDetails={packageDetails}
             guestMin={guestMin}
             guestMax={guestMax}
             estimate={estimate}

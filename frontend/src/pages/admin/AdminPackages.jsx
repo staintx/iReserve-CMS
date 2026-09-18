@@ -234,6 +234,25 @@ export default function AdminPackages() {
           : "Set-up and extras quoted separately",
       };
     }
+    const validScaffoldPrices = (pkg.scaffold_size_options || [])
+      .map((o) => Number(o.price || 0))
+      .filter((p) => p > 0);
+
+    if (validScaffoldPrices.length > 0) {
+      const minPrice = Math.min(...validScaffoldPrices);
+      const maxPrice = Math.max(...validScaffoldPrices);
+      const headline =
+        minPrice === maxPrice
+          ? fmt(minPrice)
+          : `From ${fmt(minPrice)}`;
+      return {
+        headline,
+        detail: `${pkg.scaffold_size_options.length} scaffold size${
+          pkg.scaffold_size_options.length > 1 ? "s" : ""
+        } configured`,
+      };
+    }
+
     if (pkg.setup_price) {
       return { headline: fmt(pkg.setup_price), detail: "Base setup fee" };
     }

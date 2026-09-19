@@ -34,13 +34,12 @@ import {
   Trash2,
   Pencil,
   Check,
-  UploadCloud,
   Eye,
-  File,
-  RefreshCw,
   Share2,
   CalendarCheck2,
 } from "lucide-react";
+import PolicyEditorModal from "./policy/PolicyEditorModal";
+import { DEFAULT_POLICIES } from "../policy/defaultPolicies";
 
 const DEFAULT_INFO = {
   contact_number: "",
@@ -51,6 +50,7 @@ const DEFAULT_INFO = {
   social_links: [],
   terms_file: null,
   privacy_file: null,
+  policies: DEFAULT_POLICIES,
   terms_url: "",
   privacy_url: "",
   facebook: "",
@@ -160,11 +160,9 @@ export default function BusinessInfoPanel() {
   const [editingIndex, setEditingIndex] = useState(-1);
   const [editingUrl, setEditingUrl] = useState("");
 
-  // Policies File Upload State
-  const [uploadingTerms, setUploadingTerms] = useState(false);
-  const [uploadingPrivacy, setUploadingPrivacy] = useState(false);
-  const termsInputRef = useRef(null);
-  const privacyInputRef = useRef(null);
+  // Simple Policy Editor Modal State
+  const [editingPolicyKey, setEditingPolicyKey] = useState(null);
+  const [savingPolicy, setSavingPolicy] = useState(false);
 
   const { notify } = useToast();
 
@@ -186,23 +184,12 @@ export default function BusinessInfoPanel() {
         }
         data.social_links = links;
 
-        // Normalize policies
-        if (!data.terms_file && data.terms_url) {
-          data.terms_file = {
-            url: data.terms_url,
-            name: data.terms_url.split("/").pop() || "Terms & Conditions Document",
-            type: "PDF",
-            size: 0,
-          };
-        }
-        if (!data.privacy_file && data.privacy_url) {
-          data.privacy_file = {
-            url: data.privacy_url,
-            name: data.privacy_url.split("/").pop() || "Privacy Policy Document",
-            type: "PDF",
-            size: 0,
-          };
-        }
+        // Normalize policies with defaults
+        data.policies = {
+          terms: { ...DEFAULT_POLICIES.terms, ...(raw.policies?.terms || {}) },
+          privacy: { ...DEFAULT_POLICIES.privacy, ...(raw.policies?.privacy || {}) },
+          cancellation: { ...DEFAULT_POLICIES.cancellation, ...(raw.policies?.cancellation || {}) },
+        };
 
         setForm(data);
         setInitialForm(data);
@@ -290,61 +277,66 @@ export default function BusinessInfoPanel() {
     }
   };
 
-  // ── Policies Document Upload Handlers ──
-  const handleFileUpload = async (file, policyType) => {
-    if (!file) return;
-
-    const allowed = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".webp", ".txt"];
-    const ext = "." + (file.name.split(".").pop() || "").toLowerCase();
-    if (!allowed.includes(ext)) {
-      notify(`Unsupported file format (${ext}). Please select a PDF, Word document, or image file.`, "error");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    if (policyType === "terms") setUploadingTerms(true);
-    else setUploadingPrivacy(true);
-
-    try {
-      const res = await AdminAPI.uploadPolicyDoc(formData);
-      if (res.data) {
-        const uploaded = res.data;
-        if (policyType === "terms") {
-          setForm((prev) => ({
-            ...prev,
-            terms_file: uploaded,
-            terms_url: uploaded.url,
-          }));
-          notify("Terms and Conditions document uploaded.", "success");
-        } else {
-          setForm((prev) => ({
-            ...prev,
-            privacy_file: uploaded,
-            privacy_url: uploaded.url,
-          }));
-          notify("Privacy Policy document uploaded.", "success");
-        }
-      }
-    } catch (err) {
-      notify(
-        err.response?.data?.message || "Failed to upload file. Please try again.",
-        "error"
-      );
-    } finally {
-      if (policyType === "terms") setUploadingTerms(false);
-      else setUploadingPrivacy(false);
-    }
+  // ── Simple Legal & Policies Handlers ──
+  const handleOpenEditPolicy = (key) => {
+    setEditingPolicyKey(key);
   };
 
-  const handleRemovePolicyDoc = (policyType) => {
-    if (policyType === "terms") {
-      setForm((prev) => ({ ...prev, terms_file: null, terms_url: "" }));
-      notify("Terms & Conditions document removed.", "info");
-    } else {
-      setForm((prev) => ({ ...prev, privacy_file: null, privacy_url: "" }));
-      notify("Privacy Policy document removed.", "info");
+  const handleSavePolicy = async (key, payload) => {
+    setSavingPolicy(true);
+    try {
+      const res = await AdminAPI.updatePolicy(key, payload);
+      notify(res.data?.message || "Policy updated successfully.", "success");
+
+      const updatedPolicy = res.data?.policy;
+      const allPolicies = res.data?.policies;
+
+      setForm((prev) => {
+        const nextPolicies = allPolicies
+          ? { ...allPolicies }
+          : {
+              ...(prev.policies || {}),
+              [key]: updatedPolicy || {
+                ...(prev.policies?.[key] || {}),
+                content: payload.content,
+                draft_content: payload.draft_content || "",
+                status: payload.action === "publish" ? "published" : "draft",
+                updated_at: new Date().toISOString(),
+                published_at:
+                  payload.action === "publish"
+                    ? new Date().toISOString()
+                    : prev.policies?.[key]?.published_at,
+              },
+            };
+        return { ...prev, policies: nextPolicies };
+      });
+
+      setInitialForm((prev) => {
+        const nextPolicies = allPolicies
+          ? { ...allPolicies }
+          : {
+              ...(prev.policies || {}),
+              [key]: updatedPolicy || {
+                ...(prev.policies?.[key] || {}),
+                content: payload.content,
+                draft_content: payload.draft_content || "",
+                status: payload.action === "publish" ? "published" : "draft",
+                updated_at: new Date().toISOString(),
+                published_at:
+                  payload.action === "publish"
+                    ? new Date().toISOString()
+                    : prev.policies?.[key]?.published_at,
+              },
+            };
+        return { ...prev, policies: nextPolicies };
+      });
+
+      setEditingPolicyKey(null);
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to update policy.", "error");
+    } finally {
+      setSavingPolicy(false);
     }
   };
 
@@ -383,7 +375,7 @@ export default function BusinessInfoPanel() {
           {isDirty ? (
             <Badge
               variant="outline"
-              className="bg-amber-500/10 text-amber-600 border-amber-500/30 gap-1.5 py-1 px-3 text-xs font-semibold"
+              className="bg-blue-50 text-blue-700 border-blue-200 gap-1.5 py-1 px-3 text-xs font-semibold"
             >
               <AlertCircle className="w-3.5 h-3.5" />
               Unsaved changes
@@ -572,239 +564,109 @@ export default function BusinessInfoPanel() {
             </CardContent>
           </Card>
 
-          {/* ── Policies & Legal (Positioned on the LEFT side) ───────── */}
+          {/* ── Legal & Policies (Simple & Beginner-Friendly Setup) ───────── */}
           <Card className="border-border/70 shadow-xs bg-card">
             <CardHeader className="border-b border-border/40 pb-4 bg-muted/20">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <div className="p-2 rounded-lg bg-[#1E3563]/10 text-[#1E3563]">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold tracking-tight">
-                    Policies &amp; Legal
+                  <CardTitle className="text-base font-bold tracking-tight text-foreground">
+                    Legal &amp; Policies
                   </CardTitle>
                   <CardDescription className="text-xs text-muted-foreground mt-0.5">
-                    Upload official legal agreements, cancellation policies, and manage capacity rules.
+                    Click Edit on any policy to update terms, cancellation rules, or privacy guidelines.
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
 
-            <CardContent className="p-6 space-y-5">
-              {/* 1. Terms & Conditions Document Upload */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-primary" />
-                    Terms &amp; Conditions Document
-                  </Label>
-                  {form.terms_file?.url && (
-                    <span className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> Uploaded
-                    </span>
-                  )}
-                </div>
+            <CardContent className="p-5 space-y-3">
+              {[
+                {
+                  key: "terms",
+                  title: "Terms & Conditions",
+                  icon: FileText,
+                  desc: "Service agreements, payment schedule, venue oculars, and client obligations.",
+                },
+                {
+                  key: "privacy",
+                  title: "Privacy Policy",
+                  icon: ShieldCheck,
+                  desc: "Client contact information, payment security standards, and privacy protection.",
+                },
+                {
+                  key: "cancellation",
+                  title: "Cancellation & Refund Policy",
+                  icon: AlertCircle,
+                  desc: "Rules on non-refundable deposits, cancellation notice, and refund guidelines.",
+                },
+              ].map((policyItem) => {
+                const Icon = policyItem.icon;
+                const policyObj = form.policies?.[policyItem.key] || DEFAULT_POLICIES[policyItem.key] || {};
+                const isPublished = policyObj.status === "published" && !policyObj.draft_content;
+                const lastUpdated = policyObj.updated_at || policyObj.published_at;
 
-                <input
-                  ref={termsInputRef}
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) {
-                      handleFileUpload(e.target.files[0], "terms");
-                      e.target.value = "";
-                    }
-                  }}
-                />
-
-                {uploadingTerms ? (
-                  <div className="p-6 rounded-xl border border-border/80 bg-muted/30 flex flex-col items-center justify-center space-y-2">
-                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                    <p className="text-xs font-medium text-foreground">Uploading Terms &amp; Conditions...</p>
-                  </div>
-                ) : form.terms_file?.url ? (
-                  <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/80 bg-card hover:bg-muted/20 transition-all">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-lg bg-rose-500/10 text-rose-600 flex items-center justify-center shrink-0">
-                        <File className="w-5 h-5" />
+                return (
+                  <div
+                    key={policyItem.key}
+                    className="p-3.5 rounded-xl border border-border/70 bg-card hover:border-[#1E3563]/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-[#1E3563]/10 text-[#1E3563] flex items-center justify-center shrink-0 mt-0.5">
+                        <Icon className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-foreground truncate max-w-[200px] sm:max-w-[240px]">
-                          {form.terms_file.name || "Terms & Conditions"}
-                        </p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <Badge variant="outline" className="text-[9px] uppercase px-1.5 py-0">
-                            {form.terms_file.type || "DOC"}
-                          </Badge>
-                          {form.terms_file.size > 0 && (
-                            <span className="text-[10px] text-muted-foreground">
-                              {formatFileSize(form.terms_file.size)}
-                            </span>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs sm:text-sm font-bold text-foreground">
+                            {policyItem.title}
+                          </h4>
+                          {isPublished ? (
+                            <Badge
+                              variant="outline"
+                              className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] font-semibold py-0 px-1.5"
+                            >
+                              Published
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="bg-blue-500/10 text-blue-600 border-blue-500/30 text-[10px] font-semibold py-0 px-1.5"
+                            >
+                              Draft Edits
+                            </Badge>
                           )}
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleTestLink(form.terms_file.url)}
-                        title="View Document"
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => termsInputRef.current?.click()}
-                        title="Replace Document"
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-muted transition-colors cursor-pointer"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePolicyDoc("terms")}
-                        title="Remove Document"
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    onClick={() => termsInputRef.current?.click()}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (e.dataTransfer.files?.[0]) {
-                        handleFileUpload(e.dataTransfer.files[0], "terms");
-                      }
-                    }}
-                    className="rounded-xl border-2 border-dashed border-border/80 p-5 text-center bg-muted/20 hover:border-primary/50 hover:bg-muted/30 transition-all cursor-pointer"
-                  >
-                    <UploadCloud className="w-7 h-7 text-muted-foreground mx-auto mb-1.5" />
-                    <p className="text-xs font-semibold text-foreground">Upload Terms &amp; Conditions Document</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Drag and drop file here or click to browse
-                    </p>
-                    <span className="text-[10px] text-muted-foreground/80 mt-1 block">
-                      Supported: PDF, DOC, DOCX, JPG, PNG (Max 15MB)
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* 2. Privacy Policy Document Upload */}
-              <div className="space-y-2 pt-1 border-t border-border/40">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-                    Privacy Policy Document
-                  </Label>
-                  {form.privacy_file?.url && (
-                    <span className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> Uploaded
-                    </span>
-                  )}
-                </div>
-
-                <input
-                  ref={privacyInputRef}
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) {
-                      handleFileUpload(e.target.files[0], "privacy");
-                      e.target.value = "";
-                    }
-                  }}
-                />
-
-                {uploadingPrivacy ? (
-                  <div className="p-6 rounded-xl border border-border/80 bg-muted/30 flex flex-col items-center justify-center space-y-2">
-                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                    <p className="text-xs font-medium text-foreground">Uploading Privacy Policy...</p>
-                  </div>
-                ) : form.privacy_file?.url ? (
-                  <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/80 bg-card hover:bg-muted/20 transition-all">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center shrink-0">
-                        <File className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-foreground truncate max-w-[200px] sm:max-w-[240px]">
-                          {form.privacy_file.name || "Privacy Policy"}
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                          {policyItem.desc}
                         </p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <Badge variant="outline" className="text-[9px] uppercase px-1.5 py-0">
-                            {form.privacy_file.type || "DOC"}
-                          </Badge>
-                          {form.privacy_file.size > 0 && (
-                            <span className="text-[10px] text-muted-foreground">
-                              {formatFileSize(form.privacy_file.size)}
-                            </span>
-                          )}
-                        </div>
+                        {lastUpdated && (
+                          <span className="text-[10px] text-muted-foreground/70 block mt-1">
+                            Updated {new Date(lastUpdated).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1">
-                      <button
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                      <Button
                         type="button"
-                        onClick={() => handleTestLink(form.privacy_file.url)}
-                        title="View Document"
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenEditPolicy(policyItem.key)}
+                        className="text-xs font-semibold cursor-pointer gap-1.5 border-border hover:bg-[#1E3563]/5 hover:text-[#1E3563] hover:border-[#1E3563]/30"
                       >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => privacyInputRef.current?.click()}
-                        title="Replace Document"
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-muted transition-colors cursor-pointer"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePolicyDoc("privacy")}
-                        title="Remove Document"
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        <Pencil className="w-3.5 h-3.5" />
+                        Edit
+                      </Button>
                     </div>
                   </div>
-                ) : (
-                  <div
-                    onClick={() => privacyInputRef.current?.click()}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (e.dataTransfer.files?.[0]) {
-                        handleFileUpload(e.dataTransfer.files[0], "privacy");
-                      }
-                    }}
-                    className="rounded-xl border-2 border-dashed border-border/80 p-5 text-center bg-muted/20 hover:border-primary/50 hover:bg-muted/30 transition-all cursor-pointer"
-                  >
-                    <UploadCloud className="w-7 h-7 text-muted-foreground mx-auto mb-1.5" />
-                    <p className="text-xs font-semibold text-foreground">Upload Privacy Policy Document</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Drag and drop file here or click to browse
-                    </p>
-                    <span className="text-[10px] text-muted-foreground/80 mt-1 block">
-                      Supported: PDF, DOC, DOCX, JPG, PNG (Max 15MB)
-                    </span>
-                  </div>
-                )}
-              </div>
+                );
+              })}
 
               {/* Booking Capacity Rule */}
-              <div className="pt-2 border-t border-border/40 space-y-1.5">
+              <div className="pt-3 border-t border-border/40 space-y-1.5">
                 <Label
                   htmlFor="max-bookings"
                   className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
@@ -1186,6 +1048,19 @@ export default function BusinessInfoPanel() {
           </Button>
         </div>
       </div>
+
+      {/* Policy Editor Modal */}
+      {editingPolicyKey && (
+        <PolicyEditorModal
+          key={`${editingPolicyKey}-${form.policies?.[editingPolicyKey]?.updated_at || form.policies?.[editingPolicyKey]?.published_at || 'initial'}`}
+          open={Boolean(editingPolicyKey)}
+          onClose={() => setEditingPolicyKey(null)}
+          policyKey={editingPolicyKey}
+          policyData={form.policies?.[editingPolicyKey] || DEFAULT_POLICIES[editingPolicyKey]}
+          onSave={handleSavePolicy}
+          saving={savingPolicy}
+        />
+      )}
     </form>
   );
 }

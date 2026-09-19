@@ -4,6 +4,8 @@ import { CustomerAPI } from "../../api/customer";
 import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable";
 import CustomerReceiptModal from "../../components/customer/portal/CustomerReceiptModal";
 import PaymentChoiceModal from "../../components/customer/PaymentChoiceModal";
+import CustomerPolicyModal from "../../components/policy/CustomerPolicyModal";
+import useBusinessInfo from "../../hooks/useBusinessInfo";
 import useToast from "../../hooks/useToast";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
@@ -42,6 +44,8 @@ export default function CustomerPayments() {
   const [refunds, setRefunds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [payingTargetId, setPayingTargetId] = useState(null);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const businessInfo = useBusinessInfo();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { notify } = useToast();
@@ -543,8 +547,15 @@ export default function CustomerPayments() {
             <div className="py-3.5 px-5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2 font-sans">
                 <RefreshCcw className="w-3.5 h-3.5 text-[#2C4B8A]" />
-                Refunds & Cancellations
+                Refunds &amp; Cancellations
               </h3>
+              <button
+                type="button"
+                onClick={() => setShowPolicyModal(true)}
+                className="text-xs font-semibold text-[#1E3563] hover:underline cursor-pointer"
+              >
+                Policy Guidelines →
+              </button>
             </div>
             <div>
               <div className="divide-y divide-slate-100">
@@ -891,6 +902,14 @@ export default function CustomerPayments() {
           onSuccess={() => fetchData()}
         />
       )}
+
+      {/* Cancellation & Refund Policy Dialog */}
+      <CustomerPolicyModal
+        open={showPolicyModal}
+        onClose={() => setShowPolicyModal(false)}
+        initialPolicy="cancellation"
+        businessInfo={businessInfo}
+      />
     </CustomerDashboardLayout>
   );
 }

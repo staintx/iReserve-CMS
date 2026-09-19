@@ -1,8 +1,8 @@
 import React from "react";
 import { formatCurrency, formatEventDateWithDay, formatTime, formatShortDate } from "../../../utils/format";
-import { menuLineTotal, menuAmountLabel } from "../../../utils/quotationPricing";
-import { policyHighlights } from "../../../lib/policy";
+import { getInvoicePolicies } from "../../../lib/policy";
 import useAuth from "../../../hooks/useAuth";
+import useBusinessInfo from "../../../hooks/useBusinessInfo";
 import { resolveServiceType } from "../../customer/portal/statusMeta";
 
 /**
@@ -27,6 +27,7 @@ function normalizeDocumentData({ booking, quotation, inquiry, payments = [], bus
     depositPercentage,
     termsUrl,
     termsFileName,
+    policies: businessInfo?.policies || null,
   };
 
   // Reference Code
@@ -308,8 +309,9 @@ export default function CateringInvoiceDocument({
   context = "customer", // "customer" or "admin"
   className = ""
 }) {
-  const doc = normalizeDocumentData({ booking, quotation, inquiry, payments, businessInfo });
-  const dynamicPolicies = policyHighlights(doc.business.depositPercentage);
+  const effectiveBusinessInfo = useBusinessInfo(businessInfo);
+  const doc = normalizeDocumentData({ booking, quotation, inquiry, payments, businessInfo: effectiveBusinessInfo });
+  const dynamicPolicies = getInvoicePolicies(doc.business);
 
   // Authenticated user data for dynamic Authorized Management Signatory.
   // Strict role separation:
@@ -792,18 +794,6 @@ export default function CateringInvoiceDocument({
                   <strong className="text-slate-700">{pol.title}:</strong> {pol.body}
                 </li>
               ))}
-              <li>
-                <strong className="text-slate-700">Balance Settlement:</strong> The remaining balance is payable the same day after the event has been completed, either online through the portal or in cash to your event manager.
-              </li>
-              <li>
-                <strong className="text-slate-700">7-Day Headcount Cutoff:</strong> Final menu choices and guest count adjustments must be finalized at least seven (7) calendar days prior to event commencement.
-              </li>
-              <li>
-                <strong className="text-slate-700">Equipment Safekeeping:</strong> The client is financially responsible for the safekeeping and replacement value of all catering equipment and wares provided on site.
-              </li>
-              <li>
-                <strong className="text-slate-700">Official Record:</strong> This document is an official catering quotation and billing statement issued by {doc.business.name}.
-              </li>
             </ul>
           </div>
 
@@ -1302,18 +1292,6 @@ export default function CateringInvoiceDocument({
                           <strong className="text-slate-800">{pol.title}:</strong> {pol.body}
                         </li>
                       ))}
-                      <li className="caz-terms-item">
-                        <strong className="text-slate-800">Balance Settlement:</strong> The remaining balance is payable the same day after the event has been completed, either online through the portal or in cash to your event manager.
-                      </li>
-                      <li className="caz-terms-item">
-                        <strong className="text-slate-800">7-Day Headcount Cutoff:</strong> Final menu choices and guest count adjustments must be finalized at least seven (7) calendar days prior to event commencement.
-                      </li>
-                      <li className="caz-terms-item">
-                        <strong className="text-slate-800">Equipment Safekeeping:</strong> The client is financially responsible for the safekeeping and replacement value of all catering equipment and wares provided on site.
-                      </li>
-                      <li className="caz-terms-item">
-                        <strong className="text-slate-800">Official Record:</strong> This document is an official catering quotation and billing statement issued by {doc.business.name}.
-                      </li>
                     </ul>
                   </div>
 

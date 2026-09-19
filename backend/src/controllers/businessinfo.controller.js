@@ -3,10 +3,32 @@ const BusinessInfo = require("../models/BusinessInfo");
 const asyncHandler = require("../utils/asyncHandler");
 const logAction = require("../utils/logAction");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
+const DEFAULT_POLICIES = require("../utils/defaultPolicies");
 
 const readBusinessInfo = async () => {
   const info = await BusinessInfo.findOne();
-  return info || {};
+  if (!info) return { policies: DEFAULT_POLICIES };
+
+  // Ensure all 3 policies exist and have fallback content
+  const merged = info.toObject ? info.toObject() : { ...info };
+  const existingPolicies = merged.policies || {};
+
+  merged.policies = {
+    terms: {
+      ...DEFAULT_POLICIES.terms,
+      ...(existingPolicies.terms || {})
+    },
+    privacy: {
+      ...DEFAULT_POLICIES.privacy,
+      ...(existingPolicies.privacy || {})
+    },
+    cancellation: {
+      ...DEFAULT_POLICIES.cancellation,
+      ...(existingPolicies.cancellation || {})
+    }
+  };
+
+  return merged;
 };
 
 exports.getPublic = asyncHandler(async (req, res) => {
@@ -85,6 +107,7 @@ exports.update = asyncHandler(async (req, res) => {
     privacy_url,
     terms_file: req.body.terms_file,
     privacy_file: req.body.privacy_file,
+    policies: req.body.policies !== undefined ? req.body.policies : current.policies,
     years_of_experience: req.body.years_of_experience,
     custom_event_setup_price: req.body.custom_event_setup_price,
     custom_food_and_event_price: req.body.custom_food_and_event_price,
@@ -150,4 +173,66 @@ exports.update = asyncHandler(async (req, res) => {
   }
 
   res.json(updated);
+});
+
+exports.updatePolicy = asyncHandler(async (req, res) => {
+  const { policyKey } = req.params;
+  const allowedKeys = ["terms", "privacy", "cancellation"];
+  if (!allowedKeys.includes(policyKey)) {
+    return res.status(400).json({
+      message: `Invalid policy key (${policyKey}). Allowed keys: ${allowedKeys.join(", ")}`
+    });
+  }
+
+  let doc = await BusinessInfo.findOne();
+  if (!doc) {
+    doc = new BusinessInfo({ policies: JSON.parse(JSON.stringify(DEFAULT_POLICIES)) });
+  }
+
+  const currentPolicies = doc.policies || JSON.parse(JSON.stringify(DEFAULT_POLICIES));
+  const existing = currentPolicies[policyKey] || DEFAULT_POLICIES[policyKey] || {};
+
+  const { content, draft_content, action = "publish", title } = req.body;
+  const now = new Date();
+
+  let targetPolicy = { ...existing };
+  if (title) targetPolicy.title = title;
+
+  if (action === "publish") {
+    targetPolicy.content = content !== undefined ? content : (draft_content !== undefined ? draft_content : existing.content);
+    targetPolicy.draft_content = "";
+    targetPolicy.status = "published";
+    targetPolicy.published_at = now;
+    targetPolicy.updated_at = now;
+  } else {
+    // Save as draft
+    targetPolicy.draft_content = draft_content !== undefined ? draft_content : (content !== undefined ? content : existing.content);
+    targetPolicy.status = "draft";
+    targetPolicy.updated_at = now;
+  }
+
+  currentPolicies[policyKey] = targetPolicy;
+  doc.policies = currentPolicies;
+  doc.markModified("policies");
+  await doc.save();
+
+  await logAction({
+    user_id: req.user?._id || req.user?.id,
+    action: action === "publish" ? "policy_published" : "policy_draft_saved",
+    entity_type: "business_info",
+    entity_id: doc._id,
+    details: `${action === "publish" ? "Published" : "Saved draft for"} ${targetPolicy.title || policyKey}`,
+  });
+
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("system:refresh", { type: "businessInfo", action: "update" });
+    io.emit("system:refresh", { type: "systemLog", action: "create" });
+  }
+
+  res.json({
+    message: action === "publish" ? "Policy published successfully." : "Policy draft saved successfully.",
+    policy: targetPolicy,
+    policies: currentPolicies
+  });
 });

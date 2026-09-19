@@ -4,7 +4,7 @@ import { Card, SH, InfoNote, StepShell } from "../components/BookingSharedUI";
 import { focusRing } from "../lib/bookingUI";
 import EstimateSummary from "../components/EstimateSummary";
 import { cn } from "@/lib/utils";
-import { policyHighlights } from "@/lib/policy";
+
 import {
   guestCountLabel,
   offerFoodByCategory,
@@ -98,6 +98,7 @@ export default function StepReviewBooking({
   setAgreements,
   onShowTerms,
   onShowPrivacy,
+  onShowCancellation,
   onEditStep,
   editTargets = {},
   errors = {},
@@ -105,6 +106,7 @@ export default function StepReviewBooking({
   turnstileRef = null,
   offer = null,
   deliveryMethod = "setup",
+  policies = null,
 }) {
   // What is actually being booked, which on a setup package is only settled by
   // the customer's answer on the menu step. Reviewing the raw service type
@@ -503,22 +505,9 @@ export default function StepReviewBooking({
               Before you submit
             </h3>
 
-            <ul className="mb-3 space-y-1.5 text-xs text-slate-600">
-              {policyHighlights(estimate.depositPercentage).map((highlight) => (
-                <li key={highlight.title} className="flex gap-2">
-                  <span
-                    aria-hidden="true"
-                    className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#4C81E0]"
-                  />
-                  <p className="leading-snug">
-                    <strong className="font-semibold text-slate-800">
-                      {highlight.title}:
-                    </strong>{" "}
-                    {highlight.body}
-                  </p>
-                </li>
-              ))}
-            </ul>
+            <p className="mb-3 text-xs text-slate-500 leading-relaxed">
+              Please review the following policies before submitting your booking.
+            </p>
 
             {errors.agreements && (
               <InfoNote tone="danger" className="mb-2.5">
@@ -551,6 +540,7 @@ export default function StepReviewBooking({
                   >
                     Terms &amp; Conditions
                   </button>
+                  .
                 </span>
               </label>
 
@@ -567,7 +557,7 @@ export default function StepReviewBooking({
                   }
                 />
                 <span className="text-xs text-slate-600 leading-snug">
-                  I agree to the{" "}
+                  I have read and understood the{" "}
                   <button
                     type="button"
                     onClick={(event) => {
@@ -581,8 +571,25 @@ export default function StepReviewBooking({
                   >
                     Privacy Policy
                   </button>
+                  .
                 </span>
               </label>
+
+              {onShowCancellation && (
+                <p className="text-[11px] text-slate-500 pt-1.5 pl-1">
+                  View our{" "}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onShowCancellation();
+                    }}
+                    className="font-semibold text-[#4C81E0] hover:underline cursor-pointer"
+                  >
+                    Cancellation &amp; Refund Policy
+                  </button>
+                </p>
+              )}
             </div>
 
             {import.meta.env.VITE_TURNSTILE_SITE_KEY && (

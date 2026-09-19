@@ -1,125 +1,38 @@
+import PolicyRenderer from "./PolicyRenderer";
+import { DEFAULT_POLICIES } from "./defaultPolicies";
+import useBusinessInfo from "../../hooks/useBusinessInfo";
+
 /**
- * Single source for the customer-facing Terms and Privacy text.
- *
- * The booking wizard and the custom-quote wizard both have to show these, and
- * previously each carried its own abridged copy that had already drifted apart.
- * Wording here is the fuller of the two originals, unchanged except that the
- * deposit percentage now reads from BusinessInfo instead of being hardcoded —
- * the same value the backend charges (payment.controller.js).
+ * Dynamic policy content components for customer portals.
+ * Reads published policy texts from BusinessInfo.policies, with fallback to standard defaults.
  */
 
-const H = ({ children }) => (
-  <h4 className="mb-2 text-base font-bold text-[#1E293B]">{children}</h4>
-);
+export function TermsContent({ content, businessInfo: provided }) {
+  const businessInfo = useBusinessInfo(provided);
+  const termsText =
+    content ||
+    businessInfo?.policies?.terms?.content ||
+    DEFAULT_POLICIES.terms.content;
 
-export function TermsContent({ depositPercentage = 20 }) {
-  return (
-    <div className="space-y-6 text-sm leading-relaxed text-[#64748B]">
-      <section>
-        <H>Booking &amp; Reservation</H>
-        <p>
-          All bookings are subject to availability. A reservation is only
-          considered confirmed once the client has provided the necessary event
-          details and paid the required deposit.
-        </p>
-      </section>
-      <section>
-        <H>Payment Terms</H>
-        <ul className="list-disc space-y-1 pl-5">
-          <li>
-            <strong>Deposit:</strong> A {depositPercentage}% down payment is
-            required to reserve the date.
-          </li>
-          <li>
-            <strong>Final Payment:</strong> The remaining balance is payable the
-            same day after the event has been completed. Customers have the choice
-            to pay online via the customer portal or in cash to the event manager
-            on-site.
-          </li>
-        </ul>
-      </section>
-      <section>
-        <H>Cancellation &amp; Refund Policy</H>
-        <p className="font-medium text-red-600">
-          IMPORTANT: All deposits made are non-refundable and non-transferable.
-          If a booking is canceled by the client for any reason, the deposit will
-          be forfeited to cover administrative costs and lost business
-          opportunities.
-        </p>
-      </section>
-      <section>
-        <H>Venue Ocular Visits &amp; Site Inspections</H>
-        <p>
-          Clients may request a physical site inspection (ocular visit) to verify venue dimensions, power access, and layout setup.
-        </p>
-        <ul className="list-disc space-y-1 pl-5 mt-1">
-          <li>
-            <strong>Standard Events:</strong> Ocular visits may be scheduled up to one (1) day prior to the event date.
-          </li>
-          <li>
-            <strong>Weddings:</strong> Due to extensive floral styling, stage production, and catering logistics, ocular visits for weddings must be scheduled at least one (1) week (7 days) prior to the event date.
-          </li>
-        </ul>
-      </section>
-      <section>
-        <H>Lost or Damaged Equipment</H>
-        <p>
-          The client is responsible for the safekeeping of all catering equipment
-          and materials provided during the event. The client will be billed and
-          held financially responsible for the replacement cost of any items that
-          are lost, missing, or damaged during the event.
-        </p>
-      </section>
-      <section>
-        <H>Liability</H>
-        <p>
-          Caezelle&apos;s Food, Catering &amp; Services is not responsible for any delays or
-          failures in performance due to circumstances beyond our control (e.g.,
-          natural disasters, extreme weather, or government restrictions).
-        </p>
-      </section>
-    </div>
-  );
+  return <PolicyRenderer content={termsText} />;
 }
 
-export function PrivacyContent() {
-  return (
-    <div className="space-y-6 text-sm leading-relaxed text-[#64748B]">
-      <section>
-        <H>Data Collection</H>
-        <p>
-          We collect personal information such as your name, contact number,
-          email address, and event details to facilitate your booking and provide
-          our services.
-        </p>
-      </section>
-      <section>
-        <H>Use of Information</H>
-        <p>
-          Your data is used strictly for: processing your catering orders and
-          payments, communicating regarding event logistics, and improving our
-          system&apos;s user experience.
-        </p>
-      </section>
-      <section>
-        <H>Data Security</H>
-        <p>
-          We implement secure protocols to protect your information from
-          unauthorized access. We do not sell or share your personal data with
-          third-party marketers.
-        </p>
-      </section>
-      <section>
-        <H>Consent</H>
-        <p>
-          By using this system and paying the deposit, you agree to the
-          collection of your data and acknowledge the No-Refund Policy stated in
-          our Terms and Conditions.
-        </p>
-      </section>
-    </div>
-  );
+export function PrivacyContent({ content, businessInfo: provided }) {
+  const businessInfo = useBusinessInfo(provided);
+  const privacyText =
+    content ||
+    businessInfo?.policies?.privacy?.content ||
+    DEFAULT_POLICIES.privacy.content;
+
+  return <PolicyRenderer content={privacyText} />;
 }
 
-// The short-form summary of the Terms above lives in `lib/policy.js`, so this
-// file exports only components (and stays fast-refresh friendly).
+export function CancellationContent({ content, businessInfo: provided }) {
+  const businessInfo = useBusinessInfo(provided);
+  const cancellationText =
+    content ||
+    businessInfo?.policies?.cancellation?.content ||
+    DEFAULT_POLICIES.cancellation.content;
+
+  return <PolicyRenderer content={cancellationText} />;
+}

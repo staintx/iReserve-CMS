@@ -107,6 +107,7 @@ export const AdminAPI = {
   // Business Info
   getBusinessInfo: () => api.get("/business-info"),
   updateBusinessInfo: (data) => api.put("/business-info", data),
+  updatePolicy: (policyKey, data) => api.put(`/business-info/policies/${policyKey}`, data),
   uploadPolicyDoc: (formData) =>
     api.post("/business-info/upload-policy", formData, {
       headers: { "Content-Type": "multipart/form-data" },

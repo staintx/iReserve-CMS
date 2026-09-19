@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams, useLocation } from "react-rout
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import OcularDatePickerModal from "../../components/customer/OcularDatePickerModal";
 import PaymentChoiceModal from "../../components/customer/PaymentChoiceModal";
+import CustomerPolicyModal from "../../components/policy/CustomerPolicyModal";
 import { CustomerAPI } from "../../api/customer";
 import { createConversation } from "../../api/messages";
 import { 
@@ -60,6 +61,7 @@ import AmountSummary from "../../components/customer/portal/AmountSummary";
 import { ACTION_PAY, ACTION_MESSAGE } from "../../components/customer/portal/actionStyles";
 import InvoiceModal from "../../components/common/invoice/InvoiceModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
+import { extractPolicySections } from "../../components/policy/policyFormat";
 import { cn } from "@/lib/utils";
 import { selectSourceQuotation } from "../../utils/quotationDiff";
 import { formatShortDate } from "../../utils/format";
@@ -204,6 +206,17 @@ export default function CustomerEventDashboard() {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const businessInfo = useBusinessInfo();
 
+  const cancellationPolicyText = useMemo(() => {
+    const raw = businessInfo?.policies?.cancellation?.content;
+    if (raw) {
+      const sections = extractPolicySections(raw);
+      if (sections.length > 0 && sections[0].body) {
+        return sections[0].body;
+      }
+    }
+    return "Reservation deposits are non-refundable. Cancellations and date rescheduling must be submitted in accordance with our catering terms.";
+  }, [businessInfo]);
+
   // Rating & Review State
   const [bookingRating, setBookingRating] = useState(null);
   const [_loadingRating, setLoadingRating] = useState(false);
@@ -216,6 +229,7 @@ export default function CustomerEventDashboard() {
   const [requestingCancellation, setRequestingCancellation] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
   const [isSubmittingCancellation, setIsSubmittingCancellation] = useState(false);
+  const [showPolicyModal, setShowPolicyModal] = useState(null);
 
   const handleAcceptRevision = async () => {
     try {
@@ -2769,6 +2783,24 @@ export default function CustomerEventDashboard() {
             <div>Amount Paid: {formatCurrency(displayPaid)}</div>
           </div>
 
+          <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-200/80 text-xs text-slate-700 space-y-1.5 my-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-[#1E3563] uppercase text-[10.5px] tracking-wide">
+                Cancellation &amp; Refund Policy Reminder:
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowPolicyModal("cancellation")}
+                className="text-[#1E3563] hover:underline font-bold text-[11px] cursor-pointer"
+              >
+                View Policy →
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-snug">
+              {cancellationPolicyText}
+            </p>
+          </div>
+
           <div className="space-y-1.5 my-2">
             <label className="text-xs font-semibold text-slate-700 block">
               Reason for Cancellation (Optional)
@@ -2829,6 +2861,13 @@ export default function CustomerEventDashboard() {
         />
       )}
 
+      {/* Customer Policy Dialog */}
+      <CustomerPolicyModal
+        open={Boolean(showPolicyModal)}
+        onClose={() => setShowPolicyModal(null)}
+        initialPolicy={showPolicyModal || "cancellation"}
+        businessInfo={businessInfo}
+      />
     </CustomerDashboardLayout>
   );
 }

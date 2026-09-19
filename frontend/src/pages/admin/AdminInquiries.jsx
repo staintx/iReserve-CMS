@@ -5,7 +5,7 @@ import {
   FileText, Send, Archive, ArchiveRestore, AlertCircle,
   Sparkles, RefreshCw, ArrowUpRight, ChevronLeft, Check, Info,
   AlertTriangle, Tag, Package, Sliders, CheckCircle2, ExternalLink,
-  User, History
+  User, History, Ruler
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
@@ -18,6 +18,7 @@ import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { bookingIdentity } from "../../lib/specialOffers";
 import { resolveServiceType } from "../../components/customer/portal/statusMeta";
+import { eventSpaceLabel } from "../../lib/packageDisplay";
 
 /**
  * Avatar Initials component with deterministic background color
@@ -380,6 +381,7 @@ export default function AdminInquiries() {
         paymentStatus: b.payment_status || "unpaid",
         celebrantName: b.celebrant_name || "",
         eventPalette: b.event_palette || [],
+        eventSpaceSize: eventSpaceLabel(b, b.package_id) || (b.scaffold_width && b.scaffold_length ? `${b.scaffold_width}×${b.scaffold_length}` : ""),
       };
     });
   }, [bookings]);
@@ -900,7 +902,7 @@ export default function AdminInquiries() {
                                   {r.eventType}
                                 </div>
                                 <div className="text-xs text-muted-foreground tabular-nums truncate">
-                                  {r.eventDateFormatted} · {r.guests} pax
+                                  {r.eventDateFormatted} · {r.guests} pax{r.eventSpaceSize ? ` · ${r.eventSpaceSize}` : ""}
                                 </div>
                                 <div className="text-[11px] text-muted-foreground truncate max-w-[140px] flex items-center gap-1">
                                   <MapPin size={11} className="shrink-0 text-muted-foreground" />
@@ -1057,7 +1059,7 @@ export default function AdminInquiries() {
                       <div className="space-y-1 text-xs text-muted-foreground pt-1 border-t border-border/50">
                         <div className="flex items-center justify-between font-semibold text-foreground">
                           <span>{r.eventType}</span>
-                          <span className="text-[10px] text-muted-foreground">{r.guests} guests</span>
+                          <span className="text-[10px] text-muted-foreground">{r.guests} guests{r.eventSpaceSize ? ` · ${r.eventSpaceSize}` : ""}</span>
                         </div>
                         <div className="flex items-center gap-1 text-[10px]">
                           <Calendar size={11} className="shrink-0 text-muted-foreground/70" />
@@ -1242,6 +1244,12 @@ export default function AdminInquiries() {
                       <span className="text-[10px] text-muted-foreground block font-medium">Service</span>
                       <span className="font-semibold text-foreground">{selectedInquiry.service || selectedInquiry.booking}</span>
                     </div>
+                    {selectedInquiry.eventSpaceSize && (
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block font-medium">Event Space Size</span>
+                        <span className="font-semibold font-mono text-foreground">{selectedInquiry.eventSpaceSize}</span>
+                      </div>
+                    )}
                     <div>
                       <span className="text-[10px] text-muted-foreground block font-medium">Budget / Est. Total</span>
                       <span className="font-semibold font-mono text-foreground">

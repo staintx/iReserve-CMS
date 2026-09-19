@@ -31,21 +31,75 @@ const scaffoldOptions = (pkg) =>
  * than an empty row.
  */
 function eventSpaceLabel(request, pkg) {
-  const option = scaffoldOptions(pkg).find(
-    (entry) => String(entry?._id) === String(request?.selected_scaffold_option_id)
-  );
+  if (!request) return "";
 
-  const width = dimension(request?.scaffold_width) ?? dimension(option?.width_ft);
-  const length = dimension(request?.scaffold_length) ?? dimension(option?.length_ft);
-  if (width && length) return `${width}ft × ${length}ft`;
+  // If already formatted label exists on request/snapshot
+  if (request.event_space_label && typeof request.event_space_label === "string" && request.event_space_label.trim()) {
+    const lbl = request.event_space_label.trim();
+    const match = lbl.match(/(\d+)\s*(?:ft)?\s*[xX×]\s*(\d+)\s*(?:ft)?/i);
+    if (match) return `${match[1]}×${match[2]}`;
+    return lbl;
+  }
+
+  const resolvedPkg = (pkg && typeof pkg === "object")
+    ? pkg
+    : (request.package_id && typeof request.package_id === "object" ? request.package_id : null);
+
+  const options = scaffoldOptions(resolvedPkg);
+
+  let option = null;
+  if (request.selected_scaffold_option_id) {
+    option = options.find(
+      (entry, idx) =>
+        String(entry?._id) === String(request.selected_scaffold_option_id) ||
+        String(entry?.id) === String(request.selected_scaffold_option_id) ||
+        String(idx) === String(request.selected_scaffold_option_id)
+    );
+  }
+
+  if (!option && request.scaffold_width && request.scaffold_length) {
+    option = options.find(
+      (entry) =>
+        Number(entry.width_ft) === Number(request.scaffold_width) &&
+        Number(entry.length_ft) === Number(request.scaffold_length)
+    );
+  }
+
+  if (!option && resolvedPkg?.default_scaffold_option_id != null) {
+    option = options.find(
+      (entry, idx) =>
+        String(entry?._id) === String(resolvedPkg.default_scaffold_option_id) ||
+        String(idx) === String(resolvedPkg.default_scaffold_option_id)
+    );
+  }
+
+  if (!option && options.length > 0) {
+    const guests = Number(request.guest_count);
+    if (guests > 0) {
+      const guestMatched = options.find(
+        (entry) =>
+          Number(entry.guest_min) <= guests &&
+          (!entry.guest_max || Number(entry.guest_max) >= guests)
+      );
+      if (guestMatched) option = guestMatched;
+    }
+    if (!option) option = options[0];
+  }
+
+  const width = dimension(request.scaffold_width) ?? dimension(option?.width_ft);
+  const length = dimension(request.scaffold_length) ?? dimension(option?.length_ft);
+  if (width && length) return `${width}×${length}`;
 
   const label = String(option?.label || "").trim();
-  if (label) return label;
+  if (label) {
+    const match = label.match(/(\d+)\s*(?:ft)?\s*[xX×]\s*(\d+)\s*(?:ft)?/i);
+    if (match) return `${match[1]}×${match[2]}`;
+    return label;
+  }
 
-  // Some requests recorded only the area. It is still the same one fact, so it
-  // is stated rather than dropped.
-  const area = dimension(request?.scaffold_base_area) ?? dimension(option?.area_ft2);
+  const area = dimension(request.scaffold_base_area) ?? dimension(option?.area_ft2);
   return area ? `${area} sq ft` : "";
 }
 
 module.exports = { eventSpaceLabel };
+

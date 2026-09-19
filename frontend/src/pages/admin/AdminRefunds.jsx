@@ -91,6 +91,9 @@ export default function AdminRefunds() {
             b.status === "refunded" ||
             b.payment_status === "refund_requested" ||
             b.payment_status === "refunded" ||
+            b.cancellation_request?.status === "pending" ||
+            (b.change_request?.status === "pending" &&
+              b.change_request?.message?.toLowerCase().includes("cancel")) ||
             b.ocular_visit?.outcome === "cancel";
           return isCancelledOrRefunded;
         })
@@ -118,13 +121,15 @@ export default function AdminRefunds() {
           let status = "pending";
           if (totalRefunded > 0 || b.payment_status === "refunded" || b.status === "refunded") {
             status = "approved";
-          } else if (positivePaid === 0) {
+          } else if (positivePaid === 0 && b.status === "cancelled") {
             status = "no_refund_needed";
           }
 
           // Reason
           const reason =
+            b.cancellation_request?.reason ||
             b.cancellation_reason ||
+            b.change_request?.message ||
             (b.ocular_visit?.outcome === "cancel" ? "Cancelled after ocular visit" : "Customer / Admin Cancellation");
 
           return {

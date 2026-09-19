@@ -1374,6 +1374,15 @@ exports.processRefund = asyncHandler(async (req, res) => {
   // Cancel booking and update payment status
   booking.status = "cancelled";
   booking.payment_status = "refunded";
+  if (booking.cancellation_request?.status === "pending") {
+    booking.cancellation_request.status = "approved";
+    booking.cancellation_request.resolved_at = new Date();
+    booking.cancellation_request.admin_notes = deductionReason;
+  }
+  if (booking.change_request?.status === "pending") {
+    booking.change_request.status = "approved";
+    booking.change_request.resolved_at = new Date();
+  }
   await booking.save();
 
   // Delete any existing inventory reservations
@@ -2079,9 +2088,21 @@ exports.requestCancellation = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: "Forbidden" });
   }
 
+  const reason = (req.body?.reason || "").trim() || "Customer requested a cancellation and refund.";
+
+  booking.cancellation_request = {
+    status: "pending",
+    reason: reason,
+    requested_at: new Date(),
+    resolved_at: null,
+    admin_notes: "",
+  };
+  booking.cancellation_reason = reason;
+
+  // Mirror change_request for legacy compatibility
   booking.change_request = {
     status: "pending",
-    message: "Customer requested a cancellation and refund.",
+    message: reason,
     requested_at: new Date(),
     resolved_at: null,
   };
@@ -2091,7 +2112,7 @@ exports.requestCancellation = asyncHandler(async (req, res) => {
   await notifyAdmins(
     {
       title: "Booking Cancellation Requested",
-      body: `${req.user.full_name || req.user.email || "A customer"} requested to cancel booking #${booking.reference || booking._id}.`,
+      body: `${req.user.full_name || req.user.email || "A customer"} requested to cancel booking #${booking.reference || booking._id}. Reason: ${reason}`,
       type: "warning",
       link: `/admin/bookings/${booking._id}/details`,
       meta: { booking_id: booking._id },
@@ -2104,11 +2125,175 @@ exports.requestCancellation = asyncHandler(async (req, res) => {
     action: "booking_cancellation_requested",
     entity_type: "booking",
     entity_id: booking._id,
-    details: `Customer requested a cancellation/refund.`,
+    details: `Customer requested a cancellation/refund. Reason: ${reason}`,
     ip_address: req.ip,
   });
 
+  if (io) io.emit("system:refresh", { type: "booking", action: "update" });
+
   res.json(booking);
+});
+
+exports.approveCancellation = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id);
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  const { admin_notes, refund_amount, refund_reason } = req.body;
+
+  // 1. Update cancellation_request
+  booking.cancellation_request = {
+    ...(booking.cancellation_request?.toObject?.() || {}),
+    status: "approved",
+    resolved_at: new Date(),
+    admin_notes: (admin_notes || "Cancellation approved by catering management.").trim(),
+  };
+
+  if (booking.change_request?.status === "pending") {
+    booking.change_request.status = "approved";
+    booking.change_request.resolved_at = new Date();
+  }
+
+  // 2. Mark booking as cancelled
+  booking.status = "cancelled";
+
+  // 3. Release inventory reservations
+  const releasedReservations = await InventoryReservation.find({ booking_id: booking._id });
+  await InventoryReservation.deleteMany({ booking_id: booking._id });
+  releasedReservations.forEach((r) =>
+    writeInventoryLog({
+      inventory_id: r.inventory_id,
+      event_type: "reservation_released",
+      delta: r.quantity,
+      actor_id: req.user?._id,
+      booking_id: booking._id,
+      reason: `Booking ${booking.reference || booking._id} cancelled by admin`,
+    }),
+  );
+
+  // 4. Handle payments and refund status
+  const Payment = require("../models/Payment");
+  const payments = await Payment.find({
+    booking_id: booking._id,
+    status: { $in: ["approved", "paid"] },
+    amount: { $gt: 0 },
+  });
+  const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+  if (totalPaid > 0) {
+    if (refund_amount !== undefined && refund_amount !== null && refund_amount !== "" && !isNaN(refund_amount)) {
+      const numRefund = Number(refund_amount);
+      booking.payment_status = "refunded";
+      if (numRefund > 0) {
+        await Payment.create({
+          booking_id: booking._id,
+          customer_id: booking.customer_id,
+          amount: -numRefund,
+          currency: "PHP",
+          payment_type: "refund",
+          method: "manual",
+          status: "approved",
+          gateway: "manual",
+          metadata: {
+            reason: refund_reason || admin_notes || "Cancellation refund",
+          },
+        });
+      }
+    } else {
+      // Direct into refund management queue
+      booking.payment_status = "refund_requested";
+    }
+  } else {
+    booking.payment_status = "pending";
+  }
+
+  await booking.save();
+
+  // 5. Notifications
+  const io = req.app.get("io");
+  if (booking.customer_id) {
+    const refundNote = totalPaid > 0
+      ? (refund_amount !== undefined && refund_amount !== null && !isNaN(refund_amount)
+          ? ` A refund of ₱${Number(refund_amount).toLocaleString()} was processed.`
+          : " Any eligible refund is currently being calculated and processed.")
+      : "";
+
+    await createNotification(
+      {
+        userId: booking.customer_id,
+        title: "Booking Cancellation Approved",
+        body: `Your cancellation request for booking #${booking.reference || booking._id} has been approved.${refundNote}`,
+        type: "info",
+        link: `/customer/bookings/${booking._id}`,
+        meta: { booking_id: booking._id },
+      },
+      io,
+    );
+  }
+
+  // 6. Audit logging
+  await logAction({
+    user_id: req.user?._id,
+    action: "booking_cancellation_approved",
+    entity_type: "booking",
+    entity_id: booking._id,
+    details: `Admin approved cancellation request for booking #${booking.reference || booking._id}.${admin_notes ? ` Note: ${admin_notes}` : ""}`,
+    ip_address: req.ip,
+  });
+
+  if (io) io.emit("system:refresh", { type: "booking", action: "update" });
+
+  res.json({ message: "Cancellation approved successfully", booking });
+});
+
+exports.rejectCancellation = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id);
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  const admin_notes = (req.body.admin_notes || "").trim();
+  if (!admin_notes) {
+    return res.status(400).json({ message: "Please provide a reason for declining the cancellation request." });
+  }
+
+  booking.cancellation_request = {
+    ...(booking.cancellation_request?.toObject?.() || {}),
+    status: "rejected",
+    resolved_at: new Date(),
+    admin_notes,
+  };
+  if (booking.change_request?.status === "pending") {
+    booking.change_request.status = "rejected";
+    booking.change_request.resolved_at = new Date();
+  }
+
+  await booking.save();
+
+  const io = req.app.get("io");
+  if (booking.customer_id) {
+    await createNotification(
+      {
+        userId: booking.customer_id,
+        title: "Cancellation Request Declined",
+        body: `Your cancellation request for booking #${booking.reference || booking._id} was declined. Reason: ${admin_notes}`,
+        type: "warning",
+        link: `/customer/bookings/${booking._id}`,
+        meta: { booking_id: booking._id },
+      },
+      io,
+    );
+  }
+
+  await logAction({
+    user_id: req.user?._id,
+    action: "booking_cancellation_rejected",
+    entity_type: "booking",
+    entity_id: booking._id,
+    details: `Admin declined cancellation request for booking #${booking.reference || booking._id}. Reason: ${admin_notes}`,
+    ip_address: req.ip,
+  });
+
+  if (io) io.emit("system:refresh", { type: "booking", action: "update" });
+
+  res.json({ message: "Cancellation request declined", booking });
 });
 
 exports.checkInventoryAvailability = checkInventoryAvailability;

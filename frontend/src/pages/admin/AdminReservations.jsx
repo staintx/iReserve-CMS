@@ -196,8 +196,11 @@ export default function AdminReservations() {
         return true;
       })
       .map((b) => {
-        const hasChangeRequest = b.change_request?.status === "pending" && Boolean(b.change_request?.message?.trim());
-        const mappedStatus = hasChangeRequest ? "change requests" : b.status;
+        const isCancellationPending =
+          b.cancellation_request?.status === "pending" ||
+          (b.change_request?.status === "pending" && Boolean(b.change_request?.message?.toLowerCase().includes("cancel")));
+        const hasChangeRequest = !isCancellationPending && b.change_request?.status === "pending" && Boolean(b.change_request?.message?.trim());
+        const mappedStatus = isCancellationPending ? "cancellation requested" : hasChangeRequest ? "change requests" : b.status;
 
         // Independent Add-ons Price Calculation
         const serviceItemsTotal = (b.service_items || []).reduce((sum, i) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0);
@@ -249,6 +252,8 @@ export default function AdminReservations() {
           depositStatus: depositPaidBool ? "Paid" : "Pending",
           finalPaymentStatus: isFullyPaid ? "Paid" : "Pending",
           hasChangeRequest,
+          isCancellationPending,
+          cancellationReason: b.cancellation_request?.reason || b.cancellation_reason || b.change_request?.message || "",
           changeNote: b.change_request?.message || "",
           isRevised: Boolean(b.is_revised),
           revisionCount: b.revision_count || 0,
@@ -321,8 +326,9 @@ export default function AdminReservations() {
 
     const confirmedPaid = inScope.filter((r) => r.depositPaid && !["completed", "cancelled"].includes(r.rawStatus.toLowerCase())).length;
     const changeRequests = inScope.filter((r) => r.hasChangeRequest).length;
+    const cancellationRequests = inScope.filter((r) => r.isCancellationPending).length;
 
-    return { total, upcomingThisWeek, confirmedPaid, changeRequests };
+    return { total, upcomingThisWeek, confirmedPaid, changeRequests, cancellationRequests };
   }, [inScope]);
 
   // Reservation Filter Tabs & Search
@@ -345,6 +351,8 @@ export default function AdminReservations() {
         if (statusNorm !== "completed") return false;
       } else if (filter === "cancelled") {
         if (statusNorm !== "cancelled") return false;
+      } else if (filter === "cancellations") {
+        if (!r.isCancellationPending) return false;
       }
 
       // Search Query
@@ -613,6 +621,7 @@ export default function AdminReservations() {
                   { id: "all", label: "All Bookings" },
                   { id: "upcoming", label: "Upcoming" },
                   { id: "this_week", label: "This Week" },
+                  { id: "cancellations", label: `Cancellations${kpiStats.cancellationRequests > 0 ? ` (${kpiStats.cancellationRequests})` : ""}` },
                   { id: "completed", label: "Completed" },
                   { id: "cancelled", label: "Cancelled" },
                 ].map((tab) => (
@@ -939,6 +948,16 @@ export default function AdminReservations() {
                   </div>
 
                   {/* Pending Change Request Alert (Prominent when present) */}
+                  {selectedBooking.isCancellationPending && (
+                    <div className="bg-rose-50 border border-rose-200 rounded-lg p-2.5 text-xs text-rose-900 space-y-1">
+                      <div className="flex items-center gap-1 font-bold text-rose-950">
+                        <AlertTriangle size={12} className="text-rose-600" />
+                        <span>Cancellation Requested by Customer</span>
+                      </div>
+                      <p className="text-[11px] italic">"{selectedBooking.cancellationReason}"</p>
+                    </div>
+                  )}
+
                   {selectedBooking.hasChangeRequest && (
                     <div className="p-3 bg-amber-50/90 border border-amber-300/80 rounded-xl text-xs space-y-1">
                       <div className="flex items-center gap-1.5 font-bold text-amber-900">
@@ -1137,9 +1156,21 @@ export default function AdminReservations() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => navigate(`/admin/bookings/${selectedBooking._id}/details`)}
-                        className="flex-1 py-2 px-3 rounded-lg font-semibold text-xs text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
+                        className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer ${
+                          selectedBooking.isCancellationPending
+                            ? "bg-rose-600 hover:bg-rose-700 text-white"
+                            : "bg-primary text-primary-foreground hover:bg-primary/90"
+                        }`}
                       >
-                        <Edit3 size={13} /> Open Full Booking Details
+                        {selectedBooking.isCancellationPending ? (
+                          <>
+                            <AlertTriangle size={13} /> Review Cancellation
+                          </>
+                        ) : (
+                          <>
+                            <Edit3 size={13} /> Open Full Booking Details
+                          </>
+                        )}
                       </button>
                       {canCancel && (
                         <button

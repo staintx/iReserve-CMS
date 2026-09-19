@@ -26,6 +26,7 @@ import {
   MessageSquare,
   CreditCard,
   XCircle,
+  AlertTriangle,
   UserPlus,
   Star,
 } from "lucide-react";
@@ -70,6 +71,10 @@ export default function BookingCard({
   const rawStatus = (booking.status || "").toLowerCase();
   const isCancelled = rawStatus === "cancelled";
   const isClosed = isCancelled || rawStatus === "completed";
+  const isCancellationPending =
+    booking.cancellation_request?.status === "pending" ||
+    (booking.change_request?.status === "pending" &&
+      booking.change_request?.message?.toLowerCase().includes("cancel"));
   const status = bookingStatusMeta(booking, { balance });
 
   // Ocular Visit Request Handler
@@ -198,8 +203,20 @@ export default function BookingCard({
         ]}
       />
 
-      {/* Pending change request */}
-      {booking.change_request?.status === "pending" && booking.change_request?.message && (
+      {/* Cancellation request under review */}
+      {isCancellationPending && (
+        <StateNotice tone="destructive" icon={AlertTriangle} title="Cancellation request under review.">
+          {booking.cancellation_request?.reason || booking.change_request?.message || "Customer requested a cancellation and refund."}
+          {(booking.cancellation_request?.requested_at || booking.change_request?.requested_at) && (
+            <span className="mt-1 block text-xs opacity-80">
+              Submitted {formatShortDate(booking.cancellation_request?.requested_at || booking.change_request?.requested_at)}
+            </span>
+          )}
+        </StateNotice>
+      )}
+
+      {/* Pending change request (for non-cancellations) */}
+      {!isCancellationPending && booking.change_request?.status === "pending" && booking.change_request?.message && (
         <StateNotice tone="info" icon={Send} title="Change request under review.">
           {booking.change_request.message}
           {booking.change_request.requested_at && (
@@ -283,10 +300,10 @@ export default function BookingCard({
           variant="ghost"
           size="sm"
           onClick={handleCancellationRequest}
-          disabled={isCancelling || booking.change_request?.status === "pending"}
+          disabled={isCancelling || isCancellationPending || booking.change_request?.status === "pending"}
           className={cn(ACTION_DANGER, "sm:ml-auto")}
         >
-          <XCircle className="h-4 w-4" /> {isCancelling ? "Processing…" : "Cancel booking"}
+          <XCircle className="h-4 w-4" /> {isCancelling ? "Processing…" : isCancellationPending ? "Cancellation Pending" : "Cancel booking"}
         </Button>
       )}
     </>

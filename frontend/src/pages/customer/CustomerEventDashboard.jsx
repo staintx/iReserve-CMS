@@ -214,6 +214,7 @@ export default function CustomerEventDashboard() {
 
   // Cancellation Request State
   const [requestingCancellation, setRequestingCancellation] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
   const [isSubmittingCancellation, setIsSubmittingCancellation] = useState(false);
 
   const handleAcceptRevision = async () => {
@@ -533,9 +534,10 @@ export default function CustomerEventDashboard() {
     if (!booking?._id) return;
     try {
       setIsSubmittingCancellation(true);
-      await CustomerAPI.requestCancellation(booking._id);
+      await CustomerAPI.requestCancellation(booking._id, { reason: cancellationReason });
       notify("Cancellation request submitted to management for review.", "success");
       setRequestingCancellation(false);
+      setCancellationReason("");
       fetchBooking();
     } catch (err) {
       notify(err.response?.data?.message || "Failed to submit cancellation request.", "error");
@@ -1012,6 +1014,42 @@ export default function CustomerEventDashboard() {
       };
     }
 
+    // 5.5 Cancellation request under admin review
+    const isCancelReqPending =
+      booking.cancellation_request?.status === "pending" ||
+      (booking.change_request?.status === "pending" &&
+        booking.change_request?.message?.toLowerCase().includes("cancel"));
+
+    if (isCancelReqPending) {
+      const reasonText =
+        booking.cancellation_request?.reason ||
+        booking.cancellation_reason ||
+        booking.change_request?.message ||
+        "Cancellation requested";
+      return {
+        tone: "rose",
+        badge: "Cancellation Under Review",
+        badgeClass: "bg-rose-100 text-rose-900 border-rose-200 font-semibold",
+        title: "Booking Cancellation Request Under Review",
+        description: `We received your cancellation request: "${reasonText}". Our catering management team is reviewing your booking and calculating any eligible refund in accordance with our terms.`,
+        assignedParty: "Caezelle Catering Management",
+        timeline: (booking.cancellation_request?.requested_at || booking.change_request?.requested_at)
+          ? `Submitted on ${formatShortDate(booking.cancellation_request?.requested_at || booking.change_request?.requested_at)}`
+          : "Submitted recently",
+        action: (
+          <Button
+            variant="outline"
+            onClick={handleOpenChat}
+            disabled={isOpeningChat}
+            className="border-rose-300 bg-white hover:bg-rose-50 text-rose-950 font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs gap-1.5"
+          >
+            <MessageSquare className="w-4 h-4 text-rose-700" />
+            <span>Message Management</span>
+          </Button>
+        ),
+      };
+    }
+
     // 6. Proposed changes under admin review
     if (booking.change_request && booking.change_request.status === "pending") {
       const changeMsg = (booking.change_request.message || "").trim();
@@ -1177,6 +1215,30 @@ export default function CustomerEventDashboard() {
                 Your checkout session was cancelled. No charges were made, and you can complete your payment whenever you are ready.
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Cancellation Request Declined Banner */}
+        {booking.cancellation_request?.status === "rejected" && !["cancelled", "completed"].includes(rawStatus) && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start justify-between gap-3 shadow-2xs text-xs">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-semibold text-amber-950 text-xs">Cancellation Request Declined</h4>
+                <p className="text-amber-800 text-xs mt-0.5">
+                  Your cancellation request was reviewed and declined: {booking.cancellation_request.admin_notes || "Please contact our team for details."}
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenChat}
+              className="shrink-0 border-amber-300 text-amber-950 hover:bg-amber-100/60 font-semibold text-xs h-8"
+            >
+              <MessageSquare className="w-3.5 h-3.5 mr-1 text-amber-700" />
+              Message Team
+            </Button>
           </div>
         )}
 
@@ -2705,6 +2767,19 @@ export default function CustomerEventDashboard() {
             <div className="font-semibold text-slate-900">Reference: {refCode}</div>
             <div>Event: {booking?.event_type || "Catering"} on {booking?.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBD"}</div>
             <div>Amount Paid: {formatCurrency(displayPaid)}</div>
+          </div>
+
+          <div className="space-y-1.5 my-2">
+            <label className="text-xs font-semibold text-slate-700 block">
+              Reason for Cancellation (Optional)
+            </label>
+            <textarea
+              rows={3}
+              value={cancellationReason}
+              onChange={(e) => setCancellationReason(e.target.value)}
+              placeholder="Please share why you are cancelling (e.g., change of plans, personal reasons)..."
+              className="w-full text-xs rounded-lg border border-slate-200 p-2.5 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-rose-500 font-medium"
+            />
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">

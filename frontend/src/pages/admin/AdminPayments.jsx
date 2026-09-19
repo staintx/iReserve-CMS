@@ -27,7 +27,12 @@ import {
   MapPin,
   AlertTriangle,
   ArrowUpRight,
-  History
+  History,
+  RotateCcw,
+  PlusCircle,
+  BookmarkCheck,
+  CheckCheck,
+  CircleDollarSign
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -151,16 +156,52 @@ export default function AdminPayments() {
     return null;
   };
 
+  const getPaymentTypeInfo = (p) => {
+    const t = String(p?.payment_type || "").toLowerCase().trim();
+    if (t === "refund") {
+      return { label: "Refund", color: "text-rose-600 bg-rose-50 border-rose-200/80", icon: RotateCcw };
+    }
+    if (t === "additional") {
+      return { label: "Additional Charge", color: "text-amber-700 bg-amber-50 border-amber-200/80", icon: PlusCircle };
+    }
+    if (t === "deposit") {
+      return { label: "Deposit", color: "text-blue-700 bg-blue-50 border-blue-200/80", icon: BookmarkCheck };
+    }
+    if (t === "balance") {
+      return { label: "Final Balance", color: "text-purple-700 bg-purple-50 border-purple-200/80", icon: CheckCheck };
+    }
+    if (t === "full") {
+      return { label: "Full Payment", color: "text-emerald-700 bg-emerald-50 border-emerald-200/80", icon: CircleDollarSign };
+    }
+    // Neutral fallback: do not guess "Full Payment"
+    return { label: "Payment", color: "text-slate-700 bg-slate-100 border-slate-200/80", icon: DollarSign };
+  };
+
+  const getTransactionStatusLabel = (p) => {
+    const isRefund = String(p?.payment_type || "").toLowerCase().trim() === "refund";
+    const s = String(p?.status || "").toLowerCase().trim();
+    if (isRefund) {
+      if (["approved", "completed", "paid", "refunded", "succeeded"].includes(s)) return "Refunded";
+      if (s === "pending") return "Pending";
+      if (["rejected", "failed", "cancelled"].includes(s)) return "Failed";
+      return p?.status || "Refunded";
+    }
+    if (["approved", "paid", "succeeded"].includes(s)) return "Paid";
+    if (s === "pending") return "Pending";
+    if (["rejected", "failed"].includes(s)) return "Failed";
+    return p?.status || "Pending";
+  };
+
   const getStatusBadgeLabel = (status) => {
     const s = String(status || "").toLowerCase();
-    if (s === "approved" || s === "paid" || s === "succeeded") return "Paid";
+    if (["approved", "paid", "succeeded"].includes(s)) return "Paid";
     if (s === "pending") return "Pending";
-    if (s === "rejected" || s === "failed") return "Failed";
-    return "Pending";
+    if (["rejected", "failed"].includes(s)) return "Failed";
+    return status || "Pending";
   };
 
   const getMethodBadge = (method) => {
-    const m = String(method || "").toLowerCase();
+    const m = String(method || "").toLowerCase().trim();
     if (m === "paymongo" || m === "online") {
       return { label: "Online (PayMongo)", icon: CreditCard, cls: "bg-blue-50 text-blue-700 border-blue-200" };
     }
@@ -173,7 +214,19 @@ export default function AdminPayments() {
     if (m === "cash") {
       return { label: "Cash Onsite", icon: Banknote, cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
     }
+    if (m === "manual") {
+      return { label: "Manual", icon: Banknote, cls: "bg-slate-100 text-slate-700 border-slate-200" };
+    }
     return { label: method || "Other", icon: DollarSign, cls: "bg-gray-50 text-gray-700 border-gray-200" };
+  };
+
+  const formatTransactionAmount = (p) => {
+    const isRefund = String(p?.payment_type || "").toLowerCase().trim() === "refund";
+    const amt = Number(p?.amount) || 0;
+    if (isRefund) {
+      return "-₱" + Math.abs(amt).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+    return "₱" + Math.abs(amt).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   };
 
   const getMilestoneLabel = (type) => {
@@ -182,6 +235,7 @@ export default function AdminPayments() {
     if (t === "balance") return "Final Balance";
     if (t === "full") return "Full Payment";
     if (t === "additional") return "Additional Charge";
+    if (t === "refund") return "Refund";
     return type || "Payment";
   };
 
@@ -189,22 +243,37 @@ export default function AdminPayments() {
   const stats = useMemo(() => {
     let totalCollected = 0;
     let paidCount = 0;
+    let refundCount = 0;
+    let refundTotal = 0;
     let pendingTotal = 0;
     let pendingCount = 0;
     let onlineTotal = 0;
     let manualTotal = 0;
 
     payments.forEach((p) => {
-      const statusLabel = getStatusBadgeLabel(p.status);
+      const statusLabel = getTransactionStatusLabel(p);
+      const isRefund = String(p.payment_type || "").toLowerCase().trim() === "refund";
       const amt = Number(p.amount) || 0;
-      if (statusLabel === "Paid") {
-        totalCollected += amt;
-        paidCount++;
-        if (p.method === "paymongo") onlineTotal += amt;
-        else manualTotal += amt;
-      } else if (statusLabel === "Pending") {
-        pendingTotal += amt;
-        pendingCount++;
+
+      if (isRefund) {
+        if (statusLabel === "Refunded") {
+          refundCount++;
+          const abs = Math.abs(amt);
+          refundTotal += abs;
+          totalCollected -= abs;
+        } else if (statusLabel === "Pending") {
+          pendingCount++;
+        }
+      } else {
+        if (statusLabel === "Paid") {
+          totalCollected += amt;
+          paidCount++;
+          if (p.method === "paymongo") onlineTotal += amt;
+          else manualTotal += amt;
+        } else if (statusLabel === "Pending") {
+          pendingTotal += amt;
+          pendingCount++;
+        }
       }
     });
 
@@ -214,7 +283,7 @@ export default function AdminPayments() {
       const isCompletedOrCancelled = ["completed", "Completed", "cancelled", "Cancelled"].includes(b.status);
       if (!isCompletedOrCancelled) {
         const bPaid = payments
-          .filter((p) => String(p.booking_id?._id || p.booking_id) === String(b._id) && getStatusBadgeLabel(p.status) === "Paid")
+          .filter((p) => String(p.booking_id?._id || p.booking_id) === String(b._id) && getTransactionStatusLabel(p) === "Paid")
           .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
         const rem = Math.max(0, (Number(b.total_price) || 0) - bPaid);
         totalReceivables += rem;
@@ -224,6 +293,8 @@ export default function AdminPayments() {
     return {
       totalCollected,
       paidCount,
+      refundCount,
+      refundTotal,
       pendingTotal,
       pendingCount,
       onlineTotal,
@@ -247,7 +318,8 @@ export default function AdminPayments() {
       const q = search.toLowerCase();
 
       const matchSearch = !search || custName.includes(q) || ref.includes(q) || payId.includes(q) || (p.gateway_reference || "").toLowerCase().includes(q);
-      const matchStatus = statusFilter === "all" || getStatusBadgeLabel(p.status) === statusFilter;
+      const statusLabel = getTransactionStatusLabel(p);
+      const matchStatus = statusFilter === "all" || statusLabel === statusFilter;
       const matchMethod = methodFilter === "all" || p.method === methodFilter;
       const matchType = typeFilter === "all" || p.payment_type === typeFilter;
 
@@ -325,16 +397,16 @@ export default function AdminPayments() {
       return;
     }
 
-    const headers = ["Payment Ref", "Booking Ref", "Customer Name", "Customer Email", "Milestone", "Method", "Amount (PHP)", "Status", "Paid Date", "Created Date"];
+    const headers = ["Payment Ref", "Booking Ref", "Customer Name", "Customer Email", "Payment Type", "Method", "Amount (PHP)", "Status", "Paid Date", "Created Date"];
     const rows = filtered.map((p) => [
       `PAY-${p._id.slice(-6).toUpperCase()}`,
       getBookingRef(p),
       `"${getCustomerName(p)}"`,
       `"${getCustomerEmail(p)}"`,
-      `"${getMilestoneLabel(p.payment_type)}"`,
-      p.method || "—",
-      p.amount || 0,
-      getStatusBadgeLabel(p.status),
+      `"${getPaymentTypeInfo(p).label}"`,
+      getMethodBadge(p.method).label || "—",
+      formatTransactionAmount(p),
+      getTransactionStatusLabel(p),
       formatDate(p.paid_at),
       formatDate(p.createdAt),
     ]);
@@ -355,15 +427,22 @@ export default function AdminPayments() {
     {
       key: "ref",
       header: "Payment Ref",
-      render: (p) => (
-        <div>
-          <div className="text-xs font-mono font-bold text-foreground flex items-center gap-1">
-            <FileText size={12} className="text-primary" />
-            PAY-{p._id.slice(-6).toUpperCase()}
+      render: (p) => {
+        const isRefund = p.payment_type === "refund";
+        return (
+          <div>
+            <div className="text-xs font-mono font-bold text-foreground flex items-center gap-1">
+              {isRefund ? (
+                <RotateCcw size={12} className="text-rose-600 shrink-0" />
+              ) : (
+                <FileText size={12} className="text-primary shrink-0" />
+              )}
+              PAY-{p._id.slice(-6).toUpperCase()}
+            </div>
+            <div className="text-[11px] text-gray-400 mt-0.5">{formatDate(p.paid_at || p.createdAt)}</div>
           </div>
-          <div className="text-[11px] text-gray-400 mt-0.5">{formatDate(p.paid_at || p.createdAt)}</div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: "booking",
@@ -414,14 +493,27 @@ export default function AdminPayments() {
       },
     },
     {
-      key: "milestone",
-      header: "Milestone",
-      render: (p) => (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/60">
-          <Tag size={10} />
-          {getMilestoneLabel(p.payment_type)}
-        </span>
-      ),
+      key: "payment_type",
+      header: "Payment Type",
+      minWidth: "170px",
+      render: (p) => {
+        const typeInfo = getPaymentTypeInfo(p);
+        const TypeIcon = typeInfo.icon;
+        const isRefund = p.payment_type === "refund";
+        return (
+          <div className="space-y-0.5">
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold border ${typeInfo.color}`}>
+              <TypeIcon size={12} className="shrink-0" />
+              <span>{typeInfo.label}</span>
+            </span>
+            {isRefund && p.metadata?.reason && (
+              <div className="text-[10px] text-rose-600 truncate max-w-[160px] italic" title={p.metadata.reason}>
+                Reason: {p.metadata.reason}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "method",
@@ -441,35 +533,45 @@ export default function AdminPayments() {
       key: "amount",
       header: "Amount",
       render: (p) => {
-        const statusLabel = getStatusBadgeLabel(p.status);
-        const colorClass = statusLabel === "Paid" ? "text-emerald-600 font-bold font-mono" : statusLabel === "Pending" ? "text-amber-600 font-bold font-mono" : "text-gray-400 line-through font-mono";
-        return <span className={`text-sm ${colorClass}`}>{fmt(p.amount)}</span>;
+        const isRefund = String(p.payment_type || "").toLowerCase().trim() === "refund";
+        const statusLabel = getTransactionStatusLabel(p);
+        let colorClass = "text-foreground font-mono";
+        if (isRefund) {
+          colorClass = "text-rose-600 font-bold font-mono";
+        } else if (statusLabel === "Paid") {
+          colorClass = "text-emerald-600 font-bold font-mono";
+        } else if (statusLabel === "Pending") {
+          colorClass = "text-amber-600 font-bold font-mono";
+        } else {
+          colorClass = "text-gray-400 line-through font-mono";
+        }
+        return <span className={`text-sm ${colorClass}`}>{formatTransactionAmount(p)}</span>;
       },
     },
     {
       key: "status",
       header: "Status",
-      render: (p) => <Badge status={getStatusBadgeLabel(p.status)} />,
+      render: (p) => <Badge status={getTransactionStatusLabel(p)} />,
     },
     {
       key: "actions",
       header: "Actions",
       stopRowClick: true,
       render: (p) => {
-        const statusLabel = getStatusBadgeLabel(p.status);
+        const statusLabel = getTransactionStatusLabel(p);
         return (
           <div className="flex items-center gap-1">
             <button
               onClick={() => setDrawerRow(p)}
               className="p-1.5 rounded-md text-slate-500 hover:text-primary hover:bg-blue-50 transition-colors cursor-pointer"
-              title="View Payment Details"
+              title="View Details"
             >
               <Eye size={15} />
             </button>
             <button
               onClick={() => setReceiptModalRow(p)}
               className="p-1.5 rounded-md text-slate-500 hover:text-primary hover:bg-blue-50 transition-colors cursor-pointer"
-              title="Print Receipt"
+              title={p.payment_type === "refund" ? "Print Refund Voucher" : "Print Receipt"}
             >
               <Printer size={15} />
             </button>
@@ -523,9 +625,9 @@ export default function AdminPayments() {
         {/* Finance KPI Cards Overview */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           <KPICard
-            title="Total Revenue"
+            title="Total Revenue (Net)"
             value={fmt(stats.totalCollected)}
-            sub={`${stats.paidCount} approved transactions`}
+            sub={`${stats.paidCount} payments${stats.refundCount > 0 ? ` · ${stats.refundCount} refunds` : ""}`}
             icon={DollarSign}
           />
           <KPICard
@@ -558,8 +660,9 @@ export default function AdminPayments() {
             onSearchChange={setSearch}
             searchPlaceholder="Search by Customer, Booking Ref (CAZ-...), or Payment Ref..."
             quickFilters={[
-              { value: "all", label: "All Payments" },
+              { value: "all", label: "All Transactions" },
               { value: "Paid", label: `Paid (${stats.paidCount})` },
+              { value: "Refunded", label: `Refunds (${stats.refundCount})` },
               { value: "Pending", label: `Pending (${stats.pendingCount})` },
               { value: "Failed", label: "Failed / Rejected" },
             ]}
@@ -596,21 +699,23 @@ export default function AdminPayments() {
                       <option value="bank">Bank Transfer</option>
                       <option value="cash">Cash Onsite</option>
                       <option value="gcash">GCash / E-Wallet</option>
+                      <option value="manual">Manual</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1">Milestone / Type</label>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1">Payment Type</label>
                     <select
                       value={draftTypeFilter}
                       onChange={(e) => setDraftTypeFilter(e.target.value)}
                       className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary capitalize"
                     >
-                      <option value="all">All Types</option>
+                      <option value="all">All Payment Types</option>
                       <option value="deposit">Deposit (Downpayment)</option>
                       <option value="balance">Final Balance</option>
                       <option value="full">Full Payment</option>
                       <option value="additional">Additional Charge</option>
+                      <option value="refund">Refund</option>
                     </select>
                   </div>
 
@@ -653,7 +758,7 @@ export default function AdminPayments() {
               )}
               {typeFilter !== "all" && (
                 <FilterChip
-                  label={`Milestone: ${getMilestoneLabel(typeFilter)}`}
+                  label={`Payment Type: ${getMilestoneLabel(typeFilter)}`}
                   onRemove={() => {
                     setTypeFilter("all");
                     setDraftTypeFilter("all");
@@ -710,7 +815,7 @@ export default function AdminPayments() {
               <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/95 backdrop-blur-xs shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
                   <h3 id="payment-drawer-title" className="font-bold text-sm text-foreground truncate">
-                    Payment Summary
+                    {drawerRow.payment_type === "refund" ? "Refund Summary" : "Payment Summary"}
                   </h3>
                   <span className="font-mono text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-md shrink-0">
                     PAY-{drawerRow._id.slice(-6).toUpperCase()}
@@ -730,72 +835,89 @@ export default function AdminPayments() {
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 
                 {/* 1. Essential Payment Hero Card */}
-                <div className="p-3.5 bg-muted/40 rounded-xl border border-border/70 space-y-3 shadow-2xs">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-0.5 min-w-0">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                        Transaction Amount
-                      </span>
-                      <div className="text-2xl sm:text-3xl font-bold font-mono text-emerald-600 tracking-tight">
-                        {fmt(drawerRow.amount)}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <Badge status={getStatusBadgeLabel(drawerRow.status)} />
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold border ${getMethodBadge(drawerRow.method).cls}`}>
-                        {(() => {
-                          const MethodIcon = getMethodBadge(drawerRow.method).icon;
-                          return <MethodIcon size={11} />;
-                        })()}
-                        {getMethodBadge(drawerRow.method).label}
-                      </span>
-                    </div>
-                  </div>
+                {(() => {
+                  const isRefund = drawerRow.payment_type === "refund";
+                  const typeInfo = getPaymentTypeInfo(drawerRow);
+                  const statusLabel = getTransactionStatusLabel(drawerRow);
+                  const TypeIcon = typeInfo.icon;
+                  const methodInfo = getMethodBadge(drawerRow.method);
+                  const MethodIcon = methodInfo.icon;
 
-                  {/* Essential Payment Details Grid */}
-                  <div className="grid grid-cols-2 gap-2.5 pt-2.5 border-t border-border/50 text-xs">
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block font-medium">Payment Reference</span>
-                      <span className="font-mono font-bold text-foreground">PAY-{drawerRow._id.slice(-6).toUpperCase()}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block font-medium">Milestone</span>
-                      <span className="font-semibold text-foreground">{getMilestoneLabel(drawerRow.payment_type)}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block font-medium">Date &amp; Time</span>
-                      <span className="font-semibold text-foreground">{formatDateTime(drawerRow.paid_at || drawerRow.createdAt)}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block font-medium">Booking / Inquiry Ref</span>
-                      {getBookingRef(drawerRow) !== "—" ? (
-                        <span
-                          className="inline-flex items-center gap-1 font-mono font-bold text-primary hover:underline cursor-pointer"
-                          onClick={() => {
-                            if (drawerRow.booking_id?.reference) {
-                              navigate(`/admin/bookings/${drawerRow.booking_id.reference}/details`);
-                            } else if (drawerRow.inquiry_id?.reference) {
-                              navigate(`/admin/inquiries?search=${drawerRow.inquiry_id.reference}`);
-                            }
-                          }}
-                        >
-                          {getBookingRef(drawerRow)}
-                          <ExternalLink size={10} />
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </div>
-                    {(drawerRow.gateway_reference || drawerRow.gateway_checkout_id) && (
-                      <div className="col-span-2 pt-1 border-t border-border/40">
-                        <span className="text-[10px] text-muted-foreground block font-medium">Gateway / Checkout Ref</span>
-                        <span className="font-mono text-[11px] text-foreground block truncate" title={drawerRow.gateway_reference || drawerRow.gateway_checkout_id}>
-                          {drawerRow.gateway_reference || drawerRow.gateway_checkout_id}
-                        </span>
+                  return (
+                    <div className="p-3.5 bg-muted/40 rounded-xl border border-border/70 space-y-3 shadow-2xs">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-0.5 min-w-0">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                            {isRefund ? "Amount Refunded" : "Transaction Amount"}
+                          </span>
+                          <div className={`text-2xl sm:text-3xl font-bold font-mono tracking-tight ${isRefund ? "text-rose-600" : "text-emerald-600"}`}>
+                            {formatTransactionAmount(drawerRow)}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          <Badge status={statusLabel} />
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold border ${methodInfo.cls}`}>
+                            <MethodIcon size={11} />
+                            {methodInfo.label}
+                          </span>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
+
+                      {/* Essential Payment Details Grid */}
+                      <div className="grid grid-cols-2 gap-2.5 pt-2.5 border-t border-border/50 text-xs">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-medium">Payment Reference</span>
+                          <span className="font-mono font-bold text-foreground">PAY-{drawerRow._id.slice(-6).toUpperCase()}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-medium">Payment Type</span>
+                          <span className={`inline-flex items-center gap-1 font-semibold ${typeInfo.color}`}>
+                            <TypeIcon size={12} />
+                            {typeInfo.label}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-medium">Date &amp; Time</span>
+                          <span className="font-semibold text-foreground">{formatDateTime(drawerRow.paid_at || drawerRow.createdAt)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-medium">Booking / Inquiry Ref</span>
+                          {getBookingRef(drawerRow) !== "—" ? (
+                            <span
+                              className="inline-flex items-center gap-1 font-mono font-bold text-primary hover:underline cursor-pointer"
+                              onClick={() => {
+                                if (drawerRow.booking_id?.reference) {
+                                  navigate(`/admin/bookings/${drawerRow.booking_id.reference}/details`);
+                                } else if (drawerRow.inquiry_id?.reference) {
+                                  navigate(`/admin/inquiries?search=${drawerRow.inquiry_id.reference}`);
+                                }
+                              }}
+                            >
+                              {getBookingRef(drawerRow)}
+                              <ExternalLink size={10} />
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </div>
+                        {isRefund && drawerRow.metadata?.reason && (
+                          <div className="col-span-2 pt-1 border-t border-border/40">
+                            <span className="text-[10px] text-muted-foreground block font-medium">Refund Reason</span>
+                            <span className="text-xs text-rose-700 italic block">{drawerRow.metadata.reason}</span>
+                          </div>
+                        )}
+                        {(drawerRow.gateway_reference || drawerRow.gateway_checkout_id) && (
+                          <div className="col-span-2 pt-1 border-t border-border/40">
+                            <span className="text-[10px] text-muted-foreground block font-medium">Gateway / Checkout Ref</span>
+                            <span className="font-mono text-[11px] text-foreground block truncate" title={drawerRow.gateway_reference || drawerRow.gateway_checkout_id}>
+                              {drawerRow.gateway_reference || drawerRow.gateway_checkout_id}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* 2. Customer & Status Section */}
                 <div className="p-3 bg-muted/30 rounded-xl border border-border/60 space-y-2.5 shadow-2xs">
@@ -908,7 +1030,9 @@ export default function AdminPayments() {
                     <div className="space-y-2">
                       {bookingPayments.map((p) => {
                         const isCurrent = p._id === drawerRow._id;
-                        const pStatus = getStatusBadgeLabel(p.status);
+                        const pStatus = getTransactionStatusLabel(p);
+                        const pTypeInfo = getPaymentTypeInfo(p);
+                        const isRef = String(p.payment_type || "").toLowerCase().trim() === "refund";
                         return (
                           <div
                             key={p._id}
@@ -931,14 +1055,14 @@ export default function AdminPayments() {
                                 )}
                               </div>
                               <div className="text-[10.5px] text-muted-foreground flex items-center gap-1.5">
-                                <span>{getMilestoneLabel(p.payment_type)}</span>
+                                <span className={`font-medium ${pTypeInfo.color}`}>{pTypeInfo.label}</span>
                                 <span>•</span>
                                 <span>{formatDate(p.paid_at || p.createdAt)}</span>
                               </div>
                             </div>
                             <div className="text-right shrink-0 space-y-0.5">
-                              <div className={`font-mono font-bold text-xs ${pStatus === "Paid" ? "text-emerald-600" : pStatus === "Pending" ? "text-amber-600" : "text-muted-foreground"}`}>
-                                {fmt(p.amount)}
+                              <div className={`font-mono font-bold text-xs ${isRef ? "text-rose-600" : pStatus === "Paid" ? "text-emerald-600" : pStatus === "Pending" ? "text-amber-600" : "text-muted-foreground"}`}>
+                                {formatTransactionAmount(p)}
                               </div>
                               <Badge status={pStatus} />
                             </div>
@@ -995,10 +1119,10 @@ export default function AdminPayments() {
                   <button
                     onClick={() => setReceiptModalRow(drawerRow)}
                     className="flex-1 py-1.5 px-2.5 rounded-lg border border-border/80 bg-card font-semibold text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs"
-                    title="View official receipt"
+                    title={drawerRow.payment_type === "refund" ? "View refund voucher" : "View official receipt"}
                   >
                     <Printer size={13} className="text-muted-foreground" />
-                    <span>Official Receipt</span>
+                    <span>{drawerRow.payment_type === "refund" ? "Refund Voucher" : "Official Receipt"}</span>
                   </button>
 
                   {drawerRow.booking_id?.reference ? (
@@ -1040,94 +1164,116 @@ export default function AdminPayments() {
           getStatusBadgeLabel={getStatusBadgeLabel}
         />
 
-        {/* Official Printable Receipt Modal */}
+        {/* Official Printable Receipt / Refund Voucher Modal */}
         {receiptModalRow && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-white rounded-lg max-w-xl w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 my-6">
-              {/* Receipt Action Header */}
+              {(() => {
+                const isRefund = receiptModalRow.payment_type === "refund";
+                const typeInfo = getPaymentTypeInfo(receiptModalRow);
+                const statusLabel = getTransactionStatusLabel(receiptModalRow);
 
-              <div className="flex items-center justify-between border-b border-gray-200 pb-4 print:hidden">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Official Receipt Preview</span>
-                <div className="flex items-center gap-2">
-                  <Btn variant="primary" size="sm" onClick={() => window.print()}>
-                    <Printer size={13} /> Print Receipt
-                  </Btn>
-                  <button onClick={() => setReceiptModalRow(null)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700">
-                    <X size={18} />
-                  </button>
-                </div>
-              </div>
+                return (
+                  <>
+                    {/* Action Header */}
+                    <div className="flex items-center justify-between border-b border-gray-200 pb-4 print:hidden">
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                        {isRefund ? "Refund Voucher Preview" : "Official Receipt Preview"}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Btn variant="primary" size="sm" onClick={() => window.print()}>
+                          <Printer size={13} /> {isRefund ? "Print Voucher" : "Print Receipt"}
+                        </Btn>
+                        <button onClick={() => setReceiptModalRow(null)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700">
+                          <X size={18} />
+                        </button>
+                      </div>
+                    </div>
 
-              {/* Receipt Layout Printable Canvas */}
-              <div className="space-y-6 text-foreground" id="receipt-print-area">
-                {/* Header Branding */}
-                <div className="text-center border-b border-gray-200 pb-4">
-                  <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-accent">
-                    iReserve Events & Catering
-                  </h2>
-                  <p className="text-xs text-gray-500 mt-0.5">Cavite, Philippines • Official Payment Voucher</p>
-                </div>
+                    {/* Receipt Layout Printable Canvas */}
+                    <div className="space-y-6 text-foreground" id="receipt-print-area">
+                      {/* Header Branding */}
+                      <div className="text-center border-b border-gray-200 pb-4">
+                        <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-accent">
+                          iReserve Events & Catering
+                        </h2>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {isRefund
+                            ? "Cavite, Philippines • Official Refund Voucher & Credit Memo"
+                            : "Cavite, Philippines • Official Payment Voucher"}
+                        </p>
+                      </div>
 
-                {/* Receipt Metadata */}
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-gray-400 block">RECEIPT NUMBER</span>
-                    <span className="font-mono font-bold text-sm text-foreground">
-                      REC-{receiptModalRow._id.slice(-8).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-gray-400 block">DATE & TIME</span>
-                    <span className="font-semibold">{formatDateTime(receiptModalRow.paid_at || receiptModalRow.createdAt)}</span>
-                  </div>
-                </div>
+                      {/* Receipt Metadata */}
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <span className="text-gray-400 block">{isRefund ? "VOUCHER NUMBER" : "RECEIPT NUMBER"}</span>
+                          <span className="font-mono font-bold text-sm text-foreground">
+                            {isRefund ? "VCH-" : "REC-"}{receiptModalRow._id.slice(-8).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-gray-400 block">DATE & TIME</span>
+                          <span className="font-semibold">{formatDateTime(receiptModalRow.paid_at || receiptModalRow.createdAt)}</span>
+                        </div>
+                      </div>
 
-                {/* Billed To */}
-                <div className="bg-gray-50 p-4 rounded-xl space-y-1 text-xs border border-gray-100">
-                  <div className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Payer Details</div>
-                  <div className="font-bold text-sm text-foreground">{getCustomerName(receiptModalRow)}</div>
-                  <div className="text-gray-500">{getCustomerEmail(receiptModalRow)}</div>
-                  <div className="text-gray-500 font-mono">Booking Ref: {getBookingRef(receiptModalRow)}</div>
-                </div>
+                      {/* Billed To */}
+                      <div className="bg-gray-50 p-4 rounded-xl space-y-1 text-xs border border-gray-100">
+                        <div className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">
+                          {isRefund ? "Refund Beneficiary Details" : "Payer Details"}
+                        </div>
+                        <div className="font-bold text-sm text-foreground">{getCustomerName(receiptModalRow)}</div>
+                        <div className="text-gray-500">{getCustomerEmail(receiptModalRow)}</div>
+                        <div className="text-gray-500 font-mono">Booking Ref: {getBookingRef(receiptModalRow)}</div>
+                        {isRefund && receiptModalRow.metadata?.reason && (
+                          <div className="text-xs text-rose-700 pt-1 font-medium">
+                            Refund Reason: {receiptModalRow.metadata.reason}
+                          </div>
+                        )}
+                      </div>
 
-                {/* Financial Table Breakdown */}
-                <table className="w-full text-xs text-left">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-gray-400 text-[10px] uppercase">
-                      <th className="py-2">Description</th>
-                      <th className="py-2">Method</th>
-                      <th className="py-2 text-right">Amount Paid</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    <tr>
-                      <td className="py-3 font-semibold text-foreground">
-                        {getMilestoneLabel(receiptModalRow.payment_type)}
-                      </td>
-                      <td className="py-3 text-gray-600">
-                        {getMethodBadge(receiptModalRow.method).label}
-                      </td>
-                      <td className="py-3 text-right font-bold text-emerald-600 text-sm">
-                        {fmt(receiptModalRow.amount)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                      {/* Financial Table Breakdown */}
+                      <table className="w-full text-xs text-left">
+                        <thead>
+                          <tr className="border-b border-gray-200 text-gray-400 text-[10px] uppercase">
+                            <th className="py-2">Description / Type</th>
+                            <th className="py-2">Method</th>
+                            <th className="py-2 text-right">{isRefund ? "Amount Refunded" : "Amount Paid"}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          <tr>
+                            <td className="py-3 font-semibold text-foreground">
+                              {typeInfo.label}
+                            </td>
+                            <td className="py-3 text-gray-600">
+                              {getMethodBadge(receiptModalRow.method).label}
+                            </td>
+                            <td className={`py-3 text-right font-bold text-sm ${isRefund ? "text-rose-600 font-mono" : "text-emerald-600"}`}>
+                              {formatTransactionAmount(receiptModalRow)}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
 
-                {/* Status & Signature Footer */}
-                <div className="border-t border-gray-200 pt-4 flex items-center justify-between text-xs">
-                  <div>
-                    <span className="text-gray-400 block text-[10px]">PAYMENT STATUS</span>
-                    <span className="font-bold text-emerald-600 uppercase tracking-wider">
-                      {getStatusBadgeLabel(receiptModalRow.status)}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <div className="border-b border-gray-400 w-32 ml-auto mb-1"></div>
-                    <span className="text-[10px] text-gray-400 block uppercase">Authorized Signature</span>
-                  </div>
-                </div>
-              </div>
+                      {/* Status & Signature Footer */}
+                      <div className="border-t border-gray-200 pt-4 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="text-gray-400 block text-[10px]">TRANSACTION STATUS</span>
+                          <span className={`font-bold uppercase tracking-wider ${isRefund ? "text-rose-600" : "text-emerald-600"}`}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <div className="border-b border-gray-400 w-32 ml-auto mb-1"></div>
+                          <span className="text-[10px] text-gray-400 block uppercase">Authorized Signature</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}

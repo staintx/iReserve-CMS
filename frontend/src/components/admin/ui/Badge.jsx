@@ -84,6 +84,15 @@ export default function Badge({ status, variant, icon, children, dot = false, cl
     );
   }
 
+  if (norm === "refunded" || norm === "refund processed") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />}
+        <span>Refunded</span>
+      </span>
+    );
+  }
+
   // 1. Success / Confirmed / Approved / Completed / Paid
   const isSuccess = [
     "confirmed",

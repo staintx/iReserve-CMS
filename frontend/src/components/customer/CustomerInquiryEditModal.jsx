@@ -646,7 +646,15 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
       onSaved?.();
       onClose?.();
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to update your request.", "error");
+      const resData = err?.response?.data;
+      const apiErrors = Array.isArray(resData?.errors) ? resData.errors.filter(Boolean) : [];
+      let friendlyMsg = null;
+      if (apiErrors.length > 0) {
+        friendlyMsg = apiErrors.join(". ");
+      } else if (resData?.message && !/validation\s*error/i.test(resData.message)) {
+        friendlyMsg = resData.message;
+      }
+      notify(friendlyMsg || "Please check your changes and make sure all required fields are valid.", "error");
     } finally {
       setSaving(false);
     }
@@ -1333,23 +1341,26 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
           <Card className="p-4">
             <SectionTitle icon={Utensils}>Requests and dietary needs</SectionTitle>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Field label="Special requests" hint="Optional.">
+              <Field label="Special requests" hint="Optional. (Max 500 chars)">
                 <TTextarea
                   value={form.special_requests}
+                  maxLength={500}
                   onChange={(val) => setForm((prev) => ({ ...prev, special_requests: val }))}
                   rows={3}
                 />
               </Field>
-              <Field label="Allergies" hint="Optional.">
+              <Field label="Allergies" hint="Optional. (Max 300 chars)">
                 <TTextarea
                   value={form.allergies}
+                  maxLength={300}
                   onChange={(val) => setForm((prev) => ({ ...prev, allergies: val }))}
                   rows={3}
                 />
               </Field>
-              <Field label="Dietary restrictions" hint="Optional." className="md:col-span-2">
+              <Field label="Dietary restrictions" hint="Optional. (Max 300 chars)" className="md:col-span-2">
                 <TTextarea
                   value={form.dietary_restrictions}
+                  maxLength={300}
                   onChange={(val) => setForm((prev) => ({ ...prev, dietary_restrictions: val }))}
                   rows={3}
                 />
@@ -1372,9 +1383,10 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
                   />
                 </Field>
                 {!isPickup && (
-                  <Field label="Delivery instructions" hint="Optional.">
+                  <Field label="Delivery instructions" hint="Optional. (Max 250 chars)">
                     <TTextarea
                       value={form.delivery_instructions}
+                      maxLength={250}
                       onChange={(val) => setForm((prev) => ({ ...prev, delivery_instructions: val }))}
                       rows={2}
                     />

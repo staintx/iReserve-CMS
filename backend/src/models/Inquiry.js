@@ -45,15 +45,15 @@ const InquirySchema = new mongoose.Schema(
       },
     ],
     
-    event_type: { type: String, required: true },
+    event_type: { type: String, required: true, trim: true, maxlength: 50 },
     booking_for: {
       type: String,
       enum: ["myself", "someone_else"],
       default: "myself",
     },
     // When booking for someone else, the celebrant or honoree name (e.g. "Sarah", "John & Maria", "Liam")
-    celebrant_name: { type: String, default: "" },
-    event_theme: String,
+    celebrant_name: { type: String, default: "", trim: true, maxlength: 80 },
+    event_theme: { type: String, trim: true, maxlength: 100 },
     // Colour names for the chosen theme, e.g. ["Navy", "Ivory", "Gold"].
     // `event_theme` alone used to be a free-text box, and what customers
     // actually typed into it was unusable ("hthh", "dddd"). The booking flow
@@ -61,11 +61,11 @@ const InquirySchema = new mongoose.Schema(
     // than having to read them out of a sentence.
     event_palette: [String],
     event_date: { type: Date, required: true },
-    start_time: { type: String, required: true },
+    start_time: { type: String, required: true, trim: true, maxlength: 20 },
     duration_hours: Number,
-    guest_count: { type: Number, required: true },
+    guest_count: { type: Number, required: true, min: 1, max: 2000 },
 
-    venue_type: String,
+    venue_type: { type: String, trim: true, maxlength: 60 },
     // Not validated at the route layer (no Joi schema is wired to POST /inquiries),
     // so this enum is what actually guards the value — must stay in sync with the
     // canonical labels used everywhere else (Booking.service_type, StepServiceType.jsx).
@@ -74,31 +74,31 @@ const InquirySchema = new mongoose.Schema(
       enum: ["Food Only", "Event Setup Only", "Food and Event Setup"],
     },
     include_food: { type: Boolean, default: true },
-    province: String,
-    municipality: String,
-    barangay: String,
-    street: String,
-    landmark: String,
-    zip_code: String,
+    province: { type: String, trim: true, maxlength: 50 },
+    municipality: { type: String, trim: true, maxlength: 50 },
+    barangay: { type: String, trim: true, maxlength: 50 },
+    street: { type: String, trim: true, maxlength: 150 },
+    landmark: { type: String, trim: true, maxlength: 100 },
+    zip_code: { type: String, trim: true, maxlength: 10 },
 
-    budget_range: String,
-    special_requests: String,
+    budget_range: { type: String, trim: true, maxlength: 50 },
+    special_requests: { type: String, trim: true, maxlength: 500 },
     is_custom_setup: { type: Boolean, default: false },
     custom_setup_scope: [String],
     inspiration_images: [String],
-    custom_setup_notes: String,
+    custom_setup_notes: { type: String, trim: true, maxlength: 1000 },
     // `dietary_requirements` is the original single free-text field and is kept
     // for inquiries created before the booking flow split the question in two.
     // The wizard now sends `allergies` and `dietary_restrictions` separately —
     // without these two the kitchen never saw either answer, because a strict
     // schema dropped them silently.
-    dietary_requirements: String,
+    dietary_requirements: { type: String, trim: true, maxlength: 300 },
     additional_services: [String],
-    allergies: String,
-    dietary_restrictions: String,
+    allergies: { type: String, trim: true, maxlength: 300 },
+    dietary_restrictions: { type: String, trim: true, maxlength: 300 },
 
     delivery_method: { type: String, enum: ["delivery", "pickup", "setup"] },
-    delivery_instructions: String,
+    delivery_instructions: { type: String, trim: true, maxlength: 250 },
     selected_menu: [{ type: mongoose.Schema.Types.ObjectId, ref: "MenuItem" }],
     service_items: [
       {
@@ -133,11 +133,11 @@ const InquirySchema = new mongoose.Schema(
     // authoritative figure and is what the customer is actually charged.
     estimated_total: Number,
 
-    contact_first_name: { type: String, required: true },
-    contact_last_name: { type: String, required: true },
-    contact_email: { type: String, required: true },
-    contact_phone: { type: String, required: true },
-    contact_alt_phone: String,
+    contact_first_name: { type: String, required: true, trim: true, maxlength: 50 },
+    contact_last_name: { type: String, required: true, trim: true, maxlength: 50 },
+    contact_email: { type: String, required: true, trim: true, maxlength: 100 },
+    contact_phone: { type: String, required: true, trim: true, maxlength: 15 },
+    contact_alt_phone: { type: String, trim: true, maxlength: 15 },
     contact_method: String,
 
     status: {

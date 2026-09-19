@@ -325,6 +325,7 @@ export default function StepEventDetails({
                 >
                   <TInput
                     placeholder="e.g. Sarah"
+                    maxLength={80}
                     value={form.celebrant_name || ""}
                     onChange={(val) => setForm((prev) => ({ ...prev, celebrant_name: val }))}
                     hasError={!!errors.celebrant_name}
@@ -391,6 +392,7 @@ export default function StepEventDetails({
               >
                 <TInput
                   placeholder="e.g. Purok 4, Lopez Building"
+                  maxLength={150}
                   value={form.street}
                   onChange={(val) => setForm({ ...form, street: val })}
                   hasError={!!errors.street}
@@ -400,6 +402,7 @@ export default function StepEventDetails({
               <Field label="Landmark" hint="Optional, helps driver find location">
                 <TInput
                   placeholder="e.g. Across the municipal hall"
+                  maxLength={100}
                   value={form.landmark}
                   onChange={(val) => setForm({ ...form, landmark: val })}
                 />
@@ -458,6 +461,7 @@ export default function StepEventDetails({
                 >
                   <TInput
                     placeholder="e.g. Sarah"
+                    maxLength={80}
                     value={form.celebrant_name || ""}
                     onChange={(val) => setForm((prev) => ({ ...prev, celebrant_name: val }))}
                     hasError={!!errors.celebrant_name}
@@ -494,6 +498,7 @@ export default function StepEventDetails({
                 >
                   <TInput
                     placeholder="e.g. Family Reunion"
+                    maxLength={50}
                     value={form.event_type_other}
                     onChange={(val) => setForm({ ...form, event_type_other: val })}
                     hasError={!!errors.event_type_other}
@@ -597,6 +602,7 @@ export default function StepEventDetails({
               >
                 <TInput
                   placeholder="e.g. Purok 4, Lopez Building"
+                  maxLength={150}
                   value={form.street}
                   onChange={(val) => setForm({ ...form, street: val })}
                 />
@@ -622,6 +628,7 @@ export default function StepEventDetails({
                 <Field label="Landmark" hint="Optional">
                   <TInput
                     placeholder="e.g. Across the municipal hall"
+                    maxLength={100}
                     value={form.landmark}
                     onChange={(val) => setForm({ ...form, landmark: val })}
                   />
@@ -636,6 +643,7 @@ export default function StepEventDetails({
                 >
                   <TInput
                     placeholder="e.g. Rooftop terrace, Covered court"
+                    maxLength={60}
                     value={venueTypeOther}
                     onChange={(val) =>
                       setForm({

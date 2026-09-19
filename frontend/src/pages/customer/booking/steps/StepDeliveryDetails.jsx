@@ -176,16 +176,19 @@ export default function StepDeliveryDetails({
                 >
                   <TInput
                     placeholder="e.g. 123 Rizal Street, Lopez Building"
+                    maxLength={150}
                     value={form.street || ""}
                     onChange={(val) => setForm({ ...form, street: val })}
                     hasError={!!errors.street}
                   />
                 </Field>
-                <Field label="ZIP code" hint="Optional">
+                <Field label="ZIP code" hint="Optional (4 digits)">
                   <TInput
                     placeholder="e.g. 4200"
+                    maxLength={4}
+                    inputMode="numeric"
                     value={form.zip_code || ""}
-                    onChange={(val) => setForm({ ...form, zip_code: val })}
+                    onChange={(val) => setForm({ ...form, zip_code: val.replace(/\D/g, "").slice(0, 4) })}
                   />
                 </Field>
               </div>
@@ -194,6 +197,7 @@ export default function StepDeliveryDetails({
                 <Field label="Landmark" hint="Optional, helps driver find venue">
                   <TInput
                     placeholder="e.g. Across the municipal hall"
+                    maxLength={100}
                     value={form.landmark || ""}
                     onChange={(val) => setForm({ ...form, landmark: val })}
                   />
@@ -205,6 +209,7 @@ export default function StepDeliveryDetails({
                 >
                   <TInput
                     placeholder="e.g. 2nd floor, blue gate, park along side street"
+                    maxLength={250}
                     value={form.delivery_instructions || ""}
                     onChange={(val) =>
                       setForm({ ...form, delivery_instructions: val })

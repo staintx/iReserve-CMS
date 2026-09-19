@@ -83,6 +83,7 @@ export default function StepContactInfo({ form, setForm, errors = {} }) {
                 >
                   <TInput
                     placeholder="e.g. Maria"
+                    maxLength={50}
                     value={form.contact_first_name || ""}
                     onChange={(val) => handleChange("contact_first_name", val)}
                     onBlur={() => handleBlur("contact_first_name")}
@@ -97,6 +98,7 @@ export default function StepContactInfo({ form, setForm, errors = {} }) {
                 >
                   <TInput
                     placeholder="e.g. Santos"
+                    maxLength={50}
                     value={form.contact_last_name || ""}
                     onChange={(val) => handleChange("contact_last_name", val)}
                     onBlur={() => handleBlur("contact_last_name")}
@@ -115,6 +117,7 @@ export default function StepContactInfo({ form, setForm, errors = {} }) {
                 <TInput
                   type="email"
                   placeholder="e.g. maria.santos@gmail.com"
+                  maxLength={100}
                   value={form.contact_email || ""}
                   onChange={(val) => handleChange("contact_email", val)}
                   onBlur={() => handleBlur("contact_email")}

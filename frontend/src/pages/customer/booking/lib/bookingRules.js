@@ -220,11 +220,18 @@ export function contactFieldError(field, value) {
 
   switch (field) {
     case "contact_first_name":
-      return trimmed ? "" : "Enter the first name of the person we should contact.";
+      if (!trimmed) return "Enter the first name of the person we should contact.";
+      if (trimmed.length < 2) return "First name must be at least 2 characters.";
+      if (trimmed.length > 50) return "First name cannot exceed 50 characters.";
+      return "";
     case "contact_last_name":
-      return trimmed ? "" : "Enter the last name of the person we should contact.";
+      if (!trimmed) return "Enter the last name of the person we should contact.";
+      if (trimmed.length < 2) return "Last name must be at least 2 characters.";
+      if (trimmed.length > 50) return "Last name cannot exceed 50 characters.";
+      return "";
     case "contact_email":
       if (!trimmed) return "Enter an email address. Your quotation is sent here.";
+      if (trimmed.length > 100) return "Email address cannot exceed 100 characters.";
       return isValidEmail(trimmed)
         ? ""
         : "That email address is missing an @ or a domain. Example: maria@gmail.com";

@@ -26,11 +26,11 @@ import {
  */
 function Row({ label, value, wide = false }) {
   return (
-    <div className={cn("min-w-0", wide && "sm:col-span-2")}>
+    <div className={cn("min-w-0 overflow-hidden", wide && "sm:col-span-2")}>
       <dt className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
         {label}
       </dt>
-      <dd className="mt-0.5 text-xs font-semibold text-slate-800 leading-snug">
+      <dd className="mt-0.5 text-xs font-semibold text-slate-800 leading-snug break-words">
         {value || <span className="text-slate-400 font-normal">Not provided</span>}
       </dd>
     </div>

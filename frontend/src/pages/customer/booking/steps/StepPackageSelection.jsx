@@ -739,9 +739,10 @@ export default function StepPackageSelection({
                 </label>
                 <textarea
                   rows={3}
+                  maxLength={1000}
                   value={form.custom_setup_notes || ""}
                   onChange={(e) => updateForm({ custom_setup_notes: e.target.value })}
-                  placeholder="e.g. High ceilings with wooden trusses; warm fairy lights and elevated couple stage."
+                  placeholder="e.g. High ceilings with wooden trusses; warm fairy lights and elevated couple stage. (Max 1,000 chars)"
                   className={cn(
                     "w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0]",
                     focusRing,

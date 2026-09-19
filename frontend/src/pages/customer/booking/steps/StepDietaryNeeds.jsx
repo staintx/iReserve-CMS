@@ -25,10 +25,11 @@ export default function StepDietaryNeeds({ form, setForm }) {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field
             label="Allergies (Optional)"
-            hint="Ingredients that must not touch the food at all."
+            hint="Ingredients that must not touch the food at all. (Max 300 chars)"
           >
             <TTextarea
               placeholder="e.g. Two guests have severe peanut / seafood allergies"
+              maxLength={300}
               value={form.allergies || ""}
               onChange={(val) => setForm({ ...form, allergies: val })}
               rows={3}
@@ -37,10 +38,11 @@ export default function StepDietaryNeeds({ form, setForm }) {
 
           <Field
             label="Dietary restrictions (Optional)"
-            hint="Dietary preferences, religious or health requirements."
+            hint="Dietary preferences, religious or health requirements. (Max 300 chars)"
           >
             <TTextarea
               placeholder="e.g. 5 vegetarian guests, no pork, or low sodium"
+              maxLength={300}
               value={form.dietary_restrictions || ""}
               onChange={(val) => setForm({ ...form, dietary_restrictions: val })}
               rows={3}

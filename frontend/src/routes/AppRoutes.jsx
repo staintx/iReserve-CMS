@@ -14,6 +14,7 @@ function ScrollToTop() {
 }
 import ProtectedRoute from "./ProtectedRoute";
 import useAuth from "../hooks/useAuth";
+import ErrorBoundary from "../components/common/ErrorBoundary";
 
 import Login from "../pages/auth/Login";
 import Signup from "../pages/auth/Signup";
@@ -107,7 +108,8 @@ export default function AppRoutes() {
   return (
     <BrowserRouter>
       <ScrollToTop />
-      <Routes>
+      <ErrorBoundary>
+        <Routes>
         {/* Public pages */}
         <Route
           path="/"
@@ -212,6 +214,7 @@ export default function AppRoutes() {
 
         <Route path="*" element={staffHome ? <Navigate to={staffHome} /> : <Landing />} />
       </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

@@ -4,6 +4,7 @@ import { getInvoicePolicies } from "../../../lib/policy";
 import useAuth from "../../../hooks/useAuth";
 import useBusinessInfo from "../../../hooks/useBusinessInfo";
 import { resolveServiceType } from "../../customer/portal/statusMeta";
+import { menuAmountLabel, menuLineTotal } from "../../../utils/quotationPricing";
 
 /**
  * Normalizes booking, quotation, or inquiry records into a unified document structure.

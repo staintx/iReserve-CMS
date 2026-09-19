@@ -324,6 +324,12 @@ exports.saveQuotationDraft = asyncHandler(async (req, res) => {
   const inquiry = await Inquiry.findById(inquiry_id);
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
 
+  if (["Cancelled", "Quote Rejected", "Converted to Booking", "Expired"].includes(inquiry.status)) {
+    return res.status(400).json({
+      message: `Cannot save a quotation draft for an inquiry that is ${inquiry.status.toLowerCase()}.`
+    });
+  }
+
   const totals = computeQuotationTotals(req.body);
   const payload = buildQuotationPayload(req.body, totals);
 
@@ -370,6 +376,12 @@ exports.createQuotation = asyncHandler(async (req, res) => {
   // from the option the request points at, which only the package carries.
   const inquiry = await Inquiry.findById(inquiry_id).populate("package_id");
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
+
+  if (["Cancelled", "Quote Rejected", "Converted to Booking", "Expired"].includes(inquiry.status)) {
+    return res.status(400).json({
+      message: `Cannot issue a quotation for an inquiry that is ${inquiry.status.toLowerCase()}.`
+    });
+  }
 
   const totals = computeQuotationTotals(req.body);
 

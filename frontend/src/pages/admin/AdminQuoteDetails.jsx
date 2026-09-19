@@ -383,6 +383,7 @@ export default function AdminQuoteDetails() {
     quote.payment_status === "fully_paid" ||
     quotations.some(q => q.inquiry_payment_status === "deposit_paid" || q.inquiry_payment_status === "fully_paid" || q.approved_payment || q.is_paid);
   const isConverted = quote.status === "Converted to Booking";
+  const isCancelled = ["Cancelled", "Quote Rejected", "Rejected", "Expired"].includes(quote.status);
 
   const identity = bookingIdentity(quote);
   const isOffer =
@@ -467,7 +468,7 @@ export default function AdminQuoteDetails() {
                 <span className="hidden sm:inline">Print / Export</span>
               </button>
             )}
-            {!isConverted && (
+            {!isConverted && !isCancelled && (
               <button
                 onClick={() => setShowConvertModal(true)}
                 className="px-3.5 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-md shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
@@ -511,7 +512,7 @@ export default function AdminQuoteDetails() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5 pt-1 sm:pt-0">
-              {!isConverted && (
+              {!isConverted && !isCancelled && (
                 <button
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-md shadow-xs transition-colors cursor-pointer"
                   onClick={() => setShowConvertModal(true)}
@@ -594,7 +595,33 @@ export default function AdminQuoteDetails() {
           </div>
         </div>
 
-        {/* --- Contextual Status Banners (Only when actionable) --- */}
+        {/* --- Contextual Status Banners (Only when actionable or cancelled) --- */}
+        {isCancelled && (
+          <div className="p-4 bg-rose-50 border border-rose-200/90 rounded-lg flex items-start gap-3 shadow-xs">
+            <div className="p-1.5 bg-rose-600 text-white rounded-md shrink-0 mt-0.5">
+              <AlertTriangle size={15} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="font-bold text-rose-950 text-xs sm:text-sm leading-tight">
+                {quote.status === "Expired" ? "Inquiry Expired" : quote.status === "Quote Rejected" ? "Quote Rejected" : "Inquiry Cancelled"}
+              </h4>
+              <p className="text-xs text-rose-800 mt-1 leading-relaxed">
+                {quote.status === "Expired"
+                  ? "This inquiry has expired. Quotation preparation and booking conversions are disabled."
+                  : quote.status === "Quote Rejected"
+                    ? "The customer has rejected the quotation. Quotation preparation and booking conversions are disabled."
+                    : "This inquiry has been cancelled. Quotation preparation, revisions, and booking conversions are disabled for cancelled inquiries."}
+              </p>
+              {(quote.cancellation_reason || quote.cancelled_reason) && (
+                <div className="mt-2 text-xs bg-white/90 p-2.5 rounded border border-rose-200 text-rose-900">
+                  <span className="font-semibold">Reason: </span>
+                  {quote.cancellation_reason || quote.cancelled_reason}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {isRevisionRequested && (() => {
           const request = pendingChangeRequestOf(quotations);
           const nextVersion = (quotations.reduce(
@@ -1314,77 +1341,101 @@ export default function AdminQuoteDetails() {
               </div>
             </SectionContainer>
 
-            {/* Next Steps Card */}
-            <div className="bg-slate-900 rounded-lg p-5 text-white shadow-sm border border-slate-800 space-y-4">
-              <div>
-                <h3 className="font-bold text-xs uppercase tracking-wider text-slate-300 mb-1 flex items-center gap-1.5">
-                  <Activity size={13} className="text-primary-400" /> Next Steps
-                </h3>
-                <p className="text-[11.5px] text-slate-400 leading-normal">
-                  Review request and prepare quotation.
+            {/* Next Steps Card / Cancelled Notice */}
+            {isCancelled ? (
+              <div className="bg-slate-900 rounded-lg p-5 text-white shadow-sm border border-slate-800 space-y-3">
+                <div className="flex items-center gap-2 text-rose-400">
+                  <AlertTriangle size={15} className="shrink-0" />
+                  <h3 className="font-bold text-xs uppercase tracking-wider">
+                    {quote.status === "Expired" ? "Inquiry Expired" : quote.status === "Quote Rejected" ? "Quote Rejected" : "Inquiry Cancelled"}
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {quote.status === "Expired"
+                    ? "This inquiry has expired. No further actions can be taken."
+                    : quote.status === "Quote Rejected"
+                      ? "The quotation was rejected by the customer."
+                      : "This inquiry is cancelled. No further quotations or conversions can be performed for this request."}
                 </p>
-              </div>
-
-              {/* Linear Stepper */}
-              <div className="space-y-3 text-xs pt-1">
-                {/* Step 1: Review Request */}
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${isPendingReview
-                      ? "bg-amber-500 text-white"
-                      : "bg-emerald-500 text-white"
-                    }`}>
-                    {isPendingReview ? "1" : <Check size={10} />}
+                {(quote.cancellation_reason || quote.cancelled_reason) && (
+                  <div className="p-3 bg-slate-800/80 rounded border border-slate-700 text-xs text-slate-300">
+                    <span className="font-semibold text-slate-200 block text-[11px] uppercase tracking-wider mb-1">Cancellation Reason</span>
+                    {quote.cancellation_reason || quote.cancelled_reason}
                   </div>
-                  <span className={isPendingReview ? "font-semibold text-white" : "text-slate-300"}>
-                    Review Request
-                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="bg-slate-900 rounded-lg p-5 text-white shadow-sm border border-slate-800 space-y-4">
+                <div>
+                  <h3 className="font-bold text-xs uppercase tracking-wider text-slate-300 mb-1 flex items-center gap-1.5">
+                    <Activity size={13} className="text-primary-400" /> Next Steps
+                  </h3>
+                  <p className="text-[11.5px] text-slate-400 leading-normal">
+                    Review request and prepare quotation.
+                  </p>
                 </div>
 
-                {/* Step 2: Generate Quote */}
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${isRevisionRequested
-                      ? "bg-orange-500 text-white"
-                      : isQuotationSent || isAccepted || isConverted
+                {/* Linear Stepper */}
+                <div className="space-y-3 text-xs pt-1">
+                  {/* Step 1: Review Request */}
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${isPendingReview
+                        ? "bg-amber-500 text-white"
+                        : "bg-emerald-500 text-white"
+                      }`}>
+                      {isPendingReview ? "1" : <Check size={10} />}
+                    </div>
+                    <span className={isPendingReview ? "font-semibold text-white" : "text-slate-300"}>
+                      Review Request
+                    </span>
+                  </div>
+
+                  {/* Step 2: Generate Quote */}
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${isRevisionRequested
+                        ? "bg-orange-500 text-white"
+                        : isQuotationSent || isAccepted || isConverted
+                          ? "bg-emerald-500 text-white"
+                          : isPendingReview
+                            ? "bg-slate-800 text-slate-400 border border-slate-700"
+                            : "bg-slate-800 text-slate-400"
+                      }`}>
+                      {isQuotationSent || isAccepted || isConverted ? <Check size={10} /> : "2"}
+                    </div>
+                    <span className={isRevisionRequested ? "font-semibold text-orange-200" : isQuotationSent ? "text-slate-300" : "text-slate-400"}>
+                      Issue Quotation
+                    </span>
+                  </div>
+
+                  {/* Step 3: Await Acceptance / Booking */}
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${isConverted
                         ? "bg-emerald-500 text-white"
-                        : isPendingReview
-                          ? "bg-slate-800 text-slate-400 border border-slate-700"
-                          : "bg-slate-800 text-slate-400"
-                    }`}>
-                    {isQuotationSent || isAccepted || isConverted ? <Check size={10} /> : "2"}
+                        : isAccepted
+                          ? "bg-purple-500 text-white"
+                          : isQuotationSent
+                            ? "bg-blue-500 text-white"
+                            : "bg-slate-800 text-slate-400 border border-slate-700"
+                      }`}>
+                      {isConverted ? <Check size={10} /> : "3"}
+                    </div>
+                    <span className={isAccepted ? "font-semibold text-purple-200" : isQuotationSent ? "font-semibold text-blue-200" : "text-slate-400"}>
+                      Convert Booking
+                    </span>
                   </div>
-                  <span className={isRevisionRequested ? "font-semibold text-orange-200" : isQuotationSent ? "text-slate-300" : "text-slate-400"}>
-                    Issue Quotation
-                  </span>
                 </div>
 
-                {/* Step 3: Await Acceptance / Booking */}
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${isConverted
-                      ? "bg-emerald-500 text-white"
-                      : isAccepted
-                        ? "bg-purple-500 text-white"
-                        : isQuotationSent
-                          ? "bg-blue-500 text-white"
-                          : "bg-slate-800 text-slate-400 border border-slate-700"
-                    }`}>
-                    {isConverted ? <Check size={10} /> : "3"}
-                  </div>
-                  <span className={isAccepted ? "font-semibold text-purple-200" : isQuotationSent ? "font-semibold text-blue-200" : "text-slate-400"}>
-                    Convert Booking
-                  </span>
-                </div>
+                {!isConverted && !isCancelled && (
+                  <button
+                    onClick={() => setShowConvertModal(true)}
+                    className="w-full mt-2 py-2 px-3 bg-primary hover:bg-primary-hover active:scale-[0.99] text-white text-xs font-semibold rounded-md shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Activity size={13} />
+                    <span>{primaryActionLabel}</span>
+                  </button>
+                )}
               </div>
-
-              {!isConverted && (
-                <button
-                  onClick={() => setShowConvertModal(true)}
-                  className="w-full mt-2 py-2 px-3 bg-primary hover:bg-primary-hover active:scale-[0.99] text-white text-xs font-semibold rounded-md shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Activity size={13} />
-                  <span>{primaryActionLabel}</span>
-                </button>
-              )}
-            </div>
+            )}
 
             {/* Quick Record Details Card */}
             <div className="bg-slate-50/70 rounded-lg p-4 border border-slate-200/80 text-xs space-y-2.5 text-slate-600">
@@ -1408,7 +1459,7 @@ export default function AdminQuoteDetails() {
       </div>
 
       {/* --- Modals --- */}
-      {showConvertModal && quote && (
+      {showConvertModal && quote && !isCancelled && !isConverted && (
         <QuotationBuilderModal
           inquiry={quote}
           onClose={() => setShowConvertModal(false)}

@@ -135,12 +135,12 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
             <div className="relative flex items-center justify-center">
               <Bell className={cn("w-4 h-4 shrink-0", (open || unreadCount > 0) && "text-primary")} />
               {unreadCount > 0 && isCollapsed && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2 items-center justify-center rounded-full bg-rose-600 ring-2 ring-card" />
+                <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2 items-center justify-center rounded-full bg-red-500 ring-2 ring-card" />
               )}
             </div>
             {!isCollapsed && <span className="flex-1 text-left">Notifications</span>}
             {!isCollapsed && unreadCount > 0 && (
-              <span className="ml-auto shrink-0 inline-flex items-center justify-center min-w-[18px] h-4.5 px-1.5 bg-rose-600 text-white text-[10px] font-bold rounded-full">
+              <span className="ml-auto shrink-0 inline-flex items-center justify-center min-w-[18px] h-4.5 px-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
@@ -153,9 +153,9 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
             title="Notifications"
             aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
           >
-            <Bell className={cn("w-4 h-4", unreadCount > 0 && "text-[#2C4B8A]")} />
+            <Bell className={cn("w-4 h-4", unreadCount > 0 && "text-slate-700")} />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-[#2C4B8A] text-[10px] font-bold text-white ring-2 ring-white">
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
@@ -176,7 +176,7 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
           <div className="flex items-center gap-2">
             <span className="font-bold text-sm text-slate-900 font-sans">Notifications</span>
             {unreadCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-blue-50 text-[#2C4B8A] text-[11px] font-bold border border-blue-200/60">
+              <span className="px-2 py-0.5 rounded-full bg-red-50 text-red-600 text-[11px] font-bold border border-red-200/60">
                 {unreadCount} new
               </span>
             )}
@@ -229,7 +229,7 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
                                   {formatted.formattedTitle}
                                 </p>
                                 {!item.is_read && (
-                                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#2C4B8A] shrink-0" aria-hidden="true" />
+                                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" aria-hidden="true" />
                                 )}
                               </div>
                               <p className="text-xs leading-relaxed text-slate-500 line-clamp-2">

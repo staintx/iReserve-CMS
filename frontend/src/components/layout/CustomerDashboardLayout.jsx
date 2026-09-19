@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { CustomerAPI } from "../../api/customer";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
-import AccountInfoTicker from "../customer/portal/AccountInfoTicker";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -211,10 +211,7 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
             </Button>
           </div>
 
-          {/* Horizontally Moving Account Information Ticker — Maximized Across Navbar Space */}
-          <div className="flex-1 min-w-0 mx-2 sm:mx-4">
-            <AccountInfoTicker />
-          </div>
+          <div className="flex-1" />
 
           {/* Right Header Utilities: Bell */}
           <div className="flex items-center gap-2 shrink-0">

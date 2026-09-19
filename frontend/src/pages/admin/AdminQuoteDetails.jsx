@@ -5,8 +5,8 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import QuotationBuilderModal from "../../components/admin/quotation/QuotationBuilderModal";
 import ConvertBookingModal from "../../components/admin/quotation/ConvertBookingModal";
-import { 
-  User, Mail, Phone, Calendar, Clock, MapPin, 
+import {
+  User, Mail, Phone, Calendar, Clock, MapPin,
   DollarSign, Info, ArrowLeft, CheckCircle2,
   FileText, Activity, Utensils, Send, RefreshCw, Ruler,
   Package as PackageIcon, Users, AlertTriangle, Layers,
@@ -17,11 +17,11 @@ import InvoiceModal from "../../components/common/invoice/InvoiceModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
 import Badge from "../../components/admin/ui/Badge";
 import { pendingChangeRequestOf } from "../../utils/quotationDiff";
-import { 
-  priceLabel, 
-  capacityLabel, 
-  eventSpaceLabel, 
-  groupInclusions 
+import {
+  priceLabel,
+  capacityLabel,
+  eventSpaceLabel,
+  groupInclusions
 } from "../../lib/packageDisplay";
 import {
   BOOKING_TYPES,
@@ -78,9 +78,8 @@ const MoneyLine = ({ label, detail, value, strong, deduct }) => (
       {detail && <span className="ml-1 text-slate-400 font-normal">{detail}</span>}
     </span>
     <span
-      className={`shrink-0 tabular-nums ${
-        deduct ? "text-emerald-700 font-semibold" : strong ? "font-bold text-slate-900 text-[13px]" : "font-medium text-slate-800"
-      }`}
+      className={`shrink-0 tabular-nums ${deduct ? "text-emerald-700 font-semibold" : strong ? "font-bold text-slate-900 text-[13px]" : "font-medium text-slate-800"
+        }`}
     >
       {value}
     </span>
@@ -97,7 +96,7 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
     expiry &&
     !Number.isNaN(expiry.getTime()) &&
     new Date(expiry.getFullYear(), expiry.getMonth(), expiry.getDate()) <
-      new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+    new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
 
   const expiryChipTone = expired
     ? "bg-red-50 text-red-700 border-red-200/80"
@@ -284,7 +283,7 @@ export default function AdminQuoteDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { notify } = useToast();
-  
+
   const [quote, setQuote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quotations, setQuotations] = useState([]);
@@ -293,7 +292,7 @@ export default function AdminQuoteDetails() {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const businessInfo = useBusinessInfo();
-  
+
   // Progressive disclosure toggles
   const [showAllInclusions, setShowAllInclusions] = useState(false);
   const [showAllMenu, setShowAllMenu] = useState(false);
@@ -358,8 +357,8 @@ export default function AdminQuoteDetails() {
           </div>
           <h2 className="text-base font-bold text-slate-800 mb-1">Inquiry Not Found</h2>
           <p className="text-xs text-slate-500 mb-5">The inquiry record does not exist or has been deleted.</p>
-          <button 
-            className="px-4 py-2 bg-slate-900 text-white rounded-md hover:bg-slate-800 text-xs font-semibold shadow-xs transition-colors cursor-pointer" 
+          <button
+            className="px-4 py-2 bg-slate-900 text-white rounded-md hover:bg-slate-800 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
             onClick={() => navigate("/admin/bookings/inquiries")}
           >
             Return to Inquiries
@@ -380,9 +379,9 @@ export default function AdminQuoteDetails() {
   const isRevisionRequested = quote.status === "Revision Requested";
   const isQuotationSent = quote.status === "Quotation Sent";
   const isAccepted = ["Quote Accepted", "Awaiting Final Confirmation", "Accepted"].includes(quote.status);
-  const isDepositPaid = quote.payment_status === "deposit_paid" || 
-                        quote.payment_status === "fully_paid" || 
-                        quotations.some(q => q.inquiry_payment_status === "deposit_paid" || q.inquiry_payment_status === "fully_paid" || q.approved_payment || q.is_paid);
+  const isDepositPaid = quote.payment_status === "deposit_paid" ||
+    quote.payment_status === "fully_paid" ||
+    quotations.some(q => q.inquiry_payment_status === "deposit_paid" || q.inquiry_payment_status === "fully_paid" || q.approved_payment || q.is_paid);
   const isConverted = quote.status === "Converted to Booking";
 
   const identity = bookingIdentity(quote);
@@ -401,12 +400,12 @@ export default function AdminQuoteDetails() {
   const primaryActionLabel = hasDraft
     ? "Resume Draft"
     : isRevisionRequested
-    ? "Revise Quotation"
-    : isQuotationSent
-    ? "Edit Quotation"
-    : isAccepted
-    ? "Confirm & Convert"
-    : "Prepare Quotation";
+      ? "Revise Quotation"
+      : isQuotationSent
+        ? "Edit Quotation"
+        : isAccepted
+          ? "Confirm & Convert"
+          : "Prepare Quotation";
 
   // Customer details with robust fallback to customer_id
   const customerName = (quote.contact_first_name || quote.contact_last_name)
@@ -424,18 +423,23 @@ export default function AdminQuoteDetails() {
     return (customerName || "CU").substring(0, 2).toUpperCase();
   })();
 
-  // Package inclusions grouped cleanly
   const rawInclusions = Array.isArray(quote.package_id?.inclusions) ? quote.package_id.inclusions : [];
   const groupedInclusions = groupInclusions(rawInclusions);
   const totalInclusionsCount = rawInclusions.length;
 
+  const eventSpace = quote
+    ? (
+        eventSpaceLabel(quote, quote.package_id) ||
+        (quote.scaffold_width && quote.scaffold_length ? `${quote.scaffold_width}×${quote.scaffold_length}` : "")
+      )
+    : "";
+
   return (
     <AdminLayout>
       {/* --- Sticky Summary & Action Bar --- */}
-      <div 
-        className={`fixed top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs px-4 sm:px-6 py-2.5 transition-all duration-200 ${
-          isStickyVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0 pointer-events-none"
-        }`}
+      <div
+        className={`fixed top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs px-4 sm:px-6 py-2.5 transition-all duration-200 ${isStickyVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0 pointer-events-none"
+          }`}
       >
         <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -454,7 +458,7 @@ export default function AdminQuoteDetails() {
 
           <div className="flex items-center gap-2 shrink-0">
             {currentQuotation && (
-              <button 
+              <button
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-semibold rounded-md shadow-2xs transition-colors cursor-pointer"
                 onClick={() => setShowInvoiceModal(true)}
                 title="Print or Export Official Catering Quotation"
@@ -464,7 +468,7 @@ export default function AdminQuoteDetails() {
               </button>
             )}
             {!isConverted && (
-              <button 
+              <button
                 onClick={() => setShowConvertModal(true)}
                 className="px-3.5 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-md shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               >
@@ -477,13 +481,13 @@ export default function AdminQuoteDetails() {
       </div>
 
       <div className="w-full max-w-[1600px] mx-auto space-y-5 pb-16">
-        
+
         {/* --- Top Header & Inquiry Identity --- */}
         <div ref={headerRef} className="bg-white rounded-lg border border-slate-200/80 p-5 sm:p-6 shadow-[0_1px_2px_rgba(0,0,0,0.03)] space-y-4">
           {/* Back Navigation & Main Actions */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <button 
+              <button
                 onClick={() => navigate("/admin/bookings/inquiries")}
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 mb-1.5 transition-colors cursor-pointer"
               >
@@ -508,7 +512,7 @@ export default function AdminQuoteDetails() {
 
             <div className="flex flex-wrap items-center gap-2.5 pt-1 sm:pt-0">
               {!isConverted && (
-                <button 
+                <button
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-md shadow-xs transition-colors cursor-pointer"
                   onClick={() => setShowConvertModal(true)}
                 >
@@ -517,7 +521,7 @@ export default function AdminQuoteDetails() {
                 </button>
               )}
               {currentQuotation && (
-                <button 
+                <button
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-semibold rounded-md shadow-2xs transition-colors cursor-pointer"
                   onClick={() => setShowInvoiceModal(true)}
                   title="Print or Export Official Catering Quotation"
@@ -527,7 +531,7 @@ export default function AdminQuoteDetails() {
                 </button>
               )}
               {quote.converted_booking_id && (
-                <button 
+                <button
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-md shadow-xs transition-colors cursor-pointer"
                   onClick={() => {
                     const targetBookingId = String(quote.converted_booking_id?._id || quote.converted_booking_id);
@@ -542,7 +546,7 @@ export default function AdminQuoteDetails() {
           </div>
 
           {/* Key Scannable Request Summary Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 pt-4 border-t border-slate-100">
+          <div className={`grid grid-cols-2 sm:grid-cols-3 ${eventSpace ? "lg:grid-cols-7" : "lg:grid-cols-6"} gap-4 pt-4 border-t border-slate-100`}>
             <div>
               <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block mb-0.5">Reference</span>
               <span className="text-xs font-mono font-bold text-slate-800">
@@ -573,6 +577,14 @@ export default function AdminQuoteDetails() {
                 {quote.guest_count ? `${quote.guest_count} Pax` : "Not specified"}
               </span>
             </div>
+            {eventSpace && (
+              <div>
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block mb-0.5">Space Size</span>
+                <span className="text-xs font-bold text-slate-900 font-mono">
+                  {eventSpace}
+                </span>
+              </div>
+            )}
             <div>
               <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block mb-0.5">Estimate</span>
               <span className="text-xs font-bold font-mono text-slate-900">
@@ -672,7 +684,7 @@ export default function AdminQuoteDetails() {
 
         {/* --- Main 2-Column Operational Grid --- */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          
+
           {/* Left / Primary Column (8 cols) */}
           <div className="lg:col-span-8 space-y-4">
 
@@ -699,33 +711,42 @@ export default function AdminQuoteDetails() {
             {/* 1. Event Details */}
             <SectionContainer title="Event Details" icon={Calendar}>
               <div className="space-y-4">
-                
+
                 {/* Group 1: Requirements */}
                 <div>
                   <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-2.5">
                     Requirements
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-3 gap-x-5">
-                    <DataField 
-                      icon={Layers} 
-                      label="Service" 
-                      value={resolveServiceType(quote)} 
+                  <div className={`grid grid-cols-1 ${eventSpace ? "sm:grid-cols-4" : "sm:grid-cols-3"} gap-y-3 gap-x-5`}>
+                    <DataField
+                      icon={Layers}
+                      label="Service"
+                      value={resolveServiceType(quote)}
                       emphasized
                     />
-                    
-                    <DataField 
-                      icon={Utensils} 
-                      label="Event Type" 
-                      value={quote.event_type} 
+
+                    <DataField
+                      icon={Utensils}
+                      label="Event Type"
+                      value={quote.event_type}
                       emphasized
                     />
-                    
-                    <DataField 
-                      icon={Users} 
-                      label="Headcount" 
-                      value={quote.guest_count ? `${quote.guest_count} Pax` : null} 
+
+                    <DataField
+                      icon={Users}
+                      label="Headcount"
+                      value={quote.guest_count ? `${quote.guest_count} Pax` : null}
                       emphasized
                     />
+
+                    {eventSpace && (
+                      <DataField
+                        icon={Ruler}
+                        label="Event Space Size"
+                        value={eventSpace}
+                        emphasized
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -735,8 +756,8 @@ export default function AdminQuoteDetails() {
                     Schedule
                   </span>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-5">
-                    <DataField 
-                      icon={Calendar} 
+                    <DataField
+                      icon={Calendar}
                       label="Date"
                     >
                       {(() => {
@@ -754,10 +775,10 @@ export default function AdminQuoteDetails() {
                       value={quote.start_time ? `${formatTime(quote.start_time)}${quote.duration_hours ? ` (${quote.duration_hours} hrs)` : ""}` : null}
                     />
 
-                    <DataField 
-                      icon={User} 
-                      label="Celebrant / For" 
-                      value={quote.celebrant_name || (quote.booking_for === "someone_else" ? "Someone Else" : "Self")} 
+                    <DataField
+                      icon={User}
+                      label="Celebrant / For"
+                      value={quote.celebrant_name || (quote.booking_for === "someone_else" ? "Someone Else" : "Self")}
                     />
 
                     <DataField icon={Calendar} label="Theme">
@@ -781,33 +802,33 @@ export default function AdminQuoteDetails() {
                     Venue
                   </span>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-5">
-                    <DataField 
-                      icon={MapPin} 
-                      label="Venue Type" 
-                      value={quote.venue_type} 
+                    <DataField
+                      icon={MapPin}
+                      label="Venue Type"
+                      value={quote.venue_type}
                     />
 
                     <DataField
                       icon={Ruler}
-                      label="Space Size"
-                      value={eventSpaceLabel(quote, quote.package_id) || null}
+                      label="Event Space Size"
+                      value={eventSpace || (quote.scaffold_width && quote.scaffold_length ? `${quote.scaffold_width}×${quote.scaffold_length}` : null)}
                       hideWhenEmpty={isOffer || isFoodOnly}
                     />
 
                     {/* Contextual Delivery Method: shown when Food Only or non-standard */}
                     {(isFoodOnly || (quote.delivery_method && quote.delivery_method.toLowerCase() !== "setup")) && (
-                      <DataField 
-                        icon={Truck} 
-                        label="Delivery Method" 
+                      <DataField
+                        icon={Truck}
+                        label="Delivery Method"
                         value={quote.delivery_method ? quote.delivery_method.toUpperCase() : null}
                         subtext={isFoodOnly ? "Drop-off catering" : undefined}
                       />
                     )}
 
                     <div className="col-span-2 sm:col-span-3">
-                      <DataField 
-                        icon={MapPin} 
-                        label="Address" 
+                      <DataField
+                        icon={MapPin}
+                        label="Address"
                       >
                         {quote.street || quote.barangay || quote.municipality || quote.province ? (
                           <span className="leading-snug text-slate-800">
@@ -827,8 +848,8 @@ export default function AdminQuoteDetails() {
             </SectionContainer>
 
             {/* 2. Package & Inclusions */}
-            <SectionContainer 
-              title="Package &amp; Inclusions" 
+            <SectionContainer
+              title="Package &amp; Inclusions"
               icon={PackageIcon}
               badge={
                 quote.package_id && totalInclusionsCount > 0 && (
@@ -916,8 +937,8 @@ export default function AdminQuoteDetails() {
                       {!showAllInclusions && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {groupedInclusions.map((group, idx) => (
-                            <div 
-                              key={idx} 
+                            <div
+                              key={idx}
                               onClick={() => setShowAllInclusions(true)}
                               className="p-3 bg-slate-50/70 hover:bg-slate-100/80 border border-slate-100 rounded-md cursor-pointer transition-colors flex items-center justify-between gap-2"
                             >
@@ -942,7 +963,7 @@ export default function AdminQuoteDetails() {
                               </span>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                                 {group.items.map((item, itemIdx) => (
-                                   <div key={itemIdx} className="flex items-center justify-between gap-2 bg-slate-50/60 border border-slate-100/80 rounded px-3 py-1.5 text-xs">
+                                  <div key={itemIdx} className="flex items-center justify-between gap-2 bg-slate-50/60 border border-slate-100/80 rounded px-3 py-1.5 text-xs">
                                     <div className="flex items-center gap-1.5 min-w-0">
                                       <Check size={11} className="text-emerald-600 shrink-0" />
                                       <span className="font-medium text-slate-800 truncate">{item.name}</span>
@@ -979,7 +1000,7 @@ export default function AdminQuoteDetails() {
             </SectionContainer>
 
             {/* 3. Food & Services */}
-            <SectionContainer 
+            <SectionContainer
               title={
                 quote.service_type === "Event Setup Only"
                   ? "Add-ons & Equipment"
@@ -1066,7 +1087,7 @@ export default function AdminQuoteDetails() {
                           </div>
                           <div className="text-right shrink-0">
                             <span className="font-mono font-semibold text-slate-700">
-                              {svc?.price > 0 ? `₱${svc.price}` : "Selected"} 
+                              {svc?.price > 0 ? `₱${svc.price}` : "Selected"}
                               {svc?.quantity > 1 && <span className="ml-1 px-1.5 py-0.2 bg-slate-200 text-slate-700 text-[10px] font-bold rounded">x{svc.quantity}</span>}
                             </span>
                           </div>
@@ -1101,16 +1122,16 @@ export default function AdminQuoteDetails() {
 
                 {/* Empty State */}
                 {offerCourses.length === 0 &&
-                 (!Array.isArray(quote.selected_menu) || quote.selected_menu.length === 0) &&
-                 (!Array.isArray(quote.service_items) || quote.service_items.length === 0) &&
-                 (!Array.isArray(quote.additional_services) || quote.additional_services.length === 0) &&
-                 (!Array.isArray(quote.inventory_items) || quote.inventory_items.length === 0) && (
-                  <p className="text-xs text-slate-400 italic">
-                    {quote.service_type === "Event Setup Only"
-                      ? "No add-ons selected."
-                      : "No menu items selected."}
-                  </p>
-                )}
+                  (!Array.isArray(quote.selected_menu) || quote.selected_menu.length === 0) &&
+                  (!Array.isArray(quote.service_items) || quote.service_items.length === 0) &&
+                  (!Array.isArray(quote.additional_services) || quote.additional_services.length === 0) &&
+                  (!Array.isArray(quote.inventory_items) || quote.inventory_items.length === 0) && (
+                    <p className="text-xs text-slate-400 italic">
+                      {quote.service_type === "Event Setup Only"
+                        ? "No add-ons selected."
+                        : "No menu items selected."}
+                    </p>
+                  )}
               </div>
             </SectionContainer>
 
@@ -1171,74 +1192,74 @@ export default function AdminQuoteDetails() {
             {((Array.isArray(quote.inspiration_images) && quote.inspiration_images.length > 0) ||
               (Array.isArray(quote.custom_setup_scope) && quote.custom_setup_scope.length > 0) ||
               quote.custom_setup_notes) && (
-              <SectionContainer title="Inspiration & Custom Setup" icon={Sparkles}>
-                <div className="space-y-4">
-                  {Array.isArray(quote.inspiration_images) && quote.inspiration_images.length > 0 && (
-                    <div>
-                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
-                        Inspiration Pegs ({quote.inspiration_images.length})
-                      </span>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                        {quote.inspiration_images.map((imgUrl, i) => (
-                          <a
-                            key={i}
-                            href={imgUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group relative aspect-video rounded-lg overflow-hidden border border-slate-200 bg-slate-50 block shadow-2xs hover:ring-2 hover:ring-primary transition-all"
-                            title="Open full resolution image"
-                          >
-                            <img
-                              src={imgUrl}
-                              alt={`Inspiration ${i + 1}`}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                            />
-                            <span className="absolute bottom-1 right-1 bg-black/65 text-white text-[9.5px] px-1.5 py-0.5 rounded font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                              <ExternalLink size={10} /> View
+                <SectionContainer title="Inspiration & Custom Setup" icon={Sparkles}>
+                  <div className="space-y-4">
+                    {Array.isArray(quote.inspiration_images) && quote.inspiration_images.length > 0 && (
+                      <div>
+                        <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                          Inspiration Pegs ({quote.inspiration_images.length})
+                        </span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                          {quote.inspiration_images.map((imgUrl, i) => (
+                            <a
+                              key={i}
+                              href={imgUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group relative aspect-video rounded-lg overflow-hidden border border-slate-200 bg-slate-50 block shadow-2xs hover:ring-2 hover:ring-primary transition-all"
+                              title="Open full resolution image"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Inspiration ${i + 1}`}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <span className="absolute bottom-1 right-1 bg-black/65 text-white text-[9.5px] px-1.5 py-0.5 rounded font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                <ExternalLink size={10} /> View
+                              </span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {Array.isArray(quote.custom_setup_scope) && quote.custom_setup_scope.length > 0 && (
+                      <div className="pt-3 border-t border-slate-100">
+                        <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                          Requested Setup Scope
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {quote.custom_setup_scope.map((scope, i) => (
+                            <span
+                              key={i}
+                              className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-xs font-medium"
+                            >
+                              {scope}
                             </span>
-                          </a>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {Array.isArray(quote.custom_setup_scope) && quote.custom_setup_scope.length > 0 && (
-                    <div className="pt-3 border-t border-slate-100">
-                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
-                        Requested Setup Scope
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {quote.custom_setup_scope.map((scope, i) => (
-                          <span
-                            key={i}
-                            className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-xs font-medium"
-                          >
-                            {scope}
-                          </span>
-                        ))}
+                    {quote.custom_setup_notes && (
+                      <div className="pt-3 border-t border-slate-100">
+                        <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                          Custom Setup Notes
+                        </span>
+                        <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
+                          {quote.custom_setup_notes}
+                        </p>
                       </div>
-                    </div>
-                  )}
-
-                  {quote.custom_setup_notes && (
-                    <div className="pt-3 border-t border-slate-100">
-                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                        Custom Setup Notes
-                      </span>
-                      <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
-                        {quote.custom_setup_notes}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </SectionContainer>
-            )}
+                    )}
+                  </div>
+                </SectionContainer>
+              )}
 
           </div>
 
           {/* Right / Sidebar Column (4 cols) */}
           <div className="lg:col-span-4 space-y-4">
-            
+
             {/* Customer Card */}
             <SectionContainer title="Customer" icon={User}>
               <div className="space-y-3.5">
@@ -1257,8 +1278,8 @@ export default function AdminQuoteDetails() {
                   <div className="flex items-center gap-2.5 text-slate-700 min-w-0">
                     <Mail size={13} className="text-slate-400 shrink-0" />
                     {customerEmail ? (
-                      <a 
-                        href={`mailto:${customerEmail}`} 
+                      <a
+                        href={`mailto:${customerEmail}`}
                         className="text-primary hover:underline font-medium truncate"
                         title={customerEmail}
                       >
@@ -1272,8 +1293,8 @@ export default function AdminQuoteDetails() {
                   <div className="flex items-center gap-2.5 text-slate-700 min-w-0">
                     <Phone size={13} className="text-slate-400 shrink-0" />
                     {customerPhone ? (
-                      <a 
-                        href={`tel:${customerPhone}`} 
+                      <a
+                        href={`tel:${customerPhone}`}
                         className="hover:text-slate-900 font-medium"
                       >
                         {customerPhone}
@@ -1308,11 +1329,10 @@ export default function AdminQuoteDetails() {
               <div className="space-y-3 text-xs pt-1">
                 {/* Step 1: Review Request */}
                 <div className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                    isPendingReview
+                  <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${isPendingReview
                       ? "bg-amber-500 text-white"
                       : "bg-emerald-500 text-white"
-                  }`}>
+                    }`}>
                     {isPendingReview ? "1" : <Check size={10} />}
                   </div>
                   <span className={isPendingReview ? "font-semibold text-white" : "text-slate-300"}>
@@ -1322,15 +1342,14 @@ export default function AdminQuoteDetails() {
 
                 {/* Step 2: Generate Quote */}
                 <div className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                    isRevisionRequested
+                  <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${isRevisionRequested
                       ? "bg-orange-500 text-white"
                       : isQuotationSent || isAccepted || isConverted
-                      ? "bg-emerald-500 text-white"
-                      : isPendingReview
-                      ? "bg-slate-800 text-slate-400 border border-slate-700"
-                      : "bg-slate-800 text-slate-400"
-                  }`}>
+                        ? "bg-emerald-500 text-white"
+                        : isPendingReview
+                          ? "bg-slate-800 text-slate-400 border border-slate-700"
+                          : "bg-slate-800 text-slate-400"
+                    }`}>
                     {isQuotationSent || isAccepted || isConverted ? <Check size={10} /> : "2"}
                   </div>
                   <span className={isRevisionRequested ? "font-semibold text-orange-200" : isQuotationSent ? "text-slate-300" : "text-slate-400"}>
@@ -1340,15 +1359,14 @@ export default function AdminQuoteDetails() {
 
                 {/* Step 3: Await Acceptance / Booking */}
                 <div className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                    isConverted
+                  <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${isConverted
                       ? "bg-emerald-500 text-white"
                       : isAccepted
-                      ? "bg-purple-500 text-white"
-                      : isQuotationSent
-                      ? "bg-blue-500 text-white"
-                      : "bg-slate-800 text-slate-400 border border-slate-700"
-                  }`}>
+                        ? "bg-purple-500 text-white"
+                        : isQuotationSent
+                          ? "bg-blue-500 text-white"
+                          : "bg-slate-800 text-slate-400 border border-slate-700"
+                    }`}>
                     {isConverted ? <Check size={10} /> : "3"}
                   </div>
                   <span className={isAccepted ? "font-semibold text-purple-200" : isQuotationSent ? "font-semibold text-blue-200" : "text-slate-400"}>
@@ -1391,8 +1409,8 @@ export default function AdminQuoteDetails() {
 
       {/* --- Modals --- */}
       {showConvertModal && quote && (
-        <QuotationBuilderModal 
-          inquiry={quote} 
+        <QuotationBuilderModal
+          inquiry={quote}
           onClose={() => setShowConvertModal(false)}
           onSuccess={() => {
             setShowConvertModal(false);

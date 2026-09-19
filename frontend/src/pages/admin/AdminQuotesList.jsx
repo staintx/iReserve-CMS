@@ -42,8 +42,10 @@ import {
   Mail,
   CheckCircle2,
   Tag,
-  Sliders
+  Sliders,
+  Ruler,
 } from "lucide-react";
+import { eventSpaceLabel } from "../../lib/packageDisplay";
 
 /** Avatar Initials with deterministic background color */
 const AvatarInitials = ({ name, className = "w-9 h-9 text-xs" }) => {
@@ -324,6 +326,7 @@ export default function AdminQuotesList() {
         depositAmount: latest.deposit_amount || 0,
         packagePrice: latest.package_price || 0,
         packageName: latest.package_name || "Custom Package",
+        eventSpace: latest.event_snapshot?.event_space_label || eventSpaceLabel(inq, inq.package_id) || (inq.scaffold_width && inq.scaffold_length ? `${inq.scaffold_width}×${inq.scaffold_length}` : ""),
         menuItems: Array.isArray(latest.menu_items) ? latest.menu_items : [],
         addOns: Array.isArray(latest.add_ons) ? latest.add_ons : [],
         additionalFees: Array.isArray(latest.additional_fees) ? latest.additional_fees : [],
@@ -1090,10 +1093,19 @@ export default function AdminQuotesList() {
                       <span className="font-semibold text-foreground">{selectedQuotation.eventType}</span>
                       <span className="text-[11px] text-muted-foreground block">{selectedQuotation.guestCount} guests (pax)</span>
                     </div>
-                    <div className="col-span-2">
+                    <div className={selectedQuotation.eventSpace ? "col-span-1" : "col-span-2"}>
                       <span className="text-[10px] text-muted-foreground block font-medium">Catering Package</span>
                       <span className="font-semibold text-foreground">{selectedQuotation.packageName}</span>
                     </div>
+                    {selectedQuotation.eventSpace && (
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block font-medium">Event Space Size</span>
+                        <span className="font-semibold font-mono text-foreground flex items-center gap-1">
+                          <Ruler size={11} className="text-primary" />
+                          {selectedQuotation.eventSpace}
+                        </span>
+                      </div>
+                    )}
                     <div className="col-span-2 pt-1.5 border-t border-border/50">
                       <span className="text-[10px] text-muted-foreground block font-medium flex items-center gap-1">
                         <MapPin size={11} className="text-primary" /> Venue Address

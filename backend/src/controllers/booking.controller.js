@@ -3161,6 +3161,15 @@ exports.executeInquiryConversion = async ({
     service_items: serviceItems,
     additional_charges: additionalCharges,
     inventory_items: inventoryItems,
+
+    package_starting_price: quotation?.package_starting_price || 0,
+    package_price: quotation?.package_price || 0,
+    package_inclusions: quotation?.package_inclusions || inquiry.package_id?.inclusions || [],
+    removed_inclusions: quotation?.removed_inclusions || [],
+    inclusion_adjustments: quotation?.inclusion_adjustments || [],
+    subtotal: quotation?.subtotal || inquiry.subtotal || 0,
+    discount_amount: quotation?.discounts || inquiry.discount_amount || 0,
+    tax_amount: quotation?.taxes || inquiry.tax_amount || 0,
     
     dietary_restrictions: inquiry.dietary_requirements || "",
     special_requests: inquiry.special_requests || "",

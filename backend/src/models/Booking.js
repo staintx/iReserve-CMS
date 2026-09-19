@@ -151,6 +151,26 @@ const BookingSchema = new mongoose.Schema(
     custom_setup_scope: [String],
     custom_setup_notes: String,
 
+    // Package baseline pricing and inclusions breakdown (mirrors Quotation structure)
+    package_starting_price: { type: Number, default: 0 },
+    package_price: { type: Number, default: 0 },
+    package_inclusions: [String],
+    removed_inclusions: [
+      {
+        name: String,
+        deduction: { type: Number, default: 0 },
+      },
+    ],
+    inclusion_adjustments: [
+      {
+        name: String,
+        base_quantity: { type: Number, default: 0 },
+        quantity: { type: Number, default: 0 },
+        unit_price: { type: Number, default: 0 },
+        amount: { type: Number, default: 0 },
+      },
+    ],
+
     subtotal: { type: Number, default: 0 },
     tax_amount: { type: Number, default: 0 },
     total_price: Number,

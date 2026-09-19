@@ -18,10 +18,6 @@ export default function FoodDetailDrawer({
 }) {
   if (!item) return null;
 
-  const fmt = (n) =>
-    n !== undefined && n !== null && n !== ""
-      ? "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : "—";
 
   const updatedDate = item.updatedAt
     ? new Date(item.updatedAt).toLocaleDateString("en-US", {
@@ -125,17 +121,9 @@ export default function FoodDetailDrawer({
         )}
 
         {/* Quick Highlights */}
-        <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-muted/40 border border-border/70">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Price</span>
-            <p className="text-base font-bold text-foreground mt-0.5">{fmt(item.price)}</p>
-          </div>
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Availability</span>
-            <div className="mt-1">
-              <Badge status={item.available ? "available" : "unavailable"} dot />
-            </div>
-          </div>
+        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border border-border/70">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Availability</span>
+          <Badge status={item.available ? "available" : "unavailable"} dot />
         </div>
 
         {/* Description */}

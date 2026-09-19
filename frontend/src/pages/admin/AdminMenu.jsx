@@ -148,11 +148,6 @@ export default function AdminMenu() {
     return combined;
   };
 
-  // Currency helper
-  const fmt = (n) =>
-    n !== undefined && n !== null && n !== "" && !isNaN(n)
-      ? "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : "—";
 
   // Filtered & Sorted items
   const filtered = useMemo(() => {
@@ -182,10 +177,6 @@ export default function AdminMenu() {
         valA = (a.name || "").toLowerCase();
         valB = (b.name || "").toLowerCase();
         return sortOrder === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
-      } else if (sortField === "price") {
-        valA = Number(a.price || 0);
-        valB = Number(b.price || 0);
-        return sortOrder === "asc" ? valA - valB : valB - valA;
       } else if (sortField === "status") {
         valA = a.available ? 1 : 0;
         valB = b.available ? 1 : 0;
@@ -240,7 +231,7 @@ export default function AdminMenu() {
       const data = new FormData();
       data.append("name", `${item.name} (Copy)`);
       data.append("category", item.category || "Main Course");
-      data.append("price", item.price || 0);
+      data.append("price", 0);
       data.append("description", item.description || "");
       data.append("available", item.available !== false);
       if (item.image_url) {
@@ -410,15 +401,6 @@ export default function AdminMenu() {
       ),
     },
     {
-      key: "price",
-      header: "Price",
-      render: (row) => (
-        <span className="font-semibold text-foreground text-xs tabular-nums">
-          {fmt(row.price)}
-        </span>
-      ),
-    },
-    {
       key: "status",
       header: "Status",
       render: (row) => (
@@ -492,7 +474,7 @@ export default function AdminMenu() {
               Food Menu Management
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Manage dishes, categories, pricing, and catering menu items.
+              Manage dishes, categories, and catering menu items.
             </p>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
@@ -610,8 +592,6 @@ export default function AdminMenu() {
                   <option value="category-asc">Sort: Category</option>
                   <option value="name-asc">Sort: Name (A-Z)</option>
                   <option value="name-desc">Sort: Name (Z-A)</option>
-                  <option value="price-asc">Sort: Price (Low-High)</option>
-                  <option value="price-desc">Sort: Price (High-Low)</option>
                   <option value="packages-desc">Sort: Most Used in Pkgs</option>
                   <option value="updatedAt-desc">Sort: Recently Updated</option>
                 </select>
@@ -748,9 +728,6 @@ export default function AdminMenu() {
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <span className="text-[10px] font-bold font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200/80 uppercase tracking-wider">
                             {item.category || "General"}
-                          </span>
-                          <span className="text-xs font-bold text-foreground">
-                            {fmt(item.price)}
                           </span>
                         </div>
 

@@ -36,6 +36,8 @@ const ACTION_OPTIONS = [
   { value: "ocular_completed", label: "Ocular Completed" },
   { value: "ocular_requested", label: "Ocular Requested" },
   { value: "booking_cancellation_requested", label: "Cancellation Requested" },
+  { value: "booking_cancellation_approved", label: "Cancellation Approved" },
+  { value: "booking_cancellation_rejected", label: "Cancellation Rejected" },
   { value: "change_request_submitted", label: "Change Request Submitted" },
   { value: "change_request_resolved", label: "Change Request Resolved" },
   { value: "booking_revision_proposed", label: "Revision Proposed" },

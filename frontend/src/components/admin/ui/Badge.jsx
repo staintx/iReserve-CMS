@@ -66,6 +66,15 @@ export default function Badge({ status, variant, icon, children, dot = false, cl
     );
   }
 
+  if (norm === "cancellation requested") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-300 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-rose-600 shrink-0" />}
+        <span>Cancellation Requested</span>
+      </span>
+    );
+  }
+
   if (norm === "on leave" || norm === "off-duty") {
     return (
       <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 ${className} whitespace-nowrap`}>

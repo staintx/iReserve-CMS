@@ -175,6 +175,19 @@ const BookingSchema = new mongoose.Schema(
       resolved_at: Date,
     },
 
+    cancellation_request: {
+      status: {
+        type: String,
+        enum: ["none", "pending", "approved", "rejected"],
+        default: "none",
+      },
+      reason: { type: String, default: "" },
+      requested_at: Date,
+      resolved_at: Date,
+      admin_notes: { type: String, default: "" },
+    },
+    cancellation_reason: { type: String, default: "" },
+
     is_revised: { type: Boolean, default: false },
     revision_count: { type: Number, default: 0 },
 

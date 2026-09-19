@@ -40,7 +40,8 @@ import {
   ArrowUpRight,
   Info,
   Tag,
-  Plus
+  Plus,
+  X
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import Btn from "../../components/admin/ui/Btn";
@@ -97,6 +98,15 @@ export default function AdminBookingDetails() {
   const [showProposalModal, setShowProposalModal] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
+  // Cancellation modal states
+  const [showApproveCancelModal, setShowApproveCancelModal] = useState(false);
+  const [showRejectCancelModal, setShowRejectCancelModal] = useState(false);
+  const [cancelActionLoading, setCancelActionLoading] = useState(false);
+  const [adminCancelNote, setAdminCancelNote] = useState("");
+  const [refundMode, setRefundMode] = useState("queue"); // 'queue' | 'custom'
+  const [customRefundAmount, setCustomRefundAmount] = useState("");
+  const [customRefundReason, setCustomRefundReason] = useState("");
+
   // Form states
   const [quoteForm, setQuoteForm] = useState({ total_price: "", notes: "" });
   const [editForm, setEditForm] = useState({ guest_count: "", event_date: "", start_time: "", venue_type: "", status: "", total_price: "" });
@@ -123,6 +133,47 @@ export default function AdminBookingDetails() {
       notify(err.response?.data?.message || "Failed to update event manager.", "error");
     } finally {
       setSavingManager(false);
+    }
+  };
+
+  const handleApproveCancellation = async () => {
+    if (!booking) return;
+    setCancelActionLoading(true);
+    try {
+      const payload = {
+        admin_notes: adminCancelNote,
+      };
+      if (refundMode === "custom" && customRefundAmount !== "") {
+        payload.refund_amount = Number(customRefundAmount);
+        payload.refund_reason = customRefundReason || adminCancelNote || "Approved cancellation refund";
+      }
+      await AdminAPI.approveCancellation(booking._id, payload);
+      notify("Booking cancellation approved.", "success");
+      setShowApproveCancelModal(false);
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to approve cancellation.", "error");
+    } finally {
+      setCancelActionLoading(false);
+    }
+  };
+
+  const handleRejectCancellation = async () => {
+    if (!booking) return;
+    if (!adminCancelNote.trim()) {
+      notify("Please provide a reason for declining the cancellation request.", "warning");
+      return;
+    }
+    setCancelActionLoading(true);
+    try {
+      await AdminAPI.rejectCancellation(booking._id, { admin_notes: adminCancelNote });
+      notify("Cancellation request declined.", "info");
+      setShowRejectCancelModal(false);
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to decline cancellation.", "error");
+    } finally {
+      setCancelActionLoading(false);
     }
   };
 
@@ -348,6 +399,17 @@ export default function AdminBookingDetails() {
   
   const totalPaid = payments.filter(p => p.status === "approved").reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   const remainingBalance = Math.max(0, (booking.total_price || 0) - totalPaid);
+
+  const isCancellationPending =
+    booking?.cancellation_request?.status === "pending" ||
+    (booking?.change_request?.status === "pending" &&
+      booking?.change_request?.message?.toLowerCase().includes("cancel"));
+
+  const cancellationReason =
+    booking?.cancellation_request?.reason ||
+    booking?.cancellation_reason ||
+    booking?.change_request?.message ||
+    "Customer requested a cancellation and refund.";
 
   const pkg = booking.package_id;
   const guestCount = Number(booking.guest_count) || 0;
@@ -677,8 +739,75 @@ export default function AdminBookingDetails() {
             </div>
           )}
 
-          {/* Customer Change Request Alert Banner */}
-          {booking.change_request?.status === "pending" && booking.change_request?.message && (!booking.pending_revision || !["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status)) && (
+          {/* Dedicated Cancellation Request Alert Banner */}
+          {isCancellationPending && (
+            <div className="bg-rose-50 border border-rose-200 rounded-lg p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-rose-100 border border-rose-200 flex items-center justify-center shrink-0 text-rose-600 mt-0.5">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-rose-950 text-xs sm:text-sm">
+                      Customer Requested Booking Cancellation
+                    </h4>
+                    <span className="text-[10px] bg-rose-100 text-rose-800 border border-rose-300 font-bold px-2 py-0.5 rounded-full">
+                      Action Required
+                    </span>
+                  </div>
+                  <p className="text-rose-900 text-xs mt-1 font-medium">
+                    Reason: <span className="italic font-normal">"{cancellationReason}"</span>
+                  </p>
+                  <p className="text-rose-700 text-[11px] mt-0.5">
+                    Amount Paid: <span className="font-semibold font-mono">₱{totalPaid.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                    {totalPaid > 0 ? " — cancellation requires refund resolution." : " — no payment made."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                <Btn
+                  size="sm"
+                  variant="secondary"
+                  className="font-bold text-slate-700 border-slate-300 hover:bg-slate-100"
+                  onClick={() => {
+                    setAdminCancelNote("");
+                    setShowRejectCancelModal(true);
+                  }}
+                >
+                  <X className="w-3.5 h-3.5 mr-1 text-slate-500" /> Decline Request
+                </Btn>
+                <Btn
+                  size="sm"
+                  variant="destructive"
+                  className="font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-2xs"
+                  onClick={() => {
+                    setAdminCancelNote("");
+                    setCustomRefundAmount(totalPaid > 0 ? String(totalPaid * 0.5) : "0");
+                    setRefundMode("queue");
+                    setShowApproveCancelModal(true);
+                  }}
+                >
+                  <Check className="w-3.5 h-3.5 mr-1" /> Review &amp; Approve
+                </Btn>
+              </div>
+            </div>
+          )}
+
+          {/* Previous Cancellation Request Declined Banner */}
+          {booking.cancellation_request?.status === "rejected" && !["cancelled", "completed"].includes(rawStatus) && (
+            <div className="bg-amber-50/90 border border-amber-200 rounded-lg p-2.5 sm:p-3 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="text-amber-900">
+                  Previous customer cancellation request was <strong>declined</strong>: {booking.cancellation_request.admin_notes}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Customer Change Request Alert Banner (for non-cancellations) */}
+          {!isCancellationPending && booking.change_request?.status === "pending" && booking.change_request?.message && (!booking.pending_revision || !["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status)) && (
             <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 sm:p-3.5 flex items-start justify-between gap-3 text-xs">
               <div className="flex items-start gap-2.5">
                 <Send className="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
@@ -2057,6 +2186,212 @@ export default function AdminBookingDetails() {
         {!showInvoiceModal && (
           <PrintableInvoice booking={booking} payments={payments} businessInfo={businessInfo} />
         )}
+
+        {/* Approve Booking Cancellation Modal */}
+        <Dialog open={showApproveCancelModal} onOpenChange={setShowApproveCancelModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center mb-1 text-rose-600">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <DialogTitle className="text-base font-bold text-foreground">
+                Approve Booking Cancellation?
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                This will officially cancel booking <strong>#{booking.reference || booking._id}</strong>, release any reserved inventory items, and update customer status.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-1">
+              <div className="p-3 bg-muted/40 rounded-lg border border-border/70 text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Client:</span>
+                  <span className="font-semibold text-foreground">{customerName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Event Date:</span>
+                  <span className="font-semibold text-foreground">
+                    {booking.event_date ? new Date(booking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBD"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Amount Paid:</span>
+                  <span className="font-bold text-emerald-700 font-mono">{fmt(totalPaid)}</span>
+                </div>
+                <div className="pt-1 border-t border-border/50 text-[11px] text-muted-foreground">
+                  <strong>Customer Reason:</strong> "{cancellationReason}"
+                </div>
+              </div>
+
+              {totalPaid > 0 && (
+                <div className="space-y-2 pt-1 border-t border-border/60">
+                  <label className="text-xs font-bold text-foreground block">
+                    Refund Resolution Method
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRefundMode("queue")}
+                      className={`p-2.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${
+                        refundMode === "queue"
+                          ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary"
+                          : "border-border bg-background text-muted-foreground hover:border-border/80"
+                      }`}
+                    >
+                      <div className="font-bold text-xs text-foreground mb-0.5">Send to Refund Queue</div>
+                      <p className="text-[10px] text-muted-foreground leading-tight">
+                        Calculate exact deductions &amp; issue refund voucher in Refund Management.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRefundMode("custom")}
+                      className={`p-2.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${
+                        refundMode === "custom"
+                          ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary"
+                          : "border-border bg-background text-muted-foreground hover:border-border/80"
+                      }`}
+                    >
+                      <div className="font-bold text-xs text-foreground mb-0.5">Direct Refund Now</div>
+                      <p className="text-[10px] text-muted-foreground leading-tight">
+                        Specify immediate refund amount and record refund transaction now.
+                      </p>
+                    </button>
+                  </div>
+
+                  {refundMode === "custom" && (
+                    <div className="p-3 bg-muted/30 rounded-lg border border-border/80 space-y-2 mt-2">
+                      <div>
+                        <label className="text-[11px] font-semibold text-foreground block mb-1">
+                          Refund Amount (₱)
+                        </label>
+                        <Input
+                          type="number"
+                          max={totalPaid}
+                          min="0"
+                          step="any"
+                          value={customRefundAmount}
+                          onChange={(e) => setCustomRefundAmount(e.target.value)}
+                          placeholder="0.00"
+                          className="text-xs font-mono h-8"
+                        />
+                        <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                          Maximum refundable: {fmt(totalPaid)}
+                        </span>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-foreground block mb-1">
+                          Refund / Deduction Reason
+                        </label>
+                        <Input
+                          type="text"
+                          value={customRefundReason}
+                          onChange={(e) => setCustomRefundReason(e.target.value)}
+                          placeholder="e.g., 50% deposit refund per cancellation terms"
+                          className="text-xs h-8"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-semibold text-foreground block mb-1">
+                  Admin Internal Notes (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={adminCancelNote}
+                  onChange={(e) => setAdminCancelNote(e.target.value)}
+                  placeholder="Additional context or notes regarding this cancellation approval..."
+                  className="w-full text-xs rounded-lg border border-border p-2 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Btn
+                type="button"
+                variant="secondary"
+                onClick={() => setShowApproveCancelModal(false)}
+                disabled={cancelActionLoading}
+              >
+                Cancel
+              </Btn>
+              <Btn
+                type="button"
+                variant="destructive"
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+                onClick={handleApproveCancellation}
+                disabled={cancelActionLoading}
+              >
+                {cancelActionLoading ? "Processing..." : "Confirm Cancellation"}
+              </Btn>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Decline Booking Cancellation Modal */}
+        <Dialog open={showRejectCancelModal} onOpenChange={setShowRejectCancelModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <div className="w-10 h-10 rounded-full bg-amber-50 border border-amber-100 flex items-center justify-center mb-1 text-amber-600">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <DialogTitle className="text-base font-bold text-foreground">
+                Decline Cancellation Request
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                This will decline the customer's cancellation request and keep booking <strong>#{booking.reference || booking._id}</strong> active.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-1">
+              <div className="p-3 bg-muted/40 rounded-lg border border-border/70 text-xs">
+                <p className="text-muted-foreground mb-1">Customer's Requested Reason:</p>
+                <p className="font-medium text-foreground italic">"{cancellationReason}"</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-foreground block mb-1">
+                  Reason for Declining <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={adminCancelNote}
+                  onChange={(e) => setAdminCancelNote(e.target.value)}
+                  placeholder="Explain why the cancellation cannot be approved (this will be sent to the customer)..."
+                  className="w-full text-xs rounded-lg border border-border p-2.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <span className="text-[11px] text-muted-foreground mt-1 block">
+                  The client will be notified via their dashboard and in-app notifications.
+                </span>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Btn
+                type="button"
+                variant="secondary"
+                onClick={() => setShowRejectCancelModal(false)}
+                disabled={cancelActionLoading}
+              >
+                Cancel
+              </Btn>
+              <Btn
+                type="button"
+                variant="primary"
+                className="font-bold"
+                onClick={handleRejectCancellation}
+                disabled={cancelActionLoading}
+              >
+                {cancelActionLoading ? "Submitting..." : "Send Decline Notice"}
+              </Btn>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
       </div>
     </AdminLayout>

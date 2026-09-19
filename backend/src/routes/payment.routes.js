@@ -3,8 +3,10 @@ const ctrl = require("../controllers/payment.controller");
 const { protect } = require("../middleware/auth.middleware");
 const { authorize } = require("../middleware/role.middleware");
 const validate = require("../middleware/validate.middleware");
+const upload = require("../middleware/upload.middleware");
 const { paymentSchema } = require("../validations/payment.validation");
 
+router.post("/upload-proof", protect, authorize("admin", "staff"), upload.single("file"), ctrl.uploadProof);
 router.post("/", protect, authorize("admin", "staff"), validate(paymentSchema), ctrl.create);
 router.post("/preference", protect, ctrl.setPaymentPreference);
 router.post("/checkout", protect, ctrl.createCheckout);

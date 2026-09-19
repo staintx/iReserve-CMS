@@ -47,6 +47,7 @@ export const AdminAPI = {
   // Payments
   getPayments: () => api.get("/payments"),
   createPayment: (data) => api.post("/payments", data),
+  uploadPaymentProof: (formData) => api.post("/payments/upload-proof", formData, { headers: { "Content-Type": "multipart/form-data" } }),
   updatePayment: (id, data) => api.put(`/payments/${id}`, data),
   verifyPayment: (id) => api.post(`/payments/${id}/verify`),
 

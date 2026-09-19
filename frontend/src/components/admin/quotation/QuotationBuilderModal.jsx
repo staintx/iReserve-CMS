@@ -557,6 +557,19 @@ function formatScaffoldOption(opt, idx) {
 export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const { notify } = useToast();
   const confirm = useConfirm();
+
+  const isCancelled = ["Cancelled", "Quote Rejected", "Rejected", "Expired"].includes(inquiry?.status);
+
+  useEffect(() => {
+    if (isCancelled) {
+      notify({
+        type: "error",
+        message: "Cannot prepare or edit quotation for a cancelled inquiry.",
+      });
+      onClose();
+    }
+  }, [isCancelled, notify, onClose]);
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);

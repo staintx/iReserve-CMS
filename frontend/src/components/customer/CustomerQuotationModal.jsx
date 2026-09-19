@@ -14,6 +14,7 @@ import {
   FileText,
   ArrowRight,
   Printer,
+  X,
 } from "lucide-react";
 import InvoiceModal from "../common/invoice/InvoiceModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
@@ -331,11 +332,22 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
           Radix renders this in a body portal, outside the layout wrapper that
           normally scopes them, so without it the dialog inherits the warm
           boutique palette and renders body text in brown/gold. */}
-      <DialogContent className="block w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl focus:outline-none [scrollbar-width:thin] print:hidden">
+      <DialogContent hideClose className="block w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl focus:outline-none [scrollbar-width:thin] print:hidden">
 
         {/* Header Bar */}
-        <div className="relative border-b border-slate-200 bg-slate-50/80 px-5 py-4.5 pr-14 sm:px-6 sm:py-5">
+        <div className="relative border-b border-slate-200 bg-slate-50/80 px-5 py-4.5 pr-14 sm:pl-6 sm:pr-16 sm:py-5">
           <span className="absolute inset-x-0 top-0 h-1 bg-[#2C4B8A]" aria-hidden="true" />
+
+          {/* Close / Dismiss Button */}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close quotation"
+            title="Close"
+            className="absolute right-3.5 top-3.5 sm:right-4 sm:top-4 z-20 flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-slate-200/90 text-slate-700 hover:text-slate-900 shadow-2xs hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#2C4B8A]"
+          >
+            <X className="h-4.5 w-4.5 stroke-[2.5]" />
+          </button>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="flex min-w-0 flex-1 items-start gap-3">
               <span
@@ -985,12 +997,11 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
         {canRespond && !showRevisionForm && (
           <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50/95 backdrop-blur-xs px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6">
             <Button
-              variant="ghost"
               onClick={handleReject}
               disabled={isSubmitting}
-              className="text-slate-500 hover:text-rose-700 hover:bg-rose-50 font-semibold text-xs h-9 px-3 rounded-md cursor-pointer"
+              className="bg-[#DC2626] hover:bg-[#B91C1C] text-white font-semibold text-xs h-9 px-4 rounded-md cursor-pointer shadow-xs transition-colors"
             >
-              <XCircle className="h-4 w-4 mr-1 text-slate-400" /> Decline
+              <XCircle className="h-4 w-4 mr-1.5 text-white" /> Decline
             </Button>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-2.5">
               <Button

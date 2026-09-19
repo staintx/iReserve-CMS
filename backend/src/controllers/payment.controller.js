@@ -673,6 +673,19 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		if (!targetDoc) return res.status(404).json({ message: "Inquiry not found" });
 		eventName = targetDoc.event_type;
 		customerId = targetDoc.customer_id?._id || req.user._id;
+
+		if (targetDoc.status === "Revision Requested") {
+			return res.status(400).json({ message: "This quotation is currently being revised. Payment cannot be made until the updated quotation is submitted." });
+		}
+		if (["Cancelled", "Quote Rejected"].includes(targetDoc.status)) {
+			return res.status(400).json({ message: "This inquiry is no longer active." });
+		}
+
+		const Quotation = require("../models/Quotation");
+		const latestQuotation = await Quotation.findOne({ inquiry_id: targetDoc._id, status: { $ne: "Draft" } }).sort({ version_number: -1 });
+		if (latestQuotation && latestQuotation.status === "Revision Requested") {
+			return res.status(400).json({ message: "This quotation is currently being revised. Payment cannot be made until the updated quotation is submitted." });
+		}
 	}
 
 	const isOwner = String(customerId) === String(req.user._id);

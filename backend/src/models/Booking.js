@@ -46,6 +46,7 @@ const BookingSchema = new mongoose.Schema(
 
     event_date: { type: Date, required: [true, "Event date is required"] },
     start_time: { type: String, required: [true, "Start time is required"] },
+    duration_hours: { type: Number, default: 4 },
     guest_count: { type: Number, required: [true, "Guest count is required"] },
     include_food: { type: Boolean, default: true },
 
@@ -141,6 +142,17 @@ const BookingSchema = new mongoose.Schema(
     contact_alt_phone: String,
     contact_method: String,
 
+    // Scaffold / event space size for setup bookings
+    selected_scaffold_option_id: String,
+    scaffold_width: Number,
+    scaffold_length: Number,
+    scaffold_base_area: Number,
+    scaffold_price: Number,
+    custom_setup_scope: [String],
+    custom_setup_notes: String,
+
+    subtotal: { type: Number, default: 0 },
+    tax_amount: { type: Number, default: 0 },
     total_price: Number,
     discount_amount: { type: Number, default: 0 },
     payment_method: String,

@@ -698,8 +698,7 @@ export default function AdminReservations() {
                         <th className="py-2.5 px-3 font-semibold min-w-[120px]">Event Date</th>
                         <th className="py-2.5 px-3 font-semibold min-w-[100px]">Total Cost</th>
                         <th className="py-2.5 px-3 font-semibold min-w-[100px]">Status</th>
-                        <th className="py-2.5 px-3 font-semibold min-w-[100px]">Deposit</th>
-                        <th className="py-2.5 pr-3 pl-1 text-right font-semibold shrink-0 whitespace-nowrap min-w-[80px]">Actions</th>
+                        <th className="py-2.5 pr-3 pl-1 text-right font-semibold shrink-0 whitespace-nowrap min-w-[130px]">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/50">
@@ -775,15 +774,6 @@ export default function AdminReservations() {
                               </div>
                             </td>
 
-                            {/* Deposit Status Badge */}
-                            <td className="py-2.5 px-3 whitespace-nowrap">
-                              <div className="flex flex-col items-start gap-0.5">
-                                <Badge status={r.depositStatus} />
-                                {!r.depositPaid && !r.quotationBacked && (
-                                  <span className="text-[10.5px] font-semibold text-muted-foreground">Admin created</span>
-                                )}
-                              </div>
-                            </td>
 
                             {/* Actions Column (Manage & Details Drawer) */}
                             <td className="py-2.5 pr-3 pl-1 text-right whitespace-nowrap shrink-0 min-w-[130px]" onClick={(e) => e.stopPropagation()}>

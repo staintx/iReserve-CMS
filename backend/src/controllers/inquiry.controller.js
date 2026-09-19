@@ -323,6 +323,7 @@ exports.getInquiries = asyncHandler(async (req, res) => {
 
     const latestQuote = quotationMap.get(String(inquiry._id));
     if (latestQuote) {
+      inquiry.latestQuote = latestQuote;
       inquiry.total_price = Number(latestQuote.total_cost) || inquiry.total_price || 0;
       inquiry.deposit_amount = Number(latestQuote.deposit_amount) || 0;
       inquiry.quotation_expiration_date = latestQuote.expiration_date || null;
@@ -410,6 +411,7 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
   ]);
 
   if (latestQuote) {
+    inquiryObj.latestQuote = latestQuote;
     inquiryObj.total_price = Number(latestQuote.total_cost) || inquiryObj.total_price || 0;
     inquiryObj.deposit_amount = Number(latestQuote.deposit_amount) || 0;
     inquiryObj.quotation_expiration_date = latestQuote.expiration_date || null;

@@ -336,6 +336,11 @@ export default function CustomerInquiries() {
         return;
       }
 
+      if (inq.status === "Revision Requested" || inq.quotation_status === "Revision Requested") {
+        notify("This quotation is currently being revised. You cannot pay deposit until the updated quotation is submitted.", "warning");
+        return;
+      }
+
       notify("Generating checkout session for deposit payment...", "info");
       const qRes = await CustomerAPI.getQuotationsForInquiry(inq._id);
       const quotes = qRes.data || [];
@@ -413,6 +418,11 @@ export default function CustomerInquiries() {
       inq.payment_status === "fully_paid" ||
       inq.is_deposit_paid === true;
 
+    const isQuoteAcceptedAwaitingPayment =
+      ["Quote Accepted", "Awaiting Final Confirmation"].includes(inq.status) &&
+      !isConverted &&
+      !isDepositPaid;
+
     // Review Quotation appears strictly when quotation is published & available to review
     if (isQuotationSent) {
       return (
@@ -432,7 +442,8 @@ export default function CustomerInquiries() {
       );
     }
 
-    if (inq.total_price > 0 && !isConverted && !isDepositPaid && !["Cancelled", "Quote Rejected"].includes(inq.status)) {
+    // Pay Deposit appears ONLY when quotation has been accepted and deposit is pending
+    if (isQuoteAcceptedAwaitingPayment) {
       return (
         <Button
           size="sm"

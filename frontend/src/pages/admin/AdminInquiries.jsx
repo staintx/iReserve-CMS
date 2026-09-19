@@ -271,6 +271,43 @@ const getNextStepInfo = (row) => {
   };
 };
 
+/**
+ * Checks if an inquiry has an existing quotation created or sent
+ */
+export const checkHasQuotation = (r) => {
+  if (!r) return false;
+  return Boolean(
+    r.latestQuote ||
+    r.raw?.latestQuote ||
+    r.raw?.quotation_status ||
+    r.raw?.quotation_expiration_date ||
+    r.status === "Quotation Sent" ||
+    r.status === "Quote Accepted" ||
+    r.status === "Awaiting Final Confirmation" ||
+    r.status === "Revision Requested" ||
+    r.status === "Quote Rejected"
+  );
+};
+
+/**
+ * Checks if an inquiry needs a quotation:
+ * Active, non-archived, non-cancelled, non-converted, non-rejected, and has NO quotation created or sent
+ */
+export const checkNeedsQuotation = (r) => {
+  if (!r) return false;
+  if (
+    r.archived ||
+    r.status === "Converted to Booking" ||
+    r.convertedBookingId ||
+    r.status === "Cancelled" ||
+    r.status?.toLowerCase().includes("cancel") ||
+    r.status?.toLowerCase().includes("reject")
+  ) {
+    return false;
+  }
+  return !checkHasQuotation(r);
+};
+
 export default function AdminInquiries() {
   const navigate = useNavigate();
   const { notify } = useToast();
@@ -400,6 +437,8 @@ export default function AdminInquiries() {
         if (!r.archived) return false;
       } else if (statusFilter === "active") {
         if (r.archived || r.status === "Converted to Booking" || r.status === "Cancelled") return false;
+      } else if (statusFilter === "Needs Quotations" || statusFilter === "needs_quotation") {
+        if (!checkNeedsQuotation(r)) return false;
       } else if (statusFilter === "Quotation Sent") {
         if (r.archived || (!r.latestQuote && r.status !== "Quotation Sent") || r.status === "Converted to Booking") return false;
       } else if (statusFilter === "Converted to Booking") {
@@ -490,7 +529,7 @@ export default function AdminInquiries() {
   // KPI Calculations
   const totalInquiriesCount = formattedBookings.filter((r) => !r.archived).length;
   const activeCount = formattedBookings.filter((r) => !r.archived && r.status !== "Converted to Booking" && r.status !== "Cancelled").length;
-  const quotesNeededCount = formattedBookings.filter((r) => !r.archived && r.status !== "Converted to Booking" && r.status !== "Cancelled" && (!r.latestQuote || r.isNew)).length;
+  const quotesNeededCount = formattedBookings.filter(checkNeedsQuotation).length;
   const quotationSentCount = formattedBookings.filter((r) => !r.archived && (r.status === "Quotation Sent" || r.latestQuote) && r.status !== "Converted to Booking").length;
   const convertedCount = formattedBookings.filter((r) => !r.archived && (r.status === "Converted to Booking" || Boolean(r.convertedBookingId))).length;
   const archivedCount = formattedBookings.filter((r) => r.archived).length;
@@ -673,7 +712,7 @@ export default function AdminInquiries() {
                 <div className="flex flex-col gap-1 min-w-[140px] shrink-0">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Inquiry</label>
                   <select
-                    value={statusFilter}
+                    value={statusFilter === "needs_quotation" ? "Needs Quotations" : statusFilter}
                     onChange={(e) => {
                       setStatusFilter(e.target.value);
                       setPage(1);
@@ -682,6 +721,7 @@ export default function AdminInquiries() {
                   >
                     <option value="all">All Inquiries</option>
                     <option value="active">Active Inquiry</option>
+                    <option value="Needs Quotations">Needs Quotations</option>
                     <option value="Quotation Sent">Quotation Sent</option>
                     <option value="Converted to Booking">Converted Bookings</option>
                     <option value="Cancelled">Cancelled Inquiry</option>

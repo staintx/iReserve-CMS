@@ -20,6 +20,7 @@ const {
 } = require("../services/payment.service");
 const BusinessInfo = require("../models/BusinessInfo");
 const { sendPaymentReceiptEmail, sendBookingConfirmationEmail } = require("../utils/booking-emails");
+const uploadToCloudinary = require("../utils/cloudinaryUpload");
 
 const isSuccessfulPaymentStatus = (status) =>
 	["paid", "succeeded"].includes(String(status || "").toLowerCase());
@@ -316,6 +317,14 @@ exports.syncBookingStatus = async function (bookingId) {
 		}
 	}
 }
+
+exports.uploadProof = asyncHandler(async (req, res) => {
+	if (!req.file || !req.file.buffer) {
+		return res.status(400).json({ message: "No proof image file uploaded" });
+	}
+	const result = await uploadToCloudinary(req.file.buffer, "payments/proofs");
+	res.status(200).json({ url: result.secure_url });
+});
 
 exports.create = asyncHandler(async (req, res) => {
 	if (req.user?.role === "customer") {

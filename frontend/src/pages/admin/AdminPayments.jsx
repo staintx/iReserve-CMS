@@ -46,6 +46,7 @@ import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import Pagination from "../../components/admin/table/Pagination";
 import usePagination from "../../hooks/usePagination";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
+import RecordPaymentModal from "../../components/admin/payment/RecordPaymentModal";
 
 export default function AdminPayments() {
   const navigate = useNavigate();
@@ -55,6 +56,7 @@ export default function AdminPayments() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [payments, setPayments] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [depositPercentage, setDepositPercentage] = useState(20);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -73,29 +75,21 @@ export default function AdminPayments() {
   const [proofModalUrl, setProofModalUrl] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Record payment form
-  const [recordForm, setRecordForm] = useState({
-    booking_id: "",
-    customer_id: "",
-    amount: "",
-    payment_type: "deposit",
-    method: "cash",
-    proof_url: "",
-    status: "approved",
-    notes: "",
-  });
-
   const loadData = async (showToast = false) => {
     if (showToast) setRefreshing(true);
     else setLoading(true);
 
     try {
-      const [pRes, bRes] = await Promise.all([
+      const [pRes, bRes, bizRes] = await Promise.all([
         AdminAPI.getPayments(),
         AdminAPI.getBookings().catch(() => ({ data: [] })),
+        AdminAPI.getBusinessInfo().catch(() => ({ data: {} })),
       ]);
       setPayments(pRes.data || []);
       setBookings(bRes.data || []);
+      if (bizRes?.data?.deposit_percentage) {
+        setDepositPercentage(Number(bizRes.data.deposit_percentage));
+      }
       if (showToast) notify("Payments updated successfully", "success");
     } catch (err) {
       notify("Failed to load payment records", "error");
@@ -354,75 +348,6 @@ export default function AdminPayments() {
     link.click();
     document.body.removeChild(link);
     notify("Exported payment report to CSV.", "success");
-  };
-
-  // Select booking in record form
-  const handleBookingSelect = (bId) => {
-    const selectedBooking = bookings.find((b) => b._id === bId);
-    if (!selectedBooking) {
-      setRecordForm((prev) => ({ ...prev, booking_id: "", customer_id: "", amount: "" }));
-      return;
-    }
-
-    // Calculate remaining balance
-    const bPaid = payments
-      .filter((p) => String(p.booking_id?._id || p.booking_id) === String(selectedBooking._id) && getStatusBadgeLabel(p.status) === "Paid")
-      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-
-    const remaining = Math.max(0, (Number(selectedBooking.total_price) || 0) - bPaid);
-    const defaultAmount = remaining > 0 ? remaining : (Number(selectedBooking.total_price) || 0) * 0.2;
-
-    setRecordForm((prev) => ({
-      ...prev,
-      booking_id: selectedBooking._id,
-      customer_id: selectedBooking.customer_id?._id || selectedBooking.customer_id || "",
-      amount: defaultAmount ? String(defaultAmount) : "",
-      payment_type: bPaid === 0 ? "deposit" : "balance",
-    }));
-  };
-
-  // Submit manual payment
-  const handleRecordSubmit = async (e) => {
-    e.preventDefault();
-    if (!recordForm.booking_id) {
-      notify("Please select a booking", "error");
-      return;
-    }
-    if (!recordForm.amount || Number(recordForm.amount) <= 0) {
-      notify("Please enter a valid amount", "error");
-      return;
-    }
-
-    setActionLoading(true);
-    try {
-      await AdminAPI.createPayment({
-        booking_id: recordForm.booking_id,
-        customer_id: recordForm.customer_id,
-        amount: Number(recordForm.amount),
-        payment_type: recordForm.payment_type,
-        method: recordForm.method,
-        proof_url: recordForm.proof_url || undefined,
-        status: recordForm.status,
-      });
-
-      notify("Payment recorded successfully!", "success");
-      setRecordModalOpen(false);
-      setRecordForm({
-        booking_id: "",
-        customer_id: "",
-        amount: "",
-        payment_type: "deposit",
-        method: "cash",
-        proof_url: "",
-        status: "approved",
-        notes: "",
-      });
-      loadData();
-    } catch (err) {
-      notify(err.response?.data?.message || "Failed to record payment.", "error");
-    } finally {
-      setActionLoading(false);
-    }
   };
 
   // Columns definition for DataTable
@@ -1103,126 +1028,17 @@ export default function AdminPayments() {
         )}
 
         {/* Record Manual Payment Modal */}
-        {recordModalOpen && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg max-w-lg w-full p-4 sm:p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
-                <h2 className="font-sans text-base sm:text-lg font-semibold tracking-tight text-[#16264A]">
-                  Record Manual Payment
-                </h2>
-
-                <button onClick={() => setRecordModalOpen(false)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700">
-                  <X size={18} />
-                </button>
-              </div>
-
-              <form onSubmit={handleRecordSubmit} className="space-y-4">
-                {/* Select Booking */}
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 block mb-1">
-                    Target Booking <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={recordForm.booking_id}
-                    onChange={(e) => handleBookingSelect(e.target.value)}
-                    required
-                    className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  >
-                    <option value="">-- Select Booking --</option>
-                    {bookings.map((b) => (
-                      <option key={b._id} value={b._id}>
-                        [{b.reference || "No Ref"}] {b.contact_first_name} {b.contact_last_name} - {b.event_type} ({fmt(b.total_price)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Amount & Milestone */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1">
-                      Amount (₱) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="any"
-                      required
-                      placeholder="e.g. 5000"
-                      value={recordForm.amount}
-                      onChange={(e) => setRecordForm((prev) => ({ ...prev, amount: e.target.value }))}
-                      className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1">Milestone Type</label>
-                    <select
-                      value={recordForm.payment_type}
-                      onChange={(e) => setRecordForm((prev) => ({ ...prev, payment_type: e.target.value }))}
-                      className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    >
-                      <option value="deposit">Deposit (Downpayment)</option>
-                      <option value="balance">Final Balance</option>
-                      <option value="full">Full Payment</option>
-                      <option value="additional">Additional Charge</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Method & Initial Status */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1">Payment Method</label>
-                    <select
-                      value={recordForm.method}
-                      onChange={(e) => setRecordForm((prev) => ({ ...prev, method: e.target.value }))}
-                      className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    >
-                      <option value="cash">Cash Onsite</option>
-                      <option value="bank">Bank Transfer</option>
-                      <option value="gcash">GCash</option>
-                      <option value="check">Check</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1">Initial Status</label>
-                    <select
-                      value={recordForm.status}
-                      onChange={(e) => setRecordForm((prev) => ({ ...prev, status: e.target.value }))}
-                      className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    >
-                      <option value="approved">Approved (Paid)</option>
-                      <option value="pending">Pending Verification</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Optional Proof URL */}
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 block mb-1">Proof Image URL (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="https://..."
-                    value={recordForm.proof_url}
-                    onChange={(e) => setRecordForm((prev) => ({ ...prev, proof_url: e.target.value }))}
-                    className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
-                  <Btn variant="secondary" size="sm" onClick={() => setRecordModalOpen(false)}>
-                    Cancel
-                  </Btn>
-                  <Btn variant="primary" size="sm" type="submit" disabled={actionLoading}>
-                    {actionLoading ? "Recording..." : "Save Payment"}
-                  </Btn>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        <RecordPaymentModal
+          isOpen={recordModalOpen}
+          onClose={() => setRecordModalOpen(false)}
+          bookings={bookings}
+          payments={payments}
+          depositPercentage={depositPercentage}
+          onPaymentRecorded={() => loadData(true)}
+          fmt={fmt}
+          formatDate={formatDate}
+          getStatusBadgeLabel={getStatusBadgeLabel}
+        />
 
         {/* Official Printable Receipt Modal */}
         {receiptModalRow && (

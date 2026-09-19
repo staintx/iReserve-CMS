@@ -707,7 +707,7 @@ exports.update = asyncHandler(async (req, res) => {
   const current = await Booking.findById(req.params.id);
   if (!current) return res.status(404).json({ message: "Booking not found" });
 
-  if (getThreeDayLockout(current.event_date)) {
+  if (req.user?.role !== "admin" && getThreeDayLockout(current.event_date)) {
     const allowedLateFields = [
       "status",
       "payment_status",
@@ -1043,6 +1043,15 @@ exports.update = asyncHandler(async (req, res) => {
         };
       }
       await updated.save();
+    }
+  }
+
+  const { syncBookingStatus } = require("./payment.controller");
+  if (syncBookingStatus) {
+    try {
+      await syncBookingStatus(updated._id);
+    } catch (e) {
+      console.warn("syncBookingStatus warning on booking update:", e);
     }
   }
 

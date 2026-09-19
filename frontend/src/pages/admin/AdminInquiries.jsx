@@ -5,7 +5,7 @@ import {
   FileText, Send, Archive, ArchiveRestore, AlertCircle,
   Sparkles, RefreshCw, ArrowUpRight, ChevronLeft, Check, Info,
   AlertTriangle, Tag, Package, Sliders, CheckCircle2, ExternalLink,
-  User, History
+  User, History, Ruler
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
@@ -18,6 +18,7 @@ import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { bookingIdentity } from "../../lib/specialOffers";
 import { resolveServiceType } from "../../components/customer/portal/statusMeta";
+import { eventSpaceLabel } from "../../lib/packageDisplay";
 
 /**
  * Avatar Initials component with deterministic background color
@@ -270,6 +271,43 @@ const getNextStepInfo = (row) => {
   };
 };
 
+/**
+ * Checks if an inquiry has an existing quotation created or sent
+ */
+export const checkHasQuotation = (r) => {
+  if (!r) return false;
+  return Boolean(
+    r.latestQuote ||
+    r.raw?.latestQuote ||
+    r.raw?.quotation_status ||
+    r.raw?.quotation_expiration_date ||
+    r.status === "Quotation Sent" ||
+    r.status === "Quote Accepted" ||
+    r.status === "Awaiting Final Confirmation" ||
+    r.status === "Revision Requested" ||
+    r.status === "Quote Rejected"
+  );
+};
+
+/**
+ * Checks if an inquiry needs a quotation:
+ * Active, non-archived, non-cancelled, non-converted, non-rejected, and has NO quotation created or sent
+ */
+export const checkNeedsQuotation = (r) => {
+  if (!r) return false;
+  if (
+    r.archived ||
+    r.status === "Converted to Booking" ||
+    r.convertedBookingId ||
+    r.status === "Cancelled" ||
+    r.status?.toLowerCase().includes("cancel") ||
+    r.status?.toLowerCase().includes("reject")
+  ) {
+    return false;
+  }
+  return !checkHasQuotation(r);
+};
+
 export default function AdminInquiries() {
   const navigate = useNavigate();
   const { notify } = useToast();
@@ -380,6 +418,7 @@ export default function AdminInquiries() {
         paymentStatus: b.payment_status || "unpaid",
         celebrantName: b.celebrant_name || "",
         eventPalette: b.event_palette || [],
+        eventSpaceSize: eventSpaceLabel(b, b.package_id) || (b.scaffold_width && b.scaffold_length ? `${b.scaffold_width}×${b.scaffold_length}` : ""),
       };
     });
   }, [bookings]);
@@ -398,6 +437,8 @@ export default function AdminInquiries() {
         if (!r.archived) return false;
       } else if (statusFilter === "active") {
         if (r.archived || r.status === "Converted to Booking" || r.status === "Cancelled") return false;
+      } else if (statusFilter === "Needs Quotations" || statusFilter === "needs_quotation") {
+        if (!checkNeedsQuotation(r)) return false;
       } else if (statusFilter === "Quotation Sent") {
         if (r.archived || (!r.latestQuote && r.status !== "Quotation Sent") || r.status === "Converted to Booking") return false;
       } else if (statusFilter === "Converted to Booking") {
@@ -488,7 +529,7 @@ export default function AdminInquiries() {
   // KPI Calculations
   const totalInquiriesCount = formattedBookings.filter((r) => !r.archived).length;
   const activeCount = formattedBookings.filter((r) => !r.archived && r.status !== "Converted to Booking" && r.status !== "Cancelled").length;
-  const quotesNeededCount = formattedBookings.filter((r) => !r.archived && r.status !== "Converted to Booking" && r.status !== "Cancelled" && (!r.latestQuote || r.isNew)).length;
+  const quotesNeededCount = formattedBookings.filter(checkNeedsQuotation).length;
   const quotationSentCount = formattedBookings.filter((r) => !r.archived && (r.status === "Quotation Sent" || r.latestQuote) && r.status !== "Converted to Booking").length;
   const convertedCount = formattedBookings.filter((r) => !r.archived && (r.status === "Converted to Booking" || Boolean(r.convertedBookingId))).length;
   const archivedCount = formattedBookings.filter((r) => r.archived).length;
@@ -671,7 +712,7 @@ export default function AdminInquiries() {
                 <div className="flex flex-col gap-1 min-w-[140px] shrink-0">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Inquiry</label>
                   <select
-                    value={statusFilter}
+                    value={statusFilter === "needs_quotation" ? "Needs Quotations" : statusFilter}
                     onChange={(e) => {
                       setStatusFilter(e.target.value);
                       setPage(1);
@@ -680,6 +721,7 @@ export default function AdminInquiries() {
                   >
                     <option value="all">All Inquiries</option>
                     <option value="active">Active Inquiry</option>
+                    <option value="Needs Quotations">Needs Quotations</option>
                     <option value="Quotation Sent">Quotation Sent</option>
                     <option value="Converted to Booking">Converted Bookings</option>
                     <option value="Cancelled">Cancelled Inquiry</option>
@@ -900,7 +942,7 @@ export default function AdminInquiries() {
                                   {r.eventType}
                                 </div>
                                 <div className="text-xs text-muted-foreground tabular-nums truncate">
-                                  {r.eventDateFormatted} · {r.guests} pax
+                                  {r.eventDateFormatted} · {r.guests} pax{r.eventSpaceSize ? ` · ${r.eventSpaceSize}` : ""}
                                 </div>
                                 <div className="text-[11px] text-muted-foreground truncate max-w-[140px] flex items-center gap-1">
                                   <MapPin size={11} className="shrink-0 text-muted-foreground" />
@@ -1057,7 +1099,7 @@ export default function AdminInquiries() {
                       <div className="space-y-1 text-xs text-muted-foreground pt-1 border-t border-border/50">
                         <div className="flex items-center justify-between font-semibold text-foreground">
                           <span>{r.eventType}</span>
-                          <span className="text-[10px] text-muted-foreground">{r.guests} guests</span>
+                          <span className="text-[10px] text-muted-foreground">{r.guests} guests{r.eventSpaceSize ? ` · ${r.eventSpaceSize}` : ""}</span>
                         </div>
                         <div className="flex items-center gap-1 text-[10px]">
                           <Calendar size={11} className="shrink-0 text-muted-foreground/70" />
@@ -1242,6 +1284,12 @@ export default function AdminInquiries() {
                       <span className="text-[10px] text-muted-foreground block font-medium">Service</span>
                       <span className="font-semibold text-foreground">{selectedInquiry.service || selectedInquiry.booking}</span>
                     </div>
+                    {selectedInquiry.eventSpaceSize && (
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block font-medium">Event Space Size</span>
+                        <span className="font-semibold font-mono text-foreground">{selectedInquiry.eventSpaceSize}</span>
+                      </div>
+                    )}
                     <div>
                       <span className="text-[10px] text-muted-foreground block font-medium">Budget / Est. Total</span>
                       <span className="font-semibold font-mono text-foreground">

@@ -55,6 +55,7 @@ import PrintableInvoice from "../../components/admin/ui/PrintableInvoice";
 import InvoiceModal from "../../components/common/invoice/InvoiceModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
 import AdminOcularDateTimePicker from "../../components/admin/ui/AdminOcularDateTimePicker";
+import AdminBookingEditModal from "../../components/admin/booking/AdminBookingEditModal";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
@@ -713,7 +714,7 @@ export default function AdminBookingDetails() {
 
               {!["cancelled", "completed"].includes(rawStatus) && (
                 <Btn size="sm" variant="secondary" onClick={handleOpenEditModal}>
-                  <Edit size={13} /> Propose / Edit
+                  <Edit size={13} /> Edit Booking
                 </Btn>
               )}
             </div>
@@ -1770,162 +1771,14 @@ export default function AdminBookingDetails() {
           isCustomer={false}
         />
 
-        {/* Modal: Edit Details */}
-        <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-          <DialogContent className="sm:max-w-[540px] max-h-[90vh] overflow-y-auto p-5">
-            <form onSubmit={handleUpdateDetails}>
-              <DialogHeader className="border-b border-border pb-3">
-                <DialogTitle className="text-base font-bold text-foreground">Edit / Propose Booking Revisions</DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                  Modify booking terms or propose updated terms to the customer.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-4 py-3 text-xs">
-                {/* Compact Current Terms Reference */}
-                {booking && (
-                  <div className="p-2.5 bg-blue-50/70 border border-blue-200/70 rounded-lg text-xs space-y-1 text-slate-800 shadow-2xs">
-                    <div className="flex items-center justify-between font-bold text-blue-950">
-                      <span className="truncate text-xs">
-                        {booking.reference || `BK-${String(booking._id).slice(-6).toUpperCase()}`} — {customerName}
-                      </span>
-                      <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded shrink-0">
-                        Active Terms
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between text-[11px] text-blue-900 gap-x-3 gap-y-0.5 pt-0.5 border-t border-blue-200/50 mt-1 font-mono">
-                      <span>Date: <strong>{booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "N/A"}</strong></span>
-                      <span>Time: <strong>{booking.start_time || "TBA"}</strong></span>
-                      <span>Guests: <strong>{booking.guest_count || 0} pax</strong></span>
-                      <span>Total: <strong>{fmt(booking.total_price)}</strong></span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Interactive Date & Time Picker */}
-                <AdminOcularDateTimePicker
-                  selectedBooking={booking}
-                  dateValue={editForm.event_date}
-                  timeValue={editForm.start_time}
-                  onDateChange={(d) => setEditForm({ ...editForm, event_date: d })}
-                  onTimeChange={(t) => setEditForm({ ...editForm, start_time: t })}
-                  dateLabel="Target Event Date"
-                  timeLabel="Start Time"
-                  hideContextPill={true}
-                  hideSummaryBanner={true}
-                  disableEventDateLimit={true}
-                />
-
-                {/* Guest Count */}
-                <div>
-                  <label className="text-xs font-semibold text-foreground block mb-1 flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5 text-primary" /> Guest Count (pax)
-                  </label>
-                  <Input 
-                    type="number" 
-                    value={editForm.guest_count} 
-                    onChange={(e) => setEditForm({ ...editForm, guest_count: e.target.value })} 
-                    className="text-xs font-semibold h-9"
-                  />
-                </div>
-
-                {/* Pricing & Location Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-foreground block mb-1 flex items-center gap-1">
-                      <DollarSign className="w-3.5 h-3.5 text-primary" /> Total Price (₱)
-                    </label>
-                    <Input 
-                      type="text" 
-                      value={editForm.total_price !== "" && editForm.total_price !== undefined ? "₱ " + Number(editForm.total_price).toLocaleString("en-US") : ""} 
-                      onChange={(e) => {
-                        const raw = e.target.value.replace(/[^0-9.]/g, "");
-                        setEditForm({ ...editForm, total_price: raw });
-                      }} 
-                      placeholder="₱ 0"
-                      className="text-xs font-semibold font-mono h-9"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold text-foreground block mb-1 flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-primary" /> Venue / Location
-                    </label>
-                    <Input 
-                      type="text" 
-                      value={editForm.venue_type} 
-                      onChange={(e) => setEditForm({ ...editForm, venue_type: e.target.value })} 
-                      className="text-xs font-semibold h-9"
-                    />
-                  </div>
-                </div>
-
-                {/* Revision Note */}
-                <div className="space-y-1.5 pt-1 border-t border-border">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      <FileText className="w-4 h-4 text-primary" /> Revision Note / Reason
-                    </label>
-                    {proposeToCustomer && (
-                      <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded border border-blue-200">
-                        Required for Proposal
-                      </span>
-                    )}
-                  </div>
-                  <textarea 
-                    rows={3}
-                    placeholder="Explain why terms are changing..."
-                    value={revisionNote} 
-                    onChange={(e) => setRevisionNote(e.target.value)} 
-                    className="w-full text-xs rounded-lg border border-border p-2.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-medium"
-                  />
-                </div>
-
-                {/* Propose toggle */}
-                <div className="pt-1 border-t border-border">
-                  <label
-                    htmlFor="proposeToggle"
-                    className={`flex items-start gap-2.5 p-2.5 rounded-lg border transition-all cursor-pointer select-none ${
-                      proposeToCustomer 
-                        ? "bg-blue-50/70 border-blue-200 text-blue-950" 
-                        : "bg-muted/40 border-border text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    <input 
-                      type="checkbox"
-                      id="proposeToggle"
-                      checked={proposeToCustomer}
-                      onChange={(e) => setProposeToCustomer(e.target.checked)}
-                      className="w-4 h-4 rounded text-primary focus:ring-primary mt-0.5 shrink-0 cursor-pointer"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold text-foreground">
-                          Send as Revised Proposal
-                        </span>
-                        {proposeToCustomer && (
-                          <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded shrink-0">
-                            Customer Approval Required
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Requires customer confirmation before taking effect.
-                      </p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <DialogFooter className="border-t border-border pt-3">
-                <Btn type="button" variant="secondary" onClick={() => setShowEditModal(false)}>Cancel</Btn>
-                <Btn type="submit" variant="primary">
-                  {proposeToCustomer ? "Send Proposal" : "Apply Instantly"}
-                </Btn>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        {/* Modal: Full Booking Edit */}
+        <AdminBookingEditModal
+          open={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          booking={booking}
+          totalPaid={totalPaid}
+          onSaved={loadData}
+        />
 
         {/* Modal: Send Quote */}
         <Dialog open={showQuoteModal} onOpenChange={setShowQuoteModal}>

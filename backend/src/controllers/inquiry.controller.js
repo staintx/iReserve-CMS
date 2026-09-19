@@ -278,7 +278,7 @@ exports.getInquiries = asyncHandler(async (req, res) => {
     .populate("customer_id", "first_name last_name email phone")
     // The Booking Type column names the package or offer the request came
     // from, so the list has to carry the relation, not just its id.
-    .populate("package_id", "name offer_type package_type")
+    .populate("package_id", "name offer_type package_type scaffold_size_options default_scaffold_option_id")
     .lean();
 
   const inqIds = inquiries.map(i => i._id);
@@ -323,6 +323,7 @@ exports.getInquiries = asyncHandler(async (req, res) => {
 
     const latestQuote = quotationMap.get(String(inquiry._id));
     if (latestQuote) {
+      inquiry.latestQuote = latestQuote;
       inquiry.total_price = Number(latestQuote.total_cost) || inquiry.total_price || 0;
       inquiry.deposit_amount = Number(latestQuote.deposit_amount) || 0;
       inquiry.quotation_expiration_date = latestQuote.expiration_date || null;
@@ -410,6 +411,7 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
   ]);
 
   if (latestQuote) {
+    inquiryObj.latestQuote = latestQuote;
     inquiryObj.total_price = Number(latestQuote.total_cost) || inquiryObj.total_price || 0;
     inquiryObj.deposit_amount = Number(latestQuote.deposit_amount) || 0;
     inquiryObj.quotation_expiration_date = latestQuote.expiration_date || null;

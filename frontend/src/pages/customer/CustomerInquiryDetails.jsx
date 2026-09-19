@@ -430,6 +430,11 @@ export default function CustomerInquiryDetails() {
         return;
       }
 
+      if (inquiry.status === "Revision Requested" || inquiry.quotation_status === "Revision Requested") {
+        notify("This quotation is currently being revised. You cannot pay deposit until the updated quotation is submitted.", "warning");
+        return;
+      }
+
       notify("Generating checkout session for deposit payment...", "info");
       const qRes = await CustomerAPI.getQuotationsForInquiry(inquiry._id);
       const quotes = qRes.data || [];
@@ -510,6 +515,11 @@ export default function CustomerInquiryDetails() {
     inquiry.payment_status === "deposit_paid" ||
     inquiry.payment_status === "fully_paid" ||
     inquiry.is_deposit_paid === true;
+  const isQuoteAcceptedAwaitingPayment =
+    ["Quote Accepted", "Awaiting Final Confirmation"].includes(inquiry.status) &&
+    !isDepositPaid &&
+    !isConverted;
+  const isUnderRevision = inquiry.status === "Revision Requested" || inquiry.quotation_status === "Revision Requested";
 
   // 4-Step Journey Stepper
   const steps = [
@@ -838,7 +848,19 @@ export default function CustomerInquiryDetails() {
                 </Button>
               )}
 
-              {inquiry.total_price > 0 && !isConverted && !isDepositPaid && inquiry.status !== "Cancelled" && (
+              {isUnderRevision && (
+                <Button
+                  variant="outline"
+                  onClick={openQuotationView}
+                  disabled={isLoadingQuotation}
+                  className="bg-white hover:bg-slate-50 text-slate-700 border-slate-300 font-bold text-xs h-9 px-4 rounded-xl cursor-pointer gap-1.5 shadow-2xs transition-all active:scale-[0.98]"
+                >
+                  <FileText className="w-4 h-4 text-slate-500" />
+                  <span>View Quotation</span>
+                </Button>
+              )}
+
+              {isQuoteAcceptedAwaitingPayment && (
                 <Button
                   onClick={startInquiryCheckout}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-4 rounded-xl cursor-pointer shadow-xs transition-all active:scale-[0.98]"
@@ -1799,7 +1821,19 @@ export default function CustomerInquiryDetails() {
                   </Button>
                 )}
 
-                {inquiry.total_price > 0 && !isConverted && !isDepositPaid && inquiry.status !== "Cancelled" && (
+                {isUnderRevision && (
+                  <Button
+                    variant="outline"
+                    onClick={openQuotationView}
+                    disabled={isLoadingQuotation}
+                    className="w-full bg-white hover:bg-slate-50 text-slate-700 border-slate-300 font-bold text-xs h-9 rounded-xl cursor-pointer shadow-2xs gap-1.5 transition-all"
+                  >
+                    <FileText className="w-4 h-4 text-slate-500" />
+                    <span>View Quotation</span>
+                  </Button>
+                )}
+
+                {isQuoteAcceptedAwaitingPayment && (
                   <Button
                     onClick={startInquiryCheckout}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 rounded-xl cursor-pointer shadow-xs gap-1.5 transition-all"

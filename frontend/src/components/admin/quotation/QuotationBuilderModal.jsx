@@ -36,6 +36,7 @@ import {
   Phone,
   Mail,
   Search,
+  Ruler,
   X,
 } from "lucide-react";
 import { compareCategories } from "../../../utils/menuCategories";
@@ -418,6 +419,137 @@ const OTHER_INCLUSION_CATEGORY = "Other";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Resolves the initial scaffold footprint from pending draft, inquiry selection,
+ * or package default.
+ */
+function resolveInitialScaffold(inquiry, pkg, pendingDraft, latestQuote) {
+  if (pendingDraft?.draft_details?.scaffold_width && pendingDraft?.draft_details?.scaffold_length) {
+    const isCustom = !pendingDraft.draft_details.selected_scaffold_option_id;
+    return {
+      selectedScaffoldId: pendingDraft.draft_details.selected_scaffold_option_id
+        ? String(pendingDraft.draft_details.selected_scaffold_option_id)
+        : "custom",
+      width: String(pendingDraft.draft_details.scaffold_width),
+      length: String(pendingDraft.draft_details.scaffold_length),
+      isCustom,
+    };
+  }
+
+  const options = Array.isArray(pkg?.scaffold_size_options) ? pkg.scaffold_size_options : [];
+  let matched = null;
+
+  if (inquiry?.selected_scaffold_option_id) {
+    matched = options.find(
+      (opt, idx) =>
+        String(opt._id) === String(inquiry.selected_scaffold_option_id) ||
+        String(idx) === String(inquiry.selected_scaffold_option_id)
+    );
+  }
+
+  if (!matched && inquiry?.scaffold_width && inquiry?.scaffold_length) {
+    matched = options.find(
+      (opt) =>
+        Number(opt.width_ft) === Number(inquiry.scaffold_width) &&
+        Number(opt.length_ft) === Number(inquiry.scaffold_length)
+    );
+  }
+
+  if (matched) {
+    return {
+      selectedScaffoldId: String(matched._id || ""),
+      width: String(matched.width_ft || ""),
+      length: String(matched.length_ft || ""),
+      isCustom: false,
+    };
+  }
+
+  if (inquiry?.scaffold_width && inquiry?.scaffold_length) {
+    return {
+      selectedScaffoldId: "custom",
+      width: String(inquiry.scaffold_width),
+      length: String(inquiry.scaffold_length),
+      isCustom: true,
+    };
+  }
+
+  // Check latest issued quotation snapshot if inquiry fields are missing
+  const snapshotLabel = latestQuote?.event_snapshot?.event_space_label || inquiry?.event_space_label;
+  if (snapshotLabel && typeof snapshotLabel === "string") {
+    const m = snapshotLabel.match(/(\d+)\s*(?:ft)?\s*[xX×]\s*(\d+)/i);
+    if (m) {
+      const sw = m[1];
+      const sl = m[2];
+      const optMatch = options.find((o) => Number(o.width_ft) === Number(sw) && Number(o.length_ft) === Number(sl));
+      if (optMatch) {
+        return {
+          selectedScaffoldId: String(optMatch._id || ""),
+          width: String(optMatch.width_ft || ""),
+          length: String(optMatch.length_ft || ""),
+          isCustom: false,
+        };
+      }
+      return {
+        selectedScaffoldId: "custom",
+        width: sw,
+        length: sl,
+        isCustom: true,
+      };
+    }
+  }
+
+  if (options.length > 0) {
+    const defaultOpt =
+      (pkg?.default_scaffold_option_id &&
+        options.find(
+          (opt, idx) =>
+            String(opt._id) === String(pkg.default_scaffold_option_id) ||
+            String(idx) === String(pkg.default_scaffold_option_id)
+        )) ||
+      options[0];
+    if (defaultOpt) {
+      return {
+        selectedScaffoldId: String(defaultOpt._id || ""),
+        width: String(defaultOpt.width_ft || ""),
+        length: String(defaultOpt.length_ft || ""),
+        isCustom: false,
+      };
+    }
+  }
+
+  return {
+    selectedScaffoldId: "",
+    width: "",
+    length: "",
+    isCustom: false,
+  };
+}
+
+/** Formats a scaffold option for admin selection */
+function formatScaffoldOption(opt, idx) {
+  const dim = opt.width_ft && opt.length_ft ? `${opt.width_ft}×${opt.length_ft} ft` : "";
+  const guestInfo =
+    opt.guest_min || opt.guest_max
+      ? opt.guest_min && opt.guest_max
+        ? `${opt.guest_min}-${opt.guest_max} guests`
+        : opt.guest_min
+        ? `${opt.guest_min}+ guests`
+        : `up to ${opt.guest_max} guests`
+      : "";
+  const priceStr = opt.price ? formatCurrency(opt.price) : "";
+
+  const parts = [];
+  if (opt.label) parts.push(opt.label);
+  else if (dim) parts.push(dim);
+  else parts.push(`Option ${idx + 1}`);
+
+  const details = [dim && opt.label ? dim : "", guestInfo].filter(Boolean).join(", ");
+  if (details) parts.push(`(${details})`);
+  if (priceStr) parts.push(`— ${priceStr}`);
+
+  return parts.join(" ");
+}
+
 /* ---------------------------------------------------------------------------
    Quotation Builder
 --------------------------------------------------------------------------- */
@@ -492,6 +624,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   // One list holds both states. `removed` decides which side of the quote a row
   // lands on at save time, so restoring an inclusion is a toggle, not a retype.
   const [inclusions, setInclusions] = useState([]);
+
+  // Scaffold / event space size state (editable during quotation)
+  const [selectedScaffoldId, setSelectedScaffoldId] = useState("");
+  const [scaffoldWidth, setScaffoldWidth] = useState("");
+  const [scaffoldLength, setScaffoldLength] = useState("");
+  const [isCustomScaffold, setIsCustomScaffold] = useState(false);
+  const [scaffoldInitialized, setScaffoldInitialized] = useState(false);
 
   // Sections 4 and 5: line items
   const [menuItems, setMenuItems] = useState([]);
@@ -593,6 +732,51 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const cateringIncluded = !isSetupOnly && details.include_food !== false;
   const packageRecord =
     inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
+
+  const scaffoldOptions = useMemo(() => {
+    return Array.isArray(packageRecord?.scaffold_size_options)
+      ? packageRecord.scaffold_size_options
+      : [];
+  }, [packageRecord]);
+
+  const selectedScaffoldPrice = useMemo(() => {
+    if (isCustomScaffold || !selectedScaffoldId) return null;
+    const opt = scaffoldOptions.find(
+      (o, idx) => String(o._id) === String(selectedScaffoldId) || String(idx) === String(selectedScaffoldId)
+    );
+    return opt?.price ? Number(opt.price) : null;
+  }, [isCustomScaffold, selectedScaffoldId, scaffoldOptions]);
+
+  const handleScaffoldOptionChange = (optionId) => {
+    if (optionId === "custom") {
+      setIsCustomScaffold(true);
+      setSelectedScaffoldId("custom");
+      return;
+    }
+
+    const opt = scaffoldOptions.find(
+      (entry, idx) => String(entry?._id) === String(optionId) || String(idx) === String(optionId)
+    );
+
+    if (opt) {
+      setIsCustomScaffold(false);
+      setSelectedScaffoldId(String(opt._id || optionId));
+      setScaffoldWidth(opt.width_ft ? String(opt.width_ft) : "");
+      setScaffoldLength(opt.length_ft ? String(opt.length_ft) : "");
+
+      // If this option has a designated price, update startingPrice
+      if (opt.price != null && Number(opt.price) > 0) {
+        setStartingPrice(String(opt.price));
+      }
+    }
+  };
+
+  const handleCustomScaffoldChange = (w, l) => {
+    setIsCustomScaffold(true);
+    setSelectedScaffoldId("custom");
+    setScaffoldWidth(w);
+    setScaffoldLength(l);
+  };
 
   // Latest allowable validity date: at least 3 full days before the event
   const maxValidityDate = useMemo(
@@ -952,8 +1136,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         setQuotation(latestIssued);
         setSavedDraft(pendingDraft);
         if (pendingDraft) setDraftSavedAt(pendingDraft.updatedAt || pendingDraft.createdAt || null);
-
         const latest = pendingDraft || latestIssued;
+
+        const scaffoldInit = resolveInitialScaffold(inquiry, packageRecord, pendingDraft, latest);
+        setSelectedScaffoldId(scaffoldInit.selectedScaffoldId);
+        setScaffoldWidth(scaffoldInit.width);
+        setScaffoldLength(scaffoldInit.length);
+        setIsCustomScaffold(scaffoldInit.isCustom);
+        setScaffoldInitialized(true);
 
         if (latest) {
           const snapshot = latest.event_snapshot || {};
@@ -1271,6 +1461,20 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inquiry?._id]);
 
+  // Fallback sync when packageRecord loads or updates
+  useEffect(() => {
+    if (!scaffoldInitialized && packageRecord && !isFoodOnly) {
+      const scaffoldInit = resolveInitialScaffold(inquiry, packageRecord, savedDraft, quotation);
+      if (scaffoldInit.width || scaffoldInit.selectedScaffoldId) {
+        setSelectedScaffoldId(scaffoldInit.selectedScaffoldId);
+        setScaffoldWidth(scaffoldInit.width);
+        setScaffoldLength(scaffoldInit.length);
+        setIsCustomScaffold(scaffoldInit.isCustom);
+        setScaffoldInitialized(true);
+      }
+    }
+  }, [scaffoldInitialized, packageRecord, isFoodOnly, inquiry, savedDraft, quotation]);
+
   /* --- Derived pricing ---------------------------------------------------- */
 
   const removedInclusions = useMemo(
@@ -1506,10 +1710,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
    * a size and a price that disagree — the same reason the package itself is
    * locked. A booking with no event space (a combo pack is food) gets nothing.
    */
-  const eventSpace = useMemo(
-    () => eventSpaceLabel(inquiry, packageRecord),
-    [inquiry, packageRecord]
-  );
+  const eventSpace = useMemo(() => {
+    if (scaffoldWidth && scaffoldLength) {
+      return `${scaffoldWidth}×${scaffoldLength}`;
+    }
+    return eventSpaceLabel(inquiry, packageRecord);
+  }, [scaffoldWidth, scaffoldLength, inquiry, packageRecord]);
 
   const resolvedPalette = useMemo(
     () =>
@@ -1525,6 +1731,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       inquiry_id: inquiry?._id,
       package_id: packageRecord?._id || inquiry?.package_id || undefined,
       package_name: packageName || "Custom Package",
+      event_space_label: eventSpace || undefined,
       package_starting_price: totals.startingPrice,
       package_price: totals.packagePrice,
       package_inclusions: keptInclusions,
@@ -1571,6 +1778,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       inquiry?.package_id,
       packageRecord?._id,
       packageName,
+      eventSpace,
       totals,
       keptInclusions,
       removedInclusions,
@@ -1593,8 +1801,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   // Everything the admin can change, in one comparable string. The pricing
   // payload already carries the whole quotation; `details` carries section one.
   const formFingerprint = useMemo(
-    () => JSON.stringify({ quotation: quotationPayload, details, catering: cateringIncluded }),
-    [quotationPayload, details, cateringIncluded]
+    () =>
+      JSON.stringify({
+        quotation: quotationPayload,
+        details,
+        catering: cateringIncluded,
+        scaffold: { selectedScaffoldId, scaffoldWidth, scaffoldLength },
+      }),
+    [quotationPayload, details, cateringIncluded, selectedScaffoldId, scaffoldWidth, scaffoldLength]
   );
 
   // The baseline is taken once the form has finished loading, and reset on
@@ -2272,6 +2486,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     street: details.street,
     landmark: details.landmark,
     zip_code: details.zip_code,
+    selected_scaffold_option_id: isCustomScaffold || !selectedScaffoldId ? null : selectedScaffoldId,
+    scaffold_width: scaffoldWidth ? Number(scaffoldWidth) : null,
+    scaffold_length: scaffoldLength ? Number(scaffoldLength) : null,
+    scaffold_base_area: scaffoldWidth && scaffoldLength ? Number(scaffoldWidth) * Number(scaffoldLength) : null,
+    scaffold_price: selectedScaffoldPrice != null ? selectedScaffoldPrice : undefined,
   });
 
   /**
@@ -2431,6 +2650,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         street: details.street.trim(),
         landmark: details.landmark.trim(),
         zip_code: details.zip_code.trim(),
+        selected_scaffold_option_id: isCustomScaffold || !selectedScaffoldId ? null : selectedScaffoldId,
+        scaffold_width: scaffoldWidth ? Number(scaffoldWidth) : null,
+        scaffold_length: scaffoldLength ? Number(scaffoldLength) : null,
+        scaffold_base_area: scaffoldWidth && scaffoldLength ? Number(scaffoldWidth) * Number(scaffoldLength) : null,
+        scaffold_price: selectedScaffoldPrice != null ? selectedScaffoldPrice : undefined,
       });
     } catch (err) {
       setSubmitting(false);
@@ -2936,6 +3160,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                         {[details.street, details.barangay, details.municipality].filter(Boolean).join(", ") || details.venue_type || "Venue address pending"}
                       </span>
                     </div>
+                    {eventSpace && !isFoodOnly && (
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-primary/10 border border-primary/20 text-primary text-xs font-medium">
+                        <Ruler size={12} className="text-primary shrink-0" />
+                        <span>Space: <strong className="font-mono text-slate-900 font-bold">{eventSpace}</strong></span>
+                      </div>
+                    )}
                   </div>
 
                   <button
@@ -3061,20 +3291,86 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                         />
                       </Field>
 
-                      {eventSpace && !isFoodOnly && (
+                      {!isFoodOnly && !offerContext && (
                         <Field
                           label="Event space / scaffold size"
-                          hint="Set when the customer booked."
+                          hint={
+                            scaffoldOptions.length > 0
+                              ? "Change the scaffold size if requested during quotation."
+                              : "Enter dimensions in feet."
+                          }
+                          htmlFor="qb-scaffold-option-sec1"
                         >
-                          <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                            <Lock size={13} className="shrink-0 text-slate-500" />
-                            <span
-                              className="truncate text-sm font-semibold tabular-nums text-slate-800"
-                              title={eventSpace}
-                            >
-                              {eventSpace}
-                            </span>
-                          </div>
+                          {scaffoldOptions.length > 0 ? (
+                            <div className="space-y-2">
+                              <select
+                                id="qb-scaffold-option-sec1"
+                                value={isCustomScaffold ? "custom" : selectedScaffoldId}
+                                onChange={(e) => handleScaffoldOptionChange(e.target.value)}
+                                className={`${inputClass(false)} py-2 text-xs font-semibold`}
+                              >
+                                {scaffoldOptions.map((opt, idx) => (
+                                  <option key={String(opt._id || idx)} value={String(opt._id || idx)}>
+                                    {formatScaffoldOption(opt, idx)}
+                                  </option>
+                                ))}
+                                <option value="custom">Custom dimensions...</option>
+                              </select>
+                              {isCustomScaffold && (
+                                <div className="flex items-center gap-2 pt-1 animate-in fade-in-50 duration-150">
+                                  <div className="flex-1">
+                                    <label className="text-[10px] font-medium text-slate-500 block mb-0.5">Width (ft)</label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      placeholder="Width"
+                                      value={scaffoldWidth}
+                                      onChange={(e) => handleCustomScaffoldChange(e.target.value, scaffoldLength)}
+                                      className={`${inputClass(false)} py-1.5 text-xs font-mono`}
+                                    />
+                                  </div>
+                                  <span className="text-slate-400 font-bold self-end pb-2">×</span>
+                                  <div className="flex-1">
+                                    <label className="text-[10px] font-medium text-slate-500 block mb-0.5">Length (ft)</label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      placeholder="Length"
+                                      value={scaffoldLength}
+                                      onChange={(e) => handleCustomScaffoldChange(scaffoldWidth, e.target.value)}
+                                      className={`${inputClass(false)} py-1.5 text-xs font-mono`}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1">
+                                <label className="text-[10px] font-medium text-slate-500 block mb-0.5">Width (ft)</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  placeholder="Width"
+                                  value={scaffoldWidth}
+                                  onChange={(e) => handleCustomScaffoldChange(e.target.value, scaffoldLength)}
+                                  className={`${inputClass(false)} py-1.5 text-xs font-mono`}
+                                />
+                              </div>
+                              <span className="text-slate-400 font-bold self-end pb-2">×</span>
+                              <div className="flex-1">
+                                <label className="text-[10px] font-medium text-slate-500 block mb-0.5">Length (ft)</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  placeholder="Length"
+                                  value={scaffoldLength}
+                                  onChange={(e) => handleCustomScaffoldChange(scaffoldWidth, e.target.value)}
+                                  className={`${inputClass(false)} py-1.5 text-xs font-mono`}
+                                />
+                              </div>
+                            </div>
+                          )}
                         </Field>
                       )}
                     </div>
@@ -3395,7 +3691,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                       : "The baseline this quotation is built from, before anything is added or removed."
               }
             >
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${!isFoodOnly && !offerContext ? "lg:grid-cols-3" : ""}`}>
                 <Field
                   label="Package"
                   hint="The package cannot be changed here. Ask the customer to rebook to move to a different package."
@@ -3407,6 +3703,89 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     </span>
                   </div>
                 </Field>
+
+                {!isFoodOnly && !offerContext && (
+                  <Field
+                    label="Event space / scaffold size"
+                    hint={
+                      scaffoldOptions.length > 0
+                        ? "Select size option or customize dimensions."
+                        : "Space dimension in feet."
+                    }
+                    htmlFor="qb-scaffold-option-sec2"
+                  >
+                    {scaffoldOptions.length > 0 ? (
+                      <div className="space-y-2">
+                        <select
+                          id="qb-scaffold-option-sec2"
+                          value={isCustomScaffold ? "custom" : selectedScaffoldId}
+                          onChange={(e) => handleScaffoldOptionChange(e.target.value)}
+                          className={`${inputClass(false)} py-2 text-xs font-semibold`}
+                        >
+                          {scaffoldOptions.map((opt, idx) => (
+                            <option key={String(opt._id || idx)} value={String(opt._id || idx)}>
+                              {formatScaffoldOption(opt, idx)}
+                            </option>
+                          ))}
+                          <option value="custom">Custom dimensions...</option>
+                        </select>
+                        {isCustomScaffold && (
+                          <div className="flex items-center gap-2 pt-1 animate-in fade-in-50 duration-150">
+                            <div className="flex-1">
+                              <label className="text-[10px] font-medium text-slate-500 block mb-0.5">Width (ft)</label>
+                              <input
+                                type="number"
+                                min="1"
+                                placeholder="Width"
+                                value={scaffoldWidth}
+                                onChange={(e) => handleCustomScaffoldChange(e.target.value, scaffoldLength)}
+                                className={`${inputClass(false)} py-1.5 text-xs font-mono`}
+                              />
+                            </div>
+                            <span className="text-slate-400 font-bold self-end pb-2">×</span>
+                            <div className="flex-1">
+                              <label className="text-[10px] font-medium text-slate-500 block mb-0.5">Length (ft)</label>
+                              <input
+                                type="number"
+                                min="1"
+                                placeholder="Length"
+                                value={scaffoldLength}
+                                onChange={(e) => handleCustomScaffoldChange(scaffoldWidth, e.target.value)}
+                                className={`${inputClass(false)} py-1.5 text-xs font-mono`}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <label className="text-[10px] font-medium text-slate-500 block mb-0.5">Width (ft)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="Width"
+                            value={scaffoldWidth}
+                            onChange={(e) => handleCustomScaffoldChange(e.target.value, scaffoldLength)}
+                            className={`${inputClass(false)} py-1.5 text-xs font-mono`}
+                          />
+                        </div>
+                        <span className="text-slate-400 font-bold self-end pb-2">×</span>
+                        <div className="flex-1">
+                          <label className="text-[10px] font-medium text-slate-500 block mb-0.5">Length (ft)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="Length"
+                            value={scaffoldLength}
+                            onChange={(e) => handleCustomScaffoldChange(scaffoldWidth, e.target.value)}
+                            className={`${inputClass(false)} py-1.5 text-xs font-mono`}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </Field>
+                )}
 
                 <Field
                   label={offerContext ? "Combo food price" : isFoodOnly ? "Food baseline price" : "Starting price"}
@@ -5282,6 +5661,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     ? "Setup Package"
                     : "Package Baseline"}
               </p>
+              {eventSpace && !isFoodOnly && (
+                <div className="flex items-center justify-between text-xs py-1 text-slate-300 border-b border-white/5">
+                  <span className="flex items-center gap-1.5 text-slate-400 text-[11.5px]">
+                    <Ruler size={12} className="text-primary" /> Event space size
+                  </span>
+                  <span className="font-semibold text-white font-mono">{eventSpace}</span>
+                </div>
+              )}
               <SummaryRow
                 label={offerContext ? "Combo food price" : isFoodOnly ? "Food baseline" : "Starting price"}
                 value={formatCurrency(totals.startingPrice)}

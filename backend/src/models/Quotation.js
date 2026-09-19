@@ -215,6 +215,11 @@ const QuotationSchema = new mongoose.Schema(
           street: String,
           landmark: String,
           zip_code: String,
+          selected_scaffold_option_id: String,
+          scaffold_width: Number,
+          scaffold_length: Number,
+          scaffold_base_area: Number,
+          scaffold_price: Number,
         },
         { _id: false }
       ),

@@ -113,7 +113,7 @@
     color: var(--color-brown-dark);
   }
 
-  /* Admin dashboard & Radix modals: all headings use Work Sans */
+  /* Admin dashboard & Radix modals: all headings use Work Sans / UI font */
   .admin-layout h1,
   .admin-layout h2,
   .admin-layout h3,
@@ -125,8 +125,22 @@
   [data-radix-portal] h3,
   [data-radix-portal] h4,
   [data-radix-portal] h5,
-  [data-radix-portal] h6 {
-    font-family: var(--font-sans);
+  [data-radix-portal] h6,
+  [role="dialog"] h1,
+  [role="dialog"] h2,
+  [role="dialog"] h3,
+  [role="dialog"] h4,
+  [role="dialog"] h5,
+  [role="dialog"] h6,
+  [data-slot="dialog-content"] h1,
+  [data-slot="dialog-content"] h2,
+  [data-slot="dialog-content"] h3,
+  [data-slot="dialog-content"] h4,
+  .quotation-builder-modal h1,
+  .quotation-builder-modal h2,
+  .quotation-builder-modal h3,
+  .quotation-builder-modal h4 {
+    font-family: var(--font-sans) !important;
     letter-spacing: -0.01em;
     color: inherit;
   }

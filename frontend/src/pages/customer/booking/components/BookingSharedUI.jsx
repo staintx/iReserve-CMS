@@ -209,30 +209,42 @@ export function TTextarea({
   onChange,
   placeholder,
   rows = 3,
+  maxLength,
   required,
   disabled = false,
   hasError = false,
   className = "",
   ...rest
 }) {
+  const currentLength = typeof value === "string" ? value.length : 0;
   return (
-    <textarea
-      value={value}
-      onChange={(e) => onChange && onChange(e.target.value)}
-      placeholder={placeholder}
-      rows={rows}
-      required={required}
-      disabled={disabled}
-      aria-invalid={hasError || undefined}
-      className={cn(
-        controlBase,
-        "resize-none px-3.5 py-2.5 leading-relaxed",
-        hasError ? controlError : controlIdle,
-        controlDisabled,
-        className,
+    <div className="relative w-full">
+      <textarea
+        value={value}
+        onChange={(e) => onChange && onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        maxLength={maxLength}
+        required={required}
+        disabled={disabled}
+        aria-invalid={hasError || undefined}
+        className={cn(
+          controlBase,
+          "resize-none px-3.5 py-2.5 leading-relaxed",
+          hasError ? controlError : controlIdle,
+          controlDisabled,
+          className,
+        )}
+        {...rest}
+      />
+      {maxLength && (
+        <div className="mt-1 flex justify-end text-[11px] text-[#94A3B8]">
+          <span>
+            {currentLength}/{maxLength}
+          </span>
+        </div>
       )}
-      {...rest}
-    />
+    </div>
   );
 }
 

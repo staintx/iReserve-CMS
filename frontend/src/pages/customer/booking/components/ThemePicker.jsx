@@ -63,7 +63,8 @@ function SwatchCard({ selected, swatches, title, subtitle, dashed = false, onCli
 export default function ThemePicker({ value, onChange }) {
   return (
     <TInput
-      placeholder="e.g. Vintage garden, rustic elegance, or royal blue"
+      placeholder="e.g. Vintage garden, rustic elegance, or royal blue (Max 100 chars)"
+      maxLength={100}
       value={value || ""}
       onChange={(next) => onChange(next)}
     />

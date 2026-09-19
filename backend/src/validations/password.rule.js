@@ -8,9 +8,11 @@ const Joi = require("joi");
 // the character-class requirements were added. Existing passwords are never
 // re-validated — these rules apply solely when a new password is being set.
 const PASSWORD_MIN_LENGTH = 6;
+const PASSWORD_MAX_LENGTH = 72;
 
 const passwordRule = Joi.string()
   .min(PASSWORD_MIN_LENGTH)
+  .max(PASSWORD_MAX_LENGTH)
   .pattern(/[a-z]/, "lowercase letter")
   .pattern(/[A-Z]/, "uppercase letter")
   .pattern(/\d/, "number")
@@ -19,8 +21,9 @@ const passwordRule = Joi.string()
   .messages({
     "string.empty": "Password is required.",
     "string.min": `Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`,
+    "string.max": `Password cannot exceed ${PASSWORD_MAX_LENGTH} characters.`,
     "string.pattern.name": "Password must include at least one {#name}.",
     "any.required": "Password is required."
   });
 
-module.exports = { PASSWORD_MIN_LENGTH, passwordRule };
+module.exports = { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, passwordRule };

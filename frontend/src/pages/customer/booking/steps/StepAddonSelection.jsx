@@ -115,10 +115,11 @@ export default function StepAddonSelection({ form, setForm, addons, estimate }) 
           <SectionTitle icon={MessageSquare}>Anything else?</SectionTitle>
           <Field
             label="Additional requests or notes"
-            hint="Optional. Event theme, color motif, styling, or timing requirements."
+            hint="Optional. Event theme, color motif, styling, or timing requirements. (Max 500 chars)"
           >
             <TTextarea
               placeholder="e.g. Navy and gold styling, and please set up the buffet before 4 PM"
+              maxLength={500}
               value={form.special_requests || ""}
               onChange={(val) => setForm({ ...form, special_requests: val })}
               rows={4}

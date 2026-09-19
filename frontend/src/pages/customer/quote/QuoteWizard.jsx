@@ -427,21 +427,26 @@ export default function QuoteWizard() {
 
     if (isEmpty(form.guest_count)) {
       nextErrors.guest_count = "Guest count is required.";
-    } else if (!Number.isFinite(parseNumber(form.guest_count))) {
-      nextErrors.guest_count = "Enter a valid guest count.";
+    } else {
+      const parsed = parseNumber(form.guest_count);
+      if (!Number.isFinite(parsed) || parsed < 1) {
+        nextErrors.guest_count = "Enter a valid guest count of at least 1.";
+      } else if (parsed > 2000) {
+        nextErrors.guest_count = "Guest count cannot exceed 2,000.";
+      }
     }
 
     if (form.service_type !== "food") {
       setRequired("venue_type", "Venue type");
       setRequired("indoor_outdoor", "Indoor or outdoor");
-        setRequired("municipality", "Municipality");
-        setRequired("barangay", "Barangay");
-        setRequired("street", "Street name");
-        setRequired("zip_code", "Zip code");
-        setRequired("budget_range", "Budget range");
-      }
+      setRequired("municipality", "Municipality");
+      setRequired("barangay", "Barangay");
+      setRequired("street", "Street name");
+      setRequired("zip_code", "Zip code");
+      setRequired("budget_range", "Budget range");
+    }
 
-      if (form.service_type === "food") {
+    if (form.service_type === "food") {
       setRequired("zip_code", "Zip code");
 
       if (form.delivery_method === "pickup") {
@@ -453,8 +458,22 @@ export default function QuoteWizard() {
       }
     }
 
+    if (form.street && form.street.trim().length > 150) {
+      nextErrors.street = "Street cannot exceed 150 characters.";
+    }
+    if (form.landmark && form.landmark.trim().length > 100) {
+      nextErrors.landmark = "Landmark cannot exceed 100 characters.";
+    }
+    if (form.zip_code && !/^\d{4}$/.test(form.zip_code.trim())) {
+      nextErrors.zip_code = "ZIP code must be a 4-digit number (e.g. 4200).";
+    }
+
     setRequired("full_name", "Full name");
     setRequired("email", "Email address");
+
+    if (form.full_name && form.full_name.trim().length > 100) {
+      nextErrors.full_name = "Full name cannot exceed 100 characters.";
+    }
 
     const phoneDigits = String(form.phone || "").replace(/\D/g, "").slice(0, 11);
     if (isEmpty(form.phone)) {
@@ -469,6 +488,8 @@ export default function QuoteWizard() {
 
     if (!isEmpty(form.email) && !/\S+@\S+\.\S+/.test(form.email)) {
       nextErrors.email = "Enter a valid email address.";
+    } else if (form.email && form.email.trim().length > 100) {
+      nextErrors.email = "Email cannot exceed 100 characters.";
     }
 
     if (!form.agree_terms) {
@@ -484,13 +505,6 @@ export default function QuoteWizard() {
   const submit = async () => {
     if (isSubmitting) return;
     setError("");
-    if (form.full_name && form.email && form.phone) {
-      CustomerAPI.updateProfile({
-        full_name: form.full_name,
-        email: form.email,
-        phone: form.phone,
-      }).catch(() => {});
-    }
     const nextErrors = validateRequired();
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
@@ -893,19 +907,19 @@ export default function QuoteWizard() {
                             
                             <div className="space-y-2">
                               <Label>Street Name</Label>
-                              <Input placeholder="Purok 4" value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} />
+                              <Input maxLength={150} placeholder="Purok 4" value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} />
                               {errors.street && <p className="text-xs text-destructive mt-1">{errors.street}</p>}
                             </div>
                             
                             <div className="space-y-2">
                               <Label>Zip Code</Label>
-                              <Input placeholder="3125" value={form.zip_code} onChange={(e) => setForm({ ...form, zip_code: e.target.value })} />
+                              <Input maxLength={4} inputMode="numeric" placeholder="3125" value={form.zip_code} onChange={(e) => setForm({ ...form, zip_code: e.target.value.replace(/\D/g, "").slice(0, 4) })} />
                               {errors.zip_code && <p className="text-xs text-destructive mt-1">{errors.zip_code}</p>}
                             </div>
                             
                             <div className="space-y-2">
                               <Label>Landmark</Label>
-                              <Input placeholder="Near 7/11" value={form.landmark} onChange={(e) => setForm({ ...form, landmark: e.target.value })} />
+                              <Input maxLength={100} placeholder="Near 7/11" value={form.landmark} onChange={(e) => setForm({ ...form, landmark: e.target.value })} />
                             </div>
                           </div>
                         )}
@@ -1080,13 +1094,13 @@ export default function QuoteWizard() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-2 md:col-span-2">
                             <Label>Full Name</Label>
-                            <Input placeholder="Your Name" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+                            <Input maxLength={100} placeholder="Your Name" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
                             {errors.full_name && <p className="text-xs text-destructive mt-1">{errors.full_name}</p>}
                           </div>
                           
                           <div className="space-y-2">
                             <Label>Email Address</Label>
-                            <Input placeholder="you@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                            <Input maxLength={100} placeholder="you@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
                             {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
                           </div>
                           
@@ -1429,19 +1443,19 @@ export default function QuoteWizard() {
                           
                           <div className="space-y-2">
                             <Label>Street Name</Label>
-                            <Input placeholder="Purok 4" value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} />
+                            <Input maxLength={150} placeholder="Purok 4" value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} />
                             {errors.street && <p className="text-xs text-destructive mt-1">{errors.street}</p>}
                           </div>
                           
                           <div className="space-y-2">
                             <Label>Zip Code</Label>
-                            <Input placeholder="3125" value={form.zip_code} onChange={(e) => setForm({ ...form, zip_code: e.target.value })} />
+                            <Input maxLength={4} inputMode="numeric" placeholder="3125" value={form.zip_code} onChange={(e) => setForm({ ...form, zip_code: e.target.value.replace(/\D/g, "").slice(0, 4) })} />
                             {errors.zip_code && <p className="text-xs text-destructive mt-1">{errors.zip_code}</p>}
                           </div>
                           
                           <div className="space-y-2">
                             <Label>Landmark</Label>
-                            <Input placeholder="Near 7/11" value={form.landmark} onChange={(e) => setForm({ ...form, landmark: e.target.value })} />
+                            <Input maxLength={100} placeholder="Near 7/11" value={form.landmark} onChange={(e) => setForm({ ...form, landmark: e.target.value })} />
                           </div>
                         </div>
                       </CardContent>

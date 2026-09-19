@@ -195,10 +195,11 @@ export default function StepPackageAddOns({
           <SectionTitle icon={MessageSquare}>Anything else?</SectionTitle>
           <Field
             label="Additional requests or notes"
-            hint="Optional. Event theme, color motif, styling, or timing requirements."
+            hint="Optional. Event theme, color motif, styling, or timing requirements. (Max 500 chars)"
           >
             <TTextarea
               placeholder="e.g. Navy and gold color motif, setup backdrop by 3:00 PM, vegetarian guest table..."
+              maxLength={500}
               value={form.special_requests || ""}
               onChange={(val) => setForm({ ...form, special_requests: val })}
               rows={4}

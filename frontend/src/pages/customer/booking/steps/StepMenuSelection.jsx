@@ -290,10 +290,11 @@ export default function StepMenuSelection({
   const requestsField = (placeholder) => (
     <Field
       label="Additional requests or notes"
-      hint="Optional. Custom dishes not on the menu or special preparation notes."
+      hint="Optional. Custom dishes not on the menu or special preparation notes. (Max 500 chars)"
     >
       <TTextarea
         placeholder={placeholder}
+        maxLength={500}
         value={form.special_requests || ""}
         onChange={(val) => setForm({ ...form, special_requests: val })}
         rows={3}

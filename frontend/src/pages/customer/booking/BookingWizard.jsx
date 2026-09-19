@@ -204,15 +204,15 @@ export default function BookingWizard() {
       special_requests: "",
       additional_services: [],
       selected_package_addons: [],
-      contact_first_name: "",
-      contact_last_name: "",
+      contact_first_name: (user?.first_name || parseName(user?.full_name || "").firstName || "").trim(),
+      contact_last_name: (user?.last_name || parseName(user?.full_name || "").lastName || "").trim(),
       contact_email: user?.email || "",
-      contact_phone: "",
-      contact_alt_phone: "",
+      contact_phone: normalizePhone(user?.phone || ""),
+      contact_alt_phone: normalizePhone(user?.alt_phone || ""),
       contact_method: "email",
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?._id, user?.email],
+    [user?._id, user?.email, user?.first_name, user?.last_name, user?.phone],
   );
 
   // --- Draft-aware initial state -------------------------------------------
@@ -1217,15 +1217,6 @@ export default function BookingWizard() {
       return;
     }
 
-    if (currentStepId === "ContactInfo") {
-      const fullName = `${form.contact_first_name || ""} ${form.contact_last_name || ""}`.trim();
-      CustomerAPI.updateProfile({
-        full_name: fullName,
-        email: form.contact_email,
-        phone: form.contact_phone,
-      }).catch(() => { });
-    }
-
     if (isEditing) {
       returnToReview();
       return;
@@ -1390,7 +1381,7 @@ export default function BookingWizard() {
       const { data } = await CustomerAPI.submitInquiry(payload);
 
       hasSubmitted.current = true;
-      clearDraft(user._id);
+      clearDraft(user?._id);
 
       const offerName =
         packageDetails?.name ||
@@ -1436,9 +1427,17 @@ export default function BookingWizard() {
     } catch (err) {
       setTurnstileToken("");
       turnstileRef.current?.reset();
+      const resData = err?.response?.data;
+      const apiErrors = Array.isArray(resData?.errors) ? resData.errors.filter(Boolean) : [];
+      let friendlyMsg = null;
+      if (apiErrors.length > 0) {
+        friendlyMsg = apiErrors.join(". ");
+      } else if (resData?.message && !/validation\s*error/i.test(resData.message)) {
+        friendlyMsg = resData.message;
+      }
       setError(
-        err?.response?.data?.message ||
-        "Could not send your request right now. Try again in a moment.",
+        friendlyMsg ||
+        "Please check your information and make sure all required fields are filled out correctly.",
       );
     } finally {
       setIsSubmitting(false);
@@ -1741,10 +1740,15 @@ export default function BookingWizard() {
           {error && (
             <div
               role="alert"
-              className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
+              className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700 shadow-sm"
             >
-              <AlertCircle size={14} className="mt-0.5 shrink-0" />
-              <span>{error}</span>
+              <AlertCircle size={15} className="mt-0.5 shrink-0 text-red-600" />
+              <div className="space-y-0.5">
+                <span className="font-semibold text-red-800">
+                  {error.includes(". ") ? "Please correct the following details:" : "Please review your information:"}
+                </span>
+                <p className="leading-relaxed text-red-700">{error}</p>
+              </div>
             </div>
           )}
 

@@ -15,10 +15,7 @@ import { formatEventDate } from "../../../utils/format";
 import { cn } from "@/lib/utils";
 import useBusinessInfo from "../../../hooks/useBusinessInfo";
 import { Turnstile } from '@marsidev/react-turnstile';
-import {
-  TermsContent,
-  PrivacyContent,
-} from "../../../components/policy/PolicyDocs";
+import CustomerPolicyModal from "../../../components/policy/CustomerPolicyModal";
 
 const stepsByService = {
   food: ["Event Information", "Delivery Address", "Menu Selection", "Dietary Needs", "Contact"],
@@ -106,8 +103,7 @@ export default function QuoteWizard() {
   const [error, setError] = useState("");
   const [errors, setErrors] = useState({});
   
-  const [showTerms, setShowTerms] = useState(false);
-  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [activePolicyModal, setActivePolicyModal] = useState(null);
   // Submitting creates an inquiry, and the backend rejects a second one within
   // 60 seconds with a 429. Guarding the button is what stops a double-click
   // turning a successful submission into an error message.
@@ -561,34 +557,13 @@ export default function QuoteWizard() {
   return (
     <CustomerLayout>
       <div className="max-w-5xl mx-auto px-4 py-8">
-        {/* Modals */}
-        <Dialog open={showTerms} onOpenChange={setShowTerms}>
-          <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-serif">Terms and Conditions</DialogTitle>
-            </DialogHeader>
-            <div className="py-4">
-              <TermsContent depositPercentage={depositPercentage} />
-            </div>
-            <DialogFooter>
-              <Button onClick={() => setShowTerms(false)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={showPrivacy} onOpenChange={setShowPrivacy}>
-          <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-serif">Privacy Policy</DialogTitle>
-            </DialogHeader>
-            <div className="py-4">
-              <PrivacyContent />
-            </div>
-            <DialogFooter>
-              <Button onClick={() => setShowPrivacy(false)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* Policy Modal */}
+        <CustomerPolicyModal
+          open={Boolean(activePolicyModal)}
+          onClose={() => setActivePolicyModal(null)}
+          initialPolicy={activePolicyModal || "terms"}
+          businessInfo={businessInfo}
+        />
 
         {stage === "service" ? (
           <div className="max-w-3xl mx-auto space-y-8">
@@ -1181,38 +1156,65 @@ export default function QuoteWizard() {
                           />
                         </div>
                         
-                        <div className="space-y-4 pt-4 border-t border-border">
-                          <div>
-                            <div className="flex items-start gap-3">
-                              <input
-                                type="checkbox"
-                                id="agree_terms"
-                                className="mt-1 rounded border-input text-primary focus:ring-primary h-4 w-4"
-                                checked={form.agree_terms}
-                                onChange={(e) => setForm({ ...form, agree_terms: e.target.checked })}
-                              />
-                              <Label htmlFor="agree_terms" className="font-normal text-sm leading-snug">
-                                I agree to the <button type="button" className="text-primary hover:underline font-medium" onClick={() => setShowTerms(true)}>Terms and Conditions</button> and understand that this is a request for a quote, not a confirmed booking.
-                              </Label>
-                            </div>
-                            {errors.agree_terms && <p className="text-xs text-destructive mt-1 ml-7">{errors.agree_terms}</p>}
-                          </div>
-                          
-                          <div>
-                            <div className="flex items-start gap-3">
-                              <input
-                                type="checkbox"
-                                id="agree_privacy"
-                                className="mt-1 rounded border-input text-primary focus:ring-primary h-4 w-4"
-                                checked={form.agree_privacy}
-                                onChange={(e) => setForm({ ...form, agree_privacy: e.target.checked })}
-                              />
-                              <Label htmlFor="agree_privacy" className="font-normal text-sm leading-snug">
-                                I have read the <button type="button" className="text-primary hover:underline font-medium" onClick={() => setShowPrivacy(true)}>Privacy Policy</button>.
-                              </Label>
-                            </div>
-                            {errors.agree_privacy && <p className="text-xs text-destructive mt-1 ml-7">{errors.agree_privacy}</p>}
-                          </div>
+                        <div className="space-y-2 pt-4 border-t border-slate-100">
+                          {/* Terms & Conditions — required */}
+                          <label className="flex cursor-pointer items-start gap-2 rounded-md p-1 transition-colors hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              id="agree_terms"
+                              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 accent-[#4C81E0]"
+                              checked={form.agree_terms}
+                              onChange={(e) => setForm({ ...form, agree_terms: e.target.checked })}
+                            />
+                            <span className="text-xs text-slate-600 leading-snug">
+                              I agree to the{" "}
+                              <button
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); setActivePolicyModal("terms"); }}
+                                className="font-semibold text-[#4C81E0] hover:underline cursor-pointer"
+                              >
+                                Terms &amp; Conditions
+                              </button>
+                              . This is a request for a quote, not a confirmed booking.
+                            </span>
+                          </label>
+                          {errors.agree_terms && <p className="text-xs text-destructive mt-0.5 ml-6">{errors.agree_terms}</p>}
+
+                          {/* Privacy Policy — required */}
+                          <label className="flex cursor-pointer items-start gap-2 rounded-md p-1 transition-colors hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              id="agree_privacy"
+                              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 accent-[#4C81E0]"
+                              checked={form.agree_privacy}
+                              onChange={(e) => setForm({ ...form, agree_privacy: e.target.checked })}
+                            />
+                            <span className="text-xs text-slate-600 leading-snug">
+                              I have read and understood the{" "}
+                              <button
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); setActivePolicyModal("privacy"); }}
+                                className="font-semibold text-[#4C81E0] hover:underline cursor-pointer"
+                              >
+                                Privacy Policy
+                              </button>
+                              .
+                            </span>
+                          </label>
+                          {errors.agree_privacy && <p className="text-xs text-destructive mt-0.5 ml-6">{errors.agree_privacy}</p>}
+
+                          {/* Cancellation policy — informational link, no checkbox */}
+                          <p className="text-[11px] text-slate-400 pt-1.5 pl-1">
+                            View our{" "}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); setActivePolicyModal("cancellation"); }}
+                              className="font-semibold text-[#4C81E0] hover:underline cursor-pointer"
+                            >
+                              Cancellation &amp; Refund Policy
+                            </button>
+                            .
+                          </p>
                         </div>
 
                         {error && (
@@ -1637,7 +1639,7 @@ export default function QuoteWizard() {
                       </div>
                       <div>
                         <strong className="text-sm block">Call Us</strong>
-                        <span className="text-sm text-muted-foreground">(555) 123-4567</span>
+                        <span className="text-sm text-muted-foreground">{businessInfo.contact_number || "09123456789"}</span>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
@@ -1646,7 +1648,7 @@ export default function QuoteWizard() {
                       </div>
                       <div>
                         <strong className="text-sm block">Email Us</strong>
-                        <span className="text-sm text-muted-foreground">quotes@caezelles.com</span>
+                        <span className="text-sm text-muted-foreground">{businessInfo.email || "info@caezelle.com"}</span>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
@@ -1655,7 +1657,7 @@ export default function QuoteWizard() {
                       </div>
                       <div>
                         <strong className="text-sm block">Office Hours</strong>
-                        <span className="text-sm text-muted-foreground">Mon-Fri: 9AM-6PM</span>
+                        <span className="text-sm text-muted-foreground">{businessInfo.hours || "Mon-Fri: 9AM-6PM"}</span>
                       </div>
                     </div>
                   </CardContent>

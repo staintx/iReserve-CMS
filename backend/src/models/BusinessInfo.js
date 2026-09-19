@@ -19,6 +19,10 @@ const BusinessInfoSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: null,
   },
+  policies: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null,
+  },
   social_links: {
     type: [mongoose.Schema.Types.Mixed],
     default: [],

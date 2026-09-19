@@ -15,7 +15,7 @@ import {
 
 import CustomerLayout from "../../../components/layout/CustomerLayout";
 import Modal from "../../../components/common/Modal";
-import { TermsContent, PrivacyContent } from "../../../components/policy/PolicyDocs";
+import CustomerPolicyModal from "../../../components/policy/CustomerPolicyModal";
 import { CustomerAPI } from "../../../api/customer";
 import useAuth from "../../../hooks/useAuth";
 import {
@@ -249,8 +249,7 @@ export default function BookingWizard() {
   const [availabilityNonce, setAvailabilityNonce] = useState(0);
   const [suggestedDates, setSuggestedDates] = useState([]);
   const [agreements, setAgreements] = useState({ terms: false, privacy: false });
-  const [showTerms, setShowTerms] = useState(false);
-  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [activePolicyModal, setActivePolicyModal] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const hasSubmitted = useRef(false);
 
@@ -1630,8 +1629,9 @@ export default function BookingWizard() {
             estimate={estimate}
             agreements={agreements}
             setAgreements={setAgreements}
-            onShowTerms={() => setShowTerms(true)}
-            onShowPrivacy={() => setShowPrivacy(true)}
+            onShowTerms={() => setActivePolicyModal("terms")}
+            onShowPrivacy={() => setActivePolicyModal("privacy")}
+            onShowCancellation={() => setActivePolicyModal("cancellation")}
             onEditStep={editStep}
             editTargets={editTargets}
             errors={fieldErrors}
@@ -1639,6 +1639,7 @@ export default function BookingWizard() {
             turnstileRef={turnstileRef}
             offer={isOffer ? packageDetails : null}
             deliveryMethod={deliveryMethod}
+            policies={businessInfo?.policies}
           />
         );
 
@@ -1806,30 +1807,13 @@ export default function BookingWizard() {
         </div>
       </div>
 
-      {/* Modals */}
-      {showTerms && (
-        <Modal
-          title="Terms and Conditions"
-          onClose={() => setShowTerms(false)}
-          className="max-h-[85vh] sm:max-w-2xl"
-        >
-          <div className="h-full overflow-y-auto pr-1">
-            <TermsContent depositPercentage={estimate.depositPercentage} />
-          </div>
-        </Modal>
-      )}
-
-      {showPrivacy && (
-        <Modal
-          title="Privacy Policy"
-          onClose={() => setShowPrivacy(false)}
-          className="max-h-[85vh] sm:max-w-2xl"
-        >
-          <div className="h-full overflow-y-auto pr-1">
-            <PrivacyContent />
-          </div>
-        </Modal>
-      )}
+      {/* Customer Policy Dialog */}
+      <CustomerPolicyModal
+        open={Boolean(activePolicyModal)}
+        onClose={() => setActivePolicyModal(null)}
+        initialPolicy={activePolicyModal || "terms"}
+        businessInfo={businessInfo}
+      />
     </CustomerLayout>
   );
 }

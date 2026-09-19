@@ -1,8 +1,12 @@
+import { useState } from "react";
 import useBusinessInfo, { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
+import CustomerPolicyModal from "../policy/CustomerPolicyModal";
 import logo from "../../assets/images/logo.jpg";
 
 export default function CustomerFooter({ businessInfo: provided }) {
   const businessInfo = useBusinessInfo(provided);
+
+  const [activePolicy, setActivePolicy] = useState(null); // 'terms' | 'privacy' | 'cancellation' | null
 
   const businessName = businessInfo.business_name || DEFAULT_BUSINESS_INFO.business_name;
   const contactNumber = businessInfo.contact_number || DEFAULT_BUSINESS_INFO.contact_number;
@@ -11,9 +15,10 @@ export default function CustomerFooter({ businessInfo: provided }) {
   const hours = businessInfo.hours || DEFAULT_BUSINESS_INFO.hours;
 
   const policyLinks = [
-    { label: "Terms & Conditions", href: businessInfo.terms_url },
-    { label: "Privacy Policy", href: businessInfo.privacy_url },
-  ].filter((link) => link.href);
+    { label: "Terms & Conditions", key: "terms" },
+    { label: "Privacy Policy", key: "privacy" },
+    { label: "Cancellation & Refund Policy", key: "cancellation" },
+  ];
 
   const socialLinks = [
     { label: "Facebook", href: businessInfo.facebook, icon: "facebook" },
@@ -96,17 +101,28 @@ export default function CustomerFooter({ businessInfo: provided }) {
           <p className="ls-footer-copyright">
             © {new Date().getFullYear()} {businessName}. All rights reserved.
           </p>
-          {policyLinks.length > 0 && (
-            <div className="ls-footer-bottom-links">
-              {policyLinks.map((link) => (
-                <a key={link.label} href={link.href} target="_blank" rel="noreferrer">
-                  {link.label}
-                </a>
-              ))}
-            </div>
-          )}
+          <div className="ls-footer-bottom-links">
+            {policyLinks.map((link) => (
+              <button
+                key={link.key}
+                type="button"
+                onClick={() => setActivePolicy(link.key)}
+                className="hover:text-[#1E3563] transition-colors cursor-pointer bg-transparent border-0 p-0 text-inherit text-xs"
+              >
+                {link.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Customer Policy Dialog */}
+      <CustomerPolicyModal
+        open={Boolean(activePolicy)}
+        onClose={() => setActivePolicy(null)}
+        initialPolicy={activePolicy || "terms"}
+        businessInfo={businessInfo}
+      />
     </footer>
   );
 }

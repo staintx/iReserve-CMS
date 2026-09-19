@@ -12,6 +12,7 @@ const uploadPolicy = multer({
 router.get("/public", ctrl.getPublic);
 router.get("/", protect, authorize("admin"), ctrl.get);
 router.put("/", protect, authorize("admin"), ctrl.update);
+router.put("/policies/:policyKey", protect, authorize("admin"), ctrl.updatePolicy);
 router.post("/upload-policy", protect, authorize("admin"), uploadPolicy.single("file"), ctrl.uploadPolicyFile);
 
 module.exports = router;

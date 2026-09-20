@@ -10,10 +10,21 @@ exports.registerSchema = Joi.object({
   full_name: Joi.string().trim().optional(),
   email: Joi.string().email().required(),
   password: passwordRule,
+  accepted_terms: Joi.boolean().optional(),
+  acceptedTerms: Joi.boolean().optional(),
   "cf-turnstile-response": Joi.string().optional().allow("")
-}).or("first_name", "full_name").messages({
-  "object.missing": "Enter your first name.",
-});
+})
+  .or("first_name", "full_name")
+  .custom((value, helpers) => {
+    const consent = value.accepted_terms ?? value.acceptedTerms;
+    if (consent !== true) {
+      return helpers.message("You must agree to the Terms & Conditions and Privacy Policy.");
+    }
+    return value;
+  })
+  .messages({
+    "object.missing": "Enter your first name.",
+  });
 
 exports.loginSchema = Joi.object({
   email: Joi.string().required(),

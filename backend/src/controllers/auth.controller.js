@@ -37,6 +37,11 @@ exports.register = async (req, res, next) => {
       return res.status(400).json({ message: "First name is required." });
     }
 
+    const consent = req.body.accepted_terms ?? req.body.acceptedTerms;
+    if (consent !== true && consent !== "true") {
+      return res.status(400).json({ message: "You must agree to the Terms & Conditions and Privacy Policy." });
+    }
+
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(409).json({ message: "This email address is already registered. Please sign in or use a different email." });
@@ -56,6 +61,9 @@ exports.register = async (req, res, next) => {
       password: hashed,
       role: "customer",
       is_verified: false,
+      accepted_terms: true,
+      acceptedTerms: true,
+      terms_accepted_at: new Date(),
       email_verify_token: tokenHash,
       email_verify_expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
       email_otp_hash: otpHash,

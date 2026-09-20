@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import PolicyRenderer from "./PolicyRenderer";
 import { DEFAULT_POLICIES } from "./defaultPolicies";
 import { formatPolicyDate } from "./policyFormat";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
+import { CustomerAPI } from "../../api/customer";
 import { X } from "lucide-react";
 
 export default function CustomerPolicyModal({
@@ -20,8 +21,22 @@ export default function CustomerPolicyModal({
   policyKey,
   businessInfo: providedBusinessInfo = null,
 }) {
+  const [liveBusinessInfo, setLiveBusinessInfo] = useState(null);
+
+  useEffect(() => {
+    if (open) {
+      CustomerAPI.getBusinessInfo()
+        .then((res) => {
+          if (res?.data) {
+            setLiveBusinessInfo(res.data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [open]);
+
   const fetchedBusinessInfo = useBusinessInfo(providedBusinessInfo);
-  const businessInfo = providedBusinessInfo || fetchedBusinessInfo || {};
+  const businessInfo = liveBusinessInfo || providedBusinessInfo || fetchedBusinessInfo || {};
 
   // Resolve target policy key (supports policyKey or initialPolicy)
   const targetKey = policyKey || initialPolicy || "terms";

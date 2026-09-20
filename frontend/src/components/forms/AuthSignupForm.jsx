@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Turnstile } from '@marsidev/react-turnstile';
-import { Check, LockKeyhole, Mail, UserRound, X } from "lucide-react";
+import { AlertCircle, Check, LockKeyhole, Mail, UserRound, X } from "lucide-react";
 import {
   AuthAlert,
   AuthButton,
@@ -16,8 +16,17 @@ import { focusFirstError } from "../auth/authFocus";
 import PasswordRequirements from "../auth/PasswordRequirements";
 import { describePasswordGap } from "../auth/passwordPolicy";
 import { isEmail } from "@/lib/authErrors";
+import { cn } from "@/lib/utils";
+import CustomerPolicyModal from "../policy/CustomerPolicyModal";
 
-const FIELD_ORDER = ["signup-first-name", "signup-last-name", "signup-email", "signup-password", "signup-confirm"];
+const FIELD_ORDER = [
+  "signup-first-name",
+  "signup-last-name",
+  "signup-email",
+  "signup-password",
+  "signup-confirm",
+  "signup-terms",
+];
 
 /**
  * Registration. Two groups — who you are, and how you sign in — paired into
@@ -28,12 +37,20 @@ const FIELD_ORDER = ["signup-first-name", "signup-last-name", "signup-email", "s
  * reports a mismatch as soon as both fields have content, never at submit time.
  */
 export default function AuthSignupForm({ onSubmit, loading = false, formError = null }) {
-  const [values, setValues] = useState({ first_name: "", last_name: "", email: "", password: "", confirm: "" });
+  const [values, setValues] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    password: "",
+    confirm: "",
+    accepted_terms: false,
+  });
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [activePolicy, setActivePolicy] = useState(null);
   const [turnstileToken, setTurnstileToken] = useState("");
   const turnstileRef = useRef(null);
 
@@ -65,6 +82,9 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
         if (!value) return "Re-enter your password.";
         if (value !== all.password) return "Your passwords don't match yet.";
         return "";
+      case "accepted_terms":
+        if (!value) return "You must agree to the Terms & Conditions and Privacy Policy.";
+        return "";
       default:
         return "";
     }
@@ -93,6 +113,28 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
     setErrors((current) => ({ ...current, [field]: validate(field, values[field]) }));
   };
 
+  const handleTermsChange = (event) => {
+    const checked = event.target.checked;
+    const next = { ...values, accepted_terms: checked };
+    setValues(next);
+
+    setErrors((current) => {
+      const updated = { ...current };
+      if (current.accepted_terms || touched.accepted_terms) {
+        updated.accepted_terms = validate("accepted_terms", checked, next);
+      }
+      return updated;
+    });
+  };
+
+  const handleTermsBlur = () => {
+    setTouched((current) => ({ ...current, accepted_terms: true }));
+    setErrors((current) => ({
+      ...current,
+      accepted_terms: validate("accepted_terms", values.accepted_terms),
+    }));
+  };
+
   const handleSubmit = (event) => {
     event.preventDefault();
     const nextErrors = {
@@ -101,9 +143,17 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
       email: validate("email", values.email),
       password: validate("password", values.password),
       confirm: validate("confirm", values.confirm),
+      accepted_terms: validate("accepted_terms", values.accepted_terms),
     };
     setErrors(nextErrors);
-    setTouched({ first_name: true, last_name: true, email: true, password: true, confirm: true });
+    setTouched({
+      first_name: true,
+      last_name: true,
+      email: true,
+      password: true,
+      confirm: true,
+      accepted_terms: true,
+    });
 
     if (Object.values(nextErrors).some(Boolean)) {
       focusFirstError(
@@ -113,6 +163,7 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
           "signup-email": nextErrors.email,
           "signup-password": nextErrors.password,
           "signup-confirm": nextErrors.confirm,
+          "signup-terms": nextErrors.accepted_terms,
         },
         FIELD_ORDER
       );
@@ -124,6 +175,8 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
       last_name: values.last_name.trim(),
       email: values.email.trim(),
       password: values.password,
+      accepted_terms: true,
+      acceptedTerms: true,
       "cf-turnstile-response": turnstileToken
     });
   };
@@ -281,6 +334,89 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
           </div>
         )}
 
+        {/* Terms & Conditions Agreement Checkbox */}
+        <div className="pt-1.5 pb-0.5">
+          <div className="flex items-start gap-2.5">
+            <div className="relative flex items-center justify-center mt-0.5">
+              <input
+                type="checkbox"
+                id="signup-terms"
+                checked={values.accepted_terms}
+                onChange={handleTermsChange}
+                onBlur={handleTermsBlur}
+                disabled={loading}
+                aria-describedby={
+                  touched.accepted_terms && errors.accepted_terms
+                    ? "signup-terms-error"
+                    : undefined
+                }
+                className="peer sr-only"
+              />
+              <label
+                htmlFor="signup-terms"
+                className={cn(
+                  "h-[18px] w-[18px] shrink-0 rounded-[4px] border-[1.5px] border-slate-800 bg-white transition-all flex items-center justify-center cursor-pointer select-none",
+                  "peer-focus-visible:ring-2 peer-focus-visible:ring-[#2C4B8A] peer-focus-visible:ring-offset-2",
+                  values.accepted_terms
+                    ? "bg-[#2C4B8A] border-[#2C4B8A] text-white"
+                    : "hover:border-slate-900",
+                  touched.accepted_terms &&
+                    errors.accepted_terms &&
+                    !values.accepted_terms &&
+                    "border-[#DC2626] ring-1 ring-[#DC2626]/30",
+                  loading && "cursor-not-allowed opacity-60"
+                )}
+                aria-hidden="true"
+              >
+                {values.accepted_terms && (
+                  <Check className="w-3.5 h-3.5 stroke-[3] text-white" />
+                )}
+              </label>
+            </div>
+
+            <label
+              htmlFor="signup-terms"
+              className="text-[13px] sm:text-sm text-slate-700 leading-snug cursor-pointer select-none"
+            >
+              I agree to the{" "}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setActivePolicy("terms");
+                }}
+                className="font-semibold text-[#2C4B8A] hover:text-[#1E3563] hover:underline underline-offset-2 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#2C4B8A] rounded-sm cursor-pointer inline-block"
+              >
+                Terms &amp; Conditions
+              </button>
+              {" "}and{" "}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setActivePolicy("privacy");
+                }}
+                className="font-semibold text-[#2C4B8A] hover:text-[#1E3563] hover:underline underline-offset-2 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#2C4B8A] rounded-sm cursor-pointer inline-block"
+              >
+                Privacy Policy
+              </button>
+            </label>
+          </div>
+
+          {touched.accepted_terms && errors.accepted_terms && (
+            <p
+              id="signup-terms-error"
+              role="alert"
+              className="mt-1.5 ml-7 flex items-center gap-1.5 text-xs font-medium text-[#DC2626]"
+            >
+              <AlertCircle size={13} strokeWidth={2.5} className="shrink-0" aria-hidden="true" />
+              <span>{errors.accepted_terms}</span>
+            </p>
+          )}
+        </div>
+
         <div className="space-y-1.5 sm:space-y-2">
           <AuthButton
             type="submit"
@@ -299,6 +435,13 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
       <AuthPrompt>
         Already have an account? <AuthLink to="/login">Sign in</AuthLink>
       </AuthPrompt>
+
+      <CustomerPolicyModal
+        open={Boolean(activePolicy)}
+        onClose={() => setActivePolicy(null)}
+        policyKey={activePolicy || "terms"}
+        initialPolicy={activePolicy || "terms"}
+      />
     </div>
   );
 }

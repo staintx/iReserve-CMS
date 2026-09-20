@@ -20,6 +20,13 @@ export default function Signup() {
   }, [isReady, user, navigate]);
 
   const submit = async (values) => {
+    if (!values.accepted_terms && !values.acceptedTerms) {
+      setFormError({
+        tone: "error",
+        message: "You must agree to the Terms & Conditions and Privacy Policy.",
+      });
+      return;
+    }
     setFormError(null);
     setLoading(true);
     try {

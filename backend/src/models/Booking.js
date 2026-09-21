@@ -101,6 +101,12 @@ const BookingSchema = new mongoose.Schema(
         price: Number,
       },
     ],
+    offer_food_snapshot: [
+      {
+        menu_category: String,
+        item_name: String,
+      },
+    ],
 
     dietary_restrictions: String,
     allergies: String,

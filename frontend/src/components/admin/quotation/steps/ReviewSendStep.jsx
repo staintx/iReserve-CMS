@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { formatCurrency, formatShortDate } from "../../../../utils/format";
+import DishThumbnail from "../DishThumbnail";
 
 export default function ReviewSendStep({
   totals,
@@ -21,6 +22,9 @@ export default function ReviewSendStep({
   chargeableAddOns = [],
   transportationFee = 0,
   additionalFees = [],
+  offerContext,
+  isSpecialOffer,
+  catalogMenuItems = [],
   depositAmount,
   setDepositAmount,
   depositPercentage = 20,
@@ -165,14 +169,67 @@ export default function ReviewSendStep({
               </span>
             </div>
 
-            {chargeableMenuItems.length > 0 && (
-              <div className="flex justify-between py-1 border-b border-slate-200">
-                <span className="text-slate-700">
-                  Menu Items ({chargeableMenuItems.length} dishes)
-                </span>
-                <span className="font-mono text-slate-900 font-semibold">
-                  {formatCurrency(totals.menuSubtotal)}
-                </span>
+            {!offerContext && !isSpecialOffer && chargeableMenuItems.length > 0 && (
+              <div className="py-1.5 border-b border-slate-200 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-700 font-medium">
+                    Menu Items ({chargeableMenuItems.length} dishes)
+                  </span>
+                  <span className="font-mono text-slate-900 font-semibold">
+                    {formatCurrency(totals.menuSubtotal)}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {chargeableMenuItems.map((dish, dIdx) => (
+                    <span
+                      key={dIdx}
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] bg-white border border-slate-200 text-slate-700 shadow-2xs"
+                    >
+                      <DishThumbnail dish={dish} catalogMenuItems={catalogMenuItems} size="xs" />
+                      <span className="font-medium text-slate-800">{dish.name}</span>
+                      {dish.quantity && (
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          ({dish.quantity} {dish.unit || "Pax"})
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(offerContext || isSpecialOffer) && (
+              <div className="py-1.5 border-b border-slate-200 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-700 font-medium">
+                    Included Food Selections ({offerContext?.foodItems?.length || chargeableMenuItems.length} dishes)
+                  </span>
+                  <span className="font-mono text-emerald-700 font-semibold text-[11px] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    Included in Combo
+                  </span>
+                </div>
+                {(offerContext?.foodItems?.length > 0 ? offerContext.foodItems : chargeableMenuItems).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {(offerContext?.foodItems?.length > 0 ? offerContext.foodItems : chargeableMenuItems).map((dish, dIdx) => {
+                      const name = dish.name || dish.item_name;
+                      const cat = dish.category || dish.menu_category;
+                      return (
+                        <span
+                          key={dIdx}
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] bg-white border border-slate-200 text-slate-700 shadow-2xs"
+                        >
+                          <DishThumbnail dish={dish} catalogMenuItems={catalogMenuItems} size="xs" />
+                          <span className="font-medium text-slate-800">{name}</span>
+                          {cat && (
+                            <span className="text-[9.5px] text-slate-400 font-semibold uppercase">
+                              ({cat})
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 

@@ -3158,6 +3158,9 @@ exports.executeInquiryConversion = async ({
     zip_code: inquiry.zip_code || "",
     
     menu_items: menuItems,
+    offer_food_snapshot: (quotation?.offer_food_snapshot?.length > 0)
+      ? quotation.offer_food_snapshot
+      : (inquiry.offer_food_snapshot || []),
     service_items: serviceItems,
     additional_charges: additionalCharges,
     inventory_items: inventoryItems,

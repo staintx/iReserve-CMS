@@ -137,7 +137,12 @@ function computeQuotationTotals(input = {}) {
     Math.max(0, startingPrice - inclusionDeductions + inclusionAdjustments)
   );
 
-  const menuSubtotal = menuSubtotalOf(input.menu_items, guestCount);
+  const isSpecial = Boolean(
+    input.is_special_offer ||
+    input.booking_type === "special" ||
+    input.offer_type === "special"
+  );
+  const menuSubtotal = isSpecial ? 0 : menuSubtotalOf(input.menu_items, guestCount);
   const addOnsSubtotal = addOnsSubtotalOf(input.add_ons);
   const additionalFeesTotal = additionalFeesTotalOf(
     input.transportation_fee,

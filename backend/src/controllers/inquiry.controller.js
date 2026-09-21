@@ -278,7 +278,7 @@ exports.getInquiries = asyncHandler(async (req, res) => {
     .populate("customer_id", "first_name last_name email phone")
     // The Booking Type column names the package or offer the request came
     // from, so the list has to carry the relation, not just its id.
-    .populate("package_id", "name offer_type package_type scaffold_size_options default_scaffold_option_id")
+    .populate("package_id", "name offer_type package_type scaffold_size_options default_scaffold_option_id offer_food_items price_per_guest guest_count guest_min guest_max inclusions")
     .lean();
 
   const inqIds = inquiries.map(i => i._id);

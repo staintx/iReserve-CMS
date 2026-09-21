@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Eye, Plus, Edit3, Trash2, Calendar, RotateCcw, Search, X, ChevronLeft, ChevronRight, ChevronDown, Check } from "lucide-react";
+import { Eye, Plus, Edit3, Trash2, Calendar, RotateCcw, Search, X, ChevronLeft, ChevronRight, ChevronDown, Check, Sparkles } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
@@ -7,6 +7,7 @@ import Badge from "../../components/admin/ui/Badge";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import InventoryModal from "../../components/admin/ui/InventoryModal";
+import AIInventoryParserModal from "../../components/admin/ui/AIInventoryParserModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import FilterPopover from "../../components/admin/table/FilterPopover";
 import FilterChip from "../../components/admin/table/FilterChip";
@@ -40,6 +41,7 @@ export default function AdminInventory() {
   const [loading, setLoading] = useState(true);
 
   const [showModal, setShowModal] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [drawerRow, setDrawerRow] = useState(null);
@@ -208,7 +210,19 @@ export default function AdminInventory() {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Inventory Management</h1>
             <p className="text-xs text-muted-foreground mt-0.5">Track current stock on hand, live reservations, and equipment availability.</p>
           </div>
-          <Btn variant="primary" size="sm" onClick={() => handleOpenModal()} className="self-start sm:self-auto"><Plus size={13} /> Add Item</Btn>
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            <button
+              type="button"
+              onClick={() => setShowAIModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-primary bg-powder border border-primary/20 shadow-2xs hover:bg-powder/80 transition-all cursor-pointer active:scale-95"
+            >
+              <Sparkles size={13} className="text-primary" />
+              <span>Import with Zelle AI</span>
+            </button>
+            <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>
+              <Plus size={13} /> Add Item
+            </Btn>
+          </div>
         </div>
 
         {/* ============ INVENTORY TOOLBAR ============ */}
@@ -583,6 +597,17 @@ export default function AdminInventory() {
             handleCloseModal();
             loadData(selectedDate);
             setDrawerRow(null);
+          }}
+        />
+      )}
+
+      {showAIModal && (
+        <AIInventoryParserModal
+          isOpen={showAIModal}
+          onClose={() => setShowAIModal(false)}
+          existingItems={inventory}
+          onBulkSuccess={() => {
+            loadData(selectedDate);
           }}
         />
       )}

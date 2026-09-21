@@ -174,13 +174,17 @@ export default function AIAddonParserModal({
     } catch (err) {
       clearInterval(stepInterval);
       console.error("AI parse error:", err);
-      notify(
+      let errorMsg =
         err.response?.data?.details ||
-          err.response?.data?.error ||
-          err.message ||
-          "Failed to parse add-ons with AI",
-        "error"
-      );
+        err.response?.data?.error ||
+        err.message ||
+        "Failed to parse add-ons with AI";
+
+      if (err.code === "ECONNABORTED" || err.message?.toLowerCase().includes("timeout")) {
+        errorMsg = "The AI reading took longer than expected. Please try uploading again or use a smaller document.";
+      }
+
+      notify(errorMsg, "error");
     } finally {
       setLoading(false);
     }

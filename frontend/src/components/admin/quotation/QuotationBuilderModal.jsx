@@ -51,6 +51,7 @@ import QuotationLiveSummary from "./QuotationLiveSummary";
 import CustomerRequestStep from "./steps/CustomerRequestStep";
 import PricingAdjustmentsStep from "./steps/PricingAdjustmentsStep";
 import ReviewSendStep from "./steps/ReviewSendStep";
+import { resolveDishImageUrl } from "./DishThumbnail";
 
 /* ---------------------------------------------------------------------------
    Helpers
@@ -251,6 +252,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   // Reference Catalogs
   const [catalogMenuItems, setCatalogMenuItems] = useState([]);
   const [catalogAddons, setCatalogAddons] = useState([]);
+  const [packagesCatalog, setPackagesCatalog] = useState([]);
   const [depositPercentage, setDepositPercentage] = useState(20);
 
   // Event & Customer Details (Step 1)
@@ -331,7 +333,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const isFoodOnly = details.service_type === SERVICE_TYPES.FOOD_ONLY;
   const isSetupOnly = details.service_type === SERVICE_TYPES.SETUP_ONLY;
   const cateringIncluded = !isSetupOnly && details.include_food !== false;
-  const packageRecord = inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
+  const rawPackage = inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
+  const packageRecord = useMemo(() => {
+    if (rawPackage?.offer_food_items?.length) return rawPackage;
+    const pkgId = rawPackage?._id || inquiry?.package_id;
+    if (pkgId && packagesCatalog.length > 0) {
+      const found = packagesCatalog.find((p) => String(p._id) === String(pkgId));
+      if (found) return found;
+    }
+    return rawPackage;
+  }, [rawPackage, inquiry?.package_id, packagesCatalog]);
 
   const scaffoldOptions = useMemo(() => {
     return Array.isArray(packageRecord?.scaffold_size_options) ? packageRecord.scaffold_size_options : [];
@@ -374,50 +385,169 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   const maxValidityDate = useMemo(() => computeMaxValidityDate(details.event_date), [details.event_date]);
 
+  const isSpecial = Boolean(
+    inquiry?.booking_type === "special" ||
+    packageRecord?.offer_type === "special" ||
+    packageRecord?.booking_type === "special" ||
+    isSpecialOffer(packageRecord) ||
+    (Array.isArray(inquiry?.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0)
+  );
+
+  const activeSpecialDishes = useMemo(
+    () => (cateringIncluded ? menuItems.filter((m) => !m.removed) : []),
+    [cateringIncluded, menuItems]
+  );
+
   // Combo Special Offer context
   const offerContext = useMemo(() => {
-    if (!isSpecialOffer(packageRecord)) return null;
-    const perPax = offerPricePerPax(packageRecord);
-    const snapshot = Array.isArray(inquiry?.offer_food_snapshot) ? inquiry.offer_food_snapshot : [];
-    const food = snapshot.length > 0 ? snapshot : offerFoodItems(packageRecord);
+    if (!isSpecial) return null;
+    const guests = Number(details.guest_count) || Number(inquiry?.guest_count) || offerGuestCount(packageRecord) || 1;
+    const perPax =
+      offerPricePerPax(packageRecord) ||
+      Number(packageRecord?.price_per_guest) ||
+      (Number(inquiry?.guest_count) && Number(inquiry?.offer_base_price)
+        ? Number(inquiry.offer_base_price) / Number(inquiry.guest_count)
+        : 0);
+
+    const snapshot = (isSpecial && activeSpecialDishes.length > 0)
+      ? activeSpecialDishes.map((item) => ({
+          menu_category: item.category || "",
+          item_name: item.name || "",
+        }))
+      : (Array.isArray(inquiry?.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0
+          ? inquiry.offer_food_snapshot
+          : (packageRecord ? offerFoodItems(packageRecord) : []));
+
+    const basePrice = Math.round(perPax * guests * 100) / 100;
 
     return {
-      name: packageRecord.name,
-      guests: Number(inquiry?.guest_count) || offerGuestCount(packageRecord) || 0,
+      name: packageRecord?.name || inquiry?.package_name_snapshot || "Special Offer",
+      guests,
       perPax,
-      basePrice:
-        Number(inquiry?.offer_base_price) ||
-        offerBaseFoodPrice(packageRecord, Number(inquiry?.guest_count) || offerGuestCount(packageRecord)),
-      food: food.map((item) => (item.menu_category ? `${item.item_name} (${item.menu_category})` : item.item_name)),
-      foodItems: food.map((item) => ({ name: item.item_name, category: item.menu_category || "" })),
+      basePrice,
+      food: snapshot.map((item) => (item.menu_category ? `${item.item_name} (${item.menu_category})` : item.item_name)),
+      foodItems: snapshot.map((item) => ({ name: item.item_name, category: item.menu_category || "" })),
       included: [
-        ...food.map((item) => (item.menu_category ? `${item.item_name} (${item.menu_category})` : item.item_name)),
-        ...offerInclusions(packageRecord),
+        ...snapshot.map((item) => (item.menu_category ? `${item.item_name} (${item.menu_category})` : item.item_name)),
+        ...(packageRecord ? offerInclusions(packageRecord) : []),
       ],
     };
-  }, [packageRecord, inquiry?.guest_count, inquiry?.offer_base_price, inquiry?.offer_food_snapshot]);
+  }, [
+    isSpecial,
+    packageRecord,
+    details.guest_count,
+    inquiry?.guest_count,
+    inquiry?.offer_base_price,
+    inquiry?.offer_food_snapshot,
+    inquiry?.package_name_snapshot,
+    activeSpecialDishes,
+  ]);
 
   // Customer Original Selection
   const customerSelection = useMemo(() => {
-    const dishes = (Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : [])
-      .filter(Boolean)
-      .map((item) =>
-        item && typeof item === "object"
-          ? {
-              id: String(item._id || ""),
-              name: item.name || "",
-              category: item.category || "",
-              price: Number(item.price) || 0,
+    let dishes = [];
+
+    if (isSpecial) {
+      // 1. For Special Offers:
+      // Priority A: inquiry.offer_food_snapshot (saved selections by customer)
+      // Priority B: offerContext?.foodItems
+      // Priority C: packageRecord ? offerFoodItems(packageRecord)
+      // Priority D: inquiry.selected_menu
+      let sourceList = [];
+      if (Array.isArray(inquiry?.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0) {
+        sourceList = inquiry.offer_food_snapshot.map((f) => ({
+          name: f.item_name || f.name || "",
+          category: f.menu_category || f.category || "",
+          image_url: f.image_url || "",
+        }));
+      } else if (offerContext?.foodItems && offerContext.foodItems.length > 0) {
+        sourceList = offerContext.foodItems.map((f) => ({
+          name: f.name || f.item_name || "",
+          category: f.category || f.menu_category || "",
+          image_url: f.image_url || "",
+        }));
+      } else if (packageRecord) {
+        sourceList = offerFoodItems(packageRecord).map((f) => ({
+          name: f.item_name || f.name || "",
+          category: f.menu_category || f.category || "",
+          image_url: f.image_url || "",
+        }));
+      }
+
+      if (sourceList.length === 0 && Array.isArray(inquiry?.selected_menu) && inquiry.selected_menu.length > 0) {
+        sourceList = inquiry.selected_menu.map((item) => {
+          if (item && typeof item === "object") {
+            return {
+              name: item.name || item.item_name || "",
+              category: item.category || item.menu_category || "",
               image_url: item.image_url || "",
-            }
-          : { id: String(item), name: "", category: "", price: 0, image_url: "" }
-      );
+            };
+          }
+          const str = String(item || "").trim();
+          const matched = catalogMenuItems.find(
+            (c) => String(c._id) === str || (c.name || "").trim().toLowerCase() === str.toLowerCase()
+          );
+          return {
+            name: matched?.name || str,
+            category: matched?.category || "",
+            image_url: matched?.image_url || "",
+          };
+        });
+      }
+
+      dishes = sourceList
+        .filter((d) => Boolean(d.name))
+        .map((d) => ({
+          id: d.id || d.name,
+          name: d.name,
+          category: d.category,
+          price: 0,
+          isSpecialInclusion: true,
+          image_url: d.image_url || resolveDishImageUrl({ name: d.name }, catalogMenuItems) || "",
+        }));
+    } else {
+      // 2. For Regular / Default Packages:
+      const rawMenu = (Array.isArray(inquiry?.selected_menu) && inquiry.selected_menu.length > 0)
+        ? inquiry.selected_menu
+        : (Array.isArray(inquiry?.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0)
+          ? inquiry.offer_food_snapshot
+          : [];
+
+      dishes = rawMenu
+        .filter(Boolean)
+        .map((item) => {
+          if (item && typeof item === "object") {
+            const dishName = item.name || item.item_name || "";
+            return {
+              id: String(item._id || item.id || ""),
+              name: dishName,
+              category: item.category || item.menu_category || "",
+              price: Number(item.price) || 0,
+              image_url: item.image_url || resolveDishImageUrl({ name: dishName }, catalogMenuItems) || "",
+            };
+          }
+          const strVal = String(item).trim();
+          const matched = catalogMenuItems.find(
+            (c) => String(c._id) === strVal || (c.name || "").trim().toLowerCase() === strVal.toLowerCase()
+          );
+          const dishName = matched?.name || strVal;
+          return {
+            id: matched?._id ? String(matched._id) : strVal,
+            name: dishName,
+            category: matched?.category || "",
+            price: Number(matched?.price) || 0,
+            image_url: matched?.image_url || resolveDishImageUrl({ name: dishName }, catalogMenuItems) || "",
+          };
+        })
+        .filter((d) => Boolean(d.name));
+    }
+
     return {
       dishes,
-      wantedFood: cateringRequested(inquiry),
+      wantedFood: isSpecial || cateringRequested(inquiry) || dishes.length > 0,
       serviceType: inquiry?.service_type || "",
     };
-  }, [inquiry]);
+  }, [inquiry, isSpecial, offerContext, packageRecord, catalogMenuItems]);
 
   const municipalities = useMemo(() => getBatangasMunicipalities(), []);
   const barangays = useMemo(() => getBatangasBarangays(details.municipality), [details.municipality]);
@@ -479,11 +609,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       AdminAPI.getAddons().catch(() => ({ data: [] })),
       AdminAPI.getQuotationsByInquiry(inquiry._id).catch(() => ({ data: [] })),
       AdminAPI.getBusinessInfo().catch(() => ({ data: {} })),
+      AdminAPI.getPackages().catch(() => ({ data: [] })),
     ])
-      .then(([menuRes, addonRes, quoteRes, businessRes]) => {
+      .then(([menuRes, addonRes, quoteRes, businessRes, packagesRes]) => {
         if (!active) return;
         setCatalogMenuItems(menuRes.data || []);
         setCatalogAddons(addonRes.data || []);
+        setPackagesCatalog(packagesRes.data || []);
         const standardDeposit = Number(businessRes.data?.deposit_percentage);
         if (Number.isFinite(standardDeposit) && standardDeposit > 0) {
           setDepositPercentage(standardDeposit);
@@ -597,22 +729,52 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           ]);
 
           const restoredGuests = Number(latest.guest_count) || Number(inquiry?.guest_count) || 1;
-          setMenuItems(
-            Array.isArray(latest.menu_items)
-              ? latest.menu_items.map((m) => {
-                  const perGuest = m?.pricing_type !== MENU_PRICING.QUANTITY;
-                  return menuRow({
-                    name: m?.name || "",
-                    category: m?.category || "",
-                    note: m?.note || "",
-                    quantity: perGuest ? restoredGuests : Number(m?.quantity) > 0 ? Number(m.quantity) : 1,
-                    unit: m?.unit || (perGuest ? "Pax" : ""),
-                    price: m?.price ? String(m.price) : "",
-                    image_url: m?.image_url || "",
-                  });
-                })
-              : []
+          const isLatestSpecial = Boolean(
+            latest.booking_type === "special" ||
+            latest.is_special_offer ||
+            isSpecial
           );
+
+          if (isLatestSpecial) {
+            const savedDishes = (Array.isArray(latest.offer_food_snapshot) && latest.offer_food_snapshot.length > 0)
+              ? latest.offer_food_snapshot.map((m) => ({ name: m.item_name, category: m.menu_category || "", image_url: m.image_url || "" }))
+              : (Array.isArray(latest.menu_items) && latest.menu_items.length > 0)
+                ? latest.menu_items.map((m) => ({ name: m.name, category: m.category || "", image_url: m.image_url || "" }))
+                : (Array.isArray(inquiry?.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0)
+                  ? inquiry.offer_food_snapshot.map((m) => ({ name: m.item_name, category: m.menu_category || "", image_url: m.image_url || "" }))
+                  : [];
+
+            setMenuItems(
+              savedDishes.map(({ name, category, image_url }) =>
+                menuRow({
+                  name,
+                  category,
+                  note: "Covered by combo package",
+                  quantity: 1,
+                  unit: "Included",
+                  price: 0,
+                  image_url: image_url || resolveDishImageUrl({ name }, menuRes.data || []),
+                })
+              )
+            );
+          } else {
+            setMenuItems(
+              Array.isArray(latest.menu_items)
+                ? latest.menu_items.map((m) => {
+                    const perGuest = m?.pricing_type !== MENU_PRICING.QUANTITY;
+                    return menuRow({
+                      name: m?.name || "",
+                      category: m?.category || "",
+                      note: m?.note || "",
+                      quantity: perGuest ? restoredGuests : Number(m?.quantity) > 0 ? Number(m.quantity) : 1,
+                      unit: m?.unit || (perGuest ? "Pax" : ""),
+                      price: m?.price ? String(m.price) : "",
+                      image_url: m?.image_url || resolveDishImageUrl({ name: m?.name }, menuRes.data || []),
+                    });
+                  })
+                : []
+            );
+          }
 
           setAddOns(
             Array.isArray(latest.add_ons)
@@ -693,10 +855,22 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           setStartingPrice(derived ? String(derived) : "");
         }
 
-        if (offerContext) {
+        if (isSpecial) {
+          const foodList = (Array.isArray(inquiry?.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0)
+            ? inquiry.offer_food_snapshot.map(item => ({ name: item.item_name, category: item.menu_category || "", image_url: item.image_url || "" }))
+            : (packageRecord ? offerFoodItems(packageRecord).map(item => ({ name: item.item_name, category: item.menu_category || "", image_url: item.image_url || "" })) : []);
+
           setMenuItems(
-            offerContext.foodItems.map(({ name, category }) =>
-              menuRow({ name, category, note: "Covered by combo package", price: "" })
+            foodList.map(({ name, category, image_url }) =>
+              menuRow({
+                name,
+                category,
+                note: "Covered by combo package",
+                price: 0,
+                unit: "Included",
+                quantity: 1,
+                image_url: image_url || resolveDishImageUrl({ name }, menuRes.data || []),
+              })
             )
           );
         } else {
@@ -711,10 +885,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                       note: item.note || "",
                       unit: item.unit || "Pax",
                       price: item.price ? String(item.price) : "",
-                      image_url: item.image_url || "",
+                      image_url: item.image_url || resolveDishImageUrl({ name: item.name }, menuRes.data || []),
                     });
                   }
-                  return menuRow({ name: String(item || "") });
+                  return menuRow({
+                    name: String(item || ""),
+                    image_url: resolveDishImageUrl({ name: String(item || "") }, menuRes.data || []),
+                  });
                 })
           );
         }
@@ -797,11 +974,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   const pricingInput = useMemo(
     () => ({
+      is_special_offer: isSpecial,
+      booking_type: isSpecial ? "special" : "regular",
       package_starting_price: startingPrice,
       removed_inclusions: removedInclusions,
       inclusion_adjustments: inclusionAdjustments,
       guest_count: details.guest_count,
-      menu_items: chargeableMenuItems,
+      menu_items: isSpecial ? [] : chargeableMenuItems,
       add_ons: chargeableAddOns,
       transportation_fee: transportationFee,
       additional_fees: additionalFees,
@@ -810,6 +989,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       deposit_amount: depositAmount,
     }),
     [
+      isSpecial,
       startingPrice,
       removedInclusions,
       inclusionAdjustments,
@@ -853,6 +1033,10 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       inquiry_id: inquiry?._id,
       package_id: packageRecord?._id || inquiry?.package_id || undefined,
       package_name: packageName || "Custom Package",
+      booking_type: isSpecial ? "special" : "regular",
+      is_special_offer: isSpecial,
+      offer_price_per_guest: isSpecial ? offerContext?.perPax : undefined,
+      offer_food_snapshot: isSpecial && offerContext ? offerContext.foodItems.map(f => ({ menu_category: f.category, item_name: f.name })) : undefined,
       event_space_label: eventSpace || undefined,
       package_starting_price: totals.startingPrice,
       package_price: totals.packagePrice,
@@ -863,16 +1047,27 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         amount: inclusionAdjustmentAmount(entry),
       })),
       guest_count: totals.guestCount,
-      menu_items: chargeableMenuItems.map((item) => ({
-        name: String(item.name || "").trim(),
-        category: String(item.category || "").trim(),
-        note: String(item.note || "").trim(),
-        pricing_type: MENU_PRICING.QUANTITY,
-        quantity: Math.max(1, Number(item.quantity) || 1),
-        unit: String(item.unit || "").trim(),
-        price: money(item.price),
-        image_url: String(item.image_url || ""),
-      })),
+      menu_items: isSpecial
+        ? (offerContext?.foodItems || []).map((item) => ({
+            name: String(item.name || "").trim(),
+            category: String(item.category || "").trim(),
+            note: "Included in combo package",
+            pricing_type: "per_guest",
+            quantity: 1,
+            unit: "Included",
+            price: 0,
+            image_url: String(item.image_url || resolveDishImageUrl(item, catalogMenuItems) || ""),
+          }))
+        : chargeableMenuItems.map((item) => ({
+            name: String(item.name || "").trim(),
+            category: String(item.category || "").trim(),
+            note: String(item.note || "").trim(),
+            pricing_type: MENU_PRICING.QUANTITY,
+            quantity: Math.max(1, Number(item.quantity) || 1),
+            unit: String(item.unit || "").trim(),
+            price: money(item.price),
+            image_url: String(item.image_url || resolveDishImageUrl(item, catalogMenuItems) || ""),
+          })),
       add_ons: chargeableAddOns.map((item) => ({
         name: String(item.name || "").trim(),
         price: money(item.price),
@@ -898,6 +1093,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       inquiry?.package_id,
       packageRecord?._id,
       packageName,
+      isSpecial,
+      offerContext,
       eventSpace,
       totals,
       keptInclusions,
@@ -999,6 +1196,18 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const setDetail = (key, value) => {
     setDetails((prev) => ({ ...prev, [key]: value }));
     clearError(key);
+    if (key === "guest_count" && isSpecial) {
+      const g = Math.max(1, Number(value) || 1);
+      const perPax =
+        offerPricePerPax(packageRecord) ||
+        Number(packageRecord?.price_per_guest) ||
+        (Number(inquiry?.guest_count) && Number(inquiry?.offer_base_price)
+          ? Number(inquiry.offer_base_price) / Number(inquiry.guest_count)
+          : 0);
+      if (perPax > 0) {
+        setStartingPrice(String(Math.round(perPax * g * 100) / 100));
+      }
+    }
   };
 
   const handleServiceTypeChange = (value) => {
@@ -1084,6 +1293,96 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         quantity: 1,
       }),
     ]);
+  };
+
+  /* --- Special Offer Food Replacement Handlers --- */
+  const handleSpecialOfferDishReplace = (category, oldDishName, newDishName) => {
+    const dishImg = resolveDishImageUrl({ name: newDishName }, catalogMenuItems) || "";
+    setMenuItems((prev) => {
+      const cleanCat = (category || "").toLowerCase();
+      const targetIdx = prev.findIndex(
+        (m) =>
+          !m.removed &&
+          (m.category || "").toLowerCase() === cleanCat &&
+          (m.name || "").trim().toLowerCase() === (oldDishName || "").trim().toLowerCase()
+      );
+      if (targetIdx !== -1) {
+        const next = [...prev];
+        next[targetIdx] = menuRow({
+          name: newDishName,
+          category: category,
+          note: "Included in combo package",
+          unit: "Included",
+          price: 0,
+          quantity: 1,
+          image_url: dishImg,
+        });
+        return next;
+      }
+      return [
+        ...prev,
+        menuRow({
+          name: newDishName,
+          category: category,
+          note: "Included in combo package",
+          unit: "Included",
+          price: 0,
+          quantity: 1,
+          image_url: dishImg,
+        }),
+      ];
+    });
+  };
+
+  const handleSpecialOfferDishRemove = (dishName, category) => {
+    setMenuItems((prev) =>
+      prev.filter((m) => {
+        const sameName = (m.name || "").trim().toLowerCase() === (dishName || "").trim().toLowerCase();
+        const sameCat = !category || (m.category || "").toLowerCase() === (category || "").toLowerCase();
+        return !(sameName && sameCat);
+      })
+    );
+  };
+
+  const handleSpecialOfferDishSelect = (dishName, category) => {
+    const dishImg = resolveDishImageUrl({ name: dishName }, catalogMenuItems) || "";
+    setMenuItems((prev) => {
+      if (prev.some((m) => !m.removed && (m.name || "").trim().toLowerCase() === (dishName || "").trim().toLowerCase())) {
+        return prev;
+      }
+      return [
+        ...prev,
+        menuRow({
+          name: dishName,
+          category: category,
+          note: "Included in combo package",
+          unit: "Included",
+          price: 0,
+          quantity: 1,
+          image_url: dishImg,
+        }),
+      ];
+    });
+  };
+
+  const handleResetSpecialOfferFood = () => {
+    const original = (Array.isArray(inquiry?.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0)
+      ? inquiry.offer_food_snapshot.map((item) => ({ name: item.item_name, category: item.menu_category || "", image_url: item.image_url || "" }))
+      : (packageRecord ? offerFoodItems(packageRecord).map((item) => ({ name: item.item_name, category: item.menu_category || "", image_url: item.image_url || "" })) : []);
+
+    setMenuItems(
+      original.map(({ name, category, image_url }) =>
+        menuRow({
+          name,
+          category,
+          note: "Covered by combo package",
+          price: 0,
+          unit: "Included",
+          quantity: 1,
+          image_url: image_url || resolveDishImageUrl({ name }, catalogMenuItems) || "",
+        })
+      )
+    );
   };
 
   /* --- Add-on Handlers --- */
@@ -1370,6 +1669,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           activePricingSection={activePricingSection}
           setActivePricingSection={setActivePricingSection}
           cateringIncluded={cateringIncluded}
+          isSpecialOffer={isSpecial}
+          offerContext={offerContext}
           errors={errors}
           savedDraft={savedDraft}
           draftSavedAt={draftSavedAt}
@@ -1393,6 +1694,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               isFoodOnly={isFoodOnly}
               isSetupOnly={isSetupOnly}
               offerContext={offerContext}
+              isSpecialOffer={isSpecial}
+              catalogMenuItems={catalogMenuItems}
               errors={errors}
               isEditMode={isCustomerEditMode}
               setIsEditMode={setIsCustomerEditMode}
@@ -1425,11 +1728,18 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               isFoodOnly={isFoodOnly}
               isSetupOnly={isSetupOnly}
               cateringIncluded={cateringIncluded}
+              isSpecialOffer={isSpecial}
               offerContext={offerContext}
               menuItems={menuItems}
               handleMenuChange={handleMenuChange}
               toggleMenuRemoved={toggleMenuRemoved}
               handleDeleteMenu={handleDeleteMenu}
+              packageRecord={packageRecord}
+              inquiry={inquiry}
+              onReplaceSpecialOfferDish={handleSpecialOfferDishReplace}
+              onRemoveSpecialOfferDish={handleSpecialOfferDishRemove}
+              onSelectSpecialOfferDish={handleSpecialOfferDishSelect}
+              onResetSpecialOfferFood={handleResetSpecialOfferFood}
               catalogMenuItems={catalogMenuItems}
               onAddCatalogDish={handleAddCatalogDish}
               onAddCustomDish={handleAddCustomDish}
@@ -1478,6 +1788,9 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               chargeableAddOns={chargeableAddOns}
               transportationFee={transportationFee}
               additionalFees={additionalFees}
+              isSpecialOffer={isSpecial}
+              offerContext={offerContext}
+              catalogMenuItems={catalogMenuItems}
               depositAmount={depositAmount}
               setDepositAmount={setDepositAmount}
               depositPercentage={depositPercentage}

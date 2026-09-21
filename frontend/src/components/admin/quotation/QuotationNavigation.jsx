@@ -25,11 +25,14 @@ export default function QuotationNavigation({
   activePricingSection,
   setActivePricingSection,
   cateringIncluded,
+  isSpecialOffer,
+  offerContext,
   errors = {},
   savedDraft,
   draftSavedAt,
   onDiscardDraft,
 }) {
+  const isSpecial = Boolean(isSpecialOffer || offerContext);
   const hasStep1Errors = Object.keys(errors).some(
     (k) =>
       k.startsWith("contact_") ||
@@ -71,7 +74,7 @@ export default function QuotationNavigation({
       subItems: [
         { id: "pricing-package", label: "Package Price", icon: Package },
         { id: "pricing-inclusions", label: "Included Items", icon: Check },
-        ...(cateringIncluded ? [{ id: "pricing-menu", label: "Menu Pricing", icon: Utensils }] : []),
+        ...(cateringIncluded ? [{ id: "pricing-menu", label: isSpecial ? "Included Food" : "Menu Pricing", icon: Utensils }] : []),
         { id: "pricing-addons", label: "Extra Services", icon: Sparkles },
         { id: "pricing-charges", label: "Other Charges", icon: Truck },
         { id: "pricing-discount", label: "Discount & Taxes", icon: Percent },

@@ -35,6 +35,7 @@ import {
 import { formatCurrency, formatShortDate, formatTime } from "../../utils/format";
 import { menuLineTotal, addOnLineTotal } from "../../utils/quotationPricing";
 import { resolveServiceType } from "../../components/customer/portal/statusMeta";
+import DishThumbnail from "../../components/admin/quotation/DishThumbnail";
 
 /* --- Refined Section Container --- */
 const SectionContainer = ({ title, icon: Icon, badge, headerRight, children, className = "" }) => (
@@ -89,7 +90,7 @@ const MoneyLine = ({ label, detail, value, strong, deduct }) => (
 /**
  * Current Quotation Card (When a quote has already been issued)
  */
-function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid }) {
+function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid, catalogMenuItems = [] }) {
   const [showDetails, setShowDetails] = useState(false);
   const expiry = quotation.expiration_date ? new Date(quotation.expiration_date) : null;
   const expired =
@@ -109,7 +110,13 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
   const adjustments = (
     Array.isArray(quotation.inclusion_adjustments) ? quotation.inclusion_adjustments : []
   ).filter((entry) => entry?.name && Number(entry?.amount));
-  const menuSubtotal = dishes.reduce((sum, item) => sum + menuLineTotal(item, guests), 0);
+  const isSpecial = Boolean(
+    quotation.booking_type === "special" ||
+    quotation.is_special_offer ||
+    (Array.isArray(quotation.offer_food_snapshot) && quotation.offer_food_snapshot.length > 0) ||
+    quotation.package_id?.offer_type === "special"
+  );
+  const menuSubtotal = isSpecial ? 0 : dishes.reduce((sum, item) => sum + menuLineTotal(item, guests), 0);
   const addOnsSubtotal = addOns.reduce((sum, item) => sum + addOnLineTotal(item), 0);
 
   return (
@@ -169,8 +176,12 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
             <span className="text-xs font-semibold text-slate-800 font-mono">{formatCurrency(quotation.package_price)}</span>
           </div>
           <div>
-            <span className="text-[10px] uppercase font-semibold text-slate-400 block">Menu ({dishes.length})</span>
-            <span className="text-xs font-semibold text-slate-800 font-mono">{formatCurrency(menuSubtotal)}</span>
+            <span className="text-[10px] uppercase font-semibold text-slate-400 block">
+              {isSpecial ? "Food Selections" : `Menu (${dishes.length})`}
+            </span>
+            <span className="text-xs font-semibold text-slate-800 font-mono">
+              {isSpecial ? `${dishes.length} Included` : formatCurrency(menuSubtotal)}
+            </span>
           </div>
           <div>
             <span className="text-[10px] uppercase font-semibold text-slate-400 block">Add-ons ({addOns.length})</span>
@@ -197,9 +208,9 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
               />
               {dishes.length > 0 && (
                 <MoneyLine
-                  label="Menu"
-                  detail={`(${dishes.length} ${dishes.length === 1 ? "dish" : "dishes"})`}
-                  value={formatCurrency(menuSubtotal)}
+                  label={isSpecial ? "Included Food Selections" : "Menu"}
+                  detail={`(${dishes.length} ${dishes.length === 1 ? "dish" : "dishes"}${isSpecial ? " included" : ""})`}
+                  value={isSpecial ? "Included in Package" : formatCurrency(menuSubtotal)}
                 />
               )}
               {addOns.length > 0 && (
@@ -238,23 +249,34 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
                     const byQuantity = dish.pricing_type === "quantity";
                     const units = byQuantity ? Math.max(1, Number(dish.quantity) || 1) : guests;
                     const unitLabel = String(dish.unit || "").trim();
-                    const basis = byQuantity
-                      ? `${units} ${unitLabel ? unitLabel + " " : ""}× ${formatCurrency(dish.price)}`
-                      : `${units} guests × ${formatCurrency(dish.price)}/pax`;
+                    const basis = isSpecial
+                      ? "Included in Combo"
+                      : byQuantity
+                        ? `${units} ${unitLabel ? unitLabel + " " : ""}× ${formatCurrency(dish.price)}`
+                        : `${units} guests × ${formatCurrency(dish.price)}/pax`;
                     return (
                       <div key={i} className="flex items-center justify-between gap-3 px-3.5 py-2.5 bg-white hover:bg-slate-50/50 transition-colors">
-                        <div className="min-w-0">
-                          <span className="font-semibold text-slate-800">{dish.name}</span>
-                          {dish.category && (
-                            <span className="ml-2 rounded font-mono bg-slate-100 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase text-slate-500">
-                              {dish.category}
-                            </span>
-                          )}
-                          <span className="ml-2 text-[11px] text-slate-400 tabular-nums">{basis}</span>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <DishThumbnail dish={dish} catalogMenuItems={catalogMenuItems} size="sm" />
+                          <div className="min-w-0">
+                            <span className="font-semibold text-slate-800">{dish.name}</span>
+                            {dish.category && (
+                              <span className="ml-2 rounded font-mono bg-slate-100 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase text-slate-500">
+                                {dish.category}
+                              </span>
+                            )}
+                            <span className="ml-2 text-[11px] text-slate-400 tabular-nums">{basis}</span>
+                          </div>
                         </div>
-                        <span className="shrink-0 font-mono font-semibold text-slate-700">
-                          {formatCurrency(menuLineTotal(dish, guests))}
-                        </span>
+                        {isSpecial ? (
+                          <span className="shrink-0 font-mono text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded">
+                            Included
+                          </span>
+                        ) : (
+                          <span className="shrink-0 font-mono font-semibold text-slate-700">
+                            {formatCurrency(menuLineTotal(dish, guests))}
+                          </span>
+                        )}
                       </div>
                     );
                   })}
@@ -287,6 +309,7 @@ export default function AdminQuoteDetails() {
   const [quote, setQuote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quotations, setQuotations] = useState([]);
+  const [catalogMenuItems, setCatalogMenuItems] = useState([]);
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [showConfirmConvert, setShowConfirmConvert] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -313,6 +336,13 @@ export default function AdminQuoteDetails() {
           if (isMounted) setQuotations(qRes.data || []);
         } catch {
           if (isMounted) setQuotations([]);
+        }
+
+        try {
+          const menuRes = await AdminAPI.getMenu();
+          if (isMounted) setCatalogMenuItems(menuRes.data || []);
+        } catch {
+          if (isMounted) setCatalogMenuItems([]);
         }
       } catch (err) {
         notify(err.response?.data?.message || "Could not load inquiry details.", "error");
@@ -722,6 +752,7 @@ export default function AdminQuoteDetails() {
                 versionCount={issuedVersions.length}
                 hasDraft={hasDraft}
                 isDepositPaid={isDepositPaid}
+                catalogMenuItems={catalogMenuItems}
               />
             )}
 
@@ -1051,13 +1082,18 @@ export default function AdminQuoteDetails() {
                     </div>
                     <div className="space-y-1.5">
                       {offerCourses.map((course, i) => (
-                        <div key={i} className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 bg-slate-50/70 border border-slate-100 rounded px-3 py-1.5 text-xs">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:w-36 shrink-0">
+                        <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 bg-slate-50/70 border border-slate-100 rounded px-3 py-1.5 text-xs">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:w-32 shrink-0">
                             {course.category}
                           </span>
-                          <span className="font-medium text-slate-800">
-                            {course.items.join(", ")}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {course.items.map((itemStr, itemIdx) => (
+                              <span key={itemIdx} className="inline-flex items-center gap-1.5 text-slate-800 font-medium">
+                                <DishThumbnail name={itemStr} catalogMenuItems={catalogMenuItems} size="xs" />
+                                <span>{itemStr}</span>
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1083,18 +1119,24 @@ export default function AdminQuoteDetails() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {(showAllMenu ? quote.selected_menu : quote.selected_menu.slice(0, 6)).map((menu, i) => (
-                        <div key={i} className="flex justify-between items-center bg-slate-50/70 border border-slate-100 rounded px-3 py-2 text-xs">
-                          <span className="font-medium text-slate-800 truncate pr-2">
-                            {menu?.name || (typeof menu === 'string' ? menu : "Menu Item")}
-                          </span>
-                          {menu?.price > 0 && (
-                            <span className="font-mono font-semibold text-slate-600 shrink-0">
-                              ₱{menu.price}
-                            </span>
-                          )}
-                        </div>
-                      ))}
+                      {(showAllMenu ? quote.selected_menu : quote.selected_menu.slice(0, 6)).map((menu, i) => {
+                        const dishName = menu?.name || (typeof menu === 'string' ? menu : "Menu Item");
+                        return (
+                          <div key={i} className="flex justify-between items-center bg-slate-50/70 border border-slate-100 rounded px-3 py-2 text-xs">
+                            <div className="flex items-center gap-2 min-w-0 pr-2">
+                              <DishThumbnail dish={menu} catalogMenuItems={catalogMenuItems} size="xs" />
+                              <span className="font-medium text-slate-800 truncate">
+                                {dishName}
+                              </span>
+                            </div>
+                            {menu?.price > 0 && (
+                              <span className="font-mono font-semibold text-slate-600 shrink-0">
+                                ₱{menu.price}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

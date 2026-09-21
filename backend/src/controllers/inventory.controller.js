@@ -2,6 +2,9 @@ const Inventory = require("../models/Inventory");
 const Booking = require("../models/Booking");
 const InventoryLog = require("../models/InventoryLog");
 const writeInventoryLog = require("../utils/writeInventoryLog");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { INVENTORY_PARSER_PROMPT } = require("../services/zellePrompts");
+const logAction = require("../utils/logAction");
 
 const ALLOWED_CATEGORIES = ["Event Setup & Furniture", "Dining & Service Inventory"];
 
@@ -251,3 +254,210 @@ exports.getAvailability = async (req, res) => {
     res.status(500).json({ message: "Failed to compute inventory availability", error: error.message });
   }
 };
+
+// Parse Inventory Items with Zelle AI (admin)
+exports.parseWithAI = async (req, res) => {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: "Gemini API Key missing" });
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    });
+
+    const parts = [INVENTORY_PARSER_PROMPT];
+
+    if (req.file) {
+      parts.push({
+        inlineData: {
+          data: req.file.buffer.toString("base64"),
+          mimeType: req.file.mimetype,
+        },
+      });
+    } else if (req.body.text) {
+      parts.push(req.body.text);
+    } else {
+      return res.status(400).json({ error: "No file or text provided" });
+    }
+
+    const result = await model.generateContent(parts);
+    const response = await result.response;
+    let text = response.text().trim();
+    if (text.startsWith("```json")) text = text.substring(7);
+    if (text.startsWith("```")) text = text.substring(3);
+    if (text.endsWith("```")) text = text.substring(0, text.length - 3).trim();
+
+    const parsedData = JSON.parse(text);
+
+    let rawList = [];
+    if (Array.isArray(parsedData.inventory)) {
+      rawList = parsedData.inventory;
+    } else if (Array.isArray(parsedData.items)) {
+      rawList = parsedData.items;
+    } else if (Array.isArray(parsedData)) {
+      rawList = parsedData;
+    } else if (parsedData && typeof parsedData === "object") {
+      rawList = [parsedData];
+    }
+
+    const normalizeCat = (cat, itemName = "") => {
+      if (ALLOWED_CATEGORIES.includes(cat)) return cat;
+      const lower = (String(cat || "") + " " + String(itemName || "")).toLowerCase();
+      if (
+        lower.includes("dining") ||
+        lower.includes("tableware") ||
+        lower.includes("plate") ||
+        lower.includes("spoon") ||
+        lower.includes("glass") ||
+        lower.includes("cup") ||
+        lower.includes("cutlery") ||
+        lower.includes("warmer") ||
+        lower.includes("chafing") ||
+        lower.includes("cooler") ||
+        lower.includes("dish") ||
+        lower.includes("ice") ||
+        lower.includes("jug") ||
+        lower.includes("gallon") ||
+        lower.includes("planggana") ||
+        lower.includes("tulyasi")
+      ) {
+        return "Dining & Service Inventory";
+      }
+      return "Event Setup & Furniture";
+    };
+
+    const cleaned = rawList
+      .filter((i) => i && (i.item_name || i.name))
+      .map((i) => {
+        const rawName = String(i.item_name || i.name || "").trim();
+        const cleanedName = rawName.replace(/\s*\(\d+[^)]*\)$/, "").trim();
+        const quantity = Math.max(0, parseInt(i.quantity, 10) || 1);
+        const category = normalizeCat(i.category, cleanedName);
+        return {
+          item_name: cleanedName,
+          category,
+          quantity,
+          available: i.available !== false,
+        };
+      });
+
+    res.json({ inventory: cleaned });
+  } catch (error) {
+    console.error("AI Inventory parsing error:", error);
+    res.status(500).json({
+      error: "Failed to parse inventory items with AI",
+      details: error.message,
+    });
+  }
+};
+
+// Bulk create inventory items (admin)
+exports.createBulk = async (req, res) => {
+  try {
+    const rawItems = Array.isArray(req.body.items) ? req.body.items : [];
+    if (rawItems.length === 0) {
+      return res.status(400).json({ error: "No inventory items provided for bulk creation" });
+    }
+
+    const createdItems = [];
+    const skippedItems = [];
+
+    const existing = await Inventory.find({}, "item_name identifier");
+    const existingIdents = new Set(
+      existing.map((e) => e.identifier || normalizeIdentifier(e.item_name)).filter(Boolean)
+    );
+    const existingNames = new Set(
+      existing.map((e) => (e.item_name || "").trim().toLowerCase()).filter(Boolean)
+    );
+
+    for (const raw of rawItems) {
+      const rawName = String(raw.item_name || raw.name || "").trim();
+      if (!rawName) continue;
+
+      const ident = normalizeIdentifier(rawName);
+      const lowerName = rawName.toLowerCase();
+
+      // Skip duplicate item
+      if (existingIdents.has(ident) || existingNames.has(lowerName)) {
+        skippedItems.push({
+          item_name: rawName,
+          reason: "Item already exists in inventory",
+        });
+        continue;
+      }
+
+      const validCat = ALLOWED_CATEGORIES.includes(raw.category)
+        ? raw.category
+        : "Event Setup & Furniture";
+
+      const qty = Math.max(0, parseInt(raw.quantity, 10) || 0);
+
+      const newItem = await Inventory.create({
+        item_name: rawName,
+        identifier: ident,
+        category: validCat,
+        quantity: qty,
+        available: raw.available !== false,
+      });
+
+      writeInventoryLog({
+        inventory_id: newItem._id,
+        event_type: "created",
+        delta: qty,
+        actor_id: req.user?._id,
+        reason: "Imported via Zelle AI",
+      });
+
+      existingIdents.add(ident);
+      existingNames.add(lowerName);
+      createdItems.push(newItem);
+    }
+
+    if (createdItems.length > 0) {
+      await logAction({
+        user_id: req.user?._id,
+        action: "inventory_bulk_created",
+        entity_type: "inventory",
+        entity_id: createdItems[0]._id,
+        details: `Bulk created ${createdItems.length} inventory items via Zelle AI Ingestion${
+          skippedItems.length > 0 ? ` (${skippedItems.length} skipped duplicates)` : ""
+        }`,
+        ip_address: req.ip,
+      });
+
+      const io = req.app.get("io");
+      if (io) {
+        io.emit("system:refresh", {
+          type: "inventory",
+          action: "bulk_create",
+          count: createdItems.length,
+        });
+      }
+    }
+
+    res.status(201).json({
+      message: `Successfully imported ${createdItems.length} item${
+        createdItems.length === 1 ? "" : "s"
+      }${
+        skippedItems.length > 0
+          ? ` (${skippedItems.length} duplicate${skippedItems.length === 1 ? "" : "s"} skipped)`
+          : ""
+      }`,
+      created: createdItems,
+      skipped: skippedItems,
+      totalImported: createdItems.length,
+      totalSkipped: skippedItems.length,
+    });
+  } catch (error) {
+    console.error("Bulk Inventory creation error:", error);
+    res.status(500).json({
+      error: "Failed to create inventory items in bulk",
+      details: error.message,
+    });
+  }
+};
+

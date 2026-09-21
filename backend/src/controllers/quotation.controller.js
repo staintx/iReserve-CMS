@@ -9,6 +9,7 @@ const {
   inclusionAdjustmentAmount,
   money,
 } = require("../utils/quotationPricing");
+const { isSpecialOffer, offerPricePerPax } = require("../utils/specialOffers");
 
 // Helper to check customer ownership of inquiry/quotation
 const verifyCustomerOwnership = (inquiry, userId) => {
@@ -87,19 +88,22 @@ function validateQuotationPayload(body, totals) {
     errors.guest_count = "Enter the guest count for this event.";
   }
 
-  (Array.isArray(body.menu_items) ? body.menu_items : []).forEach((item, index) => {
-    if (!String(item?.name || "").trim()) {
-      errors[`menu_items.${index}.name`] = "Name this dish or remove the line.";
-    }
-    if (negative(item?.price)) {
-      errors[`menu_items.${index}.price`] = "A dish price cannot be negative.";
-    }
-    // Only meaningful on a line charged by its own units; a per-guest dish
-    // takes its quantity from the guest count, which is validated above.
-    if (item?.pricing_type === "quantity" && Number(item?.quantity) < 1) {
-      errors[`menu_items.${index}.quantity`] = "Quantity must be at least 1.";
-    }
-  });
+  const isSpecial = Boolean(body.is_special_offer || body.booking_type === "special");
+  if (!isSpecial) {
+    (Array.isArray(body.menu_items) ? body.menu_items : []).forEach((item, index) => {
+      if (!String(item?.name || "").trim()) {
+        errors[`menu_items.${index}.name`] = "Name this dish or remove the line.";
+      }
+      if (negative(item?.price)) {
+        errors[`menu_items.${index}.price`] = "A dish price cannot be negative.";
+      }
+      // Only meaningful on a line charged by its own units; a per-guest dish
+      // takes its quantity from the guest count, which is validated above.
+      if (item?.pricing_type === "quantity" && Number(item?.quantity) < 1) {
+        errors[`menu_items.${index}.quantity`] = "Quantity must be at least 1.";
+      }
+    });
+  }
 
   (Array.isArray(body.add_ons) ? body.add_ons : []).forEach((item, index) => {
     if (!String(item?.name || "").trim()) {
@@ -210,9 +214,17 @@ function validateQuotationPayload(body, totals) {
  * customer is charged, so it comes from the same formula every time regardless
  * of what the browser sent.
  */
-function buildQuotationPayload(body, totals) {
+function buildQuotationPayload(body, totals, inquiry = null) {
+  const isSpecial = Boolean(
+    body.is_special_offer ||
+    body.booking_type === "special" ||
+    inquiry?.booking_type === "special" ||
+    isSpecialOffer(inquiry?.package_id)
+  );
+
   const payload = {
     ...body,
+    booking_type: isSpecial ? "special" : body.booking_type || inquiry?.booking_type || "regular",
     package_starting_price: totals.startingPrice,
     package_price: totals.packagePrice,
     guest_count: totals.guestCount,
@@ -221,6 +233,41 @@ function buildQuotationPayload(body, totals) {
     deposit_amount: totals.depositAmount,
     remaining_balance: totals.remainingBalance,
   };
+
+  if (isSpecial) {
+    const pkg = inquiry?.package_id;
+    const perPax =
+      offerPricePerPax(pkg) ||
+      (totals.guestCount > 0 ? totals.startingPrice / totals.guestCount : 0);
+    payload.offer_price_per_guest = perPax;
+
+    // Clean each dish so it carries NO individual price
+    payload.menu_items = (Array.isArray(body.menu_items) ? body.menu_items : []).map((item) => ({
+      name: String(item.name || "").trim(),
+      category: String(item.category || "").trim(),
+      note: String(item.note || "Covered by combo package").trim(),
+      pricing_type: "per_guest",
+      quantity: 1,
+      unit: String(item.unit || "Included").trim(),
+      price: 0,
+      image_url: String(item.image_url || ""),
+    }));
+
+    // Prioritize admin's updated food choices in quotation payload over original inquiry
+    if (Array.isArray(body.offer_food_snapshot) && body.offer_food_snapshot.length > 0) {
+      payload.offer_food_snapshot = body.offer_food_snapshot.map((f) => ({
+        menu_category: String(f.menu_category || f.category || "").trim(),
+        item_name: String(f.item_name || f.name || "").trim(),
+      }));
+    } else if (payload.menu_items.length > 0) {
+      payload.offer_food_snapshot = payload.menu_items.map((m) => ({
+        menu_category: m.category || "",
+        item_name: m.name || "",
+      }));
+    } else if (Array.isArray(inquiry?.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0) {
+      payload.offer_food_snapshot = inquiry.offer_food_snapshot;
+    }
+  }
 
   // Same rule as every other total: the stored figure comes from the formula,
   // not from the browser. Only the three inputs an admin actually typed are
@@ -321,7 +368,7 @@ function buildEventSnapshot(inquiry) {
  */
 exports.saveQuotationDraft = asyncHandler(async (req, res) => {
   const { inquiry_id } = req.body;
-  const inquiry = await Inquiry.findById(inquiry_id);
+  const inquiry = await Inquiry.findById(inquiry_id).populate("package_id");
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
 
   if (["Cancelled", "Quote Rejected", "Converted to Booking", "Expired"].includes(inquiry.status)) {
@@ -330,8 +377,22 @@ exports.saveQuotationDraft = asyncHandler(async (req, res) => {
     });
   }
 
-  const totals = computeQuotationTotals(req.body);
-  const payload = buildQuotationPayload(req.body, totals);
+  const isSpecial = Boolean(
+    req.body.is_special_offer ||
+    req.body.booking_type === "special" ||
+    inquiry.booking_type === "special" ||
+    isSpecialOffer(inquiry.package_id) ||
+    (Array.isArray(inquiry.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0)
+  );
+
+  const pricingInput = {
+    ...req.body,
+    is_special_offer: isSpecial,
+    booking_type: isSpecial ? "special" : req.body.booking_type || inquiry.booking_type || "regular",
+  };
+
+  const totals = computeQuotationTotals(pricingInput);
+  const payload = buildQuotationPayload(pricingInput, totals, inquiry);
 
   const existing = await findDraft(inquiry_id);
   let draft;
@@ -383,9 +444,23 @@ exports.createQuotation = asyncHandler(async (req, res) => {
     });
   }
 
-  const totals = computeQuotationTotals(req.body);
+  const isSpecial = Boolean(
+    req.body.is_special_offer ||
+    req.body.booking_type === "special" ||
+    inquiry.booking_type === "special" ||
+    isSpecialOffer(inquiry.package_id) ||
+    (Array.isArray(inquiry.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0)
+  );
 
-  const errors = validateQuotationPayload(req.body, totals);
+  const pricingInput = {
+    ...req.body,
+    is_special_offer: isSpecial,
+    booking_type: isSpecial ? "special" : req.body.booking_type || inquiry.booking_type || "regular",
+  };
+
+  const totals = computeQuotationTotals(pricingInput);
+
+  const errors = validateQuotationPayload(pricingInput, totals);
 
   // The event date lives on the inquiry, which the builder saves just before
   // sending, so it is checked here rather than against the request body. A
@@ -402,7 +477,7 @@ exports.createQuotation = asyncHandler(async (req, res) => {
   }
 
   const nextVersion = await nextVersionNumber(inquiry_id);
-  const payload = buildQuotationPayload(req.body, totals);
+  const payload = buildQuotationPayload(pricingInput, totals, inquiry);
   // Freeze the event onto this version so the customer's copy keeps showing
   // what it was issued against, whatever happens to the inquiry afterwards.
   payload.event_snapshot = buildEventSnapshot(inquiry);

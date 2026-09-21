@@ -125,7 +125,12 @@ export function computeQuotationTotals(input = {}) {
     Math.max(0, startingPrice - inclusionDeductions + inclusionAdjustments)
   );
 
-  const menuSubtotal = menuSubtotalOf(input.menu_items, guestCount);
+  const isSpecial = Boolean(
+    input.is_special_offer ||
+    input.booking_type === "special" ||
+    input.offer_type === "special"
+  );
+  const menuSubtotal = isSpecial ? 0 : menuSubtotalOf(input.menu_items, guestCount);
   const addOnsSubtotal = addOnsSubtotalOf(input.add_ons);
   const additionalFeesTotal = additionalFeesTotalOf(
     input.transportation_fee,
@@ -176,14 +181,20 @@ export function derivePackageStartingPrice(inquiry, guestCount) {
   const pkg = inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
   const isFoodOnly = inquiry?.service_type === "Food Only";
 
-  // A combo's starting price is its base FOOD price — its own guest count
-  // times its own rate per pax. The figure stored on the request wins, because
-  // it is what the customer was quoted at the time; the combo is recomputed
-  // from only when a request predates that field.
-  if (isSpecialOffer(pkg)) {
+  // A combo's starting price is its base FOOD price — its guest count
+  // times its rate per pax. If guest count is adjusted, recalculate dynamically.
+  if (isSpecialOffer(pkg) || inquiry?.booking_type === "special") {
+    const guests = count(guestCount, 1) || count(inquiry?.guest_count, 1) || 1;
+    if (pkg) {
+      return money(offerBaseFoodPrice(pkg, guests));
+    }
     const stored = positive(inquiry?.offer_base_price);
-    if (stored) return money(stored);
-    return money(offerBaseFoodPrice(pkg, guestCount));
+    if (stored) {
+      const origGuests = count(inquiry?.guest_count, 1) || 1;
+      const rate = stored / origGuests;
+      return money(rate * guests);
+    }
+    return 0;
   }
 
   // For Food Only bookings, prioritize per-guest catering price

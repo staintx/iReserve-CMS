@@ -123,7 +123,13 @@ export default function QuotationLiveSummary({
         {/* Package Section */}
         <div className="space-y-0.5">
           <p className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400">
-            {isFoodOnly ? "Food Baseline" : isSetupOnly ? "Setup Package" : "Package Price"}
+            {offerContext
+              ? "Special Offer Combo"
+              : isFoodOnly
+              ? "Food Baseline"
+              : isSetupOnly
+              ? "Setup Package"
+              : "Package Price"}
           </p>
           {eventSpace && !isFoodOnly && (
             <div className="flex items-center justify-between text-[11px] text-slate-300 py-0.5">
@@ -134,7 +140,8 @@ export default function QuotationLiveSummary({
             </div>
           )}
           <SummaryRow
-            label="Starting price"
+            label={offerContext ? "Combo fixed price" : "Starting price"}
+            detail={offerContext?.perPax ? `(${formatCurrency(offerContext.perPax)} × ${totals.guestCount})` : undefined}
             value={formatCurrency(totals.startingPrice)}
           />
           {totals.inclusionDeductions > 0 && (
@@ -164,11 +171,20 @@ export default function QuotationLiveSummary({
             Menu &amp; Services
           </p>
           {!isSetupOnly && cateringIncluded && (
-            <SummaryRow
-              label="Menu dishes"
-              detail={`(${chargeableMenuItemsCount})`}
-              value={formatCurrency(totals.menuSubtotal)}
-            />
+            offerContext ? (
+              <SummaryRow
+                label="Food selections"
+                detail={`(${offerContext.foodItems?.length || chargeableMenuItemsCount} dishes)`}
+                value="Included"
+                tone="deduct"
+              />
+            ) : (
+              <SummaryRow
+                label="Menu dishes"
+                detail={`(${chargeableMenuItemsCount})`}
+                value={formatCurrency(totals.menuSubtotal)}
+              />
+            )
           )}
           <SummaryRow
             label="Extra services"

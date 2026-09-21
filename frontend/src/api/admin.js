@@ -54,16 +54,24 @@ export const AdminAPI = {
   // Packages
   getPackages: () => api.get("/packages"),
   createPackage: (data) => api.post("/packages", data),
-  createBulkPackages: (packages) => api.post("/packages/bulk", { packages }),
+  createBulkPackages: (packages) => api.post("/packages/bulk", { packages }, { timeout: 60000 }),
   updatePackage: (id, data) => api.put(`/packages/${id}`, data),
   deletePackage: (id) => api.delete(`/packages/${id}`),
-  parsePackageWithAI: (formData) => api.post("/packages/ai-parse", formData, { headers: { "Content-Type": "multipart/form-data" } }),
+  parsePackageWithAI: (formData) =>
+    api.post("/packages/ai-parse", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      timeout: 180000,
+    }),
 
   // Menu
   getMenu: () => api.get("/menu"),
   createMenu: (data) => api.post("/menu", data),
-  createBulkMenu: (items) => api.post("/menu/bulk", { items }),
-  parseMenuWithAI: (formData) => api.post("/menu/parse-ai", formData, { headers: { "Content-Type": "multipart/form-data" } }),
+  createBulkMenu: (items) => api.post("/menu/bulk", { items }, { timeout: 60000 }),
+  parseMenuWithAI: (formData) =>
+    api.post("/menu/parse-ai", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      timeout: 180000,
+    }),
   updateMenu: (id, data) => api.put(`/menu/${id}`, data),
   deleteMenu: (id) => api.delete(`/menu/${id}`),
 
@@ -71,6 +79,12 @@ export const AdminAPI = {
   getInventory: () => api.get("/inventory"),
   getInventoryAvailability: (date, excludeBookingId) => api.get("/inventory/availability", { params: { date, excludeBookingId } }),
   createInventory: (data) => api.post("/inventory", data),
+  createBulkInventory: (items) => api.post("/inventory/bulk", { items }, { timeout: 60000 }),
+  parseInventoryWithAI: (formData) =>
+    api.post("/inventory/parse-ai", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      timeout: 180000,
+    }),
   updateInventory: (id, data) => api.put(`/inventory/${id}`, data),
   deleteInventory: (id) => api.delete(`/inventory/${id}`),
   getInventoryLogs: (id) => api.get(`/inventory/${id}/logs`),
@@ -78,8 +92,12 @@ export const AdminAPI = {
   // Addons
   getAddons: () => api.get("/addons"),
   createAddon: (data) => api.post("/addons", data),
-  createBulkAddons: (addons) => api.post("/addons/bulk", { addons }),
-  parseAddonWithAI: (formData) => api.post("/addons/parse-ai", formData, { headers: { "Content-Type": "multipart/form-data" } }),
+  createBulkAddons: (addons) => api.post("/addons/bulk", { addons }, { timeout: 60000 }),
+  parseAddonWithAI: (formData) =>
+    api.post("/addons/parse-ai", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      timeout: 180000,
+    }),
   updateAddon: (id, data) => api.put(`/addons/${id}`, data),
   deleteAddon: (id) => api.delete(`/addons/${id}`),
 

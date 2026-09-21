@@ -9,6 +9,18 @@ const QuotationSchema = new mongoose.Schema(
     // Details cloned from Inquiry/Package to lock in the quote
     package_id: { type: mongoose.Schema.Types.ObjectId, ref: "Package" },
     package_name: String,
+    booking_type: {
+      type: String,
+      enum: ["regular", "special", "custom"],
+      default: "custom",
+    },
+    offer_price_per_guest: Number,
+    offer_food_snapshot: [
+      {
+        menu_category: String,
+        item_name: String,
+      },
+    ],
 
     // The package's own starting price at the moment this quotation was built:
     // the baseline the whole quote is adjusted from. Quotations saved before

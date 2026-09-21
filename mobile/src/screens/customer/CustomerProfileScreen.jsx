@@ -24,11 +24,14 @@ import {
   HelpCircle,
   LayoutDashboard,
   Camera,
+  Compass,
+  RotateCcw,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import AppButton from "../../components/common/AppButton";
 import AppInput from "../../components/common/AppInput";
 import { useAuth } from "../../context/AuthContext";
+import { useOnboarding } from "../../context/OnboardingContext";
 import authApi from "../../api/auth";
 import { evaluatePassword, describePasswordGap } from "../../utils/passwordPolicy";
 import SignOutConfirmModal from "../../components/common/SignOutConfirmModal";
@@ -38,6 +41,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 export const CustomerProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { user, logout, updateUser } = useAuth();
+  const { replayOnboarding, resetCoachMarks } = useOnboarding();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Profile Edit State
@@ -156,6 +160,21 @@ export const CustomerProfileScreen = ({ navigation }) => {
 
   const handleLogout = () => {
     setShowLogoutModal(true);
+  };
+
+  const handleReplayOnboarding = () => {
+    setShowHelpModal(false);
+    replayOnboarding();
+  };
+
+  const handleResetCoachMarks = async () => {
+    setShowHelpModal(false);
+    await resetCoachMarks("customer_home");
+    Alert.alert(
+      "Feature Tour Ready",
+      "Interactive tips have been restored. They will appear next time you visit the Home screen.",
+      [{ text: "OK" }]
+    );
   };
 
   return (
@@ -278,7 +297,20 @@ export const CustomerProfileScreen = ({ navigation }) => {
               <ChevronRight size={18} color={colors.textDisabled} />
             </TouchableOpacity>
 
-            {/* 5. Sign Out */}
+            {/* 5. App Tour & Feature Guide */}
+            <TouchableOpacity
+              style={styles.menuItemRow}
+              onPress={() => setShowHelpModal(true)}
+              activeOpacity={0.65}
+            >
+              <View style={styles.menuIconWrap}>
+                <Compass size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.menuItemLabel}>App Tour & Feature Guide</Text>
+              <ChevronRight size={18} color={colors.textDisabled} />
+            </TouchableOpacity>
+
+            {/* 6. Sign Out */}
             <TouchableOpacity
               style={[styles.menuItemRow, styles.logoutRow]}
               onPress={handleLogout}
@@ -463,6 +495,38 @@ export const CustomerProfileScreen = ({ navigation }) => {
                 <Text style={styles.helpActionTitle}>Ask Zelle AI Assistant</Text>
                 <Text style={styles.helpActionSub}>
                   Instant answers on pricing, dishes & packages
+                </Text>
+              </View>
+              <ChevronRight size={18} color={colors.textDisabled} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.helpActionCard}
+              onPress={handleReplayOnboarding}
+            >
+              <View style={[styles.helpIconCircle, { backgroundColor: colors.accentLight }]}>
+                <Compass size={20} color={colors.primaryDark} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.helpActionTitle}>Replay Welcome Onboarding</Text>
+                <Text style={styles.helpActionSub}>
+                  Review app highlights, services, and catering benefits
+                </Text>
+              </View>
+              <ChevronRight size={18} color={colors.textDisabled} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.helpActionCard}
+              onPress={handleResetCoachMarks}
+            >
+              <View style={[styles.helpIconCircle, { backgroundColor: colors.successLight }]}>
+                <RotateCcw size={20} color={colors.success} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.helpActionTitle}>Restart In-App Feature Tips</Text>
+                <Text style={styles.helpActionSub}>
+                  Re-enable step-by-step tooltips on the home catalog
                 </Text>
               </View>
               <ChevronRight size={18} color={colors.textDisabled} />

@@ -1,10 +1,9 @@
 import { Platform } from "react-native";
 
 // In development:
-// - Android Emulator uses 10.0.2.2 to access host machine localhost
-// - iOS Simulator uses localhost
-// - Physical device uses LAN IP address (can be set via EXPO_PUBLIC_API_URL)
-const defaultDevHost = Platform.OS === "android" ? "http://10.0.2.2:5000/api" : "http://localhost:5000/api";
+// - Physical device (iOS / Android in Expo Go) uses PC LAN IP
+// - Host machine running backend on port 5000
+const defaultDevHost = "http://192.168.1.50:5000/api";
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || defaultDevHost;
 export const SOCKET_URL = API_BASE_URL.replace(/\/api\/?$/, "");

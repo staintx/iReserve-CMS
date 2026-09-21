@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -29,6 +29,7 @@ import StatusBadge from "../../components/common/StatusBadge";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
 import AppButton from "../../components/common/AppButton";
 import NotificationBadge from "../../components/common/NotificationBadge";
+import CoachMarkSequence from "../../components/common/CoachMarkSequence";
 import { formatDate, formatTime } from "../../utils/format";
 
 export const ManagerDashboardScreen = ({ navigation }) => {
@@ -43,6 +44,31 @@ export const ManagerDashboardScreen = ({ navigation }) => {
     quickActions: { pending: [], upcoming: [] },
     calendarEvents: [],
   });
+
+  const statsRef = useRef(null);
+  const calendarRef = useRef(null);
+
+  const coachMarkSteps = useMemo(
+    () => [
+      {
+        id: "manager_stats",
+        title: "Live Operations Overview",
+        description:
+          "Monitor catering events needing staff, upcoming banquets, and completed reservations at a glance.",
+        targetRef: statsRef,
+        placement: "bottom",
+      },
+      {
+        id: "manager_calendar",
+        title: "Operational Calendar",
+        description:
+          "View scheduled dates, verify venue readiness, and track banquet crew availability in real-time.",
+        targetRef: calendarRef,
+        placement: "bottom",
+      },
+    ],
+    []
+  );
 
   const loadSummary = useCallback(async () => {
     try {
@@ -110,7 +136,7 @@ export const ManagerDashboardScreen = ({ navigation }) => {
         ) : (
           <>
             {/* Quick Metrics Bar */}
-            <View style={styles.statsRow}>
+            <View ref={statsRef} collapsable={false} style={styles.statsRow}>
               <Card
                 style={styles.statBox}
                 onPress={() => navigation.navigate("ManagerBookings", { tab: "pending" })}
@@ -146,23 +172,25 @@ export const ManagerDashboardScreen = ({ navigation }) => {
             </View>
 
             {/* Calendar Quick Access Card */}
-            <Card
-              style={styles.calendarBanner}
-              onPress={() => navigation.navigate("ManagerCalendar")}
-            >
-              <View style={styles.calendarBannerContent}>
-                <View style={styles.calendarIconContainer}>
-                  <Sparkles size={22} color={colors.accentDark} />
+            <View ref={calendarRef} collapsable={false}>
+              <Card
+                style={styles.calendarBanner}
+                onPress={() => navigation.navigate("ManagerCalendar")}
+              >
+                <View style={styles.calendarBannerContent}>
+                  <View style={styles.calendarIconContainer}>
+                    <Sparkles size={22} color={colors.accentDark} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.calendarBannerTitle}>Operational Calendar</Text>
+                    <Text style={styles.calendarBannerSubtitle}>
+                      View event dates, your availability & staff coverage
+                    </Text>
+                  </View>
+                  <ChevronRight size={20} color={colors.foregroundMuted} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.calendarBannerTitle}>Operational Calendar</Text>
-                  <Text style={styles.calendarBannerSubtitle}>
-                    View event dates, your availability & staff coverage
-                  </Text>
-                </View>
-                <ChevronRight size={20} color={colors.foregroundMuted} />
-              </View>
-            </Card>
+              </Card>
+            </View>
 
             {/* Action Required: Unassigned Bookings */}
             <View style={styles.sectionHeader}>
@@ -294,6 +322,9 @@ export const ManagerDashboardScreen = ({ navigation }) => {
           </>
         )}
       </ScrollView>
+
+      {/* In-App Coach Marks Feature Tour */}
+      <CoachMarkSequence screenKey="manager_dashboard" steps={coachMarkSteps} />
     </View>
   );
 };

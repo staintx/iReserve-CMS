@@ -23,6 +23,7 @@ import {
   PlayfairDisplay_700Bold,
 } from "@expo-google-fonts/playfair-display";
 import { AuthProvider } from "./src/context/AuthContext";
+import { OnboardingProvider } from "./src/context/OnboardingContext";
 import { SocketProvider } from "./src/context/SocketContext";
 import { NetworkProvider } from "./src/context/NetworkContext";
 import OfflineBanner from "./src/components/common/OfflineBanner";
@@ -75,12 +76,14 @@ export default function App() {
     <SafeAreaProvider>
       <NetworkProvider>
         <AuthProvider>
-          <SocketProvider>
-            <StatusBar style="dark" />
-            <OfflineBanner />
-            <InAppNotificationBanner />
-            <RootNavigator fontsLoaded={fontsLoaded} />
-          </SocketProvider>
+          <OnboardingProvider>
+            <SocketProvider>
+              <StatusBar style="dark" />
+              <OfflineBanner />
+              <InAppNotificationBanner />
+              <RootNavigator fontsLoaded={fontsLoaded} />
+            </SocketProvider>
+          </OnboardingProvider>
         </AuthProvider>
       </NetworkProvider>
     </SafeAreaProvider>

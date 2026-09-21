@@ -22,9 +22,6 @@ import {
   RefreshCw,
   MessageSquare,
   UserCheck,
-  Boxes,
-  PackageCheck,
-  PackagePlus,
   Eye,
   ShieldCheck,
   UserPlus,
@@ -46,8 +43,6 @@ import {
 import AdminLayout from "../../components/layout/AdminLayout";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
-import AssignEquipmentModal from "../../components/admin/ui/AssignEquipmentModal";
-import VerifyEquipmentReturnsModal from "../../components/admin/ui/VerifyEquipmentReturnsModal";
 import AdminAssignStaffModal from "../../components/admin/ui/AdminAssignStaffModal";
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
@@ -94,8 +89,6 @@ export default function AdminBookingDetails() {
   const [showAssignTeamModal, setShowAssignTeamModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
-  const [showEquipmentModal, setShowEquipmentModal] = useState(false);
-  const [showVerifyReturnsModal, setShowVerifyReturnsModal] = useState(false);
   const [showProposalModal, setShowProposalModal] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
@@ -951,7 +944,7 @@ export default function AdminBookingDetails() {
                 id: "staff_equipment", 
                 label: "Staff & Equipment", 
                 icon: Users,
-                count: (booking.staff_assignments?.length || 0) + (booking.inventory_items?.length || 0)
+                count: booking.staff_assignments?.length || undefined
               },
               { 
                 id: "financials_history", 
@@ -1561,83 +1554,6 @@ export default function AdminBookingDetails() {
                 )}
               </div>
 
-              {/* Equipment & Inventory Management */}
-              <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <Boxes size={13} className="text-primary" /> Assigned Equipment &amp; Rentals
-                    </h3>
-                    <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                      {booking.inventory_items?.length || 0} Items
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {booking.inventory_items && booking.inventory_items.length > 0 && (
-                      <Btn
-                        size="xs"
-                        variant="secondary"
-                        onClick={() => setShowVerifyReturnsModal(true)}
-                        className="text-emerald-700 bg-emerald-50 border-emerald-200"
-                      >
-                        <PackageCheck size={12} /> Verify Returns
-                      </Btn>
-                    )}
-                    <Btn
-                      size="xs"
-                      variant="primary"
-                      onClick={() => setShowEquipmentModal(true)}
-                    >
-                      <PackagePlus size={12} /> Manage Equipment
-                    </Btn>
-                  </div>
-                </div>
-
-                {booking.inventory_items && booking.inventory_items.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
-                    {booking.inventory_items.map((item, idx) => {
-                      const invName = item.name || item.inventory_id?.item_name || "Equipment Item";
-                      const qty = item.quantity || 0;
-                      const returnRecord = (booking.equipment_returns || []).find(r => 
-                        String(r.inventory_id?._id || r.inventory_id) === String(item.inventory_id?._id || item.inventory_id)
-                      );
-
-                      return (
-                        <div key={idx} className="p-3 bg-card border border-border/60 rounded-lg flex flex-col justify-between space-y-2 shadow-2xs">
-                          <div className="flex items-start justify-between gap-1">
-                            <span className="font-bold text-foreground leading-snug">{invName}</span>
-                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-muted text-foreground shrink-0">
-                              x{qty}
-                            </span>
-                          </div>
-                          <div className="pt-2 border-t border-border/40 text-[11px]">
-                            {returnRecord?.quantity_damaged > 0 ? (
-                              <span className="text-rose-700 font-bold flex items-center gap-1">
-                                <AlertTriangle size={11} /> Damaged ({returnRecord.quantity_damaged}/{qty})
-                              </span>
-                            ) : returnRecord?.verified_at ? (
-                              <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                                <PackageCheck size={11} /> Returned Clean
-                              </span>
-                            ) : (
-                              <span className="text-amber-700 font-medium">Reserved on Site</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div 
-                    onClick={() => setShowEquipmentModal(true)}
-                    className="p-5 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
-                  >
-                    <Boxes size={18} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
-                    <p className="text-xs font-semibold text-foreground">No Equipment Assigned</p>
-                    <p className="text-[11px] text-muted-foreground">Click here to reserve tables, chairs, chafing dishes, and staging items.</p>
-                  </div>
-                )}
-              </div>
 
             </div>
           )}
@@ -1745,21 +1661,6 @@ export default function AdminBookingDetails() {
         {/* 4. MODALS & SUB-COMPONENTS (100% PRESERVED)                  */}
         {/* ============================================================ */}
 
-        {/* Modal: Equipment Assignment */}
-        <AssignEquipmentModal
-          booking={booking}
-          open={showEquipmentModal}
-          onClose={() => setShowEquipmentModal(false)}
-          onSave={loadData}
-        />
-
-        {/* Modal: Equipment Return & Damage Verification */}
-        <VerifyEquipmentReturnsModal
-          booking={booking}
-          open={showVerifyReturnsModal}
-          onClose={() => setShowVerifyReturnsModal(false)}
-          onSave={loadData}
-        />
 
         {/* Modal: Revision Proposal Review */}
         <RevisionProposalModal

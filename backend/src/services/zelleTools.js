@@ -128,8 +128,8 @@ const CUSTOMER_TOOLS = [
     },
   },
   {
-    name: "create_inquiry_draft",
-    description: "Create an official inquiry draft from the gathered conversation details for admin review.",
+    name: "prepare_inquiry_form_data",
+    description: "Prepare catering requirements and preferences discussed with the customer into structured data to pre-fill the official booking inquiry form.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -137,17 +137,17 @@ const CUSTOMER_TOOLS = [
           type: "STRING",
           description: "Type of event (e.g., 'Wedding', 'Debut', 'Birthday Party', 'Corporate Event').",
         },
+        guest_count: {
+          type: "NUMBER",
+          description: "Estimated number of guests.",
+        },
         event_date: {
           type: "STRING",
-          description: "Target event date in YYYY-MM-DD format.",
+          description: "Target event date in YYYY-MM-DD format if discussed.",
         },
         start_time: {
           type: "STRING",
           description: "Estimated start time (e.g., '14:00' or '2:00 PM').",
-        },
-        guest_count: {
-          type: "NUMBER",
-          description: "Expected number of guests.",
         },
         service_type: {
           type: "STRING",
@@ -155,36 +155,39 @@ const CUSTOMER_TOOLS = [
         },
         package_id: {
           type: "STRING",
-          description: "ID of selected package if chosen, otherwise leave blank.",
+          description: "ObjectId of the chosen or recommended package if available.",
+        },
+        package_name: {
+          type: "STRING",
+          description: "Name of the chosen or recommended package.",
         },
         budget_range: {
           type: "STRING",
-          description: "Customer's budget estimate or range (e.g., '₱60,000 - ₱70,000').",
+          description: "Customer's budget estimate or range.",
         },
         province: {
           type: "STRING",
-          description: "Event location province.",
+          description: "Event location province (default: Batangas).",
         },
         municipality: {
           type: "STRING",
-          description: "Event location municipality / city.",
+          description: "Event location municipality or city.",
         },
         street: {
           type: "STRING",
-          description: "Event venue address / landmark / street.",
+          description: "Event venue address, landmark, or street.",
         },
         special_requests: {
           type: "STRING",
-          description: "Special requests, dietary requirements, or theme notes.",
+          description: "Special requests, dietary preferences, theme, or dish notes.",
         },
       },
-      required: ["event_type", "event_date", "start_time", "guest_count"],
     },
   },
 ];
 
 const ADMIN_TOOLS = [
-  ...CUSTOMER_TOOLS.filter((t) => t.name !== "create_inquiry_draft"),
+  ...CUSTOMER_TOOLS.filter((t) => t.name !== "prepare_inquiry_form_data"),
   {
     name: "get_inquiry",
     description: "Get full details of an inquiry by reference code or ID.",
@@ -225,60 +228,6 @@ const ADMIN_TOOLS = [
         search: {
           type: "STRING",
           description: "Search for specific equipment (e.g., 'Chairs', 'Tables', 'Chafing Dish').",
-        },
-      },
-    },
-  },
-  {
-    name: "draft_quotation",
-    description: "Compute and draft a recommended quotation line breakdown for an inquiry.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        inquiry_id: {
-          type: "STRING",
-          description: "The inquiry ID to draft quotation for.",
-        },
-        package_id: {
-          type: "STRING",
-          description: "The recommended Package ID.",
-        },
-        addon_names: {
-          type: "ARRAY",
-          items: { type: "STRING" },
-          description: "List of recommended add-on names.",
-        },
-      },
-      required: ["inquiry_id"],
-    },
-  },
-  {
-    name: "draft_response",
-    description: "Draft a helpful customer message response based on recent inquiry or conversation context.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        conversation_id: {
-          type: "STRING",
-          description: "ID of the customer conversation.",
-        },
-        intent_notes: {
-          type: "STRING",
-          description: "Guidance on what to tell the customer (e.g. 'confirm Dec 15 availability and ask for guest count').",
-        },
-      },
-      required: ["conversation_id"],
-    },
-  },
-  {
-    name: "summarize_feedback",
-    description: "Aggregate recent customer ratings, reviews, and sentiment insights.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        days: {
-          type: "NUMBER",
-          description: "Number of past days to analyze (default 90).",
         },
       },
     },

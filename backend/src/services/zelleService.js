@@ -85,15 +85,10 @@ function extractUiCards(toolExecutions) {
         type: "payment_summary",
         data: result,
       });
-    } else if (name === "create_inquiry_draft" && result.success) {
+    } else if (name === "prepare_inquiry_form_data" && result?.success) {
       cards.push({
-        type: "inquiry_confirmation",
-        data: result.details,
-      });
-    } else if (name === "draft_quotation" && !result.error) {
-      cards.push({
-        type: "quotation_draft",
-        data: result,
+        type: "prepare_inquiry_form",
+        data: result.prefill_data,
       });
     }
   }
@@ -238,101 +233,7 @@ async function chatWithZelle({
   };
 }
 
-/**
- * Perform AI Sentiment & Operational Insights Analysis on Customer Ratings
- */
-async function analyzeFeedbackInsights({ days = 90 }) {
-  const sinceDate = days > 0 ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : new Date(0);
-  const ratings = await Rating.find({ createdAt: { $gte: sinceDate } })
-    .populate("customer_id", "full_name first_name")
-    .sort({ createdAt: -1 })
-    .lean();
-
-  const totalReviews = ratings.length;
-  if (totalReviews === 0) {
-    return {
-      summary_period: days > 0 ? `Last ${days} days` : "All time",
-      total_reviews: 0,
-      average_rating: 5.0,
-      sentiment_distribution: { positive_pct: 100, neutral_pct: 0, negative_pct: 0 },
-      executive_summary: "No customer ratings recorded in this time range yet.",
-      top_strengths: ["Clean catering operations", "Reliable booking schedule"],
-      areas_for_improvement: ["Keep collecting reviews after events"],
-      featured_quotes: [],
-    };
-  }
-
-  const avgRating = ratings.reduce((sum, r) => sum + (r.stars || 5), 0) / totalReviews;
-  const reviewsList = ratings
-    .map(
-      (r) =>
-        `(${r.stars} Stars) ${r.customer_id?.full_name || "Customer"}: "${r.review || "No written comment"}"`
-    )
-    .join("\n");
-
-  const prompt = `
-You are an expert hospitality business analyst for Caezelle's Catering Services.
-Analyze the following customer reviews and produce an operational intelligence report.
-
-Summary Metrics:
-- Total Reviews: ${totalReviews}
-- Average Rating: ${avgRating.toFixed(1)} / 5 stars
-
-Customer Reviews:
-${reviewsList}
-
-Output a STRICT JSON object (no markdown formatting, no code fences, only valid JSON) matching this structure:
-{
-  "summary_period": "${days > 0 ? `Last ${days} days` : "All time"}",
-  "total_reviews": ${totalReviews},
-  "average_rating": ${Number(avgRating.toFixed(1))},
-  "sentiment_distribution": {
-    "positive_pct": 85,
-    "neutral_pct": 10,
-    "negative_pct": 5
-  },
-  "executive_summary": "2 to 3 concise sentences summarizing customer sentiment, popular dishes/services praised, and overall business health.",
-  "top_strengths": [
-    "2 to 4 bullet points highlighting specific praised aspects (e.g. food quality, crew punctuality, presentation)"
-  ],
-  "areas_for_improvement": [
-    "1 to 3 constructive action points based on customer feedback (or 'None reported - maintain high service standards' if all positive)"
-  ],
-  "featured_quotes": [
-    "1 to 3 authentic positive customer review quotes"
-  ]
-}
-`.trim();
-
-  try {
-    const ai = getGenAI();
-    const model = ai.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-3.6-flash" });
-    const result = await model.generateContent(prompt);
-    const text = result.response
-      .text()
-      .trim()
-      .replace(/^```json/i, "")
-      .replace(/^```/i, "")
-      .replace(/```$/i, "")
-      .trim();
-
-    return JSON.parse(text);
-  } catch (err) {
-    console.error("AI Feedback Analysis error:", err);
-    return {
-      summary_period: days > 0 ? `Last ${days} days` : "All time",
-      total_reviews: totalReviews,
-      average_rating: Number(avgRating.toFixed(1)),
-      sentiment_distribution: { positive_pct: 90, neutral_pct: 10, negative_pct: 0 },
-      executive_summary: `Analyzed ${totalReviews} customer reviews with an average score of ${avgRating.toFixed(1)}/5 stars. Customers express strong satisfaction with catering quality.`,
-      top_strengths: ["High customer satisfaction", "Positive food reviews"],
-      areas_for_improvement: ["Keep collecting reviews after events"],
-      featured_quotes: ratings.filter((r) => r.review).slice(0, 3).map((r) => r.review),
-    };
-  }
-}
-
 module.exports = {
   chatWithZelle,
-  analyzeFeedbackInsights,
 };
+

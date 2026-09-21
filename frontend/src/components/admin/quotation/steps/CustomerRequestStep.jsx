@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { formatShortDate } from "../../../../utils/format";
 import { EVENT_TYPES, OTHER_EVENT_TYPE } from "../../../../lib/eventTypes";
+import DishThumbnail from "../DishThumbnail";
 
 const INPUT_BASE =
   "w-full rounded-md border bg-white px-3 py-1.5 text-xs text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-500 placeholder:text-slate-400";
@@ -39,6 +40,8 @@ export default function CustomerRequestStep({
   cateringIncluded,
   isFoodOnly,
   isSetupOnly,
+  isSpecialOffer,
+  catalogMenuItems = [],
   errors = {},
   isEditMode,
   setIsEditMode,
@@ -270,18 +273,18 @@ export default function CustomerRequestStep({
           </div>
 
           {/* Section 3: Customer Selected Menu Dishes */}
-          {cateringIncluded ? (
+          {(cateringIncluded || (customerSelection?.dishes && customerSelection.dishes.length > 0)) ? (
             <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                   <Utensils size={13} className="text-primary" /> Customer Menu Selections
                 </span>
-                <span className="text-xs font-semibold text-slate-600">
-                  {customerSelection.dishes.length} {customerSelection.dishes.length === 1 ? "Dish" : "Dishes"} Selected
+                <span className="text-xs font-semibold text-slate-600 font-mono">
+                  {customerSelection?.dishes?.length || 0} {(customerSelection?.dishes?.length || 0) === 1 ? "Dish" : "Dishes"} Selected
                 </span>
               </div>
 
-              {customerSelection.dishes.length === 0 ? (
+              {!customerSelection?.dishes || customerSelection.dishes.length === 0 ? (
                 <p className="text-xs text-slate-500 italic py-1">
                   No menu dishes were pre-selected by the customer. You will add dishes in the next step.
                 </p>
@@ -290,21 +293,30 @@ export default function CustomerRequestStep({
                   {customerSelection.dishes.map((dish, i) => (
                     <div
                       key={i}
-                      className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200/80"
+                      className="flex items-center justify-between gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200/80 hover:bg-slate-100/50 transition-colors shadow-2xs"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-5 h-5 rounded bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0">
-                          {i + 1}
-                        </span>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <DishThumbnail
+                          dish={dish}
+                          catalogMenuItems={catalogMenuItems}
+                          size="sm"
+                        />
                         <div className="min-w-0">
-                          <span className="font-semibold text-slate-800 truncate block">
+                          <span className="font-semibold text-slate-900 truncate block" title={dish.name}>
                             {dish.name || "Selected Dish"}
                           </span>
                           {dish.category && (
-                            <span className="text-[10px] text-slate-500 block">{dish.category}</span>
+                            <span className="text-[10px] text-slate-500 font-medium block truncate">
+                              {dish.category}
+                            </span>
                           )}
                         </div>
                       </div>
+                      {isSpecialOffer || dish.isSpecialInclusion ? (
+                        <span className="shrink-0 font-mono text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.5 rounded">
+                          Included
+                        </span>
+                      ) : null}
                     </div>
                   ))}
                 </div>

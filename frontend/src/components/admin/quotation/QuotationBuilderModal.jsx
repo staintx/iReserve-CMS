@@ -445,25 +445,109 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   // Customer Original Selection
   const customerSelection = useMemo(() => {
-    const dishes = (Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : [])
-      .filter(Boolean)
-      .map((item) =>
-        item && typeof item === "object"
-          ? {
-              id: String(item._id || ""),
-              name: item.name || "",
-              category: item.category || "",
-              price: Number(item.price) || 0,
+    let dishes = [];
+
+    if (isSpecial) {
+      // 1. For Special Offers:
+      // Priority A: inquiry.offer_food_snapshot (saved selections by customer)
+      // Priority B: offerContext?.foodItems
+      // Priority C: packageRecord ? offerFoodItems(packageRecord)
+      // Priority D: inquiry.selected_menu
+      let sourceList = [];
+      if (Array.isArray(inquiry?.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0) {
+        sourceList = inquiry.offer_food_snapshot.map((f) => ({
+          name: f.item_name || f.name || "",
+          category: f.menu_category || f.category || "",
+          image_url: f.image_url || "",
+        }));
+      } else if (offerContext?.foodItems && offerContext.foodItems.length > 0) {
+        sourceList = offerContext.foodItems.map((f) => ({
+          name: f.name || f.item_name || "",
+          category: f.category || f.menu_category || "",
+          image_url: f.image_url || "",
+        }));
+      } else if (packageRecord) {
+        sourceList = offerFoodItems(packageRecord).map((f) => ({
+          name: f.item_name || f.name || "",
+          category: f.menu_category || f.category || "",
+          image_url: f.image_url || "",
+        }));
+      }
+
+      if (sourceList.length === 0 && Array.isArray(inquiry?.selected_menu) && inquiry.selected_menu.length > 0) {
+        sourceList = inquiry.selected_menu.map((item) => {
+          if (item && typeof item === "object") {
+            return {
+              name: item.name || item.item_name || "",
+              category: item.category || item.menu_category || "",
               image_url: item.image_url || "",
-            }
-          : { id: String(item), name: "", category: "", price: 0, image_url: "" }
-      );
+            };
+          }
+          const str = String(item || "").trim();
+          const matched = catalogMenuItems.find(
+            (c) => String(c._id) === str || (c.name || "").trim().toLowerCase() === str.toLowerCase()
+          );
+          return {
+            name: matched?.name || str,
+            category: matched?.category || "",
+            image_url: matched?.image_url || "",
+          };
+        });
+      }
+
+      dishes = sourceList
+        .filter((d) => Boolean(d.name))
+        .map((d) => ({
+          id: d.id || d.name,
+          name: d.name,
+          category: d.category,
+          price: 0,
+          isSpecialInclusion: true,
+          image_url: d.image_url || resolveDishImageUrl({ name: d.name }, catalogMenuItems) || "",
+        }));
+    } else {
+      // 2. For Regular / Default Packages:
+      const rawMenu = (Array.isArray(inquiry?.selected_menu) && inquiry.selected_menu.length > 0)
+        ? inquiry.selected_menu
+        : (Array.isArray(inquiry?.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0)
+          ? inquiry.offer_food_snapshot
+          : [];
+
+      dishes = rawMenu
+        .filter(Boolean)
+        .map((item) => {
+          if (item && typeof item === "object") {
+            const dishName = item.name || item.item_name || "";
+            return {
+              id: String(item._id || item.id || ""),
+              name: dishName,
+              category: item.category || item.menu_category || "",
+              price: Number(item.price) || 0,
+              image_url: item.image_url || resolveDishImageUrl({ name: dishName }, catalogMenuItems) || "",
+            };
+          }
+          const strVal = String(item).trim();
+          const matched = catalogMenuItems.find(
+            (c) => String(c._id) === strVal || (c.name || "").trim().toLowerCase() === strVal.toLowerCase()
+          );
+          const dishName = matched?.name || strVal;
+          return {
+            id: matched?._id ? String(matched._id) : strVal,
+            name: dishName,
+            category: matched?.category || "",
+            price: Number(matched?.price) || 0,
+            image_url: matched?.image_url || resolveDishImageUrl({ name: dishName }, catalogMenuItems) || "",
+          };
+        })
+        .filter((d) => Boolean(d.name));
+    }
+
     return {
       dishes,
-      wantedFood: cateringRequested(inquiry),
+      wantedFood: isSpecial || cateringRequested(inquiry) || dishes.length > 0,
       serviceType: inquiry?.service_type || "",
     };
-  }, [inquiry]);
+  }, [inquiry, isSpecial, offerContext, packageRecord, catalogMenuItems]);
 
   const municipalities = useMemo(() => getBatangasMunicipalities(), []);
   const barangays = useMemo(() => getBatangasBarangays(details.municipality), [details.municipality]);
@@ -1610,6 +1694,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               isFoodOnly={isFoodOnly}
               isSetupOnly={isSetupOnly}
               offerContext={offerContext}
+              isSpecialOffer={isSpecial}
+              catalogMenuItems={catalogMenuItems}
               errors={errors}
               isEditMode={isCustomerEditMode}
               setIsEditMode={setIsCustomerEditMode}

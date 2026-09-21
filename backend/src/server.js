@@ -8,7 +8,6 @@ const morgan = require("morgan");
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
-const cookie = require("cookie");
 const compression = require("compression");
 
 const connectDB = require("./config/db");
@@ -152,9 +151,27 @@ setIo(io);
 
 startCronJobs(io);
 
+const parseCookies = (cookieHeader = "") => {
+	const cookies = {};
+	if (!cookieHeader) return cookies;
+	cookieHeader.split(";").forEach((pair) => {
+		const idx = pair.indexOf("=");
+		if (idx > -1) {
+			const key = pair.slice(0, idx).trim();
+			const val = pair.slice(idx + 1).trim();
+			try {
+				cookies[key] = decodeURIComponent(val);
+			} catch {
+				cookies[key] = val;
+			}
+		}
+	});
+	return cookies;
+};
+
 io.use(async (socket, next) => {
 	try {
-		const cookies = cookie.parse(socket.handshake.headers.cookie || "");
+		const cookies = parseCookies(socket.handshake.headers.cookie || "");
 		let token = cookies.token || socket.handshake.auth?.token || socket.handshake.query?.token;
 		if (!token) {
 			// Allow anonymous sockets to connect (they won't join private rooms).

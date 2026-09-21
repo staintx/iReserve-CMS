@@ -1,6 +1,6 @@
 const asyncHandler = require("../utils/asyncHandler");
 const ZelleConversation = require("../models/ZelleConversation");
-const { chatWithZelle, analyzeFeedbackInsights } = require("../services/zelleService");
+const { chatWithZelle } = require("../services/zelleService");
 const { executeTool } = require("../services/zelleToolExecutor");
 
 // Customer AI Concierge Chat
@@ -186,21 +186,9 @@ exports.adminChat = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
-// Admin: AI Quotation Recommendation Draft
+// Admin: AI Quotation Recommendation Draft (Deprecated)
 exports.adminDraftQuotation = asyncHandler(async (req, res) => {
-  const { inquiry_id, package_id, addon_names } = req.body;
-
-  if (!inquiry_id) {
-    return res.status(400).json({ message: "inquiry_id is required." });
-  }
-
-  const draft = await executeTool("draft_quotation", {
-    inquiry_id,
-    package_id,
-    addon_names,
-  }, { user: req.user });
-
-  res.json(draft);
+  res.json({ message: "AI quotation drafting has been replaced with manual review." });
 });
 
 // Admin: AI Response Draft
@@ -226,9 +214,7 @@ exports.adminDraftResponse = asyncHandler(async (req, res) => {
   });
 });
 
-// Admin: Feedback Summarization
+// Admin: Feedback Summarization (Deprecated)
 exports.adminFeedbackSummary = asyncHandler(async (req, res) => {
-  const days = Number(req.query.days) || 90;
-  const summary = await analyzeFeedbackInsights({ days });
-  res.json(summary);
+  res.json({ message: "Feedback summarization has been retired." });
 });

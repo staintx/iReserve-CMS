@@ -328,56 +328,94 @@ export function DateAvailabilityCard({ data, onStartInquiry }) {
 }
 
 /**
- * Inquiry Confirmation Card
+ * Prepare Inquiry / Pre-filled Form Card
  */
-export function InquiryConfirmationCard({ data }) {
+export function PrepareInquiryCard({ data }) {
   const navigate = useNavigate();
   if (!data) return null;
 
+  const handleContinue = () => {
+    navigate("/customer/book", {
+      state: {
+        prefillData: data,
+        resetWizard: true,
+      },
+    });
+  };
+
   return (
-    <div className="my-2.5 p-3.5 rounded-md bg-slate-50 border border-slate-200 shadow-2xs text-slate-900 max-w-md font-sans">
+    <div className="my-2.5 p-3.5 rounded-md bg-gradient-to-b from-blue-50/60 to-slate-50 border border-[#2C4B8A]/20 shadow-2xs text-slate-900 max-w-md font-sans">
       <div className="flex items-center gap-2 mb-2">
         <div className="w-7 h-7 rounded bg-[#2C4B8A]/10 text-[#2C4B8A] flex items-center justify-center shrink-0">
-          <Sparkles className="w-3.5 h-3.5" />
+          <Sparkles className="w-3.5 h-3.5 text-[#2C4B8A]" />
         </div>
         <div>
-          <h4 className="font-sans font-bold text-xs text-slate-900">Inquiry Draft Submitted</h4>
-          <p className="text-[10px] text-slate-500">Ref: <span className="font-mono font-bold text-[#2C4B8A]">{data.reference}</span></p>
+          <h4 className="font-sans font-bold text-xs text-slate-900">Catering Inquiry Prepared</h4>
+          <p className="text-[10px] text-slate-500">Your preferences are ready for the official booking form</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-md p-2.5 border border-slate-200 text-xs space-y-1 my-2 text-[11px]">
-        <div className="flex justify-between">
-          <span className="text-slate-500">Event:</span>
-          <span className="font-semibold text-slate-900">{data.event_type}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-slate-500">Guests:</span>
-          <span className="font-semibold text-slate-900">{data.guest_count} guests</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-slate-500">Date:</span>
-          <span className="font-semibold text-slate-900">{data.event_date}</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="text-slate-500">Status:</span>
-          <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-            {data.status || "Pending Review"}
-          </span>
-        </div>
+      <div className="bg-white rounded-md p-3 border border-slate-200 text-xs space-y-1.5 my-2 text-[11px] shadow-2xs">
+        {data.event_type && (
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500">Event Type:</span>
+            <span className="font-semibold text-slate-900">{data.event_type}</span>
+          </div>
+        )}
+        {data.guest_count && (
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500">Guest Count:</span>
+            <span className="font-semibold text-slate-900">{data.guest_count} guests</span>
+          </div>
+        )}
+        {data.package_name && (
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500">Package:</span>
+            <span className="font-semibold text-[#2C4B8A]">{data.package_name}</span>
+          </div>
+        )}
+        {data.service_type && (
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500">Service Type:</span>
+            <span className="font-semibold text-slate-900">{data.service_type}</span>
+          </div>
+        )}
+        {data.event_date && (
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500">Target Date:</span>
+            <span className="font-semibold text-slate-900">{data.event_date}</span>
+          </div>
+        )}
+        {data.municipality && (
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500">Location:</span>
+            <span className="font-semibold text-slate-900">{data.municipality}</span>
+          </div>
+        )}
+        {data.budget_range && (
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500">Budget:</span>
+            <span className="font-semibold text-slate-900">{data.budget_range}</span>
+          </div>
+        )}
       </div>
 
       <p className="text-[10px] text-slate-500 mb-2.5 leading-relaxed">
-        Our catering coordinators have received your draft. They will review food &amp; setup availability and send an official Quotation to your portal soon.
+        Click below to review these details in our official booking wizard, select your dishes, and submit your inquiry for an official quotation.
       </p>
 
       <Button
         size="xs"
-        className="w-full text-xs h-8 rounded-md bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-2xs cursor-pointer font-semibold"
-        onClick={() => navigate("/customer/inquiries")}
+        className="w-full text-xs h-8 rounded-md bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-2xs cursor-pointer font-semibold flex items-center justify-center gap-1.5"
+        onClick={handleContinue}
       >
-        Track in My Inquiries
+        <span>Continue to Inquiry Form</span>
+        <ArrowRight className="w-3.5 h-3.5" />
       </Button>
     </div>
   );
 }
+
+// Keep export of InquiryConfirmationCard as an alias for backwards compatibility
+export const InquiryConfirmationCard = PrepareInquiryCard;
+

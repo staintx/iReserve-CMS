@@ -134,14 +134,16 @@ export default function BookingWizard() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // --- Entry context (package page, landing modal, or a bare "Book" link) ---
-  const initialEventType = location.state?.eventType || "";
-  const initialServiceType = location.state?.serviceType || "";
-  const initialPackageId = location.state?.packageId || null;
+  const prefill = location.state?.prefillData || {};
+
+  // --- Entry context (package page, landing modal, prefillData, or a bare "Book" link) ---
+  const initialEventType = prefill.event_type || location.state?.eventType || "";
+  const initialServiceType = prefill.service_type || location.state?.serviceType || "";
+  const initialPackageId = prefill.package_id || location.state?.packageId || null;
   const initialPackagePrice = location.state?.packagePrice || 0;
-  const initialPackageName = location.state?.packageName || "";
-  const initialGuestMin = location.state?.guestMin || null;
-  const initialGuestMax = location.state?.guestMax || null;
+  const initialPackageName = prefill.package_name || location.state?.packageName || "";
+  const initialGuestMin = prefill.guest_count || location.state?.guestMin || null;
+  const initialGuestMax = prefill.guest_count || location.state?.guestMax || null;
   const initialScaffoldOptionId = location.state?.selectedScaffoldOptionId || "";
   const initialScaffoldWidth = location.state?.scaffoldWidth || undefined;
   const initialScaffoldLength = location.state?.scaffoldLength || undefined;
@@ -149,15 +151,63 @@ export default function BookingWizard() {
   const initialScaffoldPrice = location.state?.scaffoldPrice || undefined;
 
   const isCustomBooking = !initialPackageId;
-  const matchedServiceType = Object.values(SERVICE_TYPES).find(
-    (service) => service.toLowerCase() === initialServiceType.toLowerCase(),
-  );
+
+  const resolveServiceType = (str) => {
+    if (!str) return null;
+    const lower = String(str).toLowerCase();
+    if (lower.includes("food") && (lower.includes("setup") || lower.includes("full"))) {
+      return SERVICE_TYPES.FULL_SERVICE;
+    }
+    if (lower.includes("setup")) {
+      return SERVICE_TYPES.SETUP_ONLY;
+    }
+    if (lower.includes("food")) {
+      return SERVICE_TYPES.FOOD_ONLY;
+    }
+    return Object.values(SERVICE_TYPES).find((service) => service.toLowerCase() === lower) || null;
+  };
+
+  const matchedServiceType = resolveServiceType(initialServiceType);
   const shouldSkipServiceType = Boolean(initialPackageId || matchedServiceType);
 
   // The entry point suggests an event type; the customer can still change it on
   // the Event Details step, and an admin can change it again while quoting.
   const matchedType = matchEventType(initialEventType);
   const startsAsOtherType = isOtherEventType(initialEventType);
+
+  const normalizeDate = (raw) => {
+    if (!raw) return "";
+    const s = String(raw).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+    return "";
+  };
+
+  const normalizeStartTime = (raw) => {
+    if (!raw) return "";
+    const s = String(raw).trim();
+    if (/^\d{1,2}:\d{2}\s*(am|pm)$/i.test(s)) {
+      const parts = s.split(/\s+/);
+      const time = parts[0];
+      const ampm = parts[1] || "";
+      let [h, m] = time.split(":");
+      h = h.padStart(2, "0");
+      return `${h}:${m} ${ampm.toUpperCase()}`;
+    }
+    if (/^\d{1,2}:\d{2}$/.test(s)) {
+      let [h, m] = s.split(":").map(Number);
+      const ampm = h >= 12 ? "PM" : "AM";
+      h = h % 12 || 12;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
+    }
+    return s;
+  };
 
   const buildInitialForm = useCallback(
     () => ({
@@ -170,11 +220,11 @@ export default function BookingWizard() {
       custom_setup_scope: [],
       inspiration_images: [],
       custom_setup_notes: "",
-      budget_range: "",
-      event_date: "",
-      start_time: "",
+      budget_range: prefill.budget_range || "",
+      event_date: normalizeDate(prefill.event_date) || "",
+      start_time: normalizeStartTime(prefill.start_time) || "",
       duration_hours: "4",
-      guest_count: initialGuestMin ? String(initialGuestMin) : "50",
+      guest_count: prefill.guest_count ? String(prefill.guest_count) : (initialGuestMin ? String(initialGuestMin) : "50"),
       service_type: matchedServiceType || SERVICE_TYPES.FULL_SERVICE,
       include_food: matchedServiceType !== SERVICE_TYPES.SETUP_ONLY,
       package_id: initialPackageId || "",
@@ -190,10 +240,10 @@ export default function BookingWizard() {
       booking_for: "myself",
       celebrant_name: "",
       indoor_outdoor: "Indoor",
-      province: BATANGAS_PROVINCE,
-      municipality: "",
+      province: prefill.province || BATANGAS_PROVINCE,
+      municipality: prefill.municipality || "",
       barangay: "",
-      street: "",
+      street: prefill.street || "",
       landmark: "",
       zip_code: "",
       delivery_method: "delivery",
@@ -201,7 +251,7 @@ export default function BookingWizard() {
       selected_menu: [],
       dietary_restrictions: "",
       allergies: "",
-      special_requests: "",
+      special_requests: prefill.special_requests || "",
       additional_services: [],
       selected_package_addons: [],
       contact_first_name: (user?.first_name || parseName(user?.full_name || "").firstName || "").trim(),
@@ -219,7 +269,7 @@ export default function BookingWizard() {
   // A draft is only restored when the customer did not explicitly ask for a
   // fresh start (`resetWizard`, which every "Book an event" CTA sends).
   const restoredDraft = useMemo(() => {
-    if (location.state?.resetWizard) {
+    if (location.state?.resetWizard || location.state?.prefillData) {
       clearDraft(user?._id);
       return null;
     }

@@ -445,91 +445,36 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
         };
       }
 
-      case "create_inquiry_draft": {
-        if (!user) {
-          return {
-            success: false,
-            requires_login: true,
-            message: "To save and submit your inquiry draft, please log in or sign up. Your drafted details will be linked to your account!",
-          };
-        }
-
-        const parsedDate = new Date(params.event_date);
-        if (isNaN(parsedDate.getTime())) {
-          return { success: false, message: "Invalid event date." };
-        }
-
+      case "prepare_inquiry_form_data": {
         let pkg = null;
         if (params.package_id && mongoose.Types.ObjectId.isValid(params.package_id)) {
-          pkg = await Package.findById(params.package_id);
+          pkg = await Package.findById(params.package_id).select("name price_per_guest setup_price offer_type").lean();
+        } else if (params.package_name) {
+          pkg = await Package.findOne({ name: new RegExp(params.package_name, "i"), available: true })
+            .select("name price_per_guest setup_price offer_type")
+            .lean();
         }
 
-        // A combo is a fixed meal for a fixed number of guests, so a draft that
-        // asks for a different count is refused here exactly as it is on the
-        // inquiry route — the assistant must not be the one path that can book
-        // a 10-pax combo for 40 people.
-        if (isSpecialOffer(pkg)) {
-          const problem = offerBookingProblem(pkg, params.guest_count);
-          if (problem) return { success: false, message: problem };
-        }
-
-        const inquiryData = {
-          customer_id: user._id,
-          package_id: pkg?._id || null,
-          package_name_snapshot: pkg?.name || "Custom Draft",
-          booking_type: pkg?.offer_type === "special" ? "special" : pkg ? "regular" : "custom",
-          event_type: params.event_type,
-          event_date: parsedDate,
-          start_time: params.start_time || "12:00 PM",
-          guest_count: Number(params.guest_count) || (isSpecialOffer(pkg) ? offerGuestCount(pkg) || 1 : 50),
-          ...(isSpecialOffer(pkg)
-            ? {
-                offer_base_price: offerBaseFoodPrice(pkg, Number(params.guest_count) || offerGuestCount(pkg) || 1),
-                offer_food_snapshot: normalizeOfferSelection(pkg, []),
-              }
-            : {}),
-          service_type: isSpecialOffer(pkg)
-            ? (params.service_type || "Food and Event Setup")
-            : params.service_type || "Food and Event Setup",
-          ...(isSpecialOffer(pkg) ? { delivery_method: params.delivery_method || "setup" } : {}),
-          include_food: true,
+        const prefillData = {
+          event_type: params.event_type || "",
+          guest_count: params.guest_count ? Number(params.guest_count) : null,
+          event_date: params.event_date || "",
+          start_time: params.start_time || "",
+          service_type: params.service_type || "",
+          package_id: pkg?._id ? String(pkg._id) : (params.package_id || ""),
+          package_name: pkg?.name || params.package_name || "",
           budget_range: params.budget_range || "",
-          province: params.province || "",
+          province: params.province || "Batangas",
           municipality: params.municipality || "",
           street: params.street || "",
           special_requests: params.special_requests || "",
-          contact_first_name: user.first_name || user.full_name?.split(" ")[0] || "Customer",
-          contact_last_name: user.last_name || user.full_name?.split(" ").slice(1).join(" ") || "User",
-          contact_email: user.email,
-          contact_phone: user.phone || "09XXXXXXXXX",
-          status: "Pending Review",
         };
-
-        const inquiry = await Inquiry.create(inquiryData);
-
-        await notifyAdmins({
-          title: "New AI Guided Inquiry Draft",
-          body: `A new inquiry draft (${inquiry.reference}) for ${inquiry.event_type} (${inquiry.guest_count} guests) was submitted via Zelle AI.`,
-          type: "new_inquiry",
-          link: "/admin/bookings/inquiries",
-        }, io);
-
-        if (io) {
-          io.emit("system:refresh", { type: "inquiry", action: "create", id: inquiry._id });
-        }
 
         return {
           success: true,
-          inquiry_id: inquiry._id,
-          reference: inquiry.reference,
-          message: `Inquiry draft ${inquiry.reference} has been successfully submitted! Our team will review your requirements and prepare an official quotation.`,
-          details: {
-            reference: inquiry.reference,
-            event_type: inquiry.event_type,
-            guest_count: inquiry.guest_count,
-            event_date: inquiry.event_date.toLocaleDateString(),
-            status: "Pending Review",
-          },
+          ready_to_book: true,
+          message: "Catering details prepared for official booking inquiry.",
+          prefill_data: prefillData,
         };
       }
 
@@ -594,175 +539,6 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
             quantity_total: i.quantity,
             available_stock: i.quantity,
           })),
-        };
-      }
-
-      case "draft_quotation": {
-        const inq = await Inquiry.findById(params.inquiry_id).lean();
-        if (!inq) return { error: "Inquiry not found." };
-
-        const isSetupOnly = inq.service_type === "Event Setup Only";
-        const isFoodOnly = inq.service_type === "Food Only";
-        const isFullService = inq.service_type === "Food and Event Setup" || (!isSetupOnly && !isFoodOnly);
-
-        let pkg = null;
-        if (params.package_id && mongoose.Types.ObjectId.isValid(params.package_id)) {
-          pkg = await Package.findById(params.package_id).lean();
-        } else if (inq.package_id) {
-          pkg = await Package.findById(inq.package_id).lean();
-        }
-
-        if (!pkg && inq.event_type) {
-          const packageTypeFilter = isFoodOnly
-            ? "Food Only"
-            : isSetupOnly
-            ? "Event Setup Only"
-            : { $in: ["Food + Event Setup", "Event Setup Only", "Food Only"] };
-
-          pkg = await Package.findOne({
-            available: true,
-            event_type: new RegExp(inq.event_type, "i"),
-            package_type: packageTypeFilter,
-          }).lean();
-        }
-
-        if (!pkg) {
-          const packageTypeFilter = isFoodOnly
-            ? "Food Only"
-            : isSetupOnly
-            ? "Event Setup Only"
-            : undefined;
-
-          const query = { available: true };
-          if (packageTypeFilter) query.package_type = packageTypeFilter;
-
-          pkg = await Package.findOne(query).lean();
-          if (!pkg) {
-            pkg = await Package.findOne({ available: true }).lean();
-          }
-        }
-
-        const guestCount = inq.guest_count || 50;
-        let basePackagePrice = 0;
-
-        if (pkg) {
-          if (isSetupOnly && pkg.setup_price) {
-            basePackagePrice = pkg.setup_price;
-          } else if (isFoodOnly && pkg.price_per_guest) {
-            basePackagePrice = pkg.price_per_guest * guestCount;
-          } else if (pkg.price_per_guest && isFullService) {
-            basePackagePrice = (pkg.price_per_guest * guestCount) + (pkg.setup_price || 0);
-          } else if (pkg.setup_price) {
-            basePackagePrice = pkg.setup_price;
-          }
-        }
-
-        // Fetch real addons from DB
-        const availableAddons = await Addon.find({ available: true }).limit(10).lean();
-        let filteredAddons = availableAddons;
-        if (isFoodOnly) {
-          filteredAddons = availableAddons.filter((a) => {
-            const lower = (a.name || "").toLowerCase();
-            return lower.includes("food") || lower.includes("lechon") || lower.includes("drink") || lower.includes("dessert") || lower.includes("tray") || lower.includes("buffet") || lower.includes("crew");
-          });
-          if (filteredAddons.length === 0) filteredAddons = availableAddons;
-        } else if (isSetupOnly) {
-          filteredAddons = availableAddons.filter((a) => {
-            const lower = (a.name || "").toLowerCase();
-            return !lower.includes("food") && !lower.includes("lechon") && !lower.includes("dish") && !lower.includes("buffet");
-          });
-          if (filteredAddons.length === 0) filteredAddons = availableAddons;
-        }
-
-        const recommendedAddons = filteredAddons.slice(0, 2).map((a) => ({
-          name: a.name,
-          price: a.price || 2500,
-          pricing_type: a.pricing_type || "fixed",
-        }));
-
-        const addonsTotal = recommendedAddons.reduce((sum, a) => sum + (a.price || 0), 0);
-        const estimatedTotal = basePackagePrice + addonsTotal;
-        const depositPercentage = 0.2; // 20% default
-
-        const defaultInclusions = isSetupOnly
-          ? ["Themed Stage & Backdrop", "Accent Mood Lighting", "Tables & Tiffany Chairs", "Setup & Egress Crew"]
-          : isFoodOnly
-          ? ["Buffet Table Setup", "Chafing Dishes & Food Warmers", "Complete Dinnerware & Cutlery", "Service Crew"]
-          : ["Complete Buffet Setup", "Themed Backdrop & Styling", "Chafing Dishes & Warmers", "Service & Setup Crew"];
-
-        // Sanitize pkg inclusions if Food Only
-        let finalInclusions = defaultInclusions;
-        if (pkg?.inclusions?.length) {
-          if (isFoodOnly) {
-            const setupExclusions = ["backdrop", "stage", "scaffold", "tent", "couch", "grass carpet", "chandelier", "dove", "red carpet", "chair", "table", "fan"];
-            const foodInclusions = pkg.inclusions.filter((inc) => {
-              const lower = String(inc).toLowerCase();
-              return !setupExclusions.some((kw) => lower.includes(kw));
-            });
-            finalInclusions = foodInclusions.length ? foodInclusions : defaultInclusions;
-          } else {
-            finalInclusions = pkg.inclusions;
-          }
-        }
-
-        return {
-          inquiry_id: inq._id,
-          service_type: inq.service_type || (isFoodOnly ? "Food Only" : isSetupOnly ? "Event Setup Only" : "Food and Event Setup"),
-          customer_name: `${inq.contact_first_name} ${inq.contact_last_name}`,
-          recommended_package: pkg?.name || (isFoodOnly ? "Catering Food Package" : isSetupOnly ? "Event Setup Styling" : "Full Service Catering"),
-          package_id: pkg?._id || null,
-          starting_price: basePackagePrice,
-          inclusions: finalInclusions,
-          guest_count: guestCount,
-          estimated_package_cost: basePackagePrice,
-          recommended_addons: recommendedAddons,
-          addons_total: addonsTotal,
-          estimated_total: estimatedTotal,
-          deposit_amount: Math.round(estimatedTotal * depositPercentage),
-          admin_notes: `AI Suggestion: Tailored for ${inq.service_type || "Event"} - ${inq.event_type || "Event"} (${guestCount} guests)${
-            inq.budget_range ? ` matching budget estimate ${inq.budget_range}` : ""
-          }.${inq.special_requests ? ` Notes: ${inq.special_requests}` : ""}`,
-        };
-      }
-
-      case "draft_response": {
-        const conv = await Conversation.findById(params.conversation_id)
-          .populate("customer_id", "first_name full_name")
-          .lean();
-        if (!conv) return { error: "Conversation not found." };
-
-        const recentMessages = await Message.find({ conversation_id: conv._id })
-          .sort({ createdAt: -1 })
-          .limit(5)
-          .lean();
-
-        return {
-          customer_name: conv.customer_id?.first_name || "Customer",
-          last_customer_message: recentMessages[0]?.body || "",
-          context: params.intent_notes || "Polite status update",
-        };
-      }
-
-      case "summarize_feedback": {
-        const days = params.days || 90;
-        const sinceDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-
-        const ratings = await Rating.find({ createdAt: { $gte: sinceDate } })
-          .populate("customer_id", "full_name")
-          .lean();
-
-        const totalReviews = ratings.length;
-        const avgRating = totalReviews
-          ? ratings.reduce((sum, r) => sum + (r.stars || 5), 0) / totalReviews
-          : 5.0;
-
-        const reviews = ratings.map((r) => r.review).filter(Boolean);
-
-        return {
-          total_reviews: totalReviews,
-          average_rating: Number(avgRating.toFixed(1)),
-          sample_reviews: reviews.slice(0, 10),
-          summary_period: `Last ${days} days`,
         };
       }
 

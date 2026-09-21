@@ -19,7 +19,7 @@ import {
   PackageCarouselCard,
   DateAvailabilityCard,
   PaymentSummaryCard,
-  InquiryConfirmationCard,
+  PrepareInquiryCard,
 } from "./ZelleCards";
 import { Badge } from "../ui/badge";
 
@@ -260,7 +260,7 @@ export function ToolExecutionStepper({ toolExecutions, isExpandedDefault = false
     get_packages: { title: "Checking catering catalog", desc: "Retrieved package pricing and inclusions" },
     check_date_availability: { title: "Verifying calendar schedule", desc: "Checked booked dates and capacity" },
     get_my_payment_status: { title: "Reviewing payment records", desc: "Loaded balances, receipts, and deposits" },
-    draft_quotation: { title: "Analyzing quotation options", desc: "Computed package and add-on pricing" },
+    prepare_inquiry_form_data: { title: "Preparing inquiry details", desc: "Configured event preferences for booking form" },
   };
 
   return (
@@ -387,8 +387,8 @@ export default function ZelleMessage({
                     if (card.type === "payment_summary") {
                       return <PaymentSummaryCard key={cIdx} data={card.data} />;
                     }
-                    if (card.type === "inquiry_confirmation") {
-                      return <InquiryConfirmationCard key={cIdx} data={card.data} />;
+                    if (card.type === "prepare_inquiry_form" || card.type === "inquiry_confirmation") {
+                      return <PrepareInquiryCard key={cIdx} data={card.data} />;
                     }
                     return null;
                   })}

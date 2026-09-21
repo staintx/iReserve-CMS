@@ -23,6 +23,7 @@ import AIPackageParserModal from "./AIPackageParserModal";
 import { OFFER_TYPES, offerFoodItems, offerInclusions } from "../../../lib/specialOffers";
 import { parseInclusion as parseInclusionDisplay } from "../../../lib/packageDisplay";
 import { resolveGroup, CATEGORY_GROUPS } from "../../../lib/menuCategories";
+import QuickInventoryCreateDrawer from "../packages/QuickInventoryCreateDrawer";
 
 const cleanTextValue = (str) => {
   let val = String(str || "").trim();
@@ -305,6 +306,8 @@ function AutocompleteInput({
   sourceLabel = "Inventory",
   className = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary",
   disabled = false,
+  onCreateNew,
+  createActionLabel,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -372,6 +375,12 @@ function AutocompleteInput({
     }
   };
 
+  const isAddonSource = sourceLabel.toLowerCase().includes("addon");
+  const trimmedValue = String(value || "").trim();
+  const hasExactMatch = candidates.some(
+    (c) => c.toLowerCase() === trimmedValue.toLowerCase()
+  );
+
   return (
     <div ref={containerRef} className="relative flex-1 min-w-0">
       <input
@@ -389,40 +398,88 @@ function AutocompleteInput({
         className={className}
       />
       {isOpen && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto py-1 text-sm">
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto py-1 text-sm">
           <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 flex items-center justify-between">
             <span>Available from {sourceLabel}</span>
             <span className="font-normal font-mono text-[9px]">{filteredCandidates.length} items</span>
           </div>
           {filteredCandidates.length === 0 ? (
-            <div className="px-3 py-2.5 text-center text-xs text-gray-400 italic">
-              No matching items found in {sourceLabel}.
-            </div>
-          ) : (
-            filteredCandidates.map((item, idx) => {
-              const isSelected = item.toLowerCase() === String(value || "").trim().toLowerCase();
-              const isHighlighted = highlightedIndex === idx;
-              return (
-                <div
-                  key={idx}
+            <div className="px-4 py-3.5 text-center text-xs text-gray-500">
+              <p className="mb-2 text-gray-600">
+                {trimmedValue ? (
+                  <>
+                    No {isAddonSource ? "add-on" : "inventory item"} found for{" "}
+                    <strong className="text-gray-900 font-semibold">"{trimmedValue}"</strong>
+                  </>
+                ) : (
+                  <>No matching items found in {sourceLabel}.</>
+                )}
+              </p>
+              {onCreateNew && (
+                <button
+                  type="button"
                   onMouseDown={(e) => {
                     e.preventDefault();
-                    handleSelect(item);
+                    onCreateNew(trimmedValue);
+                    setIsOpen(false);
                   }}
-                  onMouseEnter={() => setHighlightedIndex(idx)}
-                  className={`px-3 py-1.5 cursor-pointer flex items-center justify-between transition-colors text-xs ${
-                    isHighlighted
-                      ? "bg-primary/10 text-primary font-medium"
-                      : isSelected
-                      ? "bg-blue-50/70 text-blue-700 font-semibold"
-                      : "text-gray-700 hover:bg-gray-50"
-                  }`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors shadow-2xs cursor-pointer"
                 >
-                  <span>{item}</span>
-                  {isSelected && <Check size={12} className="text-primary shrink-0" />}
+                  <Plus size={13} />
+                  {createActionLabel ||
+                    (isAddonSource
+                      ? "+ Create New Add-on"
+                      : "+ Create New Inventory Item")}
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {filteredCandidates.map((item, idx) => {
+                const isSelected = item.toLowerCase() === trimmedValue.toLowerCase();
+                const isHighlighted = highlightedIndex === idx;
+                return (
+                  <div
+                    key={idx}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelect(item);
+                    }}
+                    onMouseEnter={() => setHighlightedIndex(idx)}
+                    className={`px-3 py-1.5 cursor-pointer flex items-center justify-between transition-colors text-xs ${
+                      isHighlighted
+                        ? "bg-primary/10 text-primary font-medium"
+                        : isSelected
+                        ? "bg-blue-50/70 text-blue-700 font-semibold"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span>{item}</span>
+                    {isSelected && <Check size={12} className="text-primary shrink-0" />}
+                  </div>
+                );
+              })}
+              {onCreateNew && trimmedValue && !hasExactMatch && (
+                <div className="border-t border-gray-100 p-2 text-center bg-gray-50/70">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onCreateNew(trimmedValue);
+                      setIsOpen(false);
+                    }}
+                    className="inline-flex items-center gap-1 text-xs text-primary font-semibold hover:underline cursor-pointer"
+                  >
+                    <Plus size={12} />
+                    {createActionLabel ||
+                      (isAddonSource
+                        ? "+ Create New Add-on"
+                        : "+ Create New Inventory Item")}{" "}
+                    for "{trimmedValue}"
+                  </button>
                 </div>
-              );
-            })
+              )}
+            </>
           )}
         </div>
       )}
@@ -555,15 +612,56 @@ export default function PackageModal({
   const [editingComboInclusionIdx, setEditingComboInclusionIdx] = useState(null);
   const [editComboInclusionValue, setEditComboInclusionValue] = useState("");
 
-  // In-line editing states
-  const [editingInclusionStr, setEditingInclusionStr] = useState(null);
-  const [editInclusionData, setEditInclusionData] = useState({ name: "", qty: "" });
 
-  const [editingAddOnIdx, setEditingAddOnIdx] = useState(null);
-  const [editAddOnData, setEditAddOnData] = useState({
-    name: "",
-    qty: "",
+
+  // Quick In-Place Creation Drawer state for missing inventory / add-ons
+  const [quickDrawer, setQuickDrawer] = useState({
+    isOpen: false,
+    initialName: "",
+    category: "Event Setup & Furniture",
+    isAddon: false,
   });
+
+  const handleOpenQuickCreate = (name = "", category = "Event Setup & Furniture", isAddon = false) => {
+    setQuickDrawer({
+      isOpen: true,
+      initialName: name || "",
+      category: category || "Event Setup & Furniture",
+      isAddon: Boolean(isAddon),
+    });
+  };
+
+  const handleQuickCreateSuccess = (createdEntity, packageQty) => {
+    if (quickDrawer.isAddon) {
+      setAddonItems((prev) => [...prev, createdEntity]);
+      setFormData((prev) => ({
+        ...prev,
+        add_ons: [
+          ...(prev.add_ons || []),
+          {
+            name: createdEntity.name,
+            qty: String(packageQty || "1"),
+          },
+        ],
+      }));
+      setAddOnInput({ name: "", qty: "" });
+      setShowItemsList((prev) => ({ ...prev, addons: true }));
+    } else {
+      setInventoryItems((prev) => [...prev, createdEntity]);
+      const incStr = `[${createdEntity.category}] ${createdEntity.item_name} (${packageQty || 1})`;
+      setFormData((prev) => ({
+        ...prev,
+        inclusions: [...(prev.inclusions || []), incStr],
+      }));
+      if (createdEntity.category === "Dining & Service Inventory") {
+        setDiningInput({ name: "", qty: "" });
+        setShowItemsList((prev) => ({ ...prev, dining: true }));
+      } else {
+        setSetupInput({ name: "", qty: "" });
+        setShowItemsList((prev) => ({ ...prev, setup: true }));
+      }
+    }
+  };
 
   // Track currently selected inventory items to derive their live Total Quantity
   const selectedSetupInvItem = useMemo(() => {
@@ -586,15 +684,6 @@ export default function PackageModal({
     );
   }, [diningInput.name, inventoryItems]);
 
-  const selectedEditInvItem = useMemo(() => {
-    const clean = cleanTextValue(editInclusionData.name).toLowerCase();
-    if (!clean) return null;
-    return (
-      inventoryItems.find(
-        (item) => item.item_name && item.item_name.trim().toLowerCase() === clean
-      ) || null
-    );
-  }, [editInclusionData.name, inventoryItems]);
 
   const [newScaffoldOption, setNewScaffoldOption] = useState({
     label: "",
@@ -840,10 +929,7 @@ export default function PackageModal({
       (item) => item.toLowerCase() === nameToAdd.toLowerCase()
     );
     if (!matched) {
-      notify(
-        `"${nameToAdd}" is not an existing item in Event Setup & Furniture inventory. Please select an existing item.`,
-        "error"
-      );
+      handleOpenQuickCreate(nameToAdd, "Event Setup & Furniture", false);
       return;
     }
 
@@ -852,37 +938,46 @@ export default function PackageModal({
     );
     const maxQty = invItem?.quantity != null ? invItem.quantity : null;
 
-    const rawQty = setupInput.qty.trim();
-    if (rawQty) {
-      const qtyNum = parseInt(rawQty, 10);
-      if (isNaN(qtyNum) || qtyNum < 1) {
-        notify("Quantity must be a positive number.", "error");
+    // If already added, predictably increment its package quantity
+    const existingInc = (formData.inclusions || []).find((inc) => {
+      const p = parseInclusion(inc);
+      return p.name.toLowerCase() === matched.toLowerCase();
+    });
+
+    if (existingInc) {
+      const parsed = parseInclusion(existingInc);
+      const currentQty = parseInt(parsed.qty, 10) || 1;
+      const nextQty = currentQty + 1;
+      if (maxQty != null && nextQty > maxQty) {
+        notify(`Maximum available Total Quantity in inventory is ${maxQty}.`, "info");
         return;
       }
-      if (maxQty != null && qtyNum > maxQty) {
-        notify(`Maximum available quantity is ${maxQty}.`, "error");
-        return;
-      }
+      const newIncStr = `[${parsed.category || "Event Setup & Furniture"}] ${parsed.name} (${nextQty})`;
+      setFormData((prev) => ({
+        ...prev,
+        inclusions: prev.inclusions.map((inc) => (inc === existingInc ? newIncStr : inc)),
+      }));
+      notify(`Incremented "${matched}" quantity to ${nextQty}.`, "info");
+      return;
     }
 
-    const qtyStr = rawQty ? ` (${rawQty})` : "";
-    const incStr = `[Event Setup & Furniture] ${matched}${qtyStr}`;
+    const rawQty = (setupInput.qty || "").trim() || "1";
+    const qtyNum = parseInt(rawQty, 10);
+    if (isNaN(qtyNum) || qtyNum < 1) {
+      notify("Quantity must be a positive number.", "error");
+      return;
+    }
+    if (maxQty != null && qtyNum > maxQty) {
+      notify(`Maximum available Total Quantity is ${maxQty}.`, "error");
+      return;
+    }
 
-    setFormData((prev) => {
-      const existing = prev.inclusions || [];
-      const alreadyExists = existing.some((inc) => {
-        const p = parseInclusion(inc);
-        return p.name.toLowerCase() === matched.toLowerCase();
-      });
-      if (alreadyExists) {
-        notify(`"${matched}" is already in the inclusions list.`, "info");
-        return prev;
-      }
-      return {
-        ...prev,
-        inclusions: [...existing, incStr],
-      };
-    });
+    const incStr = `[Event Setup & Furniture] ${matched} (${qtyNum})`;
+
+    setFormData((prev) => ({
+      ...prev,
+      inclusions: [...(prev.inclusions || []), incStr],
+    }));
 
     setSetupInput({ name: "", qty: "" });
     setShowItemsList((prev) => ({ ...prev, setup: true }));
@@ -897,10 +992,7 @@ export default function PackageModal({
       (item) => item.toLowerCase() === nameToAdd.toLowerCase()
     );
     if (!matched) {
-      notify(
-        `"${nameToAdd}" is not an existing item in Dining & Service inventory. Please select an existing item.`,
-        "error"
-      );
+      handleOpenQuickCreate(nameToAdd, "Dining & Service Inventory", false);
       return;
     }
 
@@ -909,40 +1001,80 @@ export default function PackageModal({
     );
     const maxQty = invItem?.quantity != null ? invItem.quantity : null;
 
-    const rawQty = diningInput.qty.trim();
-    if (rawQty) {
-      const qtyNum = parseInt(rawQty, 10);
-      if (isNaN(qtyNum) || qtyNum < 1) {
-        notify("Quantity must be a positive number.", "error");
+    // If already added, predictably increment its package quantity
+    const existingInc = (formData.inclusions || []).find((inc) => {
+      const p = parseInclusion(inc);
+      return p.name.toLowerCase() === matched.toLowerCase();
+    });
+
+    if (existingInc) {
+      const parsed = parseInclusion(existingInc);
+      const currentQty = parseInt(parsed.qty, 10) || 1;
+      const nextQty = currentQty + 1;
+      if (maxQty != null && nextQty > maxQty) {
+        notify(`Maximum available Total Quantity in inventory is ${maxQty}.`, "info");
         return;
       }
-      if (maxQty != null && qtyNum > maxQty) {
-        notify(`Maximum available quantity is ${maxQty}.`, "error");
-        return;
-      }
+      const newIncStr = `[${parsed.category || "Dining & Service Inventory"}] ${parsed.name} (${nextQty})`;
+      setFormData((prev) => ({
+        ...prev,
+        inclusions: prev.inclusions.map((inc) => (inc === existingInc ? newIncStr : inc)),
+      }));
+      notify(`Incremented "${matched}" quantity to ${nextQty}.`, "info");
+      return;
     }
 
-    const qtyStr = rawQty ? ` (${rawQty})` : "";
-    const incStr = `[Dining & Service Inventory] ${matched}${qtyStr}`;
+    const rawQty = (diningInput.qty || "").trim() || "1";
+    const qtyNum = parseInt(rawQty, 10);
+    if (isNaN(qtyNum) || qtyNum < 1) {
+      notify("Quantity must be a positive number.", "error");
+      return;
+    }
+    if (maxQty != null && qtyNum > maxQty) {
+      notify(`Maximum available Total Quantity is ${maxQty}.`, "error");
+      return;
+    }
 
-    setFormData((prev) => {
-      const existing = prev.inclusions || [];
-      const alreadyExists = existing.some((inc) => {
-        const p = parseInclusion(inc);
-        return p.name.toLowerCase() === matched.toLowerCase();
-      });
-      if (alreadyExists) {
-        notify(`"${matched}" is already in the inclusions list.`, "info");
-        return prev;
-      }
-      return {
-        ...prev,
-        inclusions: [...existing, incStr],
-      };
-    });
+    const incStr = `[Dining & Service Inventory] ${matched} (${qtyNum})`;
+
+    setFormData((prev) => ({
+      ...prev,
+      inclusions: [...(prev.inclusions || []), incStr],
+    }));
 
     setDiningInput({ name: "", qty: "" });
     setShowItemsList((prev) => ({ ...prev, dining: true }));
+  };
+
+  const handleUpdateInclusionQty = (incStr, newQtyRaw) => {
+    const parsed = parseInclusion(incStr);
+    if (!parsed.name) return;
+
+    const invItem = inventoryItems.find(
+      (item) => item.item_name && item.item_name.trim().toLowerCase() === parsed.name.toLowerCase()
+    );
+    const maxQty = invItem?.quantity != null ? invItem.quantity : null;
+
+    let qtyNum = parseInt(newQtyRaw, 10);
+    if (isNaN(qtyNum) || qtyNum < 1) {
+      qtyNum = 1;
+    }
+    if (maxQty != null && qtyNum > maxQty) {
+      qtyNum = maxQty;
+      notify(`Maximum available Total Quantity in inventory is ${maxQty}.`, "info");
+    }
+
+    const newIncStr = `[${parsed.category || "Event Setup & Furniture"}] ${parsed.name} (${qtyNum})`;
+    setFormData((prev) => ({
+      ...prev,
+      inclusions: (prev.inclusions || []).map((inc) => (inc === incStr ? newIncStr : inc)),
+    }));
+  };
+
+  const handleStepInclusionQty = (incStr, step) => {
+    const parsed = parseInclusion(incStr);
+    const currentQty = parseInt(parsed.qty, 10) || 1;
+    handleUpdateInclusionQty(incStr, currentQty + step);
   };
 
   const handleRemoveInclusionString = (targetStr) => {
@@ -952,69 +1084,6 @@ export default function PackageModal({
     }));
   };
 
-  const handleStartEditInclusion = (incStr) => {
-    const parsed = parseInclusion(incStr);
-    setEditingInclusionStr(incStr);
-    setEditInclusionData({
-      name: parsed.name,
-      qty: parsed.qty || "",
-    });
-  };
-
-  const handleSaveEditInclusion = (category, originalStr) => {
-    const cleanName = cleanTextValue(editInclusionData.name);
-    if (!cleanName) return;
-
-    const listToCheck = isSetupCategory(category)
-      ? setupInventoryItems
-      : diningInventoryItems;
-    const matched = listToCheck.find(
-      (item) => item.toLowerCase() === cleanName.toLowerCase()
-    );
-    if (!matched) {
-      notify(
-        `"${cleanName}" is not an existing item in ${category} inventory. Please select an existing item.`,
-        "error"
-      );
-      return;
-    }
-
-    const invItem = inventoryItems.find(
-      (item) => item.item_name && item.item_name.trim().toLowerCase() === matched.toLowerCase()
-    );
-    const maxQty = invItem?.quantity != null ? invItem.quantity : null;
-
-    const rawQty = editInclusionData.qty.trim();
-    if (rawQty) {
-      const qtyNum = parseInt(rawQty, 10);
-      if (isNaN(qtyNum) || qtyNum < 1) {
-        notify("Quantity must be a positive number.", "error");
-        return;
-      }
-      if (maxQty != null && qtyNum > maxQty) {
-        notify(`Maximum available quantity is ${maxQty}.`, "error");
-        return;
-      }
-    }
-
-    const qtyStr = rawQty ? ` (${rawQty})` : "";
-    const newIncStr = `[${category}] ${matched}${qtyStr}`;
-
-    setFormData((prev) => ({
-      ...prev,
-      inclusions: prev.inclusions.map((inc) =>
-        inc === originalStr ? newIncStr : inc,
-      ),
-    }));
-
-    setEditingInclusionStr(null);
-    setEditInclusionData({ name: "", qty: "" });
-  };
-
-  const handleCancelEditInclusion = () => {
-    setEditingInclusionStr(null);
-    setEditInclusionData({ name: "", qty: "" });
-  };
 
   // ============ HANDLERS - Add-ons ============
   const handleAddAddOn = (presetName) => {
@@ -1026,39 +1095,66 @@ export default function PackageModal({
       (item) => item.toLowerCase() === nameToAdd.toLowerCase()
     );
     if (!matched) {
-      notify(
-        `"${nameToAdd}" is not an existing Add-on. Please select an existing add-on.`,
-        "error"
-      );
+      handleOpenQuickCreate(nameToAdd, "Event Setup & Furniture", true);
       return;
     }
 
-    setFormData((prev) => {
-      const existing = prev.add_ons || [];
-      const alreadyExists = existing.some(
-        (addon) => cleanTextValue(addon.name).toLowerCase() === matched.toLowerCase()
-      );
-      if (alreadyExists) {
-        notify(`"${matched}" is already in the add-ons list.`, "info");
-        return prev;
-      }
-      return {
+    const existing = (formData.add_ons || []).find(
+      (addon) => cleanTextValue(addon.name).toLowerCase() === matched.toLowerCase()
+    );
+    if (existing) {
+      const currentQty = parseInt(existing.qty, 10) || 1;
+      const nextQty = String(currentQty + 1);
+      setFormData((prev) => ({
         ...prev,
-        add_ons: [
-          ...existing,
-          {
-            name: matched,
-            qty: addOnInput.qty.trim() || "",
-          },
-        ],
-      };
-    });
+        add_ons: (prev.add_ons || []).map((addon) =>
+          cleanTextValue(addon.name).toLowerCase() === matched.toLowerCase()
+            ? { ...addon, qty: nextQty }
+            : addon
+        ),
+      }));
+      notify(`Incremented "${matched}" quantity to ${nextQty}.`, "info");
+      return;
+    }
+
+    const rawQty = (addOnInput.qty || "").trim() || "1";
+
+    setFormData((prev) => ({
+      ...prev,
+      add_ons: [
+        ...(prev.add_ons || []),
+        {
+          name: matched,
+          qty: rawQty,
+        },
+      ],
+    }));
 
     setAddOnInput({
       name: "",
       qty: "",
     });
     setShowItemsList((prev) => ({ ...prev, addons: true }));
+  };
+
+  const handleUpdateAddOnQty = (index, newQtyRaw) => {
+    let qtyNum = parseInt(newQtyRaw, 10);
+    if (isNaN(qtyNum) || qtyNum < 1) {
+      qtyNum = 1;
+    }
+    setFormData((prev) => {
+      const next = [...(prev.add_ons || [])];
+      if (next[index]) {
+        next[index] = { ...next[index], qty: String(qtyNum) };
+      }
+      return { ...prev, add_ons: next };
+    });
+  };
+
+  const handleStepAddOnQty = (index, step) => {
+    const current = formData.add_ons?.[index];
+    const currentQty = parseInt(current?.qty, 10) || 1;
+    handleUpdateAddOnQty(index, currentQty + step);
   };
 
   const handleRemoveAddOn = (index) => {
@@ -1068,45 +1164,7 @@ export default function PackageModal({
     }));
   };
 
-  const handleStartEditAddOn = (idx, addOn) => {
-    setEditingAddOnIdx(idx);
-    setEditAddOnData({
-      name: addOn.name,
-      qty: addOn.qty || "",
-    });
-  };
 
-  const handleSaveEditAddOn = (idx) => {
-    const cleanName = cleanTextValue(editAddOnData.name);
-    if (!cleanName) return;
-
-    const matched = addonNames.find(
-      (item) => item.toLowerCase() === cleanName.toLowerCase()
-    );
-    if (!matched) {
-      notify(
-        `"${cleanName}" is not an existing Add-on. Please select an existing add-on.`,
-        "error"
-      );
-      return;
-    }
-
-    setFormData((prev) => {
-      const nextAddOns = [...prev.add_ons];
-      nextAddOns[idx] = {
-        name: matched,
-        qty: editAddOnData.qty.trim() || "",
-      };
-      return { ...prev, add_ons: nextAddOns };
-    });
-    setEditingAddOnIdx(null);
-    setEditAddOnData({ name: "", qty: "" });
-  };
-
-  const handleCancelEditAddOn = () => {
-    setEditingAddOnIdx(null);
-    setEditAddOnData({ name: "", qty: "" });
-  };
 
   const SCAFFOLD_PRESETS = [
     { label: "20x20 Setup", width_ft: 20, length_ft: 20, guest_min: 50, guest_max: 80, price: "" },
@@ -2652,6 +2710,8 @@ export default function PackageModal({
                     candidates={addonNames}
                     sourceLabel="Addons"
                     onSubmit={() => handleAddComboInclusion()}
+                    onCreateNew={(name) => handleOpenQuickCreate(name, "Event Setup & Furniture", true)}
+                    createActionLabel="+ Create New Add-on"
                   />
                   <Btn
                     variant="secondary"
@@ -2880,7 +2940,7 @@ export default function PackageModal({
                     </p>
 
                     {/* Add Setup Item Form */}
-                    <div className="flex gap-2 mb-3 items-center w-full">
+                    <div className="flex gap-2 mb-2 items-center w-full">
                       <AutocompleteInput
                         placeholder="Search item name (e.g. Stage Setup, Round Tables, Couch)"
                         value={setupInput.name}
@@ -2890,6 +2950,10 @@ export default function PackageModal({
                         candidates={setupInventoryItems}
                         sourceLabel="Event Setup Inventory"
                         onSubmit={() => handleAddSetupInclusion()}
+                        onCreateNew={(name) =>
+                          handleOpenQuickCreate(name, "Event Setup & Furniture", false)
+                        }
+                        createActionLabel="+ Create New Inventory Item"
                       />
                       <input
                         type="number"
@@ -2898,12 +2962,12 @@ export default function PackageModal({
                         placeholder={
                           selectedSetupInvItem?.quantity != null
                             ? `1–${selectedSetupInvItem.quantity}`
-                            : "Qty (e.g. 6)"
+                            : "Pkg Qty"
                         }
                         title={
                           selectedSetupInvItem?.quantity != null
-                            ? `Maximum available in inventory: ${selectedSetupInvItem.quantity}`
-                            : "Quantity"
+                            ? `Quantity Included in This Package (Total Quantity: ${selectedSetupInvItem.quantity})`
+                            : "Quantity Included in This Package"
                         }
                         className={`w-28 shrink-0 border rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none transition-colors ${
                           selectedSetupInvItem?.quantity != null &&
@@ -2938,15 +3002,19 @@ export default function PackageModal({
                     </div>
 
                     {selectedSetupInvItem && (
-                      <div className="text-[11px] text-gray-500 mb-2.5 flex items-center justify-between">
-                        <span>
-                          Inventory Total: <strong className="text-gray-800 font-semibold">{selectedSetupInvItem.quantity}</strong> available
-                        </span>
-                        {Number(setupInput.qty) > selectedSetupInvItem.quantity && (
-                          <span className="text-red-500 font-semibold">
-                            Maximum available quantity is {selectedSetupInvItem.quantity}.
+                      <div className="text-xs bg-blue-50/70 border border-blue-200/80 rounded-lg p-2.5 mb-2.5 flex flex-wrap items-center justify-between gap-2 animate-in fade-in duration-150">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500 font-medium">Inventory Item:</span>
+                          <span className="font-bold text-gray-900">{selectedSetupInvItem.item_name}</span>
+                          <span className="text-gray-300">•</span>
+                          <span className="text-gray-500 font-medium">Total Quantity:</span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
+                            {selectedSetupInvItem.quantity}
                           </span>
-                        )}
+                        </div>
+                        <span className="text-[11px] text-blue-700/80 font-medium">
+                          Package quantity assigned below will not modify inventory Total Quantity.
+                        </span>
                       </div>
                     )}
 
@@ -3031,137 +3099,92 @@ export default function PackageModal({
 
                     {showItemsList.setup && (
                       setupInclusions.length > 0 ? (
-                        <ul className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-                      {setupInclusions.map((inc, i) => {
-                        const parsed = parseInclusion(inc);
-                        const isEditing = editingInclusionStr === inc;
+                        <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                          {setupInclusions.map((inc, i) => {
+                            const parsed = parseInclusion(inc);
+                            const invItem = inventoryItems.find(
+                              (item) =>
+                                item.item_name &&
+                                item.item_name.trim().toLowerCase() === parsed.name.toLowerCase()
+                            );
+                            const totalInvQty =
+                              invItem?.quantity != null ? invItem.quantity : null;
+                            const currentPkgQty = parseInt(parsed.qty, 10) || 1;
 
-                        if (isEditing) {
-                          return (
-                            <li
-                              key={i}
-                              className="flex items-center gap-2 text-sm bg-blue-50/70 p-2 rounded-lg border border-blue-200 shadow-2xs"
-                            >
-                              <AutocompleteInput
-                                value={editInclusionData.name}
-                                onChange={(val) =>
-                                  setEditInclusionData((prev) => ({
-                                    ...prev,
-                                    name: val,
-                                  }))
-                                }
-                                candidates={setupInventoryItems}
-                                sourceLabel="Event Setup Inventory"
-                                onSubmit={() =>
-                                  handleSaveEditInclusion(
-                                    "Event Setup & Furniture",
-                                    inc,
-                                  )
-                                }
-                                className="flex-1 min-w-0 border border-blue-300 rounded-md px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                              <input
-                                type="number"
-                                min="1"
-                                max={selectedEditInvItem?.quantity != null ? selectedEditInvItem.quantity : undefined}
-                                placeholder={
-                                  selectedEditInvItem?.quantity != null
-                                    ? `Max ${selectedEditInvItem.quantity}`
-                                    : "Qty"
-                                }
-                                title={
-                                  selectedEditInvItem?.quantity != null
-                                    ? `Maximum available in inventory: ${selectedEditInvItem.quantity}`
-                                    : "Quantity"
-                                }
-                                className={`w-24 shrink-0 border rounded-md px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 transition-colors ${
-                                  selectedEditInvItem?.quantity != null &&
-                                  Number(editInclusionData.qty) > selectedEditInvItem.quantity
-                                    ? "border-red-400 focus:ring-red-500 bg-red-50/40 text-red-700"
-                                    : "border-blue-300 focus:ring-primary"
-                                }`}
-                                value={editInclusionData.qty}
-                                onChange={(e) =>
-                                  setEditInclusionData({
-                                    ...editInclusionData,
-                                    qty: e.target.value,
-                                  })
-                                }
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleSaveEditInclusion(
-                                      "Event Setup & Furniture",
-                                      inc,
-                                    );
-                                  } else if (e.key === "Escape") {
-                                    handleCancelEditInclusion();
-                                  }
-                                }}
-                              />
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleSaveEditInclusion(
-                                    "Event Setup & Furniture",
-                                    inc,
-                                  )
-                                }
-                                className="p-1.5 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors shadow-2xs shrink-0"
-                                title="Save changes"
+                            return (
+                              <li
+                                key={i}
+                                className="flex flex-wrap sm:flex-nowrap justify-between items-center text-sm bg-white px-3 py-2.5 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
                               >
-                                <Check size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleCancelEditInclusion}
-                                className="p-1.5 text-gray-500 hover:bg-gray-200 rounded-md transition-colors shrink-0"
-                                title="Cancel"
-                              >
-                                <X size={14} />
-                              </button>
-                            </li>
-                          );
-                        }
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span className="w-2 h-2 bg-blue-500 rounded-full shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-semibold text-gray-900 break-words leading-tight">
+                                      {parsed.name}
+                                    </span>
+                                    {totalInvQty != null && (
+                                      <span className="text-[11px] text-gray-500">
+                                        Total Quantity:{" "}
+                                        <strong className="text-gray-700 font-semibold">
+                                          {totalInvQty}
+                                        </strong>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
 
-                        return (
-                          <li
-                            key={i}
-                            className="flex justify-between items-center text-sm bg-white px-3 py-2.5 rounded-lg border border-gray-100 shadow-2xs gap-2 hover:border-gray-200 transition-colors"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full shrink-0" />
-                              <span className="font-medium text-gray-800 break-words">
-                                {parsed.name}
-                              </span>
-                              {parsed.qty && (
-                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 shrink-0">
-                                  × {parsed.qty}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleStartEditInclusion(inc)}
-                                className="p-1 text-gray-400 hover:text-primary hover:bg-primary/5 rounded transition-colors"
-                                title="Edit item"
-                              >
-                                <Pencil size={13} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveInclusionString(inc)}
-                                className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                title="Remove item"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                                <div className="flex items-center gap-3 shrink-0 ml-auto">
+                                  <div className="flex items-center gap-1.5 bg-gray-50/80 px-2 py-1 rounded-lg border border-gray-200">
+                                    <span className="text-[11px] text-gray-500 font-medium hidden md:inline">
+                                      Quantity Included in This Package:
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStepInclusionQty(inc, -1)}
+                                      disabled={currentPkgQty <= 1}
+                                      className="w-6 h-6 rounded bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                                      title="Decrease package quantity"
+                                    >
+                                      -
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max={totalInvQty != null ? totalInvQty : undefined}
+                                      value={currentPkgQty}
+                                      onChange={(e) =>
+                                        handleUpdateInclusionQty(inc, e.target.value)
+                                      }
+                                      className="w-12 text-center py-0.5 text-xs font-bold border border-gray-200 rounded bg-white text-gray-900 focus:outline-none focus:border-primary"
+                                      title="Quantity Included in This Package"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStepInclusionQty(inc, 1)}
+                                      disabled={
+                                        totalInvQty != null && currentPkgQty >= totalInvQty
+                                      }
+                                      className="w-6 h-6 rounded bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                                      title="Increase package quantity"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveInclusionString(inc)}
+                                    className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                    title="Remove from package"
+                                    aria-label={`Remove ${parsed.name}`}
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       ) : (
                         <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
                           No event setup & furniture items added yet
@@ -3187,7 +3210,7 @@ export default function PackageModal({
                     </p>
 
                     {/* Add Dining Item Form */}
-                    <div className="flex gap-2 mb-3 items-center w-full">
+                    <div className="flex gap-2 mb-2 items-center w-full">
                       <AutocompleteInput
                         placeholder="Search item name (e.g. Food Warmer, Plates, Staff / Crew)"
                         value={diningInput.name}
@@ -3197,6 +3220,10 @@ export default function PackageModal({
                         candidates={diningInventoryItems}
                         sourceLabel="Dining & Service Inventory"
                         onSubmit={() => handleAddDiningInclusion()}
+                        onCreateNew={(name) =>
+                          handleOpenQuickCreate(name, "Dining & Service Inventory", false)
+                        }
+                        createActionLabel="+ Create New Inventory Item"
                       />
                       <input
                         type="number"
@@ -3205,12 +3232,12 @@ export default function PackageModal({
                         placeholder={
                           selectedDiningInvItem?.quantity != null
                             ? `1–${selectedDiningInvItem.quantity}`
-                            : "Qty (e.g. 7, 150)"
+                            : "Pkg Qty"
                         }
                         title={
                           selectedDiningInvItem?.quantity != null
-                            ? `Maximum available in inventory: ${selectedDiningInvItem.quantity}`
-                            : "Quantity"
+                            ? `Quantity Included in This Package (Total Quantity: ${selectedDiningInvItem.quantity})`
+                            : "Quantity Included in This Package"
                         }
                         className={`w-28 shrink-0 border rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none transition-colors ${
                           selectedDiningInvItem?.quantity != null &&
@@ -3245,15 +3272,19 @@ export default function PackageModal({
                     </div>
 
                     {selectedDiningInvItem && (
-                      <div className="text-[11px] text-gray-500 mb-2.5 flex items-center justify-between">
-                        <span>
-                          Inventory Total: <strong className="text-gray-800 font-semibold">{selectedDiningInvItem.quantity}</strong> available
-                        </span>
-                        {Number(diningInput.qty) > selectedDiningInvItem.quantity && (
-                          <span className="text-red-500 font-semibold">
-                            Maximum available quantity is {selectedDiningInvItem.quantity}.
+                      <div className="text-xs bg-emerald-50/70 border border-emerald-200/80 rounded-lg p-2.5 mb-2.5 flex flex-wrap items-center justify-between gap-2 animate-in fade-in duration-150">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500 font-medium">Inventory Item:</span>
+                          <span className="font-bold text-gray-900">{selectedDiningInvItem.item_name}</span>
+                          <span className="text-gray-300">•</span>
+                          <span className="text-gray-500 font-medium">Total Quantity:</span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                            {selectedDiningInvItem.quantity}
                           </span>
-                        )}
+                        </div>
+                        <span className="text-[11px] text-emerald-700/80 font-medium">
+                          Package quantity assigned below will not modify inventory Total Quantity.
+                        </span>
                       </div>
                     )}
 
@@ -3338,137 +3369,92 @@ export default function PackageModal({
 
                     {showItemsList.dining && (
                       diningInclusions.length > 0 ? (
-                        <ul className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-                      {diningInclusions.map((inc, i) => {
-                        const parsed = parseInclusion(inc);
-                        const isEditing = editingInclusionStr === inc;
+                        <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                          {diningInclusions.map((inc, i) => {
+                            const parsed = parseInclusion(inc);
+                            const invItem = inventoryItems.find(
+                              (item) =>
+                                item.item_name &&
+                                item.item_name.trim().toLowerCase() === parsed.name.toLowerCase()
+                            );
+                            const totalInvQty =
+                              invItem?.quantity != null ? invItem.quantity : null;
+                            const currentPkgQty = parseInt(parsed.qty, 10) || 1;
 
-                        if (isEditing) {
-                          return (
-                            <li
-                              key={i}
-                              className="flex items-center gap-2 text-sm bg-emerald-50/70 p-2 rounded-lg border border-emerald-200 shadow-2xs"
-                            >
-                              <AutocompleteInput
-                                value={editInclusionData.name}
-                                onChange={(val) =>
-                                  setEditInclusionData((prev) => ({
-                                    ...prev,
-                                    name: val,
-                                  }))
-                                }
-                                candidates={diningInventoryItems}
-                                sourceLabel="Dining & Service Inventory"
-                                onSubmit={() =>
-                                  handleSaveEditInclusion(
-                                    "Dining & Service Inventory",
-                                    inc,
-                                  )
-                                }
-                                className="flex-1 min-w-0 border border-emerald-300 rounded-md px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                              <input
-                                type="number"
-                                min="1"
-                                max={selectedEditInvItem?.quantity != null ? selectedEditInvItem.quantity : undefined}
-                                placeholder={
-                                  selectedEditInvItem?.quantity != null
-                                    ? `Max ${selectedEditInvItem.quantity}`
-                                    : "Qty"
-                                }
-                                title={
-                                  selectedEditInvItem?.quantity != null
-                                    ? `Maximum available in inventory: ${selectedEditInvItem.quantity}`
-                                    : "Quantity"
-                                }
-                                className={`w-24 shrink-0 border rounded-md px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 transition-colors ${
-                                  selectedEditInvItem?.quantity != null &&
-                                  Number(editInclusionData.qty) > selectedEditInvItem.quantity
-                                    ? "border-red-400 focus:ring-red-500 bg-red-50/40 text-red-700"
-                                    : "border-emerald-300 focus:ring-primary"
-                                }`}
-                                value={editInclusionData.qty}
-                                onChange={(e) =>
-                                  setEditInclusionData({
-                                    ...editInclusionData,
-                                    qty: e.target.value,
-                                  })
-                                }
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleSaveEditInclusion(
-                                      "Dining & Service Inventory",
-                                      inc,
-                                    );
-                                  } else if (e.key === "Escape") {
-                                    handleCancelEditInclusion();
-                                  }
-                                }}
-                              />
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleSaveEditInclusion(
-                                    "Dining & Service Inventory",
-                                    inc,
-                                  )
-                                }
-                                className="p-1.5 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors shadow-2xs shrink-0"
-                                title="Save changes"
+                            return (
+                              <li
+                                key={i}
+                                className="flex flex-wrap sm:flex-nowrap justify-between items-center text-sm bg-white px-3 py-2.5 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
                               >
-                                <Check size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleCancelEditInclusion}
-                                className="p-1.5 text-gray-500 hover:bg-gray-200 rounded-md transition-colors shrink-0"
-                                title="Cancel"
-                              >
-                                <X size={14} />
-                              </button>
-                            </li>
-                          );
-                        }
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span className="w-2 h-2 bg-emerald-500 rounded-full shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-semibold text-gray-900 break-words leading-tight">
+                                      {parsed.name}
+                                    </span>
+                                    {totalInvQty != null && (
+                                      <span className="text-[11px] text-gray-500">
+                                        Total Quantity:{" "}
+                                        <strong className="text-gray-700 font-semibold">
+                                          {totalInvQty}
+                                        </strong>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
 
-                        return (
-                          <li
-                            key={i}
-                            className="flex justify-between items-center text-sm bg-white px-3 py-2.5 rounded-lg border border-gray-100 shadow-2xs gap-2 hover:border-gray-200 transition-colors"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
-                              <span className="font-medium text-gray-800 break-words">
-                                {parsed.name}
-                              </span>
-                              {parsed.qty && (
-                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 shrink-0">
-                                  × {parsed.qty}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleStartEditInclusion(inc)}
-                                className="p-1 text-gray-400 hover:text-primary hover:bg-primary/5 rounded transition-colors"
-                                title="Edit item"
-                              >
-                                <Pencil size={13} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveInclusionString(inc)}
-                                className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                title="Remove item"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                                <div className="flex items-center gap-3 shrink-0 ml-auto">
+                                  <div className="flex items-center gap-1.5 bg-gray-50/80 px-2 py-1 rounded-lg border border-gray-200">
+                                    <span className="text-[11px] text-gray-500 font-medium hidden md:inline">
+                                      Quantity Included in This Package:
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStepInclusionQty(inc, -1)}
+                                      disabled={currentPkgQty <= 1}
+                                      className="w-6 h-6 rounded bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                                      title="Decrease package quantity"
+                                    >
+                                      -
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max={totalInvQty != null ? totalInvQty : undefined}
+                                      value={currentPkgQty}
+                                      onChange={(e) =>
+                                        handleUpdateInclusionQty(inc, e.target.value)
+                                      }
+                                      className="w-12 text-center py-0.5 text-xs font-bold border border-gray-200 rounded bg-white text-gray-900 focus:outline-none focus:border-primary"
+                                      title="Quantity Included in This Package"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStepInclusionQty(inc, 1)}
+                                      disabled={
+                                        totalInvQty != null && currentPkgQty >= totalInvQty
+                                      }
+                                      className="w-6 h-6 rounded bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                                      title="Increase package quantity"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveInclusionString(inc)}
+                                    className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                    title="Remove from package"
+                                    aria-label={`Remove ${parsed.name}`}
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       ) : (
                         <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
                           No dining & service inventory items added yet
@@ -3504,11 +3490,16 @@ export default function PackageModal({
                         candidates={addonNames}
                         sourceLabel="Addons"
                         onSubmit={() => handleAddAddOn()}
+                        onCreateNew={(name) =>
+                          handleOpenQuickCreate(name, "Event Setup & Furniture", true)
+                        }
+                        createActionLabel="+ Create New Add-on"
                       />
 
                       <input
-                        type="text"
-                        placeholder="Qty (e.g. 1, 5, 2-4)"
+                        type="number"
+                        min="1"
+                        placeholder="Pkg Qty"
                         className="w-24 shrink-0 border border-gray-200 rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none focus:border-primary"
                         value={addOnInput.qty}
                         onChange={(e) =>
@@ -3614,107 +3605,68 @@ export default function PackageModal({
 
                     {showItemsList.addons && (
                       (formData.add_ons || []).length > 0 ? (
-                        <ul className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-                      {formData.add_ons.map((add, i) => {
-                        const isEditing = editingAddOnIdx === i;
+                        <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                          {formData.add_ons.map((add, i) => {
+                            const currentPkgQty = parseInt(add.qty, 10) || 1;
 
-                        if (isEditing) {
-                          return (
-                            <li
-                              key={i}
-                              className="flex items-center gap-2 text-sm bg-purple-50/70 p-2 rounded-lg border border-purple-200 shadow-2xs"
-                            >
-                              <AutocompleteInput
-                                value={editAddOnData.name}
-                                onChange={(val) =>
-                                  setEditAddOnData((prev) => ({
-                                    ...prev,
-                                    name: val,
-                                  }))
-                                }
-                                candidates={addonNames}
-                                sourceLabel="Addons"
-                                onSubmit={() => handleSaveEditAddOn(i)}
-                                className="flex-1 min-w-0 border border-purple-300 rounded-md px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                              <input
-                                type="text"
-                                placeholder="Qty"
-                                className="w-20 shrink-0 border border-purple-300 rounded-md px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                                value={editAddOnData.qty}
-                                onChange={(e) =>
-                                  setEditAddOnData({
-                                    ...editAddOnData,
-                                    qty: e.target.value,
-                                  })
-                                }
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleSaveEditAddOn(i);
-                                  } else if (e.key === "Escape") {
-                                    handleCancelEditAddOn();
-                                  }
-                                }}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleSaveEditAddOn(i)}
-                                className="p-1.5 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors shadow-2xs shrink-0"
-                                title="Save changes"
+                            return (
+                              <li
+                                key={i}
+                                className="flex flex-wrap sm:flex-nowrap justify-between items-center text-sm bg-white px-3 py-2 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
                               >
-                                <Check size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleCancelEditAddOn}
-                                className="p-1.5 text-gray-500 hover:bg-gray-200 rounded-md transition-colors shrink-0"
-                                title="Cancel"
-                              >
-                                <X size={14} />
-                              </button>
-                            </li>
-                          );
-                        }
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span className="w-2 h-2 bg-purple-500 rounded-full shrink-0" />
+                                  <span className="font-semibold text-gray-900 break-words leading-tight">
+                                    {add.name}
+                                  </span>
+                                </div>
 
-                        return (
-                          <li
-                            key={i}
-                            className="flex justify-between items-center text-sm bg-white px-3 py-2 rounded-lg border border-gray-100 shadow-2xs gap-2 hover:border-gray-200 transition-colors"
-                          >
-                            <span className="flex items-center gap-2 flex-wrap min-w-0">
-                              <span className="w-1.5 h-1.5 bg-purple-400 rounded-full shrink-0" />
-                              <span className="font-medium text-gray-800 break-words">
-                                {add.name}
-                              </span>
-                              {add.qty && (
-                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100 shrink-0">
-                                  × {add.qty}
-                                </span>
-                              )}
-                            </span>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleStartEditAddOn(i, add)}
-                                className="p-1 text-gray-400 hover:text-primary hover:bg-primary/5 rounded transition-colors"
-                                title="Edit add-on"
-                              >
-                                <Pencil size={13} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveAddOn(i)}
-                                className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                title="Remove add-on"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                                <div className="flex items-center gap-3 shrink-0 ml-auto">
+                                  <div className="flex items-center gap-1.5 bg-gray-50/80 px-2 py-1 rounded-lg border border-gray-200">
+                                    <span className="text-[11px] text-gray-500 font-medium hidden md:inline">
+                                      Quantity Included in This Package:
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStepAddOnQty(i, -1)}
+                                      disabled={currentPkgQty <= 1}
+                                      className="w-6 h-6 rounded bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                                      title="Decrease quantity"
+                                    >
+                                      -
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={currentPkgQty}
+                                      onChange={(e) => handleUpdateAddOnQty(i, e.target.value)}
+                                      className="w-12 text-center py-0.5 text-xs font-bold border border-gray-200 rounded bg-white text-gray-900 focus:outline-none focus:border-primary"
+                                      title="Quantity Included in This Package"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStepAddOnQty(i, 1)}
+                                      className="w-6 h-6 rounded bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                                      title="Increase quantity"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveAddOn(i)}
+                                    className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                    title="Remove add-on"
+                                    aria-label={`Remove ${add.name}`}
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       ) : (
                         <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
                           No add-ons configured yet
@@ -3788,6 +3740,17 @@ export default function PackageModal({
         </div>
       </div>
     </div>
+
+    <QuickInventoryCreateDrawer
+      isOpen={quickDrawer.isOpen}
+      initialName={quickDrawer.initialName}
+      defaultCategory={quickDrawer.category}
+      isAddon={quickDrawer.isAddon}
+      existingItems={inventoryItems}
+      existingAddons={addonItems}
+      onClose={() => setQuickDrawer((prev) => ({ ...prev, isOpen: false }))}
+      onCreateSuccess={handleQuickCreateSuccess}
+    />
     </>
   );
 }

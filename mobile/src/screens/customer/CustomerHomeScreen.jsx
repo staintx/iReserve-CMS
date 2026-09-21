@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -46,6 +46,7 @@ import SkeletonLoader from "../../components/common/SkeletonLoader";
 import AppButton from "../../components/common/AppButton";
 import GalleryLightboxModal from "../../components/common/GalleryLightboxModal";
 import DishDetailModal from "../../components/common/DishDetailModal";
+import CoachMarkSequence from "../../components/common/CoachMarkSequence";
 import {
   resolveDishImage,
   resolvePackageCover,
@@ -92,6 +93,41 @@ export const CustomerHomeScreen = ({ navigation }) => {
   const [selectedGalleryItem, setSelectedGalleryItem] = useState(null);
   const [selectedDish, setSelectedDish] = useState(null);
   const [heroImageError, setHeroImageError] = useState(false);
+
+  // Coach Mark Refs & Steps
+  const tabNavRef = useRef(null);
+  const heroCtaRef = useRef(null);
+  const zelleBtnRef = useRef(null);
+
+  const coachMarkSteps = useMemo(
+    () => [
+      {
+        id: "step_catalog_tabs",
+        title: "Explore Catering Offerings",
+        description:
+          "Switch between complete catering packages, custom dish menus, and styled event setups in Batangas.",
+        targetRef: tabNavRef,
+        placement: "bottom",
+      },
+      {
+        id: "step_request_quote",
+        title: "Request a Custom Quote",
+        description:
+          "Plan your celebration with an itemized catering proposal tailored to your date, guest count, and theme.",
+        targetRef: heroCtaRef,
+        placement: "bottom",
+      },
+      {
+        id: "step_zelle_ai",
+        title: "Zelle AI Assistant",
+        description:
+          "Tap here anytime for instant answers on package pairings, dish ingredients, and budget estimations.",
+        targetRef: zelleBtnRef,
+        placement: "bottom",
+      },
+    ],
+    []
+  );
 
   const loadAllData = useCallback(async () => {
     try {
@@ -261,13 +297,15 @@ export const CustomerHomeScreen = ({ navigation }) => {
               <NotificationBadge count={unreadCount} />
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.iconBtn, styles.zelleBtn]}
-              onPress={() => navigation.navigate("ZelleChat")}
-              activeOpacity={0.7}
-            >
-              <Sparkles size={18} color={colors.primary} />
-            </TouchableOpacity>
+            <View ref={zelleBtnRef} collapsable={false}>
+              <TouchableOpacity
+                style={[styles.iconBtn, styles.zelleBtn]}
+                onPress={() => navigation.navigate("ZelleChat")}
+                activeOpacity={0.7}
+              >
+                <Sparkles size={18} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -295,7 +333,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
         </View>
 
         {/* 3. Sticky Segmented Top Navigation Tabs (Baemin Reference 1) */}
-        <View style={styles.tabNavRow}>
+        <View ref={tabNavRef} collapsable={false} style={styles.tabNavRow}>
           <TouchableOpacity
             style={[styles.tabNavItem, activeTab === "packages" && styles.tabNavItemActive]}
             onPress={() => setActiveTab("packages")}
@@ -415,14 +453,16 @@ export const CustomerHomeScreen = ({ navigation }) => {
             <Text style={styles.heroPromoSub}>
               Full buffet spread, premium table styling & dedicated banquet staff.
             </Text>
-            <TouchableOpacity
-              style={styles.heroCtaBtn}
-              onPress={() => navigation.navigate("InquiryWizard")}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.heroCtaText}>Request a Quote</Text>
-              <ChevronRight size={14} color={colors.white} />
-            </TouchableOpacity>
+            <View ref={heroCtaRef} collapsable={false} style={{ alignSelf: "flex-start" }}>
+              <TouchableOpacity
+                style={styles.heroCtaBtn}
+                onPress={() => navigation.navigate("InquiryWizard")}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.heroCtaText}>Request a Quote</Text>
+                <ChevronRight size={14} color={colors.white} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <Image
@@ -852,6 +892,9 @@ export const CustomerHomeScreen = ({ navigation }) => {
           })
         }
       />
+
+      {/* In-App Coach Marks Feature Tour */}
+      <CoachMarkSequence screenKey="customer_home" steps={coachMarkSteps} />
     </View>
   );
 };

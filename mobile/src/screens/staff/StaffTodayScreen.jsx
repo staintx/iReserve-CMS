@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -35,6 +35,7 @@ import StatusBadge from "../../components/common/StatusBadge";
 import AppButton from "../../components/common/AppButton";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
 import NotificationBadge from "../../components/common/NotificationBadge";
+import CoachMarkSequence from "../../components/common/CoachMarkSequence";
 import { cacheData, getCachedData, CACHE_KEYS } from "../../utils/offlineStorage";
 import { formatDate, formatTime } from "../../utils/format";
 
@@ -47,6 +48,31 @@ export const StaffTodayScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeBookings, setActiveBookings] = useState([]);
   const [isOfflineData, setIsOfflineData] = useState(false);
+
+  const shiftCardRef = useRef(null);
+  const actionsRef = useRef(null);
+
+  const coachMarkSteps = useMemo(
+    () => [
+      {
+        id: "staff_shift_card",
+        title: "Your Assigned Shift",
+        description:
+          "Review your event call time, banquet role, and tap Venue Directions for one-tap Google Maps navigation.",
+        targetRef: shiftCardRef,
+        placement: "bottom",
+      },
+      {
+        id: "staff_actions",
+        title: "Operational Actions & Sign-Off",
+        description:
+          "Access full event detail sheets and perform digital equipment verification upon arrival.",
+        targetRef: actionsRef,
+        placement: "top",
+      },
+    ],
+    []
+  );
 
   const loadShifts = useCallback(async () => {
     try {
@@ -188,116 +214,118 @@ export const StaffTodayScreen = ({ navigation }) => {
           <>
             {/* Hero Card: Today's Shift or Next Scheduled Event */}
             {currentDisplayEvent ? (
-              <Card
-                style={[
-                  styles.heroCard,
-                  todayEvent ? styles.heroCardToday : styles.heroCardUpcoming,
-                ]}
-              >
-                <View style={styles.heroTopBadgeRow}>
-                  <View
-                    style={[
-                      styles.dayStatusBadge,
-                      { backgroundColor: todayEvent ? colors.successLight : colors.primaryLight },
-                    ]}
-                  >
-                    <Text
+              <View ref={shiftCardRef} collapsable={false}>
+                <Card
+                  style={[
+                    styles.heroCard,
+                    todayEvent ? styles.heroCardToday : styles.heroCardUpcoming,
+                  ]}
+                >
+                  <View style={styles.heroTopBadgeRow}>
+                    <View
                       style={[
-                        styles.dayStatusText,
-                        { color: todayEvent ? colors.success : colors.primary },
+                        styles.dayStatusBadge,
+                        { backgroundColor: todayEvent ? colors.successLight : colors.primaryLight },
                       ]}
                     >
-                      {todayEvent ? "Today's Assignment" : "Next Upcoming Shift"}
-                    </Text>
+                      <Text
+                        style={[
+                          styles.dayStatusText,
+                          { color: todayEvent ? colors.success : colors.primary },
+                        ]}
+                      >
+                        {todayEvent ? "Today's Assignment" : "Next Upcoming Shift"}
+                      </Text>
+                    </View>
+                    <StatusBadge status={currentDisplayEvent.status} />
                   </View>
-                  <StatusBadge status={currentDisplayEvent.status} />
-                </View>
 
-                <Text style={styles.heroTitle}>
-                  {currentDisplayEvent.event_type || "Catering Event"}
-                </Text>
-                <Text style={styles.heroRef}>
-                  Booking Ref: #{currentDisplayEvent.reference || currentDisplayEvent._id?.slice(-6).toUpperCase()}
-                </Text>
-
-                <View style={styles.divider} />
-
-                <View style={styles.metaRow}>
-                  <Calendar size={16} color={colors.foregroundMuted} />
-                  <Text style={styles.metaValue}>
-                    {formatDate(currentDisplayEvent.event_date)}
+                  <Text style={styles.heroTitle}>
+                    {currentDisplayEvent.event_type || "Catering Event"}
                   </Text>
-                </View>
+                  <Text style={styles.heroRef}>
+                    Booking Ref: #{currentDisplayEvent.reference || currentDisplayEvent._id?.slice(-6).toUpperCase()}
+                  </Text>
 
-                {currentDisplayEvent.start_time && (
+                  <View style={styles.divider} />
+
                   <View style={styles.metaRow}>
-                    <Clock size={16} color={colors.foregroundMuted} />
+                    <Calendar size={16} color={colors.foregroundMuted} />
                     <Text style={styles.metaValue}>
-                      {formatTime(currentDisplayEvent.start_time)}
-                      {currentDisplayEvent.duration_hours ? ` (${currentDisplayEvent.duration_hours}h shift)` : ""}
+                      {formatDate(currentDisplayEvent.event_date)}
                     </Text>
                   </View>
-                )}
 
-                <View style={styles.metaRow}>
-                  <MapPin size={16} color={colors.foregroundMuted} />
-                  <Text style={styles.metaValue} numberOfLines={2}>
-                    {[
-                      currentDisplayEvent.street,
-                      currentDisplayEvent.barangay,
-                      currentDisplayEvent.municipality,
-                    ]
-                      .filter(Boolean)
-                      .join(", ") || "Batangas Venue"}
-                  </Text>
-                </View>
+                  {currentDisplayEvent.start_time && (
+                    <View style={styles.metaRow}>
+                      <Clock size={16} color={colors.foregroundMuted} />
+                      <Text style={styles.metaValue}>
+                        {formatTime(currentDisplayEvent.start_time)}
+                        {currentDisplayEvent.duration_hours ? ` (${currentDisplayEvent.duration_hours}h shift)` : ""}
+                      </Text>
+                    </View>
+                  )}
 
-                {/* Navigation Button */}
-                <AppButton
-                  title="Open Venue Directions"
-                  variant="outline"
-                  size="md"
-                  icon={Navigation}
-                  onPress={() => handleOpenMaps(currentDisplayEvent)}
-                  style={{ marginTop: spacing.sm }}
-                />
+                  <View style={styles.metaRow}>
+                    <MapPin size={16} color={colors.foregroundMuted} />
+                    <Text style={styles.metaValue} numberOfLines={2}>
+                      {[
+                        currentDisplayEvent.street,
+                        currentDisplayEvent.barangay,
+                        currentDisplayEvent.municipality,
+                      ]
+                        .filter(Boolean)
+                        .join(", ") || "Batangas Venue"}
+                    </Text>
+                  </View>
 
-                {/* Operational Actions */}
-                <View style={styles.actionGrid}>
+                  {/* Navigation Button */}
                   <AppButton
-                    title="Event Details"
-                    variant="secondary"
+                    title="Open Venue Directions"
+                    variant="outline"
                     size="md"
-                    icon={FileText}
-                    onPress={() =>
-                      navigation.navigate("StaffEventDetail", {
-                        bookingId: currentDisplayEvent._id,
-                      })
-                    }
-                    style={{ flex: 1 }}
+                    icon={Navigation}
+                    onPress={() => handleOpenMaps(currentDisplayEvent)}
+                    style={{ marginTop: spacing.sm }}
                   />
 
-                  <AppButton
-                    title={unlocked ? "Equipment Returns" : "Returns Locked"}
-                    variant={unlocked ? "primary" : "ghost"}
-                    size="md"
-                    icon={unlocked ? Unlock : Lock}
-                    onPress={() => {
-                      if (!unlocked) {
-                        Alert.alert(
-                          "Equipment Returns Locked",
-                          `Equipment returns can only be filed once the event begins at ${formatTime(currentDisplayEvent.start_time) || "the scheduled time"}.`
-                        );
-                      } else {
-                        navigation.navigate("EquipmentChecklist", {
+                  {/* Operational Actions */}
+                  <View ref={actionsRef} collapsable={false} style={styles.actionGrid}>
+                    <AppButton
+                      title="Event Details"
+                      variant="secondary"
+                      size="md"
+                      icon={FileText}
+                      onPress={() =>
+                        navigation.navigate("StaffEventDetail", {
                           bookingId: currentDisplayEvent._id,
-                        });
+                        })
                       }
-                    }}
-                    style={{ flex: 1 }}
-                  />
-                </View>
-              </Card>
+                      style={{ flex: 1 }}
+                    />
+
+                    <AppButton
+                      title={unlocked ? "Equipment Returns" : "Returns Locked"}
+                      variant={unlocked ? "primary" : "ghost"}
+                      size="md"
+                      icon={unlocked ? Unlock : Lock}
+                      onPress={() => {
+                        if (!unlocked) {
+                          Alert.alert(
+                            "Equipment Returns Locked",
+                            `Equipment returns can only be filed once the event begins at ${formatTime(currentDisplayEvent.start_time) || "the scheduled time"}.`
+                          );
+                        } else {
+                          navigation.navigate("EquipmentChecklist", {
+                            bookingId: currentDisplayEvent._id,
+                          });
+                        }
+                      }}
+                      style={{ flex: 1 }}
+                    />
+                  </View>
+                </Card>
+              </View>
             ) : (
               <Card style={styles.noShiftCard} variant="flat">
                 <Sun size={36} color={colors.accentDark} style={{ marginBottom: spacing.xs }} />
@@ -375,6 +403,9 @@ export const StaffTodayScreen = ({ navigation }) => {
           </>
         )}
       </ScrollView>
+
+      {/* In-App Coach Marks Feature Tour */}
+      <CoachMarkSequence screenKey="staff_today" steps={coachMarkSteps} />
     </View>
   );
 };

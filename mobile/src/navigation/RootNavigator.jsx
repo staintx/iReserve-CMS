@@ -3,8 +3,10 @@ import { View, StyleSheet, Animated, useWindowDimensions } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { navigationRef, navigateGlobal } from "./navigationRef";
 import { useAuth } from "../context/AuthContext";
+import { useOnboarding } from "../context/OnboardingContext";
 import { colors } from "../constants/theme";
 import AnimatedSplashScreen from "../components/common/AnimatedSplashScreen";
+import OnboardingScreen from "../components/common/OnboardingScreen";
 
 import AuthNavigator from "./AuthNavigator";
 import CustomerNavigator from "./CustomerNavigator";
@@ -15,13 +17,20 @@ export { navigationRef, navigateGlobal };
 
 export const RootNavigator = ({ fontsLoaded = true }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const {
+    hasCompletedOnboarding,
+    isReplayingOnboarding,
+    completeOnboarding,
+    dismissReplay,
+    isLoading: isOnboardingLoading,
+  } = useOnboarding();
   const [splashFinished, setSplashFinished] = useState(false);
   const { width: SCREEN_WIDTH } = useWindowDimensions();
 
   // 0 = Splash active, 1 = Login / main app fully revealed
   const slideAnim = useRef(new Animated.Value(0)).current;
 
-  const isReady = !isLoading && fontsLoaded;
+  const isReady = !isLoading && !isOnboardingLoading && fontsLoaded;
 
   // Modern horizontal slide-in for the incoming login / main screen
   const screenTranslateX = slideAnim.interpolate({
@@ -61,6 +70,13 @@ export const RootNavigator = ({ fontsLoaded = true }) => {
           <NavigationContainer ref={navigationRef}>
             {!isAuthenticated ? (
               <AuthNavigator />
+            ) : !hasCompletedOnboarding || isReplayingOnboarding ? (
+              <OnboardingScreen
+                role={user?.role || "customer"}
+                onComplete={() => completeOnboarding(user?.role)}
+                isReplay={isReplayingOnboarding}
+                onDismiss={dismissReplay}
+              />
             ) : user?.role === "manager" ? (
               <ManagerNavigator />
             ) : user?.role === "staff" ? (

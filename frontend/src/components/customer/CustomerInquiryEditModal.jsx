@@ -920,6 +920,7 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
                     totalDishCount={menuCatalog?.length || 0}
                     groups={groupedDishes}
                     selectedCountsByGroup={selectedCountsByGroup}
+                    showAll={true}
                   />
 
                   {/* Dishes Grid */}

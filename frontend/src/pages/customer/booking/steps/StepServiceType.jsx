@@ -49,8 +49,8 @@ export default function StepServiceType({ form, setForm }) {
   return (
     <StepShell width="wide">
       <SH
-        title="What Do You Need From Us?"
-        sub="Select a service type. You can switch this at any point before submitting."
+        title="Choose Your Service Type"
+        sub="Select the catering and event setup service that fits your event."
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -125,7 +125,7 @@ export default function StepServiceType({ form, setForm }) {
         <div className="flex items-center gap-2">
           <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
           <span>
-            <strong className="font-semibold text-slate-800">Draft Request:</strong> Sending this asks for an itemized quotation. No payment is taken today.
+            <strong className="font-semibold text-slate-800">Draft Request:</strong> Submitting this form requests an official itemized quotation. No payment is required today.
           </span>
         </div>
         {active && (

@@ -3,6 +3,7 @@ import { PartyPopper, MapPin, Package, Palette, Users, Truck, Store, Sparkles, U
 import {
   Card,
   SH,
+  FL,
   Field,
   TInput,
   TSelect,
@@ -14,7 +15,7 @@ import {
   StepShell,
 } from "../components/BookingSharedUI";
 import { cn } from "@/lib/utils";
-import EstimateSummary from "../components/EstimateSummary";
+
 import ThemePicker, { ColorPalettePicker } from "../components/ThemePicker";
 import { EVENT_TYPES, OTHER_EVENT_TYPE } from "../../../../lib/eventTypes";
 import {
@@ -40,7 +41,7 @@ export default function StepEventDetails({
   packageDetails,
   guestMin = 1,
   guestMax = null,
-  estimate,
+
   errors = {},
   setupCapacity = null,
   offer = null,
@@ -184,7 +185,7 @@ export default function StepEventDetails({
   ];
 
   return (
-    <StepShell aside={<EstimateSummary estimate={estimate} hideIncluded={isOffer} />}>
+    <StepShell width="wide">
       <SH
         title={isOffer ? "Service Option & Details" : "Event Details"}
         sub={
@@ -320,11 +321,11 @@ export default function StepEventDetails({
                 <Field
                   label="Celebrant / Honoree name"
                   required
-                  hint="e.g. Sarah, John & Maria (used for your event title)"
+                  hint="Used for your event title and official quotation"
                   error={errors.celebrant_name}
                 >
                   <TInput
-                    placeholder="e.g. Sarah"
+                    placeholder="e.g. Maria (Birthday), John & Sarah (Wedding)"
                     maxLength={80}
                     value={form.celebrant_name || ""}
                     onChange={(val) => setForm((prev) => ({ ...prev, celebrant_name: val }))}
@@ -391,7 +392,7 @@ export default function StepEventDetails({
                 error={errors.street}
               >
                 <TInput
-                  placeholder="e.g. Purok 4, Lopez Building"
+                  placeholder="e.g. 123 Rizal St., Purok 4, Villa Subdivision"
                   maxLength={150}
                   value={form.street}
                   onChange={(val) => setForm({ ...form, street: val })}
@@ -399,9 +400,9 @@ export default function StepEventDetails({
                 />
               </Field>
 
-              <Field label="Landmark" hint="Optional, helps driver find location">
+              <Field label="Landmark" hint="Helps our delivery driver locate your address">
                 <TInput
-                  placeholder="e.g. Across the municipal hall"
+                  placeholder="e.g. Near Barangay Hall, behind Shell station"
                   maxLength={100}
                   value={form.landmark}
                   onChange={(val) => setForm({ ...form, landmark: val })}
@@ -419,10 +420,8 @@ export default function StepEventDetails({
             <div className="space-y-3">
               {/* Who is this event for */}
               <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                  Who is this event for?
-                </label>
-                <div className="grid grid-cols-2 gap-2">
+                <FL>Who is this event for?</FL>
+                <div className="grid grid-cols-2 gap-2 mt-1">
                   <button
                     type="button"
                     onClick={() => setForm((prev) => ({ ...prev, booking_for: "myself", celebrant_name: "" }))}
@@ -456,11 +455,11 @@ export default function StepEventDetails({
                 <Field
                   label="Celebrant / Honoree name"
                   required
-                  hint="e.g. Sarah, John & Maria, Baby Liam (used for your event title & quote)"
+                  hint="Used for your event title and official quotation"
                   error={errors.celebrant_name}
                 >
                   <TInput
-                    placeholder="e.g. Sarah"
+                    placeholder="e.g. Maria (Birthday), John & Sarah (Wedding)"
                     maxLength={80}
                     value={form.celebrant_name || ""}
                     onChange={(val) => setForm((prev) => ({ ...prev, celebrant_name: val }))}
@@ -497,7 +496,7 @@ export default function StepEventDetails({
                   error={errors.event_type_other}
                 >
                   <TInput
-                    placeholder="e.g. Family Reunion"
+                    placeholder="e.g. Family Reunion, Milestone Anniversary"
                     maxLength={50}
                     value={form.event_type_other}
                     onChange={(val) => setForm({ ...form, event_type_other: val })}
@@ -601,7 +600,7 @@ export default function StepEventDetails({
                 hint="Street, subdivision, or building name"
               >
                 <TInput
-                  placeholder="e.g. Purok 4, Lopez Building"
+                  placeholder="e.g. 123 Rizal St., Purok 4, Villa Subdivision"
                   maxLength={150}
                   value={form.street}
                   onChange={(val) => setForm({ ...form, street: val })}
@@ -625,9 +624,9 @@ export default function StepEventDetails({
                   />
                 </Field>
 
-                <Field label="Landmark" hint="Optional">
+                <Field label="Landmark" hint="Helps our crew locate the venue">
                   <TInput
-                    placeholder="e.g. Across the municipal hall"
+                    placeholder="e.g. Near Barangay Hall, behind Shell station"
                     maxLength={100}
                     value={form.landmark}
                     onChange={(val) => setForm({ ...form, landmark: val })}
@@ -642,7 +641,7 @@ export default function StepEventDetails({
                   error={errors.venue_type_other}
                 >
                   <TInput
-                    placeholder="e.g. Rooftop terrace, Covered court"
+                    placeholder="e.g. Covered Court, Rooftop Terrace, Private Garden"
                     maxLength={60}
                     value={venueTypeOther}
                     onChange={(val) =>
@@ -672,7 +671,7 @@ export default function StepEventDetails({
               <div className="space-y-3">
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                    Event Theme (Optional)
+                    Theme or styling motif
                   </label>
                   <ThemePicker
                     value={form.event_theme}
@@ -683,7 +682,7 @@ export default function StepEventDetails({
                 <div className="border-t border-slate-100 pt-2.5">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                      Color palette (Optional)
+                      Color palette
                     </label>
                     <FieldStatusPill
                       value={

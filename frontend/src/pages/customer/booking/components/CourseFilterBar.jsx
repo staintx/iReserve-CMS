@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -18,11 +18,12 @@ const focusRing =
  * - Smooth scroll behavior and auto-scroll on click
  */
 export default function CourseFilterBar({
-  activeGroup = "all",
+  activeGroup,
   onSelectGroup,
   totalDishCount = 0,
   groups = [],
   selectedCountsByGroup = {},
+  showAll = false,
   className = "",
 }) {
   const scrollRef = useRef(null);
@@ -97,7 +98,7 @@ export default function CourseFilterBar({
   };
 
   return (
-    <div className={cn("relative group/filter", className)}>
+    <div className={cn("relative group/filter select-none", className)}>
       {/* Left Scroll Navigation Button & Gradient Mask */}
       {canScrollLeft && (
         <div className="pointer-events-none absolute left-0 top-0 bottom-1 z-10 flex items-center pr-3 bg-gradient-to-r from-white via-white/95 to-transparent">
@@ -118,34 +119,37 @@ export default function CourseFilterBar({
       {/* Scrollable Pills Row */}
       <div
         ref={scrollRef}
-        className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-none scroll-smooth"
-        role="group"
-        aria-label="Filter dishes by course"
+        className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-none scroll-smooth touch-pan-x"
+        role="tablist"
+        aria-label="Food category navigation"
       >
-        <button
-          type="button"
-          aria-pressed={activeGroup === "all"}
-          className={cn(
-            "shrink-0 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
-            activeGroup === "all"
-              ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs"
-              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
-            focusRing,
-          )}
-          onClick={(e) => handlePillClick("all", e)}
-        >
-          <span>All dishes</span>
-          <span
+        {showAll && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeGroup === "all"}
             className={cn(
-              "text-[10px] px-1 py-0.2 rounded font-mono font-bold",
+              "shrink-0 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer",
               activeGroup === "all"
-                ? "bg-white/20 text-white"
-                : "bg-slate-100 text-slate-500",
+                ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs"
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
+              focusRing,
             )}
+            onClick={(e) => handlePillClick("all", e)}
           >
-            {totalDishCount}
-          </span>
-        </button>
+            <span>All dishes</span>
+            <span
+              className={cn(
+                "text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold",
+                activeGroup === "all"
+                  ? "bg-white/20 text-white"
+                  : "bg-slate-100 text-slate-500",
+              )}
+            >
+              {totalDishCount}
+            </span>
+          </button>
+        )}
 
         {groups.map((group) => {
           const countInThis = group.items.length;
@@ -156,32 +160,44 @@ export default function CourseFilterBar({
             <button
               key={group.id}
               type="button"
-              aria-pressed={isActive}
+              role="tab"
+              aria-selected={isActive}
               className={cn(
-                "shrink-0 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
+                "shrink-0 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer active:scale-[0.98]",
                 isActive
-                  ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+                  ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-xs"
+                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/80",
                 focusRing,
               )}
               onClick={(e) => handlePillClick(group.id, e)}
             >
               <span>{group.label}</span>
+
+              {/* Total items badge */}
               <span
                 className={cn(
-                  "text-[10px] px-1 py-0.2 rounded font-mono font-bold",
+                  "text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold",
                   isActive
                     ? "bg-white/20 text-white"
-                    : selectedInThis > 0
-                      ? "bg-blue-100 text-blue-800"
-                      : "bg-slate-100 text-slate-500",
+                    : "bg-slate-100 text-slate-500",
                 )}
               >
                 {countInThis}
               </span>
-              {selectedInThis > 0 && !isActive && (
-                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#4C81E0] text-white text-[9px] font-bold">
-                  {selectedInThis}
+
+              {/* Selected in category badge */}
+              {selectedInThis > 0 && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-bold transition-colors",
+                    isActive
+                      ? "bg-white text-[#4C81E0]"
+                      : "bg-[#4C81E0] text-white shadow-2xs",
+                  )}
+                  title={`${selectedInThis} selected in ${group.label}`}
+                >
+                  <Check size={9} strokeWidth={3} />
+                  <span>{selectedInThis}</span>
                 </span>
               )}
             </button>

@@ -491,7 +491,7 @@ export default function StepReviewBooking({
             <Row label="Mobile" value={form.contact_phone} />
             <Row label="Email" value={form.contact_email} wide />
             {form.contact_alt_phone && (
-              <Row label="Backup number" value={form.contact_alt_phone} />
+              <Row label="Alternative phone" value={form.contact_alt_phone} />
             )}
           </Section>
         </Card>
@@ -506,7 +506,7 @@ export default function StepReviewBooking({
             </h3>
 
             <p className="mb-3 text-xs text-slate-500 leading-relaxed">
-              Please review the following policies before submitting your booking.
+              Please review and accept our policies before submitting your quotation request.
             </p>
 
             {errors.agreements && (

@@ -18,17 +18,17 @@ export default function StepDietaryNeeds({ form, setForm }) {
     <StepShell width="wide">
       <SH
         title="Allergies & Dietary Needs"
-        sub="Both are optional. Any special dietary requests or allergies will be shared directly with our kitchen crew."
+        sub="Optional. Any special dietary requests or allergies will be shared directly with our kitchen crew."
       />
 
       <Card className="p-3.5 sm:p-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field
-            label="Allergies (Optional)"
-            hint="Ingredients that must not touch the food at all. (Max 300 chars)"
+            label="Allergies"
+            hint="Ingredients that must not touch the food (max 300 chars)"
           >
             <TTextarea
-              placeholder="e.g. Two guests have severe peanut / seafood allergies"
+              placeholder="e.g. Peanut allergy, severe shellfish or seafood allergy..."
               maxLength={300}
               value={form.allergies || ""}
               onChange={(val) => setForm({ ...form, allergies: val })}
@@ -37,11 +37,11 @@ export default function StepDietaryNeeds({ form, setForm }) {
           </Field>
 
           <Field
-            label="Dietary restrictions (Optional)"
-            hint="Dietary preferences, religious or health requirements. (Max 300 chars)"
+            label="Dietary preferences & restrictions"
+            hint="Vegetarian, halal, religious, or health requirements (max 300 chars)"
           >
             <TTextarea
-              placeholder="e.g. 5 vegetarian guests, no pork, or low sodium"
+              placeholder="e.g. 5 vegetarian guests, no pork, or low-sodium meals..."
               maxLength={300}
               value={form.dietary_restrictions || ""}
               onChange={(val) => setForm({ ...form, dietary_restrictions: val })}

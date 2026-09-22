@@ -13,7 +13,7 @@ import {
   StepShell,
 } from "../components/BookingSharedUI";
 import { cn } from "@/lib/utils";
-import EstimateSummary from "../components/EstimateSummary";
+
 
 export default function StepDeliveryDetails({
   form,
@@ -21,7 +21,7 @@ export default function StepDeliveryDetails({
   municipalities,
   barangays,
   pickupAddress,
-  estimate,
+
   guestMin = 1,
   guestMax = null,
   errors = {},
@@ -51,18 +51,18 @@ export default function StepDeliveryDetails({
   ];
 
   return (
-    <StepShell aside={<EstimateSummary estimate={estimate} hideIncluded />}>
+    <StepShell width="wide">
       <SH
         title="Guests & Delivery"
-        sub="How many people you are feeding, and where the food goes."
+        sub="Specify how many guests you're catering for and where your order should be received."
       />
 
       <div className="flex flex-col gap-3.5">
-        {/* Top Row: Guests & Fulfillment Method */}
+        {/* Top Row: Guests & Delivery/Pickup Method */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 items-stretch">
           <Card className="p-3.5 sm:p-4 flex flex-col justify-between">
             <div>
-              <SectionTitle icon={Users}>How many guests</SectionTitle>
+              <SectionTitle icon={Users}>Guest count</SectionTitle>
               <Field
                 label="Estimated guest count"
                 required
@@ -85,7 +85,7 @@ export default function StepDeliveryDetails({
 
           <Card className="p-3.5 sm:p-4 flex flex-col justify-between">
             <div>
-              <SectionTitle icon={Truck}>Fulfillment method</SectionTitle>
+              <SectionTitle icon={Truck}>Delivery or Pickup</SectionTitle>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {methods.map((method) => {
                   const { value, title, description, active } = method;
@@ -127,7 +127,7 @@ export default function StepDeliveryDetails({
         {/* Bottom Section: Address details */}
         <Card className="p-3.5 sm:p-4">
           <SectionTitle icon={MapPin}>
-            {isPickup ? "Pickup location" : "Delivery address"}
+            {isPickup ? "Kitchen pickup location" : "Delivery address"}
           </SectionTitle>
 
           {isPickup ? (
@@ -169,13 +169,13 @@ export default function StepDeliveryDetails({
 
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                 <Field
-                  label="Street and building"
+                  label="Street address and building"
                   required
                   className="sm:col-span-2"
                   error={errors.street}
                 >
                   <TInput
-                    placeholder="e.g. 123 Rizal Street, Lopez Building"
+                    placeholder="e.g. 123 Rizal St., Villa Subdivision, Bldg. A"
                     maxLength={150}
                     value={form.street || ""}
                     onChange={(val) => setForm({ ...form, street: val })}
@@ -194,9 +194,9 @@ export default function StepDeliveryDetails({
               </div>
 
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                <Field label="Landmark" hint="Optional, helps driver find venue">
+                <Field label="Landmark" hint="Helps our delivery driver locate your address">
                   <TInput
-                    placeholder="e.g. Across the municipal hall"
+                    placeholder="e.g. Near Barangay Hall, behind Shell station"
                     maxLength={100}
                     value={form.landmark || ""}
                     onChange={(val) => setForm({ ...form, landmark: val })}
@@ -205,10 +205,10 @@ export default function StepDeliveryDetails({
 
                 <Field
                   label="Delivery instructions"
-                  hint="Optional. Gate, floor, or parking notes"
+                  hint="Gate, floor number, or parking notes for our crew"
                 >
                   <TInput
-                    placeholder="e.g. 2nd floor, blue gate, park along side street"
+                    placeholder="e.g. 2nd floor, blue gate, parking along side street"
                     maxLength={250}
                     value={form.delivery_instructions || ""}
                     onChange={(val) =>

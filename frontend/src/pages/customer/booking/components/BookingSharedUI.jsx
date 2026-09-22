@@ -81,7 +81,7 @@ export function FL({ children, required = false, htmlFor }) {
     >
       {children}
       {required && (
-        <span className="ml-1 text-red-500" aria-hidden="true">
+        <span className="ml-1 font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
           *
         </span>
       )}

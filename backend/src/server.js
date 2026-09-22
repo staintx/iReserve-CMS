@@ -46,6 +46,11 @@ const startCronJobs = require("./jobs/cron");
 connectDB();
 
 const app = express();
+
+// Trust reverse proxies (Cloudflare Worker + Render load balancer)
+// so req.ip correctly resolves to the real visitor IP instead of Cloudflare's IP
+app.set("trust proxy", 1);
+
 const rateLimit = require("express-rate-limit");
 
 const defaultAllowedOrigins = [
@@ -79,12 +84,21 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+// Helper to determine the true client IP (prioritizing Cloudflare headers)
+const getClientIp = (req) => {
+	const cfIp = req.headers["cf-connecting-ip"];
+	if (cfIp) return Array.isArray(cfIp) ? cfIp[0] : cfIp;
+	return req.ip;
+};
+
 // Global API rate limiter: generous limits, skipped in development to prevent 429 lockout
 const apiLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000,
 	max: process.env.NODE_ENV === "production" ? 2500 : 50000,
 	standardHeaders: true,
 	legacyHeaders: false,
+	keyGenerator: getClientIp,
+	validate: { trustProxy: false },
 	skip: () => process.env.NODE_ENV !== "production",
 	message: { message: "Too many requests from this IP, please try again after 15 minutes" }
 });
@@ -96,6 +110,8 @@ const authLimiter = rateLimit({
 	max: process.env.NODE_ENV === "production" ? 50 : 2000,
 	standardHeaders: true,
 	legacyHeaders: false,
+	keyGenerator: getClientIp,
+	validate: { trustProxy: false },
 	skip: () => process.env.NODE_ENV !== "production",
 	message: { message: "Too many authentication attempts, please try again later" }
 });

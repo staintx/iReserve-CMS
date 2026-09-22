@@ -179,24 +179,24 @@ export default function AIPackageParserModal({
 Size: 20x20
 Price: ₱15,000 - ₱17,000
 Inclusions:
-- [Event Setup & Furniture] Stage Setup, Buffet Setup, Balloon and Name Backdrop, Couch, Round Tables (6), Monoblock Chairs (60), Industrial Fan, Water Station
-- [Dining & Service Inventory] Food Warmer (7), Serving Spoons, Plates (150), Glasses (6 trays), Ice Cooler, Staff / Crew (4)
+- [Event Setup] Stage Setup, Buffet Setup, Balloon and Name Backdrop, Couch
+- [Inventory] Round Tables (6), Monoblock Chairs (60), Industrial Fan, Water Station, Food Warmer (7), Plates (150)
 ADDS ON: Standee, Candy Corner, Host, Clown, Cake, Videoke, Basic Lights & Sounds
 
 PAGE 2: BIRTHDAY EVENT SETUP
 Size: 20x40
 Price: ₱20,000
 Inclusions:
-- [Event Setup & Furniture] Stage Setup, Buffet Setup, Couch, Round Tables (8), Monoblock Chairs (80), Industrial Fan, Water Station
-- [Dining & Service Inventory] Food Warmer (7), Plates (150), Staff / Crew (5)
+- [Event Setup] Stage Setup, Buffet Setup, Couch
+- [Inventory] Round Tables (8), Monoblock Chairs (80), Industrial Fan, Water Station, Food Warmer (7), Plates (150)
 ADDS ON: Standee, Host, Cake, Videoke
 
 PAGE 4: WEDDING EVENT SETUP
 Size: 20x40
 Price: ₱30,000
 Inclusions:
-- [Event Setup & Furniture] Stage & Backdrop Setup, Separate Dining Setup for VIP, Entourage Setup, Couch, Round Tables (10), Monoblock Chairs (100), Tiffany Chairs (20), Dove, Red Carpet
-- [Dining & Service Inventory] Food Warmer (7), Cutlery Sets (200), Plates (200), Staff / Crew (6)
+- [Event Setup] Stage & Backdrop Setup, Separate Dining Setup for VIP, Entourage Setup, Couch, Dove, Red Carpet
+- [Inventory] Round Tables (10), Monoblock Chairs (100), Tiffany Chairs (20), Food Warmer (7), Cutlery Sets (200), Plates (200)
 ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
     setTextInput(sample);
   };

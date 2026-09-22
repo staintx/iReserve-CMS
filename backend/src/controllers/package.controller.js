@@ -89,6 +89,13 @@ async function validatePackageItems({
 
       const { category, name } = parseInclusionCategoryAndName(inc);
       const nameLower = name.toLowerCase().trim();
+      const catLower = (category || "").toLowerCase().trim();
+
+      // Event Setup items are display-only package inclusions.
+      // They are NOT connected to Inventory and should NOT depend on inventory tracking or validation.
+      if (catLower === "event setup") {
+        continue;
+      }
 
       let matchedInvItem = null;
       if (isSetupCategory(category)) {
@@ -202,6 +209,14 @@ async function sanitizeAIPackageItems({
 
       const { category, name } = parseInclusionCategoryAndName(cleanInc);
       const nameLower = name.toLowerCase().trim();
+      const catLower = (category || "").toLowerCase().trim();
+
+      // Event Setup items are display-only package inclusions.
+      // Kept directly without inventory filtering.
+      if (catLower === "event setup") {
+        filteredInclusions.push(cleanInc);
+        continue;
+      }
 
       let matchedInvItem = null;
       if (isSetupCategory(category)) {
@@ -1112,7 +1127,7 @@ Use the following schema:
       "description": "string (short 1-2 sentence overview mentioning theme and setup size)",
       "fullDescription": "string (comprehensive overview of setup and key inclusions)",
       "inclusions": [
-        "string (e.g. '[Event Setup & Furniture] Stage Setup', '[Dining & Service Inventory] Food Warmer (7)', '[Dining & Service Inventory] Plates (150)')"
+        "string (e.g. '[Event Setup] Stage Setup', '[Event Setup] Backdrop Setup', '[Inventory] Round Tables (6)', '[Inventory] Food Warmer (7)', '[Inventory] Plates (150)')"
       ],
       "add_ons": [
         { "name": "string (e.g. Standee)", "qty": "string (optional qty or empty)" }
@@ -1133,10 +1148,9 @@ Use the following schema:
 Guidelines:
 1. Multi-Page & Multi-Tier Extraction: If the PDF or document contains multiple pages or tiers (e.g. Page 1 Birthday 20x20, Page 2 Birthday 20x40, Page 4 Wedding 20x40, etc.), create a distinct package entry for EACH setup tier.
 2. Inclusions Formatting: Prefix every inclusion with its category in brackets:
-   - [Event Setup & Furniture] for backdrops, stages, couches, carpets, tables, chairs, fans, lighting, draping, dove, chandelier, etc.
-   - [Dining & Service Inventory] for food warmers, chafing dishes, spoons, plates, cutlery, glassware, coolers, ice, water jugs, mineral water gallons, dishwashing items, staff/crew, etc.
+   - [Event Setup] for display setup items: stages, backdrops, draping, decorations, venue arrangement, etc. (display-only, no quantity).
+   - [Inventory] for tracked inventory items: tables, chairs, food warmers, chafing dishes, spoons, plates, cutlery, glassware, coolers, fans, etc. Always include item quantities in parentheses if mentioned (e.g. '[Inventory] Plates (150)').
    - [Food & Beverage] for edible dishes, meals, or desserts.
-   Always include item quantities in parentheses if mentioned (e.g. '[Dining & Service Inventory] Plates (150)').
 3. Add-ons: Extract all optional/adds-on items into the add_ons array as objects with "name" and optional "qty".
 4. Guest Capacities: Derive realistic guest_min and guest_max from chairs/tables/plates (e.g. 60 chairs -> guest_max 60, 100 chairs -> guest_max 100).
 5. Scaffolding: Derive width_ft and length_ft from the size (e.g. "Size: 20x40" -> width_ft: 20, length_ft: 40).

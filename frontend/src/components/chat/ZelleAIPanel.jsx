@@ -428,9 +428,9 @@ export default function ZelleAIPanel() {
       {isOpen ? (
         <div
           className={cn(
-            "fixed z-50 border border-slate-200 shadow-2xl bg-white flex flex-col overflow-hidden transition-all duration-300 ease-out font-sans",
+            "zelle-chat-panel fixed z-50 border border-slate-200 shadow-2xl bg-white flex flex-col overflow-hidden transition-all duration-300 ease-out font-sans",
             isExpanded
-              ? "inset-4 sm:inset-10 rounded-md md:w-[880px] md:h-[760px] md:max-h-[85vh] md:m-auto"
+              ? "zelle-chat-panel--expanded inset-4 sm:inset-10 rounded-md md:w-[880px] md:h-[760px] md:max-h-[85vh] md:m-auto"
               : "right-4 sm:right-6 w-[92vw] max-w-95 sm:w-96 h-136 max-h-[84vh] rounded-md origin-bottom-right animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
           )}
           style={!isExpanded ? { bottom: "var(--chat-fab-bottom, 1.5rem)" } : {}}
@@ -538,7 +538,7 @@ export default function ZelleAIPanel() {
                     : "text-white/80 hover:text-white hover:bg-white/10"
                 )}
               >
-                <Sparkles className={cn("w-3 h-3", activeTab === "zelle" ? "text-amber-500" : "text-white/80")} /> Zelle AI
+                <Sparkles className={cn("w-3 h-3", activeTab === "zelle" ? "text-[#2C4B8A]" : "text-white/80")} /> Zelle AI
               </button>
               <button
                 type="button"

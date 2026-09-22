@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Only rendered if a caller passes no steps at all. Mirrors the longest real
@@ -33,13 +33,33 @@ export default function BookingStepper({
     <nav aria-label="Booking progress" className="w-full">
       {/* Compact progress bar + context — small screens */}
       <div className="md:hidden">
-        <div className="mb-1.5 flex items-baseline justify-between gap-3">
-          <p className="truncate text-sm font-semibold text-[#1E293B]">
-            {activeStep?.label}
-          </p>
-          <p className="shrink-0 text-xs font-medium text-[#64748B]">
-            Step {current} of {total}
-          </p>
+        <div className="mb-1.5 flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+            <p className="truncate min-w-0 text-xs min-[360px]:text-sm font-semibold text-[#1E293B]">
+              {activeStep?.label}
+            </p>
+            <span className="shrink-0 text-[11px] font-medium text-[#64748B] tabular-nums whitespace-nowrap">
+              ({current}/{total})
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              window.dispatchEvent(
+                new CustomEvent("open-zelle-chat", {
+                  detail: { tab: "zelle" },
+                }),
+              )
+            }
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#4C81E0]/15 text-[#2563EB] border border-[#4C81E0]/35 hover:bg-[#4C81E0]/25 hover:border-[#4C81E0]/60 active:scale-95 transition-all text-[11px] font-semibold shrink-0 cursor-pointer shadow-2xs"
+            aria-label="Ask Zelle AI Assistant"
+            title="Ask Zelle AI Assistant"
+          >
+            <Sparkles size={11} className="text-amber-500 shrink-0" />
+            <span className="hidden min-[375px]:inline">Ask Zelle</span>
+            <span className="min-[375px]:hidden">AI</span>
+          </button>
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
           <div

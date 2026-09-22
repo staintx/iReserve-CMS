@@ -261,8 +261,41 @@
     bottom: var(--chat-fab-bottom, 1.5rem);
   }
 
+  /* ── Zelle AI Chat Panel ───────────────────────────────── */
+  .zelle-chat-panel {
+    bottom: var(--chat-fab-bottom, 1.5rem);
+  }
+
   body.booking-flow {
     --chat-fab-bottom: 5.75rem;
+  }
+
+  @media (max-width: 639px) {
+    /* On mobile inside booking wizard, hide the floating bottom-right FAB so it never covers form fields or sticky buttons */
+    body.booking-flow .chat-fab {
+      display: none !important;
+    }
+
+    body.booking-flow {
+      --chat-fab-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+    }
+
+    /* On mobile, ensure chat panel remains fully visible on short screens and respects iOS safe areas */
+    .zelle-chat-panel {
+      right: max(0.75rem, env(safe-area-inset-right, 0.75rem)) !important;
+      bottom: max(0.75rem, env(safe-area-inset-bottom, 0.75rem)) !important;
+      max-height: min(84dvh, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1.5rem)) !important;
+      max-width: calc(100vw - max(1.5rem, env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px))) !important;
+    }
+
+    .zelle-chat-panel.zelle-chat-panel--expanded {
+      inset: max(0.5rem, env(safe-area-inset-top, 0.5rem))
+             max(0.5rem, env(safe-area-inset-right, 0.5rem))
+             max(0.5rem, env(safe-area-inset-bottom, 0.5rem))
+             max(0.5rem, env(safe-area-inset-left, 0.5rem)) !important;
+      max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1rem) !important;
+      max-width: calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 1rem) !important;
+    }
   }
 
   /* The booking flow's motion is all decorative — hover lifts, tile presses,
@@ -1270,6 +1303,10 @@
     padding: 0 20px;
   }
 
+  @media (max-width: 480px) {
+    .ls-inner { padding: 0 16px; }
+  }
+
   @media (min-width: 640px) {
     .ls-inner { padding: 0 40px; }
   }
@@ -1280,6 +1317,10 @@
     position: relative;
     width: 100%;
     padding: 64px 0;
+  }
+
+  @media (max-width: 639px) {
+    .ls-band { padding: 36px 0; }
   }
 
   @media (min-width: 768px) {
@@ -2660,6 +2701,10 @@
     cursor: pointer;
   }
 
+  @media (max-width: 639px) {
+    .ls-gallery-item { min-height: 0; }
+  }
+
   .ls-gallery-item img {
     width: 100%;
     height: 100%;
@@ -2831,9 +2876,13 @@
 
   /* ── Interior page header (routes without a hero) ────────── */
   .ls-pagehead {
-    padding: 48px 0 36px;
+    padding: 32px 0 28px;
     background: var(--ls-surface);
     border-bottom: 1px solid var(--ls-line);
+  }
+
+  @media (min-width: 640px) {
+    .ls-pagehead { padding: 48px 0 36px; }
   }
 
   @media (min-width: 768px) {
@@ -2843,10 +2892,12 @@
   .ls-pagehead h1 {
     margin-top: 10px;
     font-family: var(--font-serif);
-    font-size: clamp(1.9rem, 4vw, 2.75rem);
+    font-size: clamp(1.6rem, 5.5vw, 2.75rem);
     font-weight: 600;
-    line-height: 1.1;
+    line-height: 1.15;
     letter-spacing: -0.02em;
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
 
   /* ── Sticky filter bar ────────────────────────────────────
@@ -3179,6 +3230,20 @@
     border-top: 1px solid var(--ls-line);
   }
 
+  @media (max-width: 639px) {
+    .ls-detail-facts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 14px 16px;
+      margin-top: 18px;
+      padding-top: 16px;
+    }
+
+    .ls-detail-facts dd {
+      font-size: 0.9375rem;
+    }
+  }
+
   .ls-detail-facts dt {
     font-size: 0.6875rem;
     font-weight: 600;
@@ -3215,10 +3280,32 @@
     margin-top: 28px;
   }
 
+  @media (max-width: 639px) {
+    .ls-detail-actions {
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 22px;
+      width: 100%;
+    }
+
+    .ls-detail-actions .ls-btn {
+      width: 100%;
+      justify-content: center;
+      text-align: center;
+      padding: 12px 18px;
+    }
+  }
+
   .ls-detail-body {
     display: flex;
     flex-direction: column;
     gap: 52px;
+  }
+
+  @media (max-width: 639px) {
+    .ls-detail-body {
+      gap: 36px;
+    }
   }
 
   .ls-detail-section h2 {
@@ -3228,6 +3315,16 @@
     font-size: 1.4rem;
     font-weight: 600;
     border-bottom: 1px solid var(--ls-line);
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  @media (max-width: 639px) {
+    .ls-detail-section h2 {
+      font-size: 1.25rem;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+    }
   }
 
   .ls-detail-prose {
@@ -3235,6 +3332,14 @@
     font-size: 0.9375rem;
     line-height: 1.75;
     color: var(--ls-ink-soft);
+    overflow-wrap: break-word;
+  }
+
+  @media (max-width: 639px) {
+    .ls-detail-prose {
+      font-size: 0.875rem;
+      line-height: 1.65;
+    }
   }
 
   .ls-inclusion-group + .ls-inclusion-group { margin-top: 26px; }
@@ -3356,6 +3461,10 @@
     display: grid;
     gap: 14px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 480px) {
+    .ls-detail-gallery { gap: 8px; }
   }
 
   @media (min-width: 700px) {
@@ -3561,6 +3670,25 @@
     flex-wrap: wrap;
     gap: 12px;
     flex-shrink: 0;
+  }
+
+  @media (max-width: 639px) {
+    .ls-bridge {
+      gap: 18px;
+    }
+
+    .ls-bridge-actions {
+      flex-direction: column;
+      width: 100%;
+      gap: 10px;
+    }
+
+    .ls-bridge-actions .ls-btn {
+      width: 100%;
+      justify-content: center;
+      text-align: center;
+      padding: 12px 18px;
+    }
   }
 
   /* ── Landing footer (full-width band, no floating container) ── */

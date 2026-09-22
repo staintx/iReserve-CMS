@@ -5,6 +5,7 @@ import CustomerFooter from "../../components/layout/CustomerFooter";
 import useBusinessInfo, { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
 import { CustomerAPI } from "../../api/customer";
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, ChevronDown, X, Sparkles, Utensils } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   capacityLabel,
   eventTypeForPackage,
@@ -155,19 +156,19 @@ export default function PackageDetails() {
     return (
       <div
         key={course.category || idxKey}
-        className="bg-white border border-gray-200/90 rounded-lg p-5 shadow-xs transition-all duration-200 hover:shadow-sm hover:border-amber-300"
+        className="bg-white border border-gray-200/90 rounded-lg p-3.5 sm:p-5 shadow-xs transition-all duration-200 hover:shadow-sm hover:border-blue-300"
       >
-        <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+        <div className="flex items-center justify-between mb-3 sm:mb-4 border-b border-gray-100 pb-2.5 sm:pb-3">
           <h4 className="font-bold text-sm tracking-wider text-gray-900 uppercase">
             {course.category || "Included Items"}
           </h4>
-          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200/60">
+          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200/60">
             {course.items.length} {course.items.length === 1 ? "item" : "items"}
           </span>
         </div>
 
         <ul
-          className={`grid gap-2.5 ${
+          className={`grid gap-2 sm:gap-2.5 ${
             isLargeCategory
               ? "grid-cols-1 sm:grid-cols-2"
               : "grid-cols-1 sm:grid-cols-2"
@@ -176,7 +177,7 @@ export default function PackageDetails() {
           {course.items.map((item, itemIdx) => (
             <li
               key={itemIdx}
-              className="flex items-center gap-2.5 px-3 py-2 rounded-md bg-gray-50/80 border border-gray-100 text-sm font-medium text-gray-800 transition-colors hover:bg-amber-50/40 hover:border-amber-200"
+              className="flex items-center gap-2.5 px-3 py-2 rounded-md bg-gray-50/80 border border-gray-100 text-sm font-medium text-gray-800 transition-colors hover:bg-blue-50/30 hover:border-blue-200"
             >
               <span className="leading-snug">{item}</span>
             </li>
@@ -283,9 +284,9 @@ export default function PackageDetails() {
     return (
       <div
         key={group.category || idxKey}
-        className="bg-white border border-gray-200/90 rounded-lg p-5 shadow-xs transition-all duration-200 hover:shadow-sm hover:border-blue-300"
+        className="bg-white border border-gray-200/90 rounded-lg p-3.5 sm:p-5 shadow-xs transition-all duration-200 hover:shadow-sm hover:border-blue-300"
       >
-        <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+        <div className="flex items-center justify-between mb-3 sm:mb-4 border-b border-gray-100 pb-2.5 sm:pb-3">
           <h3 className="font-bold text-sm tracking-wider text-gray-900 uppercase">
             {group.category || "Included Items"}
           </h3>
@@ -294,7 +295,7 @@ export default function PackageDetails() {
           </span>
         </div>
 
-        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
           {group.items.map((item, index) => (
             <li
               key={`${item.name}-${index}`}
@@ -512,11 +513,73 @@ export default function PackageDetails() {
 
                   {/* Sizes live with the rest of what a customer needs before
                       they decide — price, guests, includes — rather than
-                      buried in the body. */}
+                      down among the inclusions, because size determines both
+                      capacity and price. */}
                   {scaffoldOptions.length > 0 && (
                     <div className="ls-detail-sizes">
                       <p className="ls-detail-sizes-label">Available sizes</p>
-                      <div className="ls-table-scroll">
+
+                      {/* Mobile card-based selector: clean reflow, touch-friendly, zero horizontal overflow */}
+                      <div className="sm:hidden space-y-2 mt-2.5">
+                        {scaffoldOptions.map((option, index) => {
+                          const isSelected = String(option._id) === String(activeScaffold?._id);
+                          const dims =
+                            option.width_ft && option.length_ft
+                              ? `${option.width_ft} × ${option.length_ft} ft`
+                              : "—";
+                          const area =
+                            option.area_ft2 || (option.width_ft && option.length_ft ? `${option.width_ft * option.length_ft} sq ft` : "—");
+                          const guests =
+                            option.guest_min && option.guest_max
+                              ? `${option.guest_min}–${option.guest_max} guests`
+                              : option.guest_max
+                                ? `Up to ${option.guest_max} guests`
+                                : option.guest_min
+                                  ? `From ${option.guest_min} guests`
+                                  : "";
+                          const priceStr = option.price
+                            ? peso(option.price)
+                            : option.free_setup
+                              ? "Free with package"
+                              : "Priced on quote";
+
+                          return (
+                            <button
+                              type="button"
+                              key={option._id || `mob-scaffold-${index}`}
+                              onClick={() => setSelectedScaffoldId(String(option._id))}
+                              className={cn(
+                                "w-full text-left p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-3 text-slate-800",
+                                isSelected
+                                  ? "border-[#4C81E0] bg-blue-50/70 shadow-2xs ring-1 ring-[#4C81E0]"
+                                  : "border-slate-200 bg-white hover:bg-slate-50"
+                              )}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-sm text-slate-900">
+                                    {option.label || dims}
+                                  </span>
+                                  {isSelected && (
+                                    <span className="text-[10px] font-bold text-[#4C81E0] bg-blue-100/70 px-1.5 py-0.5 rounded">
+                                      Selected
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-slate-500 mt-0.5 truncate">
+                                  {[typeof area === "number" ? `${area} sq ft` : area, guests].filter(Boolean).join(" · ")}
+                                </p>
+                              </div>
+                              <span className="text-sm font-bold text-slate-900 shrink-0 text-right">
+                                {priceStr}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Desktop & tablet table view */}
+                      <div className="hidden sm:block ls-table-scroll">
                         <table className="ls-table">
                           <thead>
                             <tr>
@@ -581,7 +644,7 @@ export default function PackageDetails() {
                   <div className="ls-detail-actions flex-wrap gap-2">
                     <button
                       type="button"
-                      className="ls-btn ls-btn--primary"
+                      className="ls-btn ls-btn--primary w-full sm:w-auto"
                       onClick={() =>
                         navigate("/customer/book", { state: bookingState })
                       }
@@ -590,7 +653,7 @@ export default function PackageDetails() {
                     </button>
                     <button
                       type="button"
-                      className="ls-btn ls-btn--ghost"
+                      className="ls-btn ls-btn--ghost w-full sm:w-auto"
                       onClick={() =>
                         navigate("/customer/book", { state: { resetWizard: true } })
                       }
@@ -599,7 +662,7 @@ export default function PackageDetails() {
                     </button>
                     <button
                       type="button"
-                      className="ls-btn inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/20"
+                      className="ls-btn inline-flex items-center justify-center gap-1.5 bg-[#4C81E0]/15 text-[#2563EB] border border-[#4C81E0]/35 hover:bg-[#4C81E0]/25 hover:border-[#4C81E0]/60 w-full sm:w-auto"
                       onClick={() => {
                         window.dispatchEvent(new CustomEvent("open-zelle-chat", {
                           detail: {
@@ -808,14 +871,14 @@ export default function PackageDetails() {
               <div className="ls-bridge-actions">
                 <button
                   type="button"
-                  className="ls-btn ls-btn--onink"
+                  className="ls-btn ls-btn--onink w-full sm:w-auto"
                   onClick={() => navigate("/customer/book", { state: bookingState })}
                 >
                   {offer ? "Book this combo" : "Book this package"}
                 </button>
                 <button
                   type="button"
-                  className="ls-btn ls-btn--light"
+                  className="ls-btn ls-btn--light w-full sm:w-auto"
                   onClick={() =>
                     navigate("/customer/book", { state: { resetWizard: true } })
                   }

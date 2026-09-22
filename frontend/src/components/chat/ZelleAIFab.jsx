@@ -23,7 +23,7 @@ export default function ZelleAIFab({ isOpen, onClick }) {
         "fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-500 hover:scale-105 active:scale-95 group overflow-hidden border border-white/20",
         isOpen ? "bg-slate-800 text-white rotate-90" : ""
       )}
-      aria-label={isOpen ? "Close Assistant" : "Open Zelle Assistant"}
+      aria-label={isOpen ? "Close Assistant" : "Open iReserve AI Assistant"}
     >
       {/* Backgrounds */}
       <div

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import assistantAvatar from "@/assets/images/zelle-avatar.png";
 import {
   Sparkles,
   User,
@@ -339,8 +340,12 @@ export default function ZelleMessage({
       )}
     >
       {!isMe && (
-        <div className="w-7 h-7 rounded-md bg-[#2C4B8A]/10 text-[#2C4B8A] flex items-center justify-center shadow-2xs shrink-0 mt-0.5">
-          <Sparkles className="w-3.5 h-3.5 text-[#2C4B8A]" />
+        <div className="w-7 h-7 rounded-md bg-[#2C4B8A]/10 flex items-center justify-center shadow-2xs shrink-0 mt-0.5 overflow-hidden">
+          <img
+            src={assistantAvatar}
+            alt="Zelle AI"
+            className="w-full h-full object-cover"
+          />
         </div>
       )}
 

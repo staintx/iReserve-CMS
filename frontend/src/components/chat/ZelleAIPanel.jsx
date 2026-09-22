@@ -5,6 +5,7 @@ import useToast from "../../hooks/useToast";
 import { listConversations, getMessages, sendMessage, createConversation, markConversationAsRead } from "../../api/messages";
 import { sendZelleCustomerMessage, getZelleCustomerHistory, clearZelleCustomerHistory } from "../../api/zelle";
 import { getSocket } from "../../api/socket";
+import assistantVideo from "@/assets/animations/ireserve-ai-assistant-icon.mp4";
 import { 
   MessageSquare, 
   X, 
@@ -451,8 +452,20 @@ export default function ZelleAIPanel() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="relative">
-                  <div className="w-8 h-8 rounded-md bg-white/15 backdrop-blur-xs flex items-center justify-center text-white border border-white/20 shadow-2xs">
-                    {activeTab === "zelle" ? <Sparkles className="w-4 h-4 text-amber-300" /> : <Headphones className="w-4 h-4 text-white" />}
+                  <div className="w-8 h-8 rounded-md bg-white/15 backdrop-blur-xs flex items-center justify-center text-white border border-white/20 shadow-2xs overflow-hidden">
+                    {activeTab === "zelle" ? (
+                      <video
+                        src={assistantVideo}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover scale-125"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Headphones className="w-4 h-4 text-white" />
+                    )}
                   </div>
                   <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 border-2 border-[#2C4B8A] rounded-full" />
                 </div>

@@ -9,7 +9,6 @@ import {
   Eye,
   X,
   Globe,
-  Tag,
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -172,10 +171,10 @@ export default function AdminGallery() {
         </div>
 
         {/* Toolbar: Search and Album Filter */}
-        <AdminCard className="!p-3 sm:!p-3.5 space-y-3">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <AdminCard className="!p-3 sm:!p-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             {/* Search */}
-            <div className="flex items-center gap-2 bg-muted/60 border border-border/70 rounded-md px-3 py-1.5 flex-1 max-w-md shadow-2xs focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15 transition-all">
+            <div className="flex items-center gap-2 bg-muted/60 border border-border/70 rounded-md px-3 py-1.5 flex-1 max-w-md shadow-2xs focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15 transition-all h-9">
               <Search size={14} className="text-muted-foreground/70 shrink-0" />
               <input
                 type="search"
@@ -198,43 +197,19 @@ export default function AdminGallery() {
             </div>
 
             {/* Album Select */}
-            <div className="relative shrink-0 w-48 sm:w-56">
+            <div className="relative shrink-0 w-full sm:w-56">
               <select
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="w-full bg-muted/60 border border-border/70 rounded-md px-3 py-1.5 text-xs sm:text-sm font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shadow-2xs capitalize"
+                className="w-full bg-muted/60 border border-border/70 rounded-md px-3 py-1.5 text-xs sm:text-sm font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shadow-2xs capitalize h-9"
               >
                 {categories.map((c) => (
                   <option key={c} value={c} className="capitalize text-slate-800 bg-white">
-                    {c === "all" ? "All Albums / Categories" : c}
+                    {c === "all" ? "All Albums" : c}
                   </option>
                 ))}
               </select>
             </div>
-          </div>
-
-          {/* Quick Album Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1">
-            <span className="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-wider mr-1 hidden sm:inline">
-              Albums:
-            </span>
-            {categories.slice(0, 6).map((cat) => {
-              const active = filter === cat;
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setFilter(cat)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                    active
-                      ? "bg-primary text-white shadow-2xs"
-                      : "bg-muted/70 text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                >
-                  {cat === "all" ? "All Photos" : cat}
-                </button>
-              );
-            })}
           </div>
         </AdminCard>
 

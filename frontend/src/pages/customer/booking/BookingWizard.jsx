@@ -1704,7 +1704,7 @@ export default function BookingWizard() {
   return (
     <CustomerLayout
       marketing
-      contentClassName="mx-auto flex w-full max-w-6xl flex-col px-4 pb-0 pt-2 sm:px-6"
+      contentClassName="mx-auto flex w-full max-w-6xl flex-col px-4 pb-0 pt-2 sm:px-6 booking-wizard-entry"
     >
       {/* Progress header — sticks under the site header so users never lose place */}
       <div className="sticky top-[var(--ls-header-offset,var(--ls-header-h,76px))] z-20 -mx-4 mb-2.5 border-b border-[#E2E8F0] bg-white/95 px-4 py-2 backdrop-blur transition-[top] duration-300 sm:-mx-6 sm:px-6">

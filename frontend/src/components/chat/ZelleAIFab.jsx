@@ -20,7 +20,7 @@ export default function ZelleAIFab({ isOpen, onClick }) {
     <button
       onClick={onClick}
       className={cn(
-        "fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-500 hover:scale-105 active:scale-95 group overflow-hidden border border-white/20",
+        "chat-fab fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-500 hover:scale-105 active:scale-95 group overflow-hidden border border-white/20",
         isOpen ? "bg-slate-800 text-white rotate-90" : ""
       )}
       aria-label={isOpen ? "Close Assistant" : "Open iReserve AI Assistant"}
@@ -65,7 +65,7 @@ export default function ZelleAIFab({ isOpen, onClick }) {
           className={cn(
             "absolute w-6 h-6 transition-all duration-700",
             !isOpen && iconState === "ai"
-              ? "opacity-100 rotate-0 scale-100 text-amber-200"
+              ? "opacity-100 rotate-0 scale-100 text-blue-100"
               : "opacity-0 -rotate-90 scale-50"
           )}
         />

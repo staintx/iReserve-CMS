@@ -591,6 +591,7 @@ export default function PackageModal({
   });
   const [showItemsList, setShowItemsList] = useState({
     setup: true,
+    staff: true,
     inventory: true,
     dining: true,
     addons: true,
@@ -605,6 +606,7 @@ export default function PackageModal({
   };
 
   const [setupInput, setSetupInput] = useState({ name: "", qty: "" });
+  const [staffInput, setStaffInput] = useState({ name: "", qty: "1" });
   const [inventoryInput, setInventoryInput] = useState({ name: "", qty: "" });
   const diningInput = inventoryInput;
   const setDiningInput = setInventoryInput;
@@ -899,11 +901,22 @@ export default function PackageModal({
   // ============ INCLUSION HELPERS & CATEGORIZATION ============
 
 
-  const isEventSetupInclusion = (incStr) => {
+  const isStaffInclusion = (incStr) => {
     const parsed = parseInclusion(incStr);
     const cat = String(parsed.category || "").toLowerCase().trim();
-    if (cat === "event setup") return true;
-    if (cat === "inventory" || cat.includes("dining") || cat.includes("service")) return false;
+    return (
+      cat === "staff & personnel" ||
+      cat === "staff" ||
+      cat === "personnel"
+    );
+  };
+
+  const isEventSetupInclusion = (incStr) => {
+    if (isStaffInclusion(incStr)) return false;
+    const parsed = parseInclusion(incStr);
+    const cat = String(parsed.category || "").toLowerCase().trim();
+    if (cat === "event setup" || cat === "services") return true;
+    if (cat === "inventory" || cat.includes("dining") || cat.includes("service inventory")) return false;
 
     // For legacy "[Event Setup & Furniture]" or uncategorized inclusions:
     const cleanName = parsed.name.toLowerCase().trim();
@@ -916,7 +929,7 @@ export default function PackageModal({
     return true;
   };
 
-  const isDiningInclusion = (incStr) => !isEventSetupInclusion(incStr);
+  const isDiningInclusion = (incStr) => !isEventSetupInclusion(incStr) && !isStaffInclusion(incStr);
 
   const handleAddSetupInclusion = (customName) => {
     const rawName = customName || setupInput.name;
@@ -933,7 +946,7 @@ export default function PackageModal({
     });
 
     if (alreadyExists) {
-      notify(`"${nameToAdd}" is already added to Event Setup.`, "info");
+      notify(`"${nameToAdd}" is already added to Event Setup inclusions.`, "info");
       return;
     }
 
@@ -946,6 +959,77 @@ export default function PackageModal({
 
     setSetupInput({ name: "", qty: "" });
     setShowItemsList((prev) => ({ ...prev, setup: true }));
+  };
+
+  const handleAddStaffInclusion = (customName, customQty) => {
+    const rawName = customName || staffInput.name;
+    const nameToAdd = cleanTextValue(rawName);
+    if (!nameToAdd) return;
+
+    const rawQty = (customQty != null ? String(customQty) : staffInput.qty || "").trim() || "1";
+    let qtyNum = parseInt(rawQty, 10);
+    if (isNaN(qtyNum) || qtyNum < 1) {
+      qtyNum = 1;
+    }
+
+    // Check if this staff item already exists in Staff & Personnel
+    const existingStaffInc = (formData.inclusions || []).find((inc) => {
+      const p = parseInclusion(inc);
+      return (
+        isStaffInclusion(inc) &&
+        p.name.toLowerCase() === nameToAdd.toLowerCase()
+      );
+    });
+
+    if (existingStaffInc) {
+      const parsed = parseInclusion(existingStaffInc);
+      const currentQty = parseInt(parsed.qty, 10) || 1;
+      const nextQty = currentQty + qtyNum;
+      const newIncStr = `[Staff & Personnel] ${parsed.name} (${nextQty})`;
+      setFormData((prev) => ({
+        ...prev,
+        inclusions: prev.inclusions.map((inc) => (inc === existingStaffInc ? newIncStr : inc)),
+      }));
+      notify(`Updated "${nameToAdd}" quantity to ${nextQty}.`, "info");
+      setStaffInput({ name: "", qty: "1" });
+      return;
+    }
+
+    const incStr = `[Staff & Personnel] ${nameToAdd} (${qtyNum})`;
+
+    setFormData((prev) => ({
+      ...prev,
+      inclusions: [...(prev.inclusions || []), incStr],
+    }));
+
+    setStaffInput({ name: "", qty: "1" });
+    setShowItemsList((prev) => ({ ...prev, staff: true }));
+  };
+
+  const handleStepStaffQty = (incStr, step) => {
+    const parsed = parseInclusion(incStr);
+    if (!parsed.name) return;
+    const currentQty = parseInt(parsed.qty, 10) || 1;
+    const newQty = Math.max(1, currentQty + step);
+    const newIncStr = `[Staff & Personnel] ${parsed.name} (${newQty})`;
+    setFormData((prev) => ({
+      ...prev,
+      inclusions: (prev.inclusions || []).map((inc) => (inc === incStr ? newIncStr : inc)),
+    }));
+  };
+
+  const handleUpdateStaffQty = (incStr, newQtyRaw) => {
+    const parsed = parseInclusion(incStr);
+    if (!parsed.name) return;
+    let qtyNum = parseInt(newQtyRaw, 10);
+    if (isNaN(qtyNum) || qtyNum < 1) {
+      qtyNum = 1;
+    }
+    const newIncStr = `[Staff & Personnel] ${parsed.name} (${qtyNum})`;
+    setFormData((prev) => ({
+      ...prev,
+      inclusions: (prev.inclusions || []).map((inc) => (inc === incStr ? newIncStr : inc)),
+    }));
   };
 
   const handleAddInventoryInclusion = (customName) => {
@@ -1457,12 +1541,14 @@ export default function PackageModal({
     setFormData((prev) => ({ ...prev, default_scaffold_option_id: id }));
   };
 
-  // Computed inclusion lists partitioned into Event Setup and Inventory classes
+  // Computed inclusion lists partitioned into Services (Setup + Staff), and Inventory classes
   const setupInclusions = (formData.inclusions || []).filter(isEventSetupInclusion);
+  const staffInclusions = (formData.inclusions || []).filter(isStaffInclusion);
   const inventoryInclusions = (formData.inclusions || []).filter(
-    (inc) => !isEventSetupInclusion(inc),
+    (inc) => !isEventSetupInclusion(inc) && !isStaffInclusion(inc),
   );
   const diningInclusions = inventoryInclusions;
+  const servicesInclusionsCount = setupInclusions.length + staffInclusions.length;
 
   // Named apart from the state it reads so the inclusion section's three tabs
   // stay one concept. The section itself renders for regular packages only —
@@ -2852,15 +2938,15 @@ export default function PackageModal({
                 type="button"
                 onClick={() => setActiveClassTab("setup")}
                 className={`flex-1 py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                  activeClassTab === "setup"
+                  activeClassTab === "setup" || activeClassTab === "services"
                     ? "bg-white text-primary shadow-xs font-bold"
                     : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                <span>🎪</span>
-                <span className="truncate">Event Setup</span>
+                <span>🛎️</span>
+                <span className="truncate">Services</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-bold border border-gray-200 shrink-0">
-                  {setupInclusions.length}
+                  {servicesInclusionsCount}
                 </span>
               </button>
 
@@ -2899,9 +2985,10 @@ export default function PackageModal({
             )}
 
             <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-4">
-              {/* TAB 1: Event Setup */}
-              {inclusionTab === "setup" && (
-                <div className="space-y-4">
+              {/* TAB 1: Services (Event Setup + Staff & Personnel) */}
+              {(inclusionTab === "setup" || inclusionTab === "services") && (
+                <div className="space-y-6">
+                  {/* SUBSECTION 1: Event Setup Inclusions */}
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-base">🎪</span>
@@ -2940,73 +3027,229 @@ export default function PackageModal({
                         <Plus size={14} className="mr-1" /> Add
                       </Btn>
                     </div>
-                  </div>
 
-                  {/* Active List */}
-                  <div className="pt-2 border-t border-gray-200/80">
-                    <div className="flex items-center justify-between mb-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleItemsList("setup")}
-                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
-                      >
-                        <span>Added Items</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold">
-                          {setupInclusions.length}
-                        </span>
-                        {showItemsList.setup ? (
-                          <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
-                        ) : (
-                          <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
-                        )}
-                      </button>
-                      {setupInclusions.length > 0 && (
+                    {/* Added Items */}
+                    <div className="pt-2 border-t border-gray-200/80">
+                      <div className="flex items-center justify-between mb-2">
                         <button
                           type="button"
                           onClick={() => toggleItemsList("setup")}
-                          className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                          className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
                         >
-                          {showItemsList.setup ? "Minimize" : "Maximize"}
+                          <span>Added Items</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold">
+                            {setupInclusions.length}
+                          </span>
+                          {showItemsList.setup ? (
+                            <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                          ) : (
+                            <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                          )}
                         </button>
+                        {setupInclusions.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => toggleItemsList("setup")}
+                            className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                          >
+                            {showItemsList.setup ? "Minimize" : "Maximize"}
+                          </button>
+                        )}
+                      </div>
+
+                      {showItemsList.setup && (
+                        setupInclusions.length > 0 ? (
+                          <ul className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                            {setupInclusions.map((inc, i) => {
+                              const parsed = parseInclusion(inc);
+                              return (
+                                <li
+                                  key={i}
+                                  className="flex justify-between items-center text-sm bg-white px-3 py-2.5 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <span className="w-2 h-2 bg-blue-500 rounded-full shrink-0" />
+                                    <span className="font-semibold text-gray-900 break-words leading-tight">
+                                      {parsed.name}
+                                    </span>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveInclusionString(inc)}
+                                    className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer shrink-0"
+                                    title="Remove from package"
+                                    aria-label={`Remove ${parsed.name}`}
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
+                            No event setup items added yet
+                          </p>
+                        )
                       )}
                     </div>
+                  </div>
 
-                    {showItemsList.setup && (
-                      setupInclusions.length > 0 ? (
-                        <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                          {setupInclusions.map((inc, i) => {
-                            const parsed = parseInclusion(inc);
-                            return (
-                              <li
-                                key={i}
-                                className="flex justify-between items-center text-sm bg-white px-3 py-2.5 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <span className="w-2 h-2 bg-blue-500 rounded-full shrink-0" />
-                                  <span className="font-semibold text-gray-900 break-words leading-tight">
-                                    {parsed.name}
-                                  </span>
-                                </div>
+                  {/* SUBSECTION 2: Staff & Personnel */}
+                  <div className="pt-5 border-t border-gray-200/90">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-base">👥</span>
+                      <label className="font-semibold text-gray-800 text-sm">
+                        Staff & Personnel
+                      </label>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Event coordinators, waiters, servers, ushers & service staff included in this package.
+                    </p>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveInclusionString(inc)}
-                                  className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer shrink-0"
-                                  title="Remove from package"
-                                  aria-label={`Remove ${parsed.name}`}
+                    {/* Add Staff Form (Name + Quantity + Add button) */}
+                    <div className="flex gap-2 mb-2 items-center w-full">
+                      <input
+                        type="text"
+                        placeholder="Enter staff role / title (e.g. Event Coordinator, Waiter, Server, Usher)"
+                        value={staffInput.name}
+                        onChange={(e) =>
+                          setStaffInput((prev) => ({ ...prev, name: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddStaffInclusion();
+                          }
+                        }}
+                        className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Qty"
+                        value={staffInput.qty}
+                        onChange={(e) =>
+                          setStaffInput((prev) => ({ ...prev, qty: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddStaffInclusion();
+                          }
+                        }}
+                        title="Quantity of staff / personnel"
+                        className="w-24 shrink-0 border border-gray-200 rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                      />
+                      <Btn
+                        variant="primary"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() => handleAddStaffInclusion()}
+                        disabled={!staffInput.name.trim()}
+                      >
+                        <Plus size={14} className="mr-1" /> Add
+                      </Btn>
+                    </div>
+
+                    {/* Added Staff List */}
+                    <div className="pt-2 border-t border-gray-200/80">
+                      <div className="flex items-center justify-between mb-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleItemsList("staff")}
+                          className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
+                        >
+                          <span>Added Staff</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-800 font-bold">
+                            {staffInclusions.length}
+                          </span>
+                          {showItemsList.staff ? (
+                            <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                          ) : (
+                            <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                          )}
+                        </button>
+                        {staffInclusions.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => toggleItemsList("staff")}
+                            className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                          >
+                            {showItemsList.staff ? "Minimize" : "Maximize"}
+                          </button>
+                        )}
+                      </div>
+
+                      {showItemsList.staff && (
+                        staffInclusions.length > 0 ? (
+                          <ul className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                            {staffInclusions.map((inc, i) => {
+                              const parsed = parseInclusion(inc);
+                              const qty = parsed.qty || "1";
+                              return (
+                                <li
+                                  key={i}
+                                  className="flex justify-between items-center text-sm bg-white px-3 py-2.5 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
                                 >
-                                  <Trash2 size={15} />
-                                </button>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      ) : (
-                        <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
-                          No event setup items added yet
-                        </p>
-                      )
-                    )}
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <span className="w-2 h-2 bg-violet-500 rounded-full shrink-0" />
+                                    <span className="font-semibold text-gray-900 break-words leading-tight">
+                                      {parsed.name}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {/* Quantity Stepper */}
+                                    <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStepStaffQty(inc, -1)}
+                                        className="px-2 py-1 text-gray-600 hover:bg-gray-200 transition-colors text-xs font-bold"
+                                        title="Decrease quantity"
+                                      >
+                                        -
+                                      </button>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        value={qty}
+                                        onChange={(e) => handleUpdateStaffQty(inc, e.target.value)}
+                                        className="w-12 text-center text-xs font-bold bg-white py-1 focus:outline-none border-x border-gray-200"
+                                        title="Edit staff quantity"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStepStaffQty(inc, 1)}
+                                        className="px-2 py-1 text-gray-600 hover:bg-gray-200 transition-colors text-xs font-bold"
+                                        title="Increase quantity"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveInclusionString(inc)}
+                                      className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                      title="Remove from package"
+                                      aria-label={`Remove ${parsed.name}`}
+                                    >
+                                      <Trash2 size={15} />
+                                    </button>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
+                            No staff & personnel added yet
+                          </p>
+                        )
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

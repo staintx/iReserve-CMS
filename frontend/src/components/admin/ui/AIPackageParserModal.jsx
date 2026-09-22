@@ -180,6 +180,7 @@ Size: 20x20
 Price: ₱15,000 - ₱17,000
 Inclusions:
 - [Event Setup] Stage Setup, Buffet Setup, Balloon and Name Backdrop, Couch
+- [Staff & Personnel] Waiter (4), Event Coordinator (1)
 - [Inventory] Round Tables (6), Monoblock Chairs (60), Industrial Fan, Water Station, Food Warmer (7), Plates (150)
 ADDS ON: Standee, Candy Corner, Host, Clown, Cake, Videoke, Basic Lights & Sounds
 
@@ -188,6 +189,7 @@ Size: 20x40
 Price: ₱20,000
 Inclusions:
 - [Event Setup] Stage Setup, Buffet Setup, Couch
+- [Staff & Personnel] Waiter (5), Event Coordinator (1)
 - [Inventory] Round Tables (8), Monoblock Chairs (80), Industrial Fan, Water Station, Food Warmer (7), Plates (150)
 ADDS ON: Standee, Host, Cake, Videoke
 
@@ -196,6 +198,7 @@ Size: 20x40
 Price: ₱30,000
 Inclusions:
 - [Event Setup] Stage & Backdrop Setup, Separate Dining Setup for VIP, Entourage Setup, Couch, Dove, Red Carpet
+- [Staff & Personnel] Waiter (6), Event Coordinator (2), Server (4)
 - [Inventory] Round Tables (10), Monoblock Chairs (100), Tiffany Chairs (20), Food Warmer (7), Cutlery Sets (200), Plates (200)
 ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
     setTextInput(sample);

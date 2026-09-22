@@ -91,9 +91,14 @@ async function validatePackageItems({
       const nameLower = name.toLowerCase().trim();
       const catLower = (category || "").toLowerCase().trim();
 
-      // Event Setup items are display-only package inclusions.
+      // Event Setup, Services, and Staff & Personnel items are display-only package inclusions.
       // They are NOT connected to Inventory and should NOT depend on inventory tracking or validation.
-      if (catLower === "event setup") {
+      if (
+        catLower === "event setup" ||
+        catLower === "services" ||
+        catLower.includes("staff") ||
+        catLower.includes("personnel")
+      ) {
         continue;
       }
 
@@ -211,9 +216,14 @@ async function sanitizeAIPackageItems({
       const nameLower = name.toLowerCase().trim();
       const catLower = (category || "").toLowerCase().trim();
 
-      // Event Setup items are display-only package inclusions.
+      // Event Setup, Services, and Staff & Personnel items are display-only package inclusions.
       // Kept directly without inventory filtering.
-      if (catLower === "event setup") {
+      if (
+        catLower === "event setup" ||
+        catLower === "services" ||
+        catLower.includes("staff") ||
+        catLower.includes("personnel")
+      ) {
         filteredInclusions.push(cleanInc);
         continue;
       }
@@ -1149,6 +1159,7 @@ Guidelines:
 1. Multi-Page & Multi-Tier Extraction: If the PDF or document contains multiple pages or tiers (e.g. Page 1 Birthday 20x20, Page 2 Birthday 20x40, Page 4 Wedding 20x40, etc.), create a distinct package entry for EACH setup tier.
 2. Inclusions Formatting: Prefix every inclusion with its category in brackets:
    - [Event Setup] for display setup items: stages, backdrops, draping, decorations, venue arrangement, etc. (display-only, no quantity).
+   - [Staff & Personnel] for service staff: event coordinator, waiters, servers, ushers, bartenders, etc. Include quantity in parentheses (e.g. '[Staff & Personnel] Waiter (5)').
    - [Inventory] for tracked inventory items: tables, chairs, food warmers, chafing dishes, spoons, plates, cutlery, glassware, coolers, fans, etc. Always include item quantities in parentheses if mentioned (e.g. '[Inventory] Plates (150)').
    - [Food & Beverage] for edible dishes, meals, or desserts.
 3. Add-ons: Extract all optional/adds-on items into the add_ons array as objects with "name" and optional "qty".

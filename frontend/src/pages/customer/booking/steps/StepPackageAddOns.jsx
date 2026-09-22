@@ -158,7 +158,7 @@ export default function StepPackageAddOns({
           {hasCommonItems && (
             <div>
               <SectionTitle icon={PackageOpen}>
-                Common Event Add-ons &amp; Equipment
+                Popular Add-ons &amp; Equipment
               </SectionTitle>
               {hasPackageItems && (
                 <p className="mt-0.5 text-[11px] text-slate-500">
@@ -192,13 +192,13 @@ export default function StepPackageAddOns({
         </Card>
 
         <Card className="p-3.5 sm:p-4">
-          <SectionTitle icon={MessageSquare}>Anything else?</SectionTitle>
+          <SectionTitle icon={MessageSquare}>Special Requests &amp; Notes</SectionTitle>
           <Field
-            label="Additional requests or notes"
-            hint="Optional. Event theme, color motif, styling, or timing requirements. (Max 500 chars)"
+            label="Additional event notes or requests"
+            hint="Event theme, styling preferences, or schedule timing (max 500 chars)"
           >
             <TTextarea
-              placeholder="e.g. Navy and gold color motif, setup backdrop by 3:00 PM, vegetarian guest table..."
+              placeholder="e.g. Navy and gold color motif, setup backdrop by 3:00 PM before photoshoot, vegetarian guest table..."
               maxLength={500}
               value={form.special_requests || ""}
               onChange={(val) => setForm({ ...form, special_requests: val })}

@@ -266,16 +266,16 @@ export default function StepDateTime({
     ["blocked", "unavailable"].includes(availability.status);
 
   return (
-    <StepShell width="wide">
+    <StepShell width="medium">
       <SH
         title="Date & Time"
-        sub="Pick when your event starts. We require at least 3 full days of advance preparation time. Crossed-out dates are fully booked."
+        sub="Select your event date and preferred start time. Dates with a line are fully booked."
       />
 
-      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[330px_1fr] items-start">
-        {/* Calendar */}
+      <div className="grid grid-cols-1 gap-3.5 md:grid-cols-[330px_1fr] items-start">
+        {/* Calendar Card */}
         <Card className="p-3.5 sm:p-4">
-          <div className="mb-2.5 flex items-center justify-between">
+          <div className="mb-2 flex items-center justify-between">
             <button
               type="button"
               onClick={prevMonth}
@@ -317,7 +317,7 @@ export default function StepDateTime({
             {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
               <div
                 key={day}
-                className="py-0.5 text-center text-[10px] font-bold text-slate-400 uppercase"
+                className="py-0.5 text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider"
               >
                 {day}
               </div>
@@ -350,9 +350,9 @@ export default function StepDateTime({
                   })}
                   onClick={() => setForm({ ...form, event_date: dateStr })}
                   className={cn(
-                    "flex h-8 w-full items-center justify-center rounded-md text-xs font-semibold transition-all cursor-pointer",
+                    "flex h-8 w-full items-center justify-center rounded-md text-xs font-semibold transition-all cursor-pointer select-none",
                     isSelected
-                      ? "bg-[#4C81E0] text-white shadow-2xs"
+                      ? "bg-[#4C81E0] text-white shadow-2xs font-bold"
                       : isBooked
                         ? "cursor-not-allowed bg-slate-50 text-slate-300 line-through opacity-60"
                         : isPast
@@ -367,147 +367,159 @@ export default function StepDateTime({
             })}
           </div>
 
-          <div className="mt-2.5 flex items-center justify-center gap-3 border-t border-slate-100 pt-2 text-[10px] font-medium text-slate-400">
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded bg-[#4C81E0]" />
+          <div className="mt-2.5 pt-2 flex items-center justify-center gap-3.5 border-t border-slate-100 text-[10px] font-medium text-slate-400">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-full bg-[#4C81E0]" />
               Selected
             </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded bg-slate-200" />
-              Booked
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-full bg-slate-300" />
+              Fully booked
             </span>
           </div>
         </Card>
 
-        {/* Time + summary */}
-        <div className="flex flex-col gap-3">
-          <Card className="p-3.5 sm:p-4">
-            <SectionTitle icon={Clock}>Select start time</SectionTitle>
-
-            {!form.event_date ? (
-              <div className="py-8 text-center text-xs text-slate-400">
-                <CalendarDays size={24} className="mx-auto mb-1.5 text-slate-300" />
-                Select a date from the calendar to view available start times.
-              </div>
-            ) : isLoadingTimes ? (
-              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 py-2">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-8.5 animate-pulse rounded-lg bg-slate-100"
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
-                {timeSlots.map(({ time, status }) => {
-                  const isSelected = selectedDisplayTime === time;
-                  const isFull = status === "full" || status === "unavailable";
-
-                  return (
-                    <button
-                      key={time}
-                      type="button"
-                      disabled={isFull}
-                      aria-pressed={isSelected}
-                      onClick={() => handleTimeSelect(time)}
-                      className={cn(
-                        "h-8.5 sm:h-9 rounded-lg border text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
-                        isSelected
-                          ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs ring-1 ring-[#4C81E0]"
-                          : isFull
-                            ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-[#4C81E0]/50 hover:bg-slate-50",
-                        focusRing,
-                      )}
-                    >
-                      {isFull ? (
-                        <span className="flex items-center justify-center gap-1 opacity-50">
-                          <span>{time}</span>
-                          <span className="text-[9px] uppercase font-bold text-slate-400">Full</span>
-                        </span>
-                      ) : (
-                        time
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+        {/* Start Time & Schedule Confirmation Card */}
+        <Card className="p-3.5 sm:p-4">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <SectionTitle icon={Clock} className="mb-0">Select start time</SectionTitle>
+            {form.event_date && (
+              <span className="hidden sm:inline-block text-[11px] font-medium text-slate-500">
+                {formattedDateStr}
+              </span>
             )}
+          </div>
 
-            {/* Selected schedule banner & live availability */}
-            <div className="mt-3.5 border-t border-slate-100 pt-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-50 text-[#4C81E0]">
-                    <CalendarDays size={14} />
-                  </div>
-                  <div>
-                    <span className="block text-xs font-bold text-slate-900">
-                      {form.event_date && form.start_time
-                        ? `${formattedDateStr} at ${selectedDisplayTime}`
-                        : "No schedule selected yet"}
-                    </span>
-                    <span className="block text-[11px] text-slate-400">
-                      {form.event_date && form.start_time
-                        ? "Reservation is confirmed upon quotation acceptance & deposit."
-                        : "Choose a date on the calendar, then tap a start time above."}
-                    </span>
-                  </div>
-                </div>
+          {!form.event_date ? (
+            <div className="flex items-center gap-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-3 text-slate-500 my-1">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#4C81E0]">
+                <CalendarDays size={16} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-slate-700">Choose an event date first</p>
+                <p className="text-[11px] text-slate-400">Select an available date on the calendar to view start times.</p>
+              </div>
+            </div>
+          ) : isLoadingTimes ? (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 py-1">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-8.5 animate-pulse rounded-lg bg-slate-100"
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 sm:gap-2 my-1">
+              {timeSlots.map(({ time, status }) => {
+                const isSelected = selectedDisplayTime === time;
+                const isFull = status === "full" || status === "unavailable";
 
-                {availabilityView && (
-                  <div
-                    role="status"
+                return (
+                  <button
+                    key={time}
+                    type="button"
+                    disabled={isFull}
+                    aria-pressed={isSelected}
+                    onClick={() => handleTimeSelect(time)}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium",
-                      availabilityView.tone,
+                      "flex h-8.5 sm:h-9 items-center justify-center rounded-lg border text-xs font-semibold transition-all duration-150 cursor-pointer select-none",
+                      isSelected
+                        ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs ring-1 ring-[#4C81E0]"
+                        : isFull
+                          ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-[#4C81E0]/50 hover:bg-slate-50 active:scale-[0.98]",
+                      focusRing,
                     )}
                   >
-                    <availabilityView.icon
-                      size={13}
-                      className={cn("shrink-0", availabilityView.iconClass)}
-                    />
-                    <span>{availabilityView.message}</span>
-                    {availabilityView.canRetry && onRetryAvailability && (
-                      <button
-                        type="button"
-                        onClick={onRetryAvailability}
-                        className={cn("ml-1 font-bold underline cursor-pointer", focusRing)}
-                      >
-                        Retry
-                      </button>
+                    {isFull ? (
+                      <span className="flex items-center justify-center gap-1 opacity-50">
+                        <span>{time}</span>
+                        <span className="text-[9px] uppercase font-bold text-slate-400">Full</span>
+                      </span>
+                    ) : (
+                      time
                     )}
-                  </div>
-                )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Selected schedule banner & live availability */}
+          <div className="mt-3 border-t border-slate-100 pt-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-50 text-[#4C81E0]">
+                  <CalendarDays size={14} />
+                </div>
+                <div className="min-w-0">
+                  <span className="block text-xs font-bold text-slate-900 truncate">
+                    {form.event_date && form.start_time
+                      ? `${formattedDateStr} at ${selectedDisplayTime}`
+                      : form.event_date
+                        ? `${formattedDateStr} · Pick a start time`
+                        : "No schedule selected yet"}
+                  </span>
+                  <span className="block text-[11px] text-slate-400 truncate">
+                    {form.event_date && form.start_time
+                      ? "Reservation confirmed upon quotation acceptance & deposit."
+                      : "Choose a date on the calendar, then tap a start time above."}
+                  </span>
+                </div>
               </div>
 
-              {showSuggestions && (
-                <div className="mt-2.5 rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900">
-                  <p className="font-semibold mb-1">Nearest available alternative dates:</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {suggestedDates.map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        type="button"
-                        onClick={() => setForm({ ...form, event_date: suggestion })}
-                        className={cn(
-                          "rounded-md border border-amber-300 bg-white px-2 py-0.5 text-xs font-semibold text-amber-900 hover:bg-amber-100/80 cursor-pointer",
-                          focusRing,
-                        )}
-                      >
-                        {parseLocalDate(suggestion).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </button>
-                    ))}
-                  </div>
+              {availabilityView && (
+                <div
+                  role="status"
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium shrink-0",
+                    availabilityView.tone,
+                  )}
+                >
+                  <availabilityView.icon
+                    size={13}
+                    className={cn("shrink-0", availabilityView.iconClass)}
+                  />
+                  <span>{availabilityView.message}</span>
+                  {availabilityView.canRetry && onRetryAvailability && (
+                    <button
+                      type="button"
+                      onClick={onRetryAvailability}
+                      className={cn("ml-1 font-bold underline cursor-pointer", focusRing)}
+                    >
+                      Retry
+                    </button>
+                  )}
                 </div>
               )}
             </div>
-          </Card>
-        </div>
+
+            {showSuggestions && (
+              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/70 p-2 text-xs text-amber-900">
+                <p className="font-semibold mb-1">Nearest available alternative dates:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {suggestedDates.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => setForm({ ...form, event_date: suggestion })}
+                      className={cn(
+                        "rounded-md border border-amber-300 bg-white px-2 py-0.5 text-xs font-semibold text-amber-900 hover:bg-amber-100/80 cursor-pointer",
+                        focusRing,
+                      )}
+                    >
+                      {parseLocalDate(suggestion).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
       </div>
     </StepShell>
   );

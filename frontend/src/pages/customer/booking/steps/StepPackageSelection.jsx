@@ -110,7 +110,7 @@ function PackageCard({ pkg, isSelected, showPerGuestPrice, onSelect }) {
               ? `${formatPeso(pkg.price_per_guest)} per guest`
               : pkg.setup_price > 0
                 ? `${formatPeso(pkg.setup_price)} for setup`
-                : "Priced on quotation"}
+                : "Price provided in quotation"}
           </span>
           {pkg.description && (
             <span className="mt-0.5 line-clamp-1 block text-[11px] text-slate-500">
@@ -566,12 +566,12 @@ export default function StepPackageSelection({
         <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 items-start">
           {/* Card 1: Styling & Theme Direction */}
           <Card className="p-3.5 sm:p-4">
-            <SectionTitle icon={Sparkles}>1. Theme &amp; Color Palette</SectionTitle>
+            <SectionTitle icon={Sparkles}>Theme &amp; Color Palette</SectionTitle>
             <div className="space-y-3">
               <div>
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                    Theme / Motif (Optional)
+                    Theme or styling motif
                   </label>
                   <FieldStatusPill value={form.event_theme} />
                 </div>
@@ -587,7 +587,7 @@ export default function StepPackageSelection({
               <div className="border-t border-slate-100 pt-2.5">
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                    Color Palette (Optional)
+                    Color palette
                   </label>
                   <FieldStatusPill
                     value={
@@ -605,7 +605,7 @@ export default function StepPackageSelection({
 
               <div className="border-t border-slate-100 pt-2.5">
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                  Setup Scope Elements
+                  Setup scope elements
                 </label>
                 <div className="grid grid-cols-1 gap-1.5">
                   {SETUP_SCOPE_OPTIONS.map((item) => {
@@ -644,11 +644,11 @@ export default function StepPackageSelection({
 
           {/* Card 2: Moodboard, Budget & Vision */}
           <Card className="p-3.5 sm:p-4">
-            <SectionTitle icon={ImageIcon}>2. Moodboard &amp; Notes</SectionTitle>
+            <SectionTitle icon={ImageIcon}>Moodboard &amp; Vision Notes</SectionTitle>
             <div className="space-y-3">
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                  Inspiration Photos (Optional)
+                  Inspiration photos
                 </label>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
@@ -708,7 +708,7 @@ export default function StepPackageSelection({
 
               <div className="border-t border-slate-100 pt-2.5">
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                  Target Budget Range (Optional)
+                  Target budget range
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                   {BUDGET_PRESETS.map((budget) => {
@@ -735,14 +735,14 @@ export default function StepPackageSelection({
 
               <div className="border-t border-slate-100 pt-2.5">
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                  Custom Setup Vision &amp; Notes (Optional)
+                  Custom setup vision &amp; notes
                 </label>
                 <textarea
                   rows={3}
                   maxLength={1000}
                   value={form.custom_setup_notes || ""}
                   onChange={(e) => updateForm({ custom_setup_notes: e.target.value })}
-                  placeholder="e.g. High ceilings with wooden trusses; warm fairy lights and elevated couple stage. (Max 1,000 chars)"
+                  placeholder="e.g. Warm ambient fairy lights, floral stage backdrop, elegant couple's seating, wooden rustic tables..."
                   className={cn(
                     "w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0]",
                     focusRing,

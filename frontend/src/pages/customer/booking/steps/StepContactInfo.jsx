@@ -135,14 +135,14 @@ export default function StepContactInfo({ form, setForm, errors = {} }) {
                 label="Mobile number"
                 required
                 error={errorFor("contact_phone")}
-                hint="Philippine mobile number (e.g. 09123456789)"
+                hint="Active 11-digit mobile number for coordination calls & SMS"
               >
                 <TInput
                   type="tel"
                   inputMode="numeric"
                   pattern="[0-9]*"
                   maxLength={11}
-                  placeholder="09123456789"
+                  placeholder="09XX XXX XXXX"
                   value={form.contact_phone || ""}
                   onChange={(val) => handlePhoneChange("contact_phone", val)}
                   onKeyDown={handlePhoneKeyDown}
@@ -154,11 +154,11 @@ export default function StepContactInfo({ form, setForm, errors = {} }) {
               </Field>
 
               <Field
-                label="Backup contact number (Optional)"
+                label="Alternative phone number"
                 error={errorFor("contact_alt_phone")}
                 hint={
                   primaryPhoneFilled
-                    ? "Alternative mobile number (e.g. 09123456789)"
+                    ? "Secondary mobile or landline in case we cannot reach your primary number"
                     : "Enter primary mobile number first"
                 }
               >
@@ -168,7 +168,7 @@ export default function StepContactInfo({ form, setForm, errors = {} }) {
                   pattern="[0-9]*"
                   maxLength={11}
                   placeholder={
-                    primaryPhoneFilled ? "09123456789 (Optional)" : "Enter primary phone first"
+                    primaryPhoneFilled ? "e.g. 0918 123 4567 or landline (optional)" : "Enter primary phone first"
                   }
                   value={form.contact_alt_phone || ""}
                   onChange={(val) => handlePhoneChange("contact_alt_phone", val)}

@@ -1612,7 +1612,7 @@ export default function BookingWizard() {
             packageDetails={packageDetails}
             guestMin={guestMin}
             guestMax={guestMax}
-            estimate={estimate}
+
             errors={fieldErrors}
             setupCapacity={setupCapacity}
             offer={isOffer ? packageDetails : null}
@@ -1628,7 +1628,7 @@ export default function BookingWizard() {
             municipalities={municipalities}
             barangays={barangays}
             pickupAddress={businessInfo?.pickup_address || businessInfo?.address}
-            estimate={estimate}
+
             guestMin={guestMin}
             guestMax={guestMax}
             errors={fieldErrors}
@@ -1704,7 +1704,7 @@ export default function BookingWizard() {
   return (
     <CustomerLayout
       marketing
-      contentClassName="mx-auto flex w-full max-w-6xl flex-col px-4 pb-0 pt-2 sm:px-6 booking-wizard-entry"
+      contentClassName="mx-auto flex w-full max-w-6xl flex-col px-4 pb-0 pt-2 sm:px-6"
     >
       {/* Progress header — sticks under the site header so users never lose place */}
       <div className="sticky top-[var(--ls-header-offset,var(--ls-header-h,76px))] z-20 -mx-4 mb-2.5 border-b border-[#E2E8F0] bg-white/95 px-4 py-2 backdrop-blur transition-[top] duration-300 sm:-mx-6 sm:px-6">
@@ -1782,12 +1782,17 @@ export default function BookingWizard() {
         </InfoNote>
       )}
 
-      {/* Step content container */}
-      <div className="flex-1 pb-16 sm:pb-3">{renderStep()}</div>
+      {/* Step content container with safe bottom padding for fixed action bar */}
+      <div className="flex-1 pb-28 sm:pb-32 lg:pb-36 booking-wizard-entry">{renderStep()}</div>
 
-      {/* Sticky action bar — the single primary action for every step */}
-      <div className="sticky bottom-0 z-30 -mx-4 border-t border-[#E2E8F0] bg-white/95 px-4 py-2.5 backdrop-blur sm:-mx-6 sm:px-6">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2">
+      {/* Action bar — anchored to the bottom of the viewport at all times across all zoom levels */}
+      <div
+        className="fixed bottom-0 inset-x-0 z-30 border-t border-slate-200/90 bg-white/95 backdrop-blur-md shadow-[0_-4px_20px_rgba(0,0,0,0.05)] transition-all"
+        style={{
+          paddingBottom: "max(0.625rem, env(safe-area-inset-bottom, 0.625rem))",
+        }}
+      >
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 pt-2.5 sm:px-6 sm:pt-3">
           {error && (
             <div
               role="alert"

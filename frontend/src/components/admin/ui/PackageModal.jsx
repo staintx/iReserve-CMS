@@ -1080,7 +1080,7 @@ export default function PackageModal({
     const rawQty = (inventoryInput.qty || "").trim() || "1";
     const qtyNum = parseInt(rawQty, 10);
     if (isNaN(qtyNum) || qtyNum < 1) {
-      notify("Quantity must be a positive number.", "error");
+      notify("Quantity must be at least 1.", "error");
       return;
     }
     if (maxQty != null && qtyNum > maxQty) {
@@ -1110,20 +1110,44 @@ export default function PackageModal({
     );
     const maxQty = invItem?.quantity != null ? invItem.quantity : null;
 
-    let qtyNum = parseInt(newQtyRaw, 10);
-    if (isNaN(qtyNum) || qtyNum < 1) {
-      qtyNum = 1;
-    }
-    if (maxQty != null && qtyNum > maxQty) {
-      qtyNum = maxQty;
-      notify(`Maximum available Total Quantity in inventory is ${maxQty}.`, "info");
-    }
-
     const cat =
       parsed.category && parsed.category.toLowerCase() !== "event setup & furniture"
         ? parsed.category
         : "Inventory";
-    const newIncStr = `[${cat}] ${parsed.name} (${qtyNum})`;
+
+    const rawStr = String(newQtyRaw ?? "");
+    const trimmed = rawStr.trim();
+
+    // 1. Allow completely clearing the field while admin is editing
+    if (trimmed === "") {
+      const newIncStr = `[${cat}] ${parsed.name} ()`;
+      setFormData((prev) => ({
+        ...prev,
+        inclusions: (prev.inclusions || []).map((inc) => (inc === incStr ? newIncStr : inc)),
+      }));
+      return;
+    }
+
+    // 2. Reject negative numbers
+    if (trimmed.includes("-") || Number(trimmed) < 0) {
+      notify("Quantity must be at least 1.", "error");
+      return;
+    }
+
+    const qtyNum = parseInt(trimmed, 10);
+    if (isNaN(qtyNum)) {
+      notify("Quantity must be at least 1.", "error");
+      return;
+    }
+
+    // 3. Keep existing inventory quantity limit / availability validation intact
+    let finalQty = qtyNum;
+    if (maxQty != null && qtyNum > maxQty) {
+      finalQty = maxQty;
+      notify(`Maximum available Total Quantity in inventory is ${maxQty}.`, "info");
+    }
+
+    const newIncStr = `[${cat}] ${parsed.name} (${finalQty})`;
     setFormData((prev) => ({
       ...prev,
       inclusions: (prev.inclusions || []).map((inc) => (inc === incStr ? newIncStr : inc)),
@@ -1132,8 +1156,32 @@ export default function PackageModal({
 
   const handleStepInclusionQty = (incStr, step) => {
     const parsed = parseInclusion(incStr);
-    const currentQty = parseInt(parsed.qty, 10) || 1;
-    handleUpdateInclusionQty(incStr, currentQty + step);
+    if (!parsed.name) return;
+
+    const invItem = inventoryItems.find(
+      (item) => item.item_name && item.item_name.trim().toLowerCase() === parsed.name.toLowerCase()
+    );
+    const maxQty = invItem?.quantity != null ? invItem.quantity : null;
+
+    const rawQty = parsed.qty != null ? String(parsed.qty).trim() : "";
+    const currentQty = parseInt(rawQty, 10);
+    const baseQty = isNaN(currentQty) || currentQty < 1 ? 1 : currentQty;
+    let nextQty = baseQty + step;
+    if (nextQty < 1) nextQty = 1;
+    if (maxQty != null && nextQty > maxQty) {
+      nextQty = maxQty;
+      notify(`Maximum available Total Quantity in inventory is ${maxQty}.`, "info");
+    }
+
+    const cat =
+      parsed.category && parsed.category.toLowerCase() !== "event setup & furniture"
+        ? parsed.category
+        : "Inventory";
+    const newIncStr = `[${cat}] ${parsed.name} (${nextQty})`;
+    setFormData((prev) => ({
+      ...prev,
+      inclusions: (prev.inclusions || []).map((inc) => (inc === incStr ? newIncStr : inc)),
+    }));
   };
 
   const handleRemoveInclusionString = (targetStr) => {
@@ -1627,26 +1675,49 @@ export default function PackageModal({
       }
     }
 
-    // Validate all inclusion quantities against live inventory before submitting
+    // Validate all inclusion quantities before submitting
     if (!isOffer) {
+      // Validate inventory inclusions
       for (const inc of formData.inclusions || []) {
+        if (!isInventoryInclusion(inc)) continue;
         const p = parseInclusion(inc);
         if (!p.name) continue;
+
+        const rawQty = p.qty != null ? String(p.qty).trim() : "";
+        const qtyNum = parseInt(rawQty, 10);
+
+        if (!rawQty || isNaN(qtyNum) || qtyNum < 1) {
+          notify(`Quantity must be at least 1 for "${p.name}".`, "error");
+          setActiveClassTab("inventory");
+          return;
+        }
+
         const invItem = inventoryItems.find(
           (item) => item.item_name && item.item_name.trim().toLowerCase() === p.name.trim().toLowerCase()
         );
-        if (invItem && invItem.quantity != null && p.qty) {
-          const digits = String(p.qty).match(/\d+/g);
-          if (digits && digits.length > 0) {
-            const qtyNum = Math.max(...digits.map((n) => parseInt(n, 10)));
-            if (qtyNum > invItem.quantity) {
-              notify(
-                `Quantity for "${invItem.item_name}" (${qtyNum}) exceeds total inventory. Maximum available quantity is ${invItem.quantity}.`,
-                "error"
-              );
-              return;
-            }
-          }
+        if (invItem && invItem.quantity != null && qtyNum > invItem.quantity) {
+          notify(
+            `Quantity for "${invItem.item_name}" (${qtyNum}) exceeds total inventory. Maximum available quantity is ${invItem.quantity}.`,
+            "error"
+          );
+          setActiveClassTab("inventory");
+          return;
+        }
+      }
+
+      // Validate staff inclusions
+      for (const inc of formData.inclusions || []) {
+        if (!isStaffInclusion(inc)) continue;
+        const p = parseInclusion(inc);
+        if (!p.name) continue;
+
+        const rawQty = p.qty != null ? String(p.qty).trim() : "";
+        const qtyNum = parseInt(rawQty, 10);
+
+        if (!rawQty || isNaN(qtyNum) || qtyNum < 1) {
+          notify(`Quantity must be at least 1 for "${p.name}".`, "error");
+          setActiveClassTab("setup");
+          return;
         }
       }
     }
@@ -3438,7 +3509,9 @@ export default function PackageModal({
                             );
                             const totalInvQty =
                               invItem?.quantity != null ? invItem.quantity : null;
-                            const currentPkgQty = parseInt(parsed.qty, 10) || 1;
+                            const rawQtyStr = parsed.qty != null ? String(parsed.qty).trim() : "";
+                            const qtyNum = parseInt(rawQtyStr, 10);
+                            const isQtyValid = !isNaN(qtyNum) && qtyNum >= 1;
 
                             return (
                               <li
@@ -3470,7 +3543,7 @@ export default function PackageModal({
                                     <button
                                       type="button"
                                       onClick={() => handleStepInclusionQty(inc, -1)}
-                                      disabled={currentPkgQty <= 1}
+                                      disabled={!isQtyValid || qtyNum <= 1}
                                       className="w-6 h-6 rounded bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
                                       title="Decrease package quantity"
                                     >
@@ -3480,18 +3553,23 @@ export default function PackageModal({
                                       type="number"
                                       min="1"
                                       max={totalInvQty != null ? totalInvQty : undefined}
-                                      value={currentPkgQty}
+                                      value={rawQtyStr}
                                       onChange={(e) =>
                                         handleUpdateInclusionQty(inc, e.target.value)
                                       }
-                                      className="w-12 text-center py-0.5 text-xs font-bold border border-gray-200 rounded bg-white text-gray-900 focus:outline-none focus:border-primary"
-                                      title="Quantity Included in This Package"
+                                      placeholder="Qty"
+                                      className={`w-14 text-center py-0.5 text-xs font-bold border rounded bg-white transition-colors focus:outline-none focus:border-primary ${
+                                        !isQtyValid
+                                          ? "border-red-400 focus:border-red-500 bg-red-50/40 text-red-700"
+                                          : "border-gray-200 text-gray-900"
+                                      }`}
+                                      title={isQtyValid ? "Quantity Included in This Package" : "Quantity must be at least 1."}
                                     />
                                     <button
                                       type="button"
                                       onClick={() => handleStepInclusionQty(inc, 1)}
                                       disabled={
-                                        totalInvQty != null && currentPkgQty >= totalInvQty
+                                        totalInvQty != null && isQtyValid && qtyNum >= totalInvQty
                                       }
                                       className="w-6 h-6 rounded bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
                                       title="Increase package quantity"

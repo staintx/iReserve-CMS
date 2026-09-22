@@ -391,14 +391,11 @@ io.on("connection", (socket) => {
 
 const { verifyPayMongoConfig } = require("./services/payment.service");
 
-if (!process.env.VERCEL) {
-  server.listen(PORT, () => {
-    console.log(` Server on port ${PORT}`);
-    // Verify SMTP connection on startup so issues appear in deploy logs
-    verifyEmailConnection();
-    verifyPayMongoConfig();
-  });
-}
+server.listen(PORT, () => {
+  console.log(` Server on port ${PORT}`);
+  // Verify SMTP connection on startup so issues appear in deploy logs
+  verifyEmailConnection();
+  verifyPayMongoConfig();
+});
 
-module.exports = app;
 

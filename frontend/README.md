@@ -19,16 +19,31 @@ If you are developing a production application, we recommend using TypeScript wi
 
 # iReserve CMS Frontend Deployment Notes
 
+## Vercel Deployment Checklist
+1. **Import Project**: In Vercel, click **Add New...** -> **Project** and select this repository.
+2. **Set Root Directory**: In the project settings configuration step, set **Root Directory** to `frontend`.
+3. **Framework Preset**: Vercel will automatically detect `Vite`.
+4. **Environment Variables**: In Vercel Project Settings -> **Environment Variables**, add:
+   - `VITE_API_BASE_URL`: Your backend API URL (e.g., `https://api.yourdomain.com/api` or Render backend URL).
+   - `VITE_SOCKET_URL`: (Optional) Your backend root URL for Socket.IO (e.g., `https://api.yourdomain.com`).
+   - `VITE_TURNSTILE_SITE_KEY`: (Optional) Your Cloudflare Turnstile public site key.
+5. **SPA Routing**: `vercel.json` is configured in `frontend/` to route all page requests to `/index.html` so direct navigation and refreshes work seamlessly.
+6. **Backend CORS & Mixed Content**:
+   - Ensure your backend CORS configuration allows your Vercel domain (`https://*.vercel.app` or your custom domain) and has `credentials: true`.
+   - Your backend URL must use `https://` in production to prevent mixed-content blocking in browsers.
+
 ## Render Deployment Checklist
 - Set up a new Static Site on Render, connect to your GitHub repo.
-- Set environment variable VITE_API_BASE_URL to your backend Render URL + `/api`
+- Set Root Directory: `frontend`
+- Set environment variable `VITE_API_BASE_URL` to your backend URL + `/api`
 - Build command: `npm run build`
 - Publish directory: `dist`
 
 ## Local Development
-- Copy `.env.example` to `.env` and set VITE_API_BASE_URL to your local backend (e.g., http://localhost:5000/api)
+- Copy `.env.example` to `.env` and set `VITE_API_BASE_URL` to your local backend (e.g., `http://localhost:5000/api`)
 - Start frontend: `npm run dev`
 
 ## Notes
-- The frontend uses VITE_API_BASE_URL for all API requests.
-- Make sure your backend CORS allows the frontend Render domain.
+- The frontend uses `VITE_API_BASE_URL` for all API requests.
+- Make sure your backend CORS allows the frontend domain.
+

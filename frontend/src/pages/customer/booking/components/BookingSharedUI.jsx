@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { focusRing } from "../lib/bookingUI";
 
 const controlBase =
-  "w-full rounded-md text-sm text-slate-800 placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2";
+  "w-full rounded-md text-sm text-slate-800 placeholder:text-slate-500 transition-all focus:outline-none focus:ring-2";
 const controlIdle =
   "border border-slate-200 bg-white focus:ring-[#4C81E0]/20 focus:border-[#4C81E0] hover:border-slate-300";
 const controlError =
@@ -77,7 +77,7 @@ export function FL({ children, required = false, htmlFor }) {
   return (
     <label
       htmlFor={htmlFor}
-      className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600"
+      className="mb-1 block text-xs font-semibold text-slate-800"
     >
       {children}
       {required && (
@@ -96,9 +96,9 @@ export function Field({ label, required, hint, error, children, className = "" }
       {label && <FL required={required}>{label}</FL>}
       {children}
       {error ? (
-        <p className="mt-1 text-[11px] font-medium text-red-600">{error}</p>
+        <p className="mt-1 text-xs font-semibold text-red-600">{error}</p>
       ) : hint ? (
-        <p className="mt-1 text-[11px] text-slate-400">{hint}</p>
+        <p className="mt-1 text-xs text-slate-500 leading-normal">{hint}</p>
       ) : null}
     </div>
   );

@@ -18,20 +18,23 @@ import {
   Ruler,
   Search,
   Check,
-  UtensilsCrossed,
   RotateCcw,
+  Sparkles,
+  ChevronRight,
+  AlertCircle,
+  Phone,
+  Mail,
+  Clock,
+  FileText,
+  HeartHandshake,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
 import { Button } from "../ui/button";
 import {
-  Card,
-  Field,
   TInput,
   TSelect,
   TTextarea,
   GuestCounter,
-  SectionTitle,
-  FieldStatusPill,
 } from "../../pages/customer/booking/components/BookingSharedUI";
 import ThemePicker, { ColorPalettePicker } from "../../pages/customer/booking/components/ThemePicker";
 import CourseFilterBar from "../../pages/customer/booking/components/CourseFilterBar";
@@ -59,46 +62,84 @@ import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
 import { cn } from "@/lib/utils";
 
-/** One read-only fact in the submitted-request snapshot. */
-function SnapshotRow({ label, value, wide = false }) {
-  if (value === null || value === undefined || value === "") return null;
-  return (
-    <div className={wide ? "sm:col-span-2 min-w-0" : "min-w-0"}>
-      <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</dt>
-      <dd className="mt-0.5 text-xs font-semibold text-slate-800">{value}</dd>
-    </div>
-  );
-}
+// --- Section Definitions for Progressive Disclosure ---
+const SECTIONS = [
+  {
+    id: "package-food",
+    number: "01",
+    label: "Package & Food",
+    shortLabel: "Package & Food",
+    icon: PackageIcon,
+    description: "Package details, setup space, and dish selections.",
+  },
+  {
+    id: "event",
+    number: "02",
+    label: "Event Details",
+    shortLabel: "Event Details",
+    icon: CalendarDays,
+    description: "Schedule, guest count, celebrant, and venue location.",
+  },
+  {
+    id: "extras",
+    number: "03",
+    label: "Extras & Requests",
+    shortLabel: "Extras & Requests",
+    icon: Sparkles,
+    description: "Add-on services, event theme, palette, and special notes.",
+  },
+  {
+    id: "contact",
+    number: "04",
+    label: "Contact Information",
+    shortLabel: "Contact Info",
+    icon: User,
+    description: "Primary contact details for quotation and updates.",
+  },
+];
 
-/** Marks a snapshot card as part of the original submission */
-function LockedBadge() {
+const SECTION_ERROR_FIELDS = {
+  "package-food": ["selected_menu", "offer_food_snapshot"],
+  event: [
+    "celebrant_name",
+    "event_type",
+    "event_date",
+    "start_time",
+    "guest_count",
+    "municipality",
+    "barangay",
+  ],
+  extras: [],
+  contact: [
+    "contact_first_name",
+    "contact_last_name",
+    "contact_email",
+    "contact_phone",
+    "contact_alt_phone",
+  ],
+};
+
+/** Subtle lock indicator for immutable booking attributes */
+function LockedBadge({ label = "As submitted" }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 border border-slate-200/60">
-      <Lock className="h-3 w-3" /> As submitted
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
+      <Lock className="h-3 w-3 text-slate-400" />
+      <span>{label}</span>
     </span>
   );
 }
 
-/** Marks a card the customer can change */
-function EditableBadge({ children }) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#4C81E0] border border-blue-200/60">
-      {children}
-    </span>
-  );
-}
-
-/** A dish or add-on the customer has chosen, removable from the summary row. */
+/** Removable chip for chosen dish */
 function PickChip({ label, onRemove }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50/80 py-0.5 pl-2 pr-1 text-xs font-semibold text-blue-900 shadow-2xs">
-      <span className="truncate max-w-[130px]">{label}</span>
+    <span className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50/90 py-1 pl-2.5 pr-1.5 text-xs font-semibold text-blue-900 shadow-2xs">
+      <span className="truncate max-w-[140px]">{label}</span>
       {onRemove && (
         <button
           type="button"
           onClick={onRemove}
           aria-label={`Remove ${label}`}
-          className="flex h-3.5 w-3.5 items-center justify-center rounded text-blue-700 hover:bg-blue-200 hover:text-blue-900 cursor-pointer transition-colors"
+          className="flex h-4 w-4 items-center justify-center rounded text-blue-700 hover:bg-blue-200 hover:text-blue-900 cursor-pointer transition-colors"
         >
           <X className="h-3 w-3" />
         </button>
@@ -107,26 +148,26 @@ function PickChip({ label, onRemove }) {
   );
 }
 
-/** −/+ stepper for an add-on's quantity. */
+/** Quantity stepper for add-ons */
 function QuantityStepper({ value, onChange, disabled }) {
   return (
-    <div className="flex items-center gap-1 bg-slate-50 p-0.5 rounded-md border border-slate-200">
+    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
       <button
         type="button"
         onClick={() => onChange(Math.max(0, value - 1))}
         disabled={disabled || value <= 0}
         aria-label="Decrease quantity"
-        className="flex h-6 w-6 items-center justify-center rounded bg-white text-slate-600 shadow-2xs hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+        className="flex h-6 w-6 items-center justify-center rounded bg-white text-slate-700 shadow-2xs hover:bg-slate-100 disabled:opacity-40 cursor-pointer transition-all active:scale-95"
       >
         <Minus className="h-3 w-3" />
       </button>
-      <span className="w-6 text-center text-xs font-bold tabular-nums text-slate-800">{value}</span>
+      <span className="w-7 text-center text-xs font-bold tabular-nums text-slate-900">{value}</span>
       <button
         type="button"
         onClick={() => onChange(value + 1)}
         disabled={disabled}
         aria-label="Increase quantity"
-        className="flex h-6 w-6 items-center justify-center rounded bg-white text-slate-600 shadow-2xs hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+        className="flex h-6 w-6 items-center justify-center rounded bg-white text-slate-700 shadow-2xs hover:bg-slate-100 disabled:opacity-40 cursor-pointer transition-all active:scale-95"
       >
         <Plus className="h-3 w-3" />
       </button>
@@ -135,6 +176,78 @@ function QuantityStepper({ value, onChange, disabled }) {
 }
 
 const sanitizePhone = (value) => String(value || "").replace(/\D/g, "").slice(0, 11);
+
+const CUSTOMER_SERVICE_OPTIONS = [
+  {
+    value: SERVICE_TYPES.FULL_SERVICE,
+    label: "Food Catering & Event Setup (Full Service)",
+  },
+  {
+    value: SERVICE_TYPES.FOOD_ONLY,
+    label: "Food Catering Only (Buffet / Packed)",
+  },
+  {
+    value: SERVICE_TYPES.SETUP_ONLY,
+    label: "Event Setup & Styling Only (No Food Catering)",
+  },
+];
+
+/**
+ * Customer-friendly form field wrapper with high-contrast labels,
+ * prominent required indicators, accessible helper text, and clear error states.
+ */
+function FormField({
+  label,
+  required = false,
+  optional = false,
+  hint,
+  error,
+  children,
+  className = "",
+  htmlFor,
+}) {
+  return (
+    <div className={cn("space-y-1.5", className)}>
+      {label && (
+        <label htmlFor={htmlFor} className="flex items-center justify-between text-xs">
+          <span className="flex items-center gap-1">
+            <span
+              className={cn(
+                "transition-colors",
+                required ? "font-bold text-slate-900" : "font-medium text-slate-700",
+              )}
+            >
+              {label}
+            </span>
+            {required && (
+              <span
+                className="font-bold text-red-500 text-xs leading-none"
+                title="Required field"
+                aria-hidden="true"
+              >
+                *
+              </span>
+            )}
+          </span>
+          {optional && (
+            <span className="text-[11px] font-normal tracking-normal text-slate-500">
+              (optional)
+            </span>
+          )}
+        </label>
+      )}
+      {children}
+      {error ? (
+        <p className="text-xs font-semibold text-red-600 flex items-center gap-1.5 mt-1" role="alert">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span>{error}</span>
+        </p>
+      ) : hint ? (
+        <p className="text-xs text-slate-500 leading-normal mt-1">{hint}</p>
+      ) : null}
+    </div>
+  );
+}
 
 function toDateInputValue(value) {
   if (!value) return "";
@@ -146,11 +259,21 @@ function toDateInputValue(value) {
   return `${year}-${month}-${day}`;
 }
 
-// The "Other" sentinel is a booking-flow presentation concept — the Inquiry
-// schema stores whatever was typed as a plain string in `event_type`/
-// `venue_type` directly. Reconstructing the sentinel + free-text split here
-// mirrors StepEventDetails so an inquiry saved with a custom value edits the
-// same way it was entered.
+function formatDateDisplay(dateStr) {
+  if (!dateStr) return "Not set";
+  try {
+    const d = new Date(dateStr + "T00:00:00");
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
 function formFromInquiry(inquiry) {
   const rawEventType = inquiry?.event_type || "";
   const eventTypeIsOther = isOtherEventType(rawEventType);
@@ -190,8 +313,6 @@ function formFromInquiry(inquiry) {
     contact_phone: inquiry?.contact_phone || "",
     contact_alt_phone: inquiry?.contact_alt_phone || "",
 
-    // Selections. Held as the request stores them so what the customer sees is
-    // what they submitted; the server re-derives all of it on save.
     selected_menu: Array.isArray(inquiry?.selected_menu)
       ? inquiry.selected_menu.filter((item) => item && typeof item === "object")
       : [],
@@ -218,40 +339,25 @@ function formFromInquiry(inquiry) {
   };
 }
 
-/**
- * Lets a customer change their own request while it is still pre-quotation
- * (see CUSTOMER_EDITABLE_STATUSES on the backend).
- *
- * A focused edit surface rather than the booking wizard again: the customer
- * already answered every question once, so this shows the whole request on one
- * screen and lets them revise the parts that are still theirs to revise —
- * their dishes, their add-ons, and the setup size their package offers,
- * choosing freely from the same catalogues the wizard offered rather than only
- * from what they happened to pick the first time.
- *
- * What stays locked is what was never theirs to set: the package the request
- * was made against, the equipment its setup reserves, every price, and a
- * combo's guest count and service type. The backend re-derives all of it
- * regardless of what this form sends (see utils/requestSelections.js), so the
- * validation here is for a good experience, not the actual guardrail.
- */
 export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClose, onSaved }) {
   const showModal = Boolean(open ?? isOpen);
   const { notify } = useToast();
+
+  const [activeSection, setActiveSection] = useState("package-food");
   const [form, setForm] = useState(() => formFromInquiry(inquiry));
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [saving, setSaving] = useState(false);
 
-  // The catalogues the customer chooses from. Loaded here rather than passed
-  // in, because the list this modal opens from carries only a summary of each
-  // request — it has never needed the menu or the add-on catalogue before.
+  // Catalogues
   const [menuCatalog, setMenuCatalog] = useState([]);
   const [addonCatalog, setAddonCatalog] = useState([]);
   const [packageRecord, setPackageRecord] = useState(null);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [dishQuery, setDishQuery] = useState("");
   const [activeCourseTab, setActiveCourseTab] = useState("all");
+  const [addonCategoryFilter, setAddonCategoryFilter] = useState("all");
+  const [addonSearchQuery, setAddonSearchQuery] = useState("");
 
   useEffect(() => {
     if (showModal) {
@@ -260,18 +366,12 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
       setTouched({});
       setDishQuery("");
       setActiveCourseTab("all");
+      setActiveSection("package-food");
+      setAddonCategoryFilter("all");
+      setAddonSearchQuery("");
     }
   }, [showModal, inquiry]);
 
-  /**
-   * What the customer may choose from.
-   *
-   * The package is re-fetched rather than read off the inquiry's populated
-   * relation because the edit needs its full configuration — the sizes it
-   * offers and the add-ons sold with it — and the inquiry carries only what
-   * was selected. A failure here is not fatal: the selection cards fall back
-   * to what the request already holds, so the rest of the form still saves.
-   */
   useEffect(() => {
     if (!showModal || !inquiry) return;
     let alive = true;
@@ -302,26 +402,16 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
     return () => {
       alive = false;
     };
-  }, [open, inquiry]);
+  }, [showModal, inquiry]);
 
   const isOffer = inquiry?.booking_type === "special";
   const isCustomBooking = inquiry?.booking_type === "custom";
-  // Delivery method only means something for a custom, Food Only request — a
-  // package always includes on-site setup, so there is nothing to choose.
   const showDelivery = isCustomBooking && form.service_type === SERVICE_TYPES.FOOD_ONLY;
   const municipalities = useMemo(() => getBatangasMunicipalities(), []);
   const barangays = useMemo(() => getBatangasBarangays(form.municipality), [form.municipality]);
 
-  // --- What was submitted. The package the request was made against, the
-  // equipment its setup reserves, and every price stay locked (see
-  // CUSTOMER_EDITABLE_FIELDS on the backend), so those are read straight from
-  // `inquiry`. The selections below read from `form`, because they are the
-  // parts this modal can change.
   const submittedPackage =
     inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
-  // The freshly fetched package where it loaded, because only that carries the
-  // sizes and add-ons the customer chooses between; the relation stored on the
-  // request is the fallback.
   const activePackage = packageRecord || submittedPackage;
   const packageName = activePackage?.name || inquiry?.package_name_snapshot || "";
   const eventSpace = inquiry ? eventSpaceLabel(inquiry, activePackage) : "";
@@ -330,11 +420,7 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
     Number(item.quantity) > 1 ? `${item.name} × ${item.quantity}` : item.name;
   const includesFood = inquiry?.include_food !== false;
 
-  // ---------------------------------------------------------------------------
-  // Selections the customer can change
-  // ---------------------------------------------------------------------------
-
-  /** Dishes, grouped by course categories, filtered by course tab and search box. */
+  // Dishes grouped & filtered
   const groupedDishes = useMemo(() => {
     const byId = new Map();
     (menuCatalog || []).forEach((item) => {
@@ -394,32 +480,43 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
       };
     });
 
+  // Add-ons list
   /**
    * Every add-on that can be on this request: the package's own, the general
-   * catalogue, and anything already on the request that is neither — a service
-   * agreed outside the catalogue stays visible and removable rather than
-   * disappearing the moment the customer opens this form.
+   * catalogue, and anything already on the request that is neither.
    */
   const addOnChoices = useMemo(() => {
     const seen = new Set();
     const choices = [];
-    const push = (name, description, price, source) => {
+    const push = (name, description, price, source, pricingType) => {
       const key = String(name || "").trim().toLowerCase();
       if (!key || seen.has(key)) return;
       seen.add(key);
-      choices.push({ name, description: description || "", price: Number(price) || 0, source });
+      choices.push({
+        name,
+        description: description || "",
+        price: Number(price) || 0,
+        source,
+        pricing_type: pricingType || (Number(price) > 0 ? "fixed" : "quotation"),
+      });
     };
 
     (Array.isArray(activePackage?.add_ons) ? activePackage.add_ons : []).forEach((addOn) =>
-      // A package add-on carries a name and a quantity but no price: it is
-      // quoted per event, so it sits at ₱0 until the quotation prices it.
-      push(addOn?.name, addOn?.qty ? `Package add-on (${addOn.qty})` : "Package add-on", 0, "package"),
+      push(
+        addOn?.name,
+        addOn?.qty ? `Package add-on (${addOn.qty})` : "Package add-on",
+        addOn?.price || 0,
+        "package",
+        addOn?.pricing_type || (addOn?.qty ? "quantity" : "fixed"),
+      ),
     );
     (Array.isArray(addonCatalog) ? addonCatalog : [])
       .filter((addOn) => addOn?.available !== false)
-      .forEach((addOn) => push(addOn?.name, addOn?.description, addOn?.price, "catalog"));
+      .forEach((addOn) =>
+        push(addOn?.name, addOn?.description, addOn?.price, "catalog", addOn?.pricing_type),
+      );
     (form.service_items || []).forEach((item) =>
-      push(item?.name, item?.description, item?.price, "existing"),
+      push(item?.name, item?.description, item?.price, "existing", item?.pricing_type),
     );
 
     return choices;
@@ -452,7 +549,97 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
       return { ...prev, service_items: next };
     });
 
-  /** A combo's courses, with what this request has chosen for each. */
+  // Category resolver for grouping services into logical clusters
+  const getAddonCategory = (choice) => {
+    if (choice.source === "package") {
+      return { id: "package", label: "Package Add-ons", icon: PackageIcon };
+    }
+    const text = `${choice.name || ""} ${choice.description || ""}`.toLowerCase();
+
+    if (/videoke|sound|light|host|clown|dj|band|music|speaker|mic|entertainment|emcee|projector|audio|visual/i.test(text)) {
+      return { id: "entertainment", label: "Entertainment & Sound", icon: Sparkles };
+    }
+    if (/standee|decor|backdrop|drape|arch|entourage|styling|carpet|flower|centerpiece|theme|balloon/i.test(text)) {
+      return { id: "styling", label: "Event Styling & Décor", icon: Palette };
+    }
+    if (/candy|pica|cake|wine|station|grazing|dessert|coffee|food|drink|beverage|snack/i.test(text)) {
+      return { id: "stations", label: "Stations & Treats", icon: Utensils };
+    }
+    if (/chair|table|tent|fan|cooler|generator|equipment|monoblock|tiffany|linens|furniture/i.test(text)) {
+      return { id: "equipment", label: "Equipment & Rentals", icon: Boxes };
+    }
+    return { id: "specialty", label: "Specialty Services", icon: Sparkles };
+  };
+
+  // Helper to determine if an add-on has variable quantities or is a single service
+  const isQuantityRelevant = (choice) => {
+    if (choice.pricing_type === "quantity") return true;
+    if (choice.pricing_type === "fixed") return false;
+    if (choice.isQuantity) return true;
+    if (Number(choice.quantity) > 1) return true;
+    const name = (choice.name || "").toLowerCase();
+    return /chair|table|fan|light|par|standee|tent|cooler|set|piece|unit|glass|plate|warmer|monoblock|tiffany/i.test(name);
+  };
+
+  const availableAddonCategories = useMemo(() => {
+    const map = new Map();
+    addOnChoices.forEach((choice) => {
+      const cat = getAddonCategory(choice);
+      if (!map.has(cat.id)) {
+        map.set(cat.id, { ...cat, count: 0 });
+      }
+      map.get(cat.id).count += 1;
+    });
+    return [...map.values()];
+  }, [addOnChoices]);
+
+  const groupedFilteredAddons = useMemo(() => {
+    const q = addonSearchQuery.trim().toLowerCase();
+    const matchesQuery = (choice) =>
+      !q ||
+      choice.name?.toLowerCase().includes(q) ||
+      choice.description?.toLowerCase().includes(q);
+
+    const groups = new Map();
+    addOnChoices.forEach((choice) => {
+      if (!matchesQuery(choice)) return;
+      const cat = getAddonCategory(choice);
+      if (addonCategoryFilter !== "all" && cat.id !== addonCategoryFilter) return;
+
+      if (!groups.has(cat.id)) {
+        groups.set(cat.id, { ...cat, items: [] });
+      }
+      groups.get(cat.id).items.push(choice);
+    });
+
+    return [...groups.values()];
+  }, [addOnChoices, addonCategoryFilter, addonSearchQuery]);
+
+  const selectedAddonStats = useMemo(() => {
+    let fixedCount = 0;
+    let fixedTotal = 0;
+    let quotationCount = 0;
+
+    (form.service_items || []).forEach((item) => {
+      const price = Number(item.price) || 0;
+      const qty = Math.max(1, Number(item.quantity) || 1);
+      if (price > 0) {
+        fixedCount += 1;
+        fixedTotal += price * qty;
+      } else {
+        quotationCount += 1;
+      }
+    });
+
+    return {
+      totalCount: (form.service_items || []).length,
+      fixedCount,
+      fixedTotal,
+      quotationCount,
+    };
+  }, [form.service_items]);
+
+  // Special Offer combo courses
   const offerCourses = useMemo(
     () => (isOffer ? offerFoodByCategory(activePackage) : []),
     [isOffer, activePackage],
@@ -463,11 +650,6 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
       (entry) => (entry.menu_category || "Included") === category,
     );
 
-  /**
-   * Choosing a dish for a course. A course asking for one dish swaps; a course
-   * asking for several fills up to its limit and then replaces the oldest
-   * pick, so the control never simply stops responding.
-   */
   const toggleCourseDish = (category, itemName, required) =>
     setForm((prev) => {
       const current = prev.offer_food_snapshot || [];
@@ -493,17 +675,9 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
       return { ...prev, offer_food_snapshot: [...others, ...nextInCourse] };
     });
 
-  /** The sizes this package sells, when it sells more than one. */
   const scaffoldOptions = Array.isArray(activePackage?.scaffold_size_options)
     ? activePackage.scaffold_size_options
     : [];
-  const hasCustomSetupDetails =
-    Boolean(inquiry?.is_custom_setup) &&
-    (Boolean(inquiry?.custom_setup_notes) ||
-      (inquiry?.custom_setup_scope || []).length > 0 ||
-      Boolean(inquiry?.budget_range) ||
-      (inquiry?.inspiration_images || []).length > 0);
-
   const isVenueTypeOther = form.venue_type === OTHER_VENUE_TYPE;
   const isPickup = showDelivery && form.delivery_method === "pickup";
 
@@ -512,6 +686,7 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
   const handlePhoneChange = (field, raw) => setForm((prev) => ({ ...prev, [field]: sanitizePhone(raw) }));
   const primaryPhoneFilled = !!form.contact_phone?.trim();
 
+  // Validate form
   const validate = () => {
     const next = {};
     if (form.booking_for === "someone_else" && !form.celebrant_name?.trim()) {
@@ -530,8 +705,6 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
       if (!form.barangay) next.barangay = "Choose the barangay of the venue.";
     }
 
-    // A food order with no food. The wizard refuses to submit one, so an edit
-    // must not be the way to arrive at one.
     if (
       !isOffer &&
       form.service_type === SERVICE_TYPES.FOOD_ONLY &&
@@ -540,10 +713,6 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
       next.selected_menu = "Choose at least one dish, or message us to cancel this request.";
     }
 
-    // Every course a combo asks the customer to choose from needs an answer.
-    // The server settles a course left blank to the combo's own default, so
-    // this is about the customer getting what they meant rather than about
-    // protecting the record.
     if (isOffer) {
       const unanswered = offerCourses
         .filter(
@@ -556,12 +725,19 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
         next.offer_food_snapshot = `Choose your dish for: ${unanswered.join(", ")}.`;
       }
     }
+
     ["contact_first_name", "contact_last_name", "contact_email", "contact_phone"].forEach((field) => {
       const err = contactFieldError(field, form[field]);
       if (err) next[field] = err;
     });
+
     setErrors(next);
-    return Object.keys(next).length === 0;
+    return next;
+  };
+
+  const hasSectionError = (sectionId, currentErrors = errors) => {
+    const fields = SECTION_ERROR_FIELDS[sectionId] || [];
+    return fields.some((field) => Boolean(currentErrors[field]));
   };
 
   const handleSubmit = async () => {
@@ -572,8 +748,19 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
       contact_email: true,
       contact_phone: true,
     }));
-    if (!validate()) {
-      notify("Please fix the highlighted fields.", "error");
+
+    const validationErrors = validate();
+    const hasErrors = Object.keys(validationErrors).length > 0;
+
+    if (hasErrors) {
+      // Find the first section with an error and jump to it
+      const firstFaulty = SECTIONS.find((s) => hasSectionError(s.id, validationErrors));
+      if (firstFaulty) {
+        setActiveSection(firstFaulty.id);
+        notify(`Please fix the highlighted fields in ${firstFaulty.shortLabel}.`, "error");
+      } else {
+        notify("Please fix the highlighted fields.", "error");
+      }
       return;
     }
 
@@ -612,12 +799,6 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
       payload.delivery_instructions = form.delivery_instructions;
     }
 
-    /**
-     * Selections. Sent as *what* was chosen — ids and names — and never as
-     * what they cost: the server prices every one of them from the catalogue
-     * and recomputes the estimate, so a price sent from here would be ignored
-     * anyway (see utils/requestSelections.js).
-     */
     if (isOffer) {
       payload.offer_food_snapshot = form.offer_food_snapshot || [];
     } else {
@@ -660,816 +841,1744 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
     }
   };
 
+  // Section Index & Navigation
+  const activeSectionIndex = SECTIONS.findIndex((s) => s.id === activeSection);
+  const currentSection = SECTIONS[activeSectionIndex] || SECTIONS[0];
+
+  // Micro-summaries for the sidebar / tab bar
+  const sectionSummaries = useMemo(() => {
+    let s1 = "";
+    if (isOffer) {
+      s1 = `${inquiry?.guest_count || 0} pax Combo`;
+    } else if (includesFood) {
+      const dishCount = (form.selected_menu || []).length;
+      s1 = dishCount === 1 ? "1 dish chosen" : `${dishCount} dishes chosen`;
+    } else {
+      s1 = "Setup Only";
+    }
+
+    const s2 = form.event_date
+      ? `${formatDateDisplay(form.event_date)} · ${isOffer ? inquiry?.guest_count : form.guest_count || 0} pax`
+      : "Date & Location";
+
+    const totalAddons = (form.service_items || []).reduce(
+      (acc, item) => acc + (Number(item.quantity) || 1),
+      0,
+    );
+    const s3 = totalAddons > 0 ? `${totalAddons} add-ons` : form.event_theme || "Add-ons & Notes";
+
+    const s4 = form.contact_first_name
+      ? `${form.contact_first_name} ${form.contact_last_name}`.trim()
+      : "Contact info";
+
+    return {
+      "package-food": s1,
+      event: s2,
+      extras: s3,
+      contact: s4,
+    };
+  }, [
+    isOffer,
+    includesFood,
+    form.selected_menu,
+    form.event_date,
+    form.guest_count,
+    form.service_items,
+    form.event_theme,
+    form.contact_first_name,
+    form.contact_last_name,
+    inquiry?.guest_count,
+  ]);
+
   if (!inquiry) return null;
 
   return (
     <Dialog open={showModal} onOpenChange={(next) => !next && onClose?.()}>
-      <DialogContent className="w-full max-w-3xl max-h-[88vh] rounded-xl border border-slate-200 shadow-2xl p-0 overflow-hidden flex flex-col bg-white">
-        <DialogHeader className="px-5 pt-4 pb-3 border-b border-slate-100 bg-white shrink-0">
-          <DialogTitle className="font-sans font-bold text-base sm:text-lg text-slate-900 tracking-tight flex items-center gap-2">
-            <span>Edit Request Details</span>
-            {inquiry.reference && (
-              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-blue-50 text-[#4C81E0] border border-blue-200/60">
-                {inquiry.reference}
-              </span>
-            )}
-          </DialogTitle>
-          <DialogDescription className="text-xs text-slate-500 mt-0.5">
-            Sections marked "As submitted" cannot be changed. Update any of the editable selections below.
-          </DialogDescription>
+      <DialogContent hideClose className="font-sans antialiased text-slate-800 w-full max-w-4xl h-[92vh] sm:h-[88vh] max-h-[840px] rounded-2xl border border-slate-200 shadow-2xl p-0 overflow-hidden flex flex-col bg-white">
+        {/* --- Top Header --- */}
+        <DialogHeader className="px-5 sm:px-6 py-3.5 border-b border-slate-100 bg-white shrink-0 flex flex-row items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <DialogTitle className="font-sans font-bold text-base sm:text-lg text-slate-900 tracking-tight">
+                Edit Inquiry Request
+              </DialogTitle>
+              {inquiry.reference && (
+                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                  {inquiry.reference}
+                </span>
+              )}
+            </div>
+            <DialogDescription className="text-xs text-slate-500 mt-0.5 truncate">
+              Update specific parts of your request. Any changes you make will be saved together.
+            </DialogDescription>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-lg p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
+          >
+            <X size={18} />
+          </button>
         </DialogHeader>
 
-        <div className="space-y-4 px-5 py-4 overflow-y-auto flex-1">
-          {/* --- Read-only snapshot: everything originally submitted that this
-              form cannot change. Shown first so a customer sees the whole
-              request before touching anything, distinguished from the
-              editable cards below by the dashed border and "As submitted"
-              badge. */}
-          <div className="space-y-3">
-            {(packageName || eventSpace || hasCustomSetupDetails) && (
-              <Card className="border-dashed p-4">
-                <SectionTitle icon={PackageIcon} right={<LockedBadge />}>
-                  Service &amp; package
-                </SectionTitle>
-                <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {packageName && <SnapshotRow label={isOffer ? "Combo" : "Package"} value={packageName} />}
-                  {eventSpace && <SnapshotRow label="Event space / scaffold size" value={eventSpace} />}
-                  {inquiry.is_custom_setup && (
-                    <SnapshotRow label="Setup concept" value="100% Bespoke Custom Setup" wide />
-                  )}
-                  {(inquiry.custom_setup_scope || []).length > 0 && (
-                    <SnapshotRow label="Setup scope" value={inquiry.custom_setup_scope.join(", ")} wide />
-                  )}
-                  {inquiry.budget_range && <SnapshotRow label="Target budget" value={inquiry.budget_range} />}
-                </dl>
-                {inquiry.custom_setup_notes && (
-                  <div className="mt-3">
-                    <SnapshotRow label="Custom setup notes" value={inquiry.custom_setup_notes} wide />
-                  </div>
+        {/* --- Mobile Horizontal Navigation (Visible < md) --- */}
+        <div className="md:hidden border-b border-slate-200 bg-slate-50/80 px-3 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
+          {SECTIONS.map((sec) => {
+            const Icon = sec.icon;
+            const isActive = activeSection === sec.id;
+            const hasError = hasSectionError(sec.id);
+
+            return (
+              <button
+                key={sec.id}
+                type="button"
+                onClick={() => setActiveSection(sec.id)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer",
+                  isActive
+                    ? "bg-[#4C81E0] text-white shadow-2xs"
+                    : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100",
+                  hasError && !isActive && "border-red-300 text-red-600 bg-red-50/40",
                 )}
-                {(inquiry.inspiration_images || []).length > 0 && (
-                  <div className="mt-3">
-                    <dt className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Inspiration photos
-                    </dt>
-                    <div className="flex flex-wrap gap-2">
-                      {inquiry.inspiration_images.map((url, idx) => (
-                        <img
-                          key={idx}
-                          src={url}
-                          alt={`Inspiration ${idx + 1}`}
-                          className="h-14 w-14 rounded-lg border border-border object-cover"
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </Card>
-            )}
-
-            {/* --- Equipment and the estimate: derived, never chosen. The
-                equipment a setup reserves follows from the package and the
-                size, and the estimate follows from the selections — so both
-                are shown as the consequences they are, and change only when
-                the choices above them change. */}
-            {inventoryItems.length > 0 && (
-              <Card className="border-dashed p-4">
-                <SectionTitle icon={Boxes} right={<LockedBadge />}>
-                  Reserved equipment
-                </SectionTitle>
-                <SnapshotRow
-                  label="Included with your setup"
-                  value={inventoryItems.map(addOnLabel).join(", ")}
-                  wide
-                />
-                <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
-                  Reserved for you based on the package and size above. It updates on its own if you change them.
-                </p>
-              </Card>
-            )}
-
-            {Number(inquiry.estimated_total) > 0 && (
-              <Card className="border-dashed p-4">
-                <SectionTitle icon={DollarSign} right={<LockedBadge />}>
-                  Current estimate
-                </SectionTitle>
-                <SnapshotRow label="Estimated total" value={formatCurrency(inquiry.estimated_total)} />
-                <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
-                  Recalculated when you save. Your official quotation is the final price.
-                </p>
-              </Card>
-            )}
-          </div>
-
-          <p className="pt-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Editable details
-          </p>
-
-          {/* --- Selections. Add or remove freely: the customer is not held to
-              what they happened to pick the first time, only to what the
-              package or combo actually offers. */}
-          {isOffer ? (
-            <Card className="p-4">
-              <SectionTitle
-                icon={Utensils}
-                right={<EditableBadge>Choose your dishes</EditableBadge>}
               >
-                Combo meal
-              </SectionTitle>
+                <Icon className={cn("h-3.5 w-3.5", isActive ? "text-white" : "text-slate-500")} />
+                <span>{sec.shortLabel}</span>
+                {hasError && (
+                  <span
+                    className={cn(
+                      "flex h-2 w-2 rounded-full",
+                      isActive ? "bg-white" : "bg-red-500",
+                    )}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-              {offerPricePerPax(activePackage) > 0 && (
-                <p className="mb-3 text-xs text-muted-foreground">
-                  {formatCurrency(offerPricePerPax(activePackage))} / pax ·{" "}
-                  <span className="font-semibold text-foreground">
-                    {formatCurrency(offerBaseFoodPrice(activePackage, inquiry.guest_count))}
-                  </span>{" "}
-                  for {inquiry.guest_count} {inquiry.guest_count === 1 ? "guest" : "guests"} — fixed by the combo.
-                </p>
-              )}
+        {/* --- Main Workspace (Sidebar + Focused Section Area) --- */}
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
+          {/* Desktop Left Sidebar (Visible >= md) */}
+          <aside className="hidden md:flex flex-col w-64 shrink-0 border-r border-slate-100 bg-slate-50/60 p-3.5 justify-between">
+            <div className="space-y-1.5">
+              <div className="px-2 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Sections ({activeSectionIndex + 1} of {SECTIONS.length})
+              </div>
 
-              {loadingCatalog && offerCourses.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Loading your combo…</p>
-              ) : offerCourses.length === 0 ? (
-                <SnapshotRow
-                  label="Your dishes"
-                  value={offerFoodForDisplay(inquiry, activePackage)
-                    .map((entry) => entry.item_name)
-                    .join(", ")}
-                  wide
-                />
-              ) : (
-                <div className="space-y-3">
-                  {errors.offer_food_snapshot && (
-                    <p className="text-xs font-medium text-destructive">{errors.offer_food_snapshot}</p>
-                  )}
-                  {offerCourses.map((course) => {
-                    const required = offerCourseRequirement(course.category);
-                    const chosen = chosenForCourse(course.category);
-                    const single = course.items.length === 1;
-                    return (
-                      <div key={course.category}>
-                        <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
-                          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            {course.category}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground">
-                            {single ? "Included" : `Choose ${required} (${chosen.length}/${required})`}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {course.items.map((dish) => {
-                            const active = single || chosen.some((entry) => entry.item_name === dish);
-                            return (
-                              <button
-                                key={dish}
-                                type="button"
-                                disabled={single}
-                                onClick={() => toggleCourseDish(course.category, dish, required)}
-                                className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
-                                  active
-                                    ? "border-primary bg-primary/5 font-semibold text-foreground"
-                                    : "border-border bg-background text-muted-foreground hover:border-primary/50"
-                                } ${single ? "cursor-default" : "cursor-pointer"}`}
-                              >
-                                {dish}
-                              </button>
-                            );
-                          })}
-                        </div>
+              {SECTIONS.map((sec) => {
+                const Icon = sec.icon;
+                const isActive = activeSection === sec.id;
+                const hasError = hasSectionError(sec.id);
+                const summaryText = sectionSummaries[sec.id];
+
+                return (
+                  <button
+                    key={sec.id}
+                    type="button"
+                    onClick={() => setActiveSection(sec.id)}
+                    className={cn(
+                      "w-full text-left rounded-xl p-2.5 transition-all cursor-pointer flex items-center justify-between group",
+                      isActive
+                        ? "bg-white border border-slate-200 shadow-2xs ring-1 ring-[#4C81E0]/30"
+                        : "hover:bg-slate-100/80 border border-transparent",
+                    )}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={cn(
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+                          isActive
+                            ? "bg-[#4C81E0] text-white"
+                            : "bg-slate-200/70 text-slate-600 group-hover:bg-slate-200",
+                          hasError && !isActive && "bg-red-100 text-red-600",
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
                       </div>
-                    );
-                  })}
-
-                  {offerInclusions(activePackage).length > 0 && (
-                    <div className="border-t border-border pt-3">
-                      <SnapshotRow
-                        label="Also included"
-                        value={offerInclusions(activePackage).join(", ")}
-                        wide
-                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p
+                            className={cn(
+                              "text-xs font-bold leading-tight truncate",
+                              isActive ? "text-[#4C81E0]" : "text-slate-800",
+                            )}
+                          >
+                            {sec.label}
+                          </p>
+                          {hasError && (
+                            <span className="flex h-1.5 w-1.5 rounded-full bg-red-500" />
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 truncate leading-tight mt-0.5">
+                          {summaryText}
+                        </p>
+                      </div>
                     </div>
-                  )}
+
+                    <ChevronRight
+                      size={14}
+                      className={cn(
+                        "shrink-0 transition-transform",
+                        isActive ? "text-[#4C81E0] translate-x-0.5" : "text-slate-300 opacity-60",
+                      )}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Request Snapshot Card at Sidebar Bottom */}
+            <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Reference</span>
+                <span className="font-mono font-bold text-slate-800">{inquiry.reference || "INQ-CURRENT"}</span>
+              </div>
+              {Number(inquiry.estimated_total) > 0 && (
+                <div className="border-t border-slate-100 pt-1.5 flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-medium">Current estimate</span>
+                  <span className="font-bold text-slate-900">{formatCurrency(inquiry.estimated_total)}</span>
                 </div>
               )}
-            </Card>
-          ) : (
-            includesFood && (
-              <Card className="p-4">
-                <SectionTitle
-                  icon={Utensils}
-                  right={<EditableBadge>{(form.selected_menu || []).length} selected</EditableBadge>}
-                >
-                  Food &amp; menu
-                </SectionTitle>
+            </div>
+          </aside>
 
-                {/* Selected Dishes Tray */}
-                {(form.selected_menu || []).length > 0 && (
-                  <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50/40 p-2.5">
-                    <div className="mb-1.5 flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-blue-900">
-                        Selected Dishes ({(form.selected_menu || []).length})
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setForm((prev) => ({ ...prev, selected_menu: [] }))}
-                        className="text-[11px] font-semibold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer"
-                      >
-                        Clear all
-                      </button>
+          {/* Active Section Content Workspace */}
+          <main className="flex-1 min-h-0 overflow-y-auto px-5 py-5 sm:px-8 sm:py-6 bg-white space-y-6">
+            {/* Section Header */}
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#4C81E0]">
+                  Section {currentSection.number}
+                </span>
+                <span className="text-slate-300">·</span>
+                <span className="text-xs font-semibold text-slate-500">
+                  {currentSection.shortLabel}
+                </span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                {currentSection.label}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
+                {currentSection.description}
+              </p>
+            </div>
+
+            {/* ========================================================
+                SECTION 1: PACKAGE & FOOD
+            ======================================================== */}
+            {activeSection === "package-food" && (
+              <div className="space-y-6">
+                {/* Section Summary Banner */}
+                <div className="rounded-xl border border-blue-100 bg-blue-50/30 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                      <PackageIcon className="h-3.5 w-3.5 text-[#4C81E0]" />
+                      Package &amp; Food Snapshot
+                    </span>
+                    <LockedBadge label="Package as submitted" />
+                  </div>
+                  <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Package / Combo</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {packageName || "Custom Request"}
+                      </dd>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {form.selected_menu.map((item) => (
-                        <PickChip key={item._id} label={item.name} onRemove={() => toggleDish(item)} />
-                      ))}
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Event Space</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {eventSpace || "Standard Setup"}
+                      </dd>
                     </div>
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Food Selection</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-[#4C81E0] truncate mt-0.5">
+                        {isOffer
+                          ? `${inquiry?.guest_count} pax meal`
+                          : includesFood
+                          ? `${(form.selected_menu || []).length} dishes chosen`
+                          : "No food included"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Estimate Total</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {Number(inquiry.estimated_total) > 0
+                          ? formatCurrency(inquiry.estimated_total)
+                          : "Quoted"}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {/* Scaffold Size Selection if multiple options */}
+                {scaffoldOptions.length > 1 && (
+                  <div className="rounded-xl border border-slate-200 p-4 bg-white">
+                    <FormField
+                      label="Event setup size"
+                      optional
+                      hint="The equipment reserved for your event adapts to the size chosen."
+                    >
+                      <TSelect
+                        value={form.selected_scaffold_option_id}
+                        onChange={(val) =>
+                          setForm((prev) => ({ ...prev, selected_scaffold_option_id: val }))
+                        }
+                        options={scaffoldOptions.map((option) => ({
+                          value: String(option._id),
+                          label:
+                            eventSpaceLabel(
+                              { selected_scaffold_option_id: option._id },
+                              activePackage,
+                            ) ||
+                            option.label ||
+                            "Setup size",
+                        }))}
+                        placeholder="Select setup size"
+                      />
+                    </FormField>
                   </div>
                 )}
 
-                <div className="space-y-2.5">
-                  {/* Search Bar */}
-                  <div className="relative">
-                    <Search
-                      size={13}
-                      className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
-                      aria-hidden="true"
-                    />
-                    <input
-                      type="search"
-                      value={dishQuery}
-                      onChange={(e) => setDishQuery(e.target.value)}
-                      placeholder="Search dishes by name or category (e.g. Sisig, Lumpia, Pork)..."
-                      aria-label="Search dishes"
-                      className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-8 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0]"
-                    />
-                    {dishQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setDishQuery("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
-                        aria-label="Clear search"
-                      >
-                        <X size={13} />
-                      </button>
+                {/* Custom Setup Details if applicable */}
+                {inquiry.is_custom_setup && (
+                  <div className="rounded-xl border border-slate-200 p-4 bg-white space-y-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Custom Setup Brief</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">Bespoke styling specifications provided with this request.</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <FormField label="Target budget" optional hint="Estimated guide for bespoke styling.">
+                        <TInput
+                          placeholder="e.g. 50,000 - 80,000"
+                          value={form.budget_range}
+                          onChange={(val) => setForm((prev) => ({ ...prev, budget_range: val }))}
+                        />
+                      </FormField>
+                      {(inquiry.custom_setup_scope || []).length > 0 && (
+                        <FormField label="Setup scope">
+                          <p className="text-xs font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                            {inquiry.custom_setup_scope.join(", ")}
+                          </p>
+                        </FormField>
+                      )}
+                    </div>
+                    <FormField label="Stylist notes" optional hint="Specific design notes for our event stylists.">
+                      <TTextarea
+                        rows={2}
+                        placeholder="e.g. Prefer fairy lights, white drapery, and low floral centerpieces."
+                        value={form.custom_setup_notes}
+                        onChange={(val) =>
+                          setForm((prev) => ({ ...prev, custom_setup_notes: val }))
+                        }
+                      />
+                    </FormField>
+                    {(inquiry.inspiration_images || []).length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="text-xs font-semibold text-slate-800 block">Uploaded Inspiration Photos</span>
+                        <div className="flex flex-wrap gap-2">
+                          {inquiry.inspiration_images.map((url, idx) => (
+                            <img
+                              key={idx}
+                              src={url}
+                              alt={`Inspiration ${idx + 1}`}
+                              className="h-14 w-14 rounded-lg border border-slate-200 object-cover"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Reserved Equipment Snapshot */}
+                {inventoryItems.length > 0 && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Boxes className="h-4 w-4 text-slate-600" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                          Reserved Equipment ({inventoryItems.length} items)
+                        </h3>
+                      </div>
+                      <LockedBadge label="Allocated" />
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {inventoryItems.map(addOnLabel).join(" · ")}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1.5">
+                      Equipment automatically reserved based on your package and venue space.
+                    </p>
+                  </div>
+                )}
+
+                {/* Food Selection Section */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <Utensils className="h-4 w-4 text-[#4C81E0]" />
+                        <span>Food &amp; Catering Choices</span>
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        {isOffer
+                          ? "Select your preferred dishes for each course included in this special combo."
+                          : includesFood
+                          ? "Choose the dishes for your catering service from our available menu."
+                          : "Catering is not included with this setup-only booking."}
+                      </p>
+                    </div>
+                    {includesFood && !isOffer && (
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-50 text-[#4C81E0] border border-blue-200/60">
+                        {(form.selected_menu || []).length} selected
+                      </span>
                     )}
                   </div>
 
-                  {/* Course Filter Pills */}
-                  <CourseFilterBar
-                    activeGroup={activeCourseTab}
-                    onSelectGroup={setActiveCourseTab}
-                    totalDishCount={menuCatalog?.length || 0}
-                    groups={groupedDishes}
-                    selectedCountsByGroup={selectedCountsByGroup}
-                    showAll={true}
-                  />
+                  {errors.selected_menu && (
+                    <div className="rounded-lg bg-red-50 border border-red-200 p-2.5 text-xs font-semibold text-red-600 flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>{errors.selected_menu}</span>
+                    </div>
+                  )}
 
-                  {/* Dishes Grid */}
-                  <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-slate-200 p-2 space-y-3">
-                    {loadingCatalog ? (
-                      <p className="p-4 text-center text-xs text-slate-400">Loading dishes...</p>
-                    ) : filteredDishes.length === 0 ? (
-                      <div className="p-4 text-center text-xs text-slate-400 space-y-2">
-                        <p>{dishQuery ? `No dishes match "${dishQuery}"` : "No dishes available."}</p>
+                  {isOffer ? (
+                    /* Special Offer Combo meal choices */
+                    <div className="space-y-4">
+                      {offerPricePerPax(activePackage) > 0 && (
+                        <div className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                          {formatCurrency(offerPricePerPax(activePackage))} / pax ·{" "}
+                          <span className="font-semibold text-slate-900">
+                            {formatCurrency(offerBaseFoodPrice(activePackage, inquiry.guest_count))}
+                          </span>{" "}
+                          for {inquiry.guest_count} guests (fixed by combo offer).
+                        </div>
+                      )}
+
+                      {loadingCatalog && offerCourses.length === 0 ? (
+                        <p className="text-xs text-slate-400 py-3">Loading combo menu options…</p>
+                      ) : offerCourses.length === 0 ? (
+                        <div className="rounded-lg border border-slate-200 p-3 text-xs text-slate-700">
+                          {offerFoodForDisplay(inquiry, activePackage)
+                            .map((e) => e.item_name)
+                            .join(", ")}
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {errors.offer_food_snapshot && (
+                            <p className="text-xs font-medium text-red-600">
+                              {errors.offer_food_snapshot}
+                            </p>
+                          )}
+                          {offerCourses.map((course) => {
+                            const required = offerCourseRequirement(course.category);
+                            const chosen = chosenForCourse(course.category);
+                            const single = course.items.length === 1;
+
+                            return (
+                              <div
+                                key={course.category}
+                                className="rounded-xl border border-slate-200 p-3 bg-white space-y-2"
+                              >
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="font-bold text-slate-800 uppercase tracking-wide">
+                                    {course.category}
+                                  </span>
+                                  <span className="text-[11px] text-slate-500 font-medium">
+                                    {single
+                                      ? "Included automatically"
+                                      : `Choose ${required} (${chosen.length}/${required})`}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {course.items.map((dish) => {
+                                    const active =
+                                      single || chosen.some((entry) => entry.item_name === dish);
+                                    return (
+                                      <button
+                                        key={dish}
+                                        type="button"
+                                        disabled={single}
+                                        onClick={() =>
+                                          toggleCourseDish(course.category, dish, required)
+                                        }
+                                        className={cn(
+                                          "rounded-lg border px-3 py-1.5 text-xs transition-all",
+                                          active
+                                            ? "border-[#4C81E0] bg-blue-50/80 font-bold text-blue-900 ring-1 ring-[#4C81E0]/40"
+                                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+                                          single ? "cursor-default" : "cursor-pointer active:scale-95",
+                                        )}
+                                      >
+                                        {dish}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {offerInclusions(activePackage).length > 0 && (
+                            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-600">
+                              <span className="font-bold text-slate-700">Also included: </span>
+                              {offerInclusions(activePackage).join(", ")}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : includesFood ? (
+                    /* Standard Buffet Menu Selection */
+                    <div className="space-y-3">
+                      {/* Selected Dishes Tray */}
+                      {(form.selected_menu || []).length > 0 ? (
+                        <div className="rounded-xl border border-blue-200/90 bg-blue-50/40 p-3">
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-900">
+                              Chosen Dishes ({(form.selected_menu || []).length})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setForm((prev) => ({ ...prev, selected_menu: [] }))}
+                              className="text-[11px] font-semibold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer"
+                            >
+                              Clear all
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {form.selected_menu.map((item) => (
+                              <PickChip
+                                key={item._id}
+                                label={item.name}
+                                onRemove={() => toggleDish(item)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-dashed border-slate-200 p-3 text-center text-xs text-slate-400">
+                          No dishes chosen yet. Browse and pick dishes from the menu below.
+                        </div>
+                      )}
+
+                      {/* Search Bar */}
+                      <div className="relative">
+                        <Search
+                          size={14}
+                          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        />
+                        <input
+                          type="search"
+                          value={dishQuery}
+                          onChange={(e) => setDishQuery(e.target.value)}
+                          placeholder="Search dishes by name (e.g. Sisig, Pork, Lumpia)..."
+                          aria-label="Search dishes"
+                          className="h-9.5 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-8 text-xs sm:text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0]"
+                        />
                         {dishQuery && (
                           <button
                             type="button"
+                            onClick={() => setDishQuery("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer p-0.5"
+                          >
+                            <X size={13} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Course Filter Tabs */}
+                      <CourseFilterBar
+                        activeGroup={activeCourseTab}
+                        onSelectGroup={setActiveCourseTab}
+                        totalDishCount={menuCatalog?.length || 0}
+                        groups={groupedDishes}
+                        selectedCountsByGroup={selectedCountsByGroup}
+                        showAll={true}
+                      />
+
+                      {/* Dishes Grid */}
+                      <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-200 p-2.5 space-y-3 bg-slate-50/20">
+                        {loadingCatalog ? (
+                          <div className="p-6 text-center text-xs text-slate-400">
+                            Loading dishes catalogue...
+                          </div>
+                        ) : filteredDishes.length === 0 ? (
+                          <div className="p-6 text-center text-xs text-slate-400 space-y-2">
+                            <p>
+                              {dishQuery
+                                ? `No dishes match "${dishQuery}"`
+                                : "No dishes available in this category."}
+                            </p>
+                            {dishQuery && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDishQuery("");
+                                  setActiveCourseTab("all");
+                                }}
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-[#4C81E0] hover:underline cursor-pointer"
+                              >
+                                <RotateCcw size={12} />
+                                Reset search
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          filteredDishes.map((group) => (
+                            <div key={group.id}>
+                              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                {group.label} ({group.items.length})
+                              </p>
+                              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                {group.items.map((item) => {
+                                  const isChosen = isDishChosen(item);
+                                  return (
+                                    <button
+                                      key={item._id}
+                                      type="button"
+                                      onClick={() => toggleDish(item)}
+                                      className={cn(
+                                        "group flex items-center justify-between gap-2 rounded-lg border p-1.5 text-left transition-all cursor-pointer select-none",
+                                        isChosen
+                                          ? "border-[#4C81E0] bg-blue-50/60 ring-1 ring-[#4C81E0]/50 shadow-2xs"
+                                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
+                                      )}
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        {item.image_url ? (
+                                          <img
+                                            src={item.image_url}
+                                            alt=""
+                                            className="h-8 w-8 shrink-0 rounded object-cover border border-slate-200"
+                                          />
+                                        ) : (
+                                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-slate-100 text-slate-400">
+                                            <Utensils size={13} />
+                                          </span>
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                          <p className="truncate text-xs font-bold text-slate-800 leading-tight">
+                                            {item.name}
+                                          </p>
+                                          {item.description && (
+                                            <p className="truncate text-[10px] text-slate-500 leading-tight mt-0.5">
+                                              {item.description}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <span
+                                        className={cn(
+                                          "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ml-1",
+                                          isChosen
+                                            ? "border-[#4C81E0] bg-[#4C81E0] text-white"
+                                            : "border-slate-300 bg-white text-transparent group-hover:border-slate-400",
+                                        )}
+                                      >
+                                        <Check size={10} strokeWidth={3} />
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 text-xs text-slate-500">
+                      Food catering is not included in this request. If you wish to add food catering,
+                      please submit a new booking or inquire via messages.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================
+                SECTION 2: EVENT DETAILS
+            ======================================================== */}
+            {activeSection === "event" && (
+              <div className="space-y-6">
+                {/* Section Summary Banner */}
+                <div className="rounded-xl border border-blue-100 bg-blue-50/30 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                      <CalendarDays className="h-3.5 w-3.5 text-[#4C81E0]" />
+                      Current Event Schedule &amp; Location
+                    </span>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Date &amp; Time</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {form.event_date ? formatDateDisplay(form.event_date) : "Not set"}
+                        {form.start_time ? ` at ${form.start_time}` : ""}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Guest Count</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {isOffer ? `${inquiry.guest_count} (fixed)` : `${form.guest_count || 0} guests`}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Event Type</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {form.event_type === OTHER_EVENT_TYPE
+                          ? form.event_type_other || "Custom"
+                          : form.event_type || "General"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Venue</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {isPickup
+                          ? "Self-pickup"
+                          : [form.municipality, form.barangay].filter(Boolean).join(", ") ||
+                            "Not selected"}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {/* Sub-section 1: About the Event */}
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-4.5 sm:p-6 shadow-2xs space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 pb-4 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#4C81E0] ring-1 ring-blue-500/10 shrink-0">
+                        <CalendarDays className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 tracking-tight">About the Event</h3>
+                        <p className="text-xs text-slate-500">Key details about your celebration, schedule, and guest count.</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-slate-400 self-start sm:self-center">
+                      <span className="text-red-500 font-bold mr-0.5">*</span>Required fields
+                    </span>
+                  </div>
+
+                  {/* Who is this celebration for? */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-slate-800">
+                      Who is this celebration for?
+                      <span className="font-bold text-red-500 text-xs ml-1" title="Required field">*</span>
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:max-w-md">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((prev) => ({ ...prev, booking_for: "myself", celebrant_name: "" }))
+                        }
+                        className={cn(
+                          "flex min-h-[44px] items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer",
+                          form.booking_for !== "someone_else"
+                            ? "border-[#4C81E0] bg-blue-50/70 text-[#4C81E0] ring-1 ring-[#4C81E0]/30 shadow-2xs"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300",
+                        )}
+                      >
+                        <User className="w-4 h-4 shrink-0" />
+                        <span>For myself</span>
+                        {form.booking_for !== "someone_else" && (
+                          <Check className="w-3.5 h-3.5 ml-auto text-[#4C81E0] shrink-0" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, booking_for: "someone_else" }))}
+                        className={cn(
+                          "flex min-h-[44px] items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer",
+                          form.booking_for === "someone_else"
+                            ? "border-[#4C81E0] bg-blue-50/70 text-[#4C81E0] ring-1 ring-[#4C81E0]/30 shadow-2xs"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300",
+                        )}
+                      >
+                        <Users className="w-4 h-4 shrink-0" />
+                        <span>For someone else</span>
+                        {form.booking_for === "someone_else" && (
+                          <Check className="w-3.5 h-3.5 ml-auto text-[#4C81E0] shrink-0" />
+                        )}
+                      </button>
+                    </div>
+
+                    {form.booking_for === "someone_else" && (
+                      <div className="pt-2">
+                        <FormField
+                          label="Celebrant or honoree name"
+                          required
+                          hint="Name of the person, couple, or organization being celebrated."
+                          error={errors.celebrant_name}
+                        >
+                          <TInput
+                            placeholder="e.g. Maria Santos, Carlos & Ana, Baby Liam"
+                            value={form.celebrant_name || ""}
+                            onChange={(val) => setForm((prev) => ({ ...prev, celebrant_name: val }))}
+                            hasError={!!errors.celebrant_name}
+                          />
+                        </FormField>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Core Event Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 pt-1">
+                    <FormField
+                      label="Celebration type"
+                      required
+                      error={errors.event_type}
+                    >
+                      <TSelect
+                        value={form.event_type}
+                        onChange={(val) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            event_type: val,
+                            event_type_other: val === OTHER_EVENT_TYPE ? prev.event_type_other : "",
+                          }))
+                        }
+                        options={EVENT_TYPES}
+                        placeholder="Select celebration type"
+                        hasError={!!errors.event_type}
+                      />
+                    </FormField>
+
+                    {form.event_type === OTHER_EVENT_TYPE && (
+                      <FormField
+                        label="Specify celebration type"
+                        required
+                        hint="Describe what you are celebrating."
+                      >
+                        <TInput
+                          placeholder="e.g. Family Reunion, Christening, 50th Golden Anniversary"
+                          value={form.event_type_other}
+                          onChange={(val) =>
+                            setForm((prev) => ({ ...prev, event_type_other: val }))
+                          }
+                        />
+                      </FormField>
+                    )}
+
+                    <FormField
+                      label="Celebration date"
+                      required
+                      error={errors.event_date}
+                      hint="Date when your celebration takes place."
+                    >
+                      <TInput
+                        type="date"
+                        min={toDateInputValue(new Date())}
+                        value={form.event_date}
+                        onChange={(val) => setForm((prev) => ({ ...prev, event_date: val }))}
+                        hasError={!!errors.event_date}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Event start time"
+                      required
+                      error={errors.start_time}
+                      hint="When guests arrive or the program begins."
+                    >
+                      <TInput
+                        type="time"
+                        value={form.start_time}
+                        onChange={(val) => setForm((prev) => ({ ...prev, start_time: val }))}
+                        hasError={!!errors.start_time}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Number of guests"
+                      required={!isOffer}
+                      error={errors.guest_count}
+                      hint={
+                        isOffer
+                          ? "Guest count is preset by your Special Offer combo."
+                          : "Total expected attendees (minimum 1)."
+                      }
+                      className={isOffer ? "sm:col-span-2" : "sm:col-span-1"}
+                    >
+                      {isOffer ? (
+                        <div className="flex min-h-[40px] items-center justify-between rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2 text-xs">
+                          <div className="flex items-center gap-2 text-slate-800">
+                            <Users className="h-4 w-4 text-[#4C81E0]" />
+                            <strong className="font-bold text-slate-900">{inquiry.guest_count} guests</strong>
+                          </div>
+                          <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 border border-blue-100">
+                            Combo Preset
+                          </span>
+                        </div>
+                      ) : (
+                        <GuestCounter
+                          value={Number(form.guest_count) || 1}
+                          onChange={(val) => setForm((prev) => ({ ...prev, guest_count: val }))}
+                          min={1}
+                        />
+                      )}
+                    </FormField>
+
+                    {!isOffer && (
+                      <FormField
+                        label="Catering &amp; setup service"
+                        optional
+                        hint="Choose the service tier that matches your event."
+                        className="sm:col-span-1"
+                      >
+                        <TSelect
+                          value={form.service_type}
+                          onChange={(val) => setForm((prev) => ({ ...prev, service_type: val }))}
+                          options={CUSTOMER_SERVICE_OPTIONS}
+                        />
+                      </FormField>
+                    )}
+                  </div>
+                </div>
+
+                {/* Sub-section 2: Venue */}
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-4.5 sm:p-6 shadow-2xs space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 pb-4 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#4C81E0] ring-1 ring-blue-500/10 shrink-0">
+                        <MapPin className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 tracking-tight">Venue &amp; Location</h3>
+                        <p className="text-xs text-slate-500">Where our team will deliver, setup, or celebrate.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-start sm:self-center">
+                      <span className="text-xs text-slate-500 font-medium">
+                        Batangas Province
+                      </span>
+                    </div>
+                  </div>
+
+                  {showDelivery && (
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-slate-900">
+                        How will you receive your order?
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:max-w-md">
+                        <button
+                          type="button"
+                          onClick={() => setForm((prev) => ({ ...prev, delivery_method: "delivery" }))}
+                          className={cn(
+                            "flex min-h-[44px] items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-medium cursor-pointer transition-all",
+                            !isPickup
+                              ? "border-[#4C81E0] bg-blue-50/70 text-[#4C81E0] font-semibold ring-1 ring-[#4C81E0]/30 shadow-2xs"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300",
+                          )}
+                        >
+                          <Truck className="h-4 w-4 shrink-0" />
+                          <span>Deliver to event venue</span>
+                          {!isPickup && <Check className="w-3.5 h-3.5 ml-auto text-[#4C81E0] shrink-0" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setForm((prev) => ({ ...prev, delivery_method: "pickup" }))}
+                          className={cn(
+                            "flex min-h-[44px] items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-medium cursor-pointer transition-all",
+                            isPickup
+                              ? "border-[#4C81E0] bg-blue-50/70 text-[#4C81E0] font-semibold ring-1 ring-[#4C81E0]/30 shadow-2xs"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300",
+                          )}
+                        >
+                          <PackageIcon className="h-4 w-4 shrink-0" />
+                          <span>Pick up at our store</span>
+                          {isPickup && <Check className="w-3.5 h-3.5 ml-auto text-[#4C81E0] shrink-0" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {isPickup ? (
+                    <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 text-xs text-blue-900 flex items-start gap-3">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-[#4C81E0] shrink-0 mt-0.5">
+                        <PackageIcon className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900">Store Pickup Selected</h4>
+                        <p className="mt-0.5 text-slate-600 text-xs leading-relaxed">
+                          Our team will prepare and safely package your food for self-pickup at our commissary. Venue address and delivery details are not required.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+                      <FormField
+                        label="City / Municipality"
+                        required
+                        error={errors.municipality}
+                      >
+                        <TSelect
+                          value={form.municipality}
+                          onChange={(val) =>
+                            setForm((prev) => ({ ...prev, municipality: val, barangay: "" }))
+                          }
+                          options={municipalities}
+                          placeholder="Select city or municipality"
+                          hasError={!!errors.municipality}
+                        />
+                      </FormField>
+
+                      <FormField
+                        label="Barangay / Village"
+                        required
+                        hint={!form.municipality ? "Select city or municipality first" : undefined}
+                        error={errors.barangay}
+                      >
+                        <TSelect
+                          value={form.barangay}
+                          onChange={(val) => setForm((prev) => ({ ...prev, barangay: val }))}
+                          options={barangays}
+                          placeholder={form.municipality ? "Select barangay" : "Choose municipality first"}
+                          disabled={!form.municipality}
+                          hasError={!!errors.barangay}
+                        />
+                      </FormField>
+
+                      <FormField
+                        label="Street address or venue name"
+                        optional
+                        hint="House/building number, street, subdivision, or facility name."
+                        className="sm:col-span-2"
+                      >
+                        <TInput
+                          value={form.street}
+                          onChange={(val) => setForm((prev) => ({ ...prev, street: val }))}
+                          placeholder="e.g. Unit 4B Sunshine Bldg, Phase 2 Block 5, Villa San Jose"
+                        />
+                      </FormField>
+
+                      <FormField
+                        label="Nearby landmark or directions"
+                        optional
+                        hint="Helps our delivery and styling team navigate to your venue."
+                        className="sm:col-span-2"
+                      >
+                        <TInput
+                          value={form.landmark}
+                          onChange={(val) => setForm((prev) => ({ ...prev, landmark: val }))}
+                          placeholder="e.g. Across town plaza, near San Sebastian Cathedral, yellow gate"
+                        />
+                      </FormField>
+
+                      <FormField
+                        label="Venue setting"
+                        optional
+                        hint="General setting or environment of your celebration."
+                      >
+                        <TSelect
+                          value={form.venue_type}
+                          onChange={(val) => setForm((prev) => ({ ...prev, venue_type: val }))}
+                          options={VENUE_TYPES}
+                          placeholder="Select venue setting (e.g. Private Resort, Garden)"
+                        />
+                      </FormField>
+
+                      {isVenueTypeOther && (
+                        <FormField
+                          label="Specify venue setting"
+                          required
+                          hint="Describe your venue location."
+                        >
+                          <TInput
+                            value={form.venue_type_other}
+                            onChange={(val) =>
+                              setForm((prev) => ({ ...prev, venue_type_other: val }))
+                            }
+                            placeholder="e.g. Beachfront Resort, Rooftop Terrace, Private Farm"
+                          />
+                        </FormField>
+                      )}
+
+                      <FormField
+                        label="Postal code (ZIP)"
+                        optional
+                        hint="4-digit postal code (if known)."
+                      >
+                        <TInput
+                          value={form.zip_code}
+                          onChange={(val) => setForm((prev) => ({ ...prev, zip_code: val }))}
+                          placeholder="e.g. 4217"
+                        />
+                      </FormField>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================
+                SECTION 3: EXTRAS & REQUESTS
+            ======================================================== */}
+            {activeSection === "extras" && (
+              <div className="space-y-6">
+                {/* Section Summary Banner */}
+                <div className="rounded-xl border border-blue-100 bg-blue-50/30 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-[#4C81E0]" />
+                      Extras, Theme &amp; Dietary Snapshot
+                    </span>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Add-ons</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {(form.service_items || []).length > 0
+                          ? `${(form.service_items || []).length} extra services`
+                          : "None"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Event Theme</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {form.event_theme || "Not selected"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Color Palette</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {(form.event_palette || []).length > 0
+                          ? `${form.event_palette.length} colors`
+                          : "Default"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Special Notes</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {form.special_requests || form.allergies ? "Provided" : "None"}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {/* 1. Add-on & Extra Services Block */}
+                {addOnChoices.length > 0 && (
+                  <div className="space-y-3.5">
+                    {/* Header & Compact Count Summary */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-slate-100">
+                      <div>
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                          <Sparkles className="h-3.5 w-3.5 text-[#4C81E0]" />
+                          Add-ons &amp; Extra Services
+                        </h3>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Select optional rentals, entertainment, or decor additions for your event.
+                        </p>
+                      </div>
+
+                      {/* Compact selected summary */}
+                      <div className="flex items-center gap-2">
+                        {selectedAddonStats.totalCount > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-[#4C81E0] border border-blue-200/60 text-xs font-bold shadow-2xs">
+                              <Check className="h-3.5 w-3.5" />
+                              {selectedAddonStats.totalCount}{" "}
+                              {selectedAddonStats.totalCount === 1 ? "service" : "services"} added
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setForm((prev) => ({ ...prev, service_items: [] }))}
+                              className="text-[11px] font-semibold text-slate-400 hover:text-red-600 hover:underline cursor-pointer"
+                            >
+                              Clear all
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400">
+                            0 selected
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Active Selections Breakdown Bar when items are selected */}
+                    {selectedAddonStats.totalCount > 0 && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200/80 text-xs">
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-slate-600">
+                          {selectedAddonStats.fixedCount > 0 && (
+                            <span>
+                              <strong className="text-slate-800 font-bold">
+                                {selectedAddonStats.fixedCount}
+                              </strong>{" "}
+                              fixed (
+                              <span className="font-semibold text-slate-900">
+                                {formatCurrency(selectedAddonStats.fixedTotal)}
+                              </span>
+                              )
+                            </span>
+                          )}
+                          {selectedAddonStats.fixedCount > 0 &&
+                            selectedAddonStats.quotationCount > 0 && (
+                              <span className="text-slate-300">·</span>
+                            )}
+                          {selectedAddonStats.quotationCount > 0 && (
+                            <span>
+                              <strong className="text-slate-800 font-bold">
+                                {selectedAddonStats.quotationCount}
+                              </strong>{" "}
+                              priced in quotation
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-400">
+                          Tap any item to adjust
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Search & Category Tabs */}
+                    <div className="space-y-2">
+                      {addOnChoices.length > 5 && (
+                        <div className="relative">
+                          <Search
+                            size={13}
+                            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                          />
+                          <input
+                            type="search"
+                            value={addonSearchQuery}
+                            onChange={(e) => setAddonSearchQuery(e.target.value)}
+                            placeholder="Search add-ons by name or description..."
+                            aria-label="Search add-on services"
+                            className="h-8.5 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-8 text-xs text-slate-800 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0]"
+                          />
+                          {addonSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setAddonSearchQuery("")}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Category Filter Pills */}
+                      {availableAddonCategories.length > 1 && (
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                          <button
+                            type="button"
+                            onClick={() => setAddonCategoryFilter("all")}
+                            className={cn(
+                              "px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer",
+                              addonCategoryFilter === "all"
+                                ? "bg-[#4C81E0] text-white shadow-2xs"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                            )}
+                          >
+                            All ({addOnChoices.length})
+                          </button>
+                          {availableAddonCategories.map((cat) => (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => setAddonCategoryFilter(cat.id)}
+                              className={cn(
+                                "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer",
+                                addonCategoryFilter === cat.id
+                                  ? "bg-[#4C81E0] text-white shadow-2xs"
+                                  : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                              )}
+                            >
+                              <cat.icon className="h-3 w-3" />
+                              <span>{cat.label}</span>
+                              <span
+                                className={cn(
+                                  "text-[10px] ml-0.5",
+                                  addonCategoryFilter === cat.id
+                                    ? "text-blue-100"
+                                    : "text-slate-400",
+                                )}
+                              >
+                                ({cat.count})
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Categorized Services List */}
+                    {groupedFilteredAddons.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-400 space-y-1.5">
+                        <p>
+                          {addonSearchQuery
+                            ? `No add-on services match "${addonSearchQuery}".`
+                            : "No add-on services found in this category."}
+                        </p>
+                        {addonSearchQuery && (
+                          <button
+                            type="button"
                             onClick={() => {
-                              setDishQuery("");
-                              setActiveCourseTab("all");
+                              setAddonSearchQuery("");
+                              setAddonCategoryFilter("all");
                             }}
                             className="inline-flex items-center gap-1 text-xs font-semibold text-[#4C81E0] hover:underline cursor-pointer"
                           >
                             <RotateCcw size={12} />
-                            Reset search &amp; filters
+                            Reset filters
                           </button>
                         )}
                       </div>
                     ) : (
-                      filteredDishes.map((group) => (
-                        <div key={group.id}>
-                          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            {group.label} ({group.items.length})
-                          </p>
-                          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                            {group.items.map((item) => {
-                              const isChosen = isDishChosen(item);
-                              return (
-                                <button
-                                  key={item._id}
-                                  type="button"
-                                  onClick={() => toggleDish(item)}
-                                  className={cn(
-                                    "group flex items-center justify-between gap-2 rounded-lg border p-1.5 text-left transition-all cursor-pointer select-none",
-                                    isChosen
-                                      ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0]/50 shadow-2xs"
-                                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
-                                  )}
-                                >
-                                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                                    {item.image_url ? (
-                                      <img
-                                        src={item.image_url}
-                                        alt=""
-                                        className="h-8 w-8 shrink-0 rounded object-cover border border-slate-200/70"
-                                      />
-                                    ) : (
-                                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-slate-100 text-slate-400">
-                                        <Utensils size={12} />
-                                      </span>
+                      <div className="space-y-4">
+                        {groupedFilteredAddons.map((group) => (
+                          <div key={group.id} className="space-y-1.5">
+                            <div className="flex items-center gap-1.5 px-0.5 pt-1">
+                              <group.icon className="h-3.5 w-3.5 text-slate-400" />
+                              <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                {group.label} ({group.items.length})
+                              </h4>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              {group.items.map((choice) => {
+                                const qty = addOnQuantity(choice.name);
+                                const isSelected = qty > 0;
+                                const hasFixedPrice = Number(choice.price) > 0;
+                                const quantityRelevant = isQuantityRelevant(choice);
+
+                                return (
+                                  <div
+                                    key={choice.name}
+                                    className={cn(
+                                      "group rounded-xl border p-3 transition-all select-none flex flex-col sm:flex-row sm:items-center justify-between gap-3",
+                                      isSelected
+                                        ? "border-[#4C81E0] bg-blue-50/50 ring-1 ring-[#4C81E0]/40 shadow-2xs"
+                                        : "border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/60",
                                     )}
-                                    <div className="min-w-0 flex-1">
-                                      <p className="truncate text-xs font-bold text-slate-800 leading-tight">
-                                        {item.name}
-                                      </p>
-                                      {item.description && (
-                                        <p className="truncate text-[10px] text-slate-500 leading-tight">
-                                          {item.description}
-                                        </p>
+                                  >
+                                    {/* Clickable Card Body for Toggling */}
+                                    <div
+                                      onClick={() => {
+                                        if (isSelected) {
+                                          setAddOnQuantity(choice, 0);
+                                        } else {
+                                          setAddOnQuantity(choice, 1);
+                                        }
+                                      }}
+                                      className="flex items-start gap-3 min-w-0 flex-1 cursor-pointer"
+                                    >
+                                      {/* Custom Checkbox */}
+                                      <span
+                                        className={cn(
+                                          "flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded border transition-colors mt-0.5",
+                                          isSelected
+                                            ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs"
+                                            : "border-slate-300 bg-white text-transparent group-hover:border-slate-400",
+                                        )}
+                                      >
+                                        <Check size={11} strokeWidth={3} />
+                                      </span>
+
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span
+                                            className={cn(
+                                              "text-xs font-bold leading-tight",
+                                              isSelected ? "text-blue-950" : "text-slate-800",
+                                            )}
+                                          >
+                                            {choice.name}
+                                          </span>
+                                          {choice.source === "package" && (
+                                            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">
+                                              Package
+                                            </span>
+                                          )}
+                                        </div>
+                                        {choice.description && (
+                                          <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
+                                            {choice.description}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Pricing & Conditional Quantity Controls */}
+                                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pl-7 sm:pl-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
+                                      {/* Clear Price Differentiation */}
+                                      <div>
+                                        {hasFixedPrice ? (
+                                          <div className="text-right">
+                                            <span className="text-xs font-bold text-slate-900 tabular-nums">
+                                              {formatCurrency(choice.price)}
+                                            </span>
+                                            {quantityRelevant && (
+                                              <span className="text-[10px] text-slate-400 font-medium ml-1">
+                                                / unit
+                                              </span>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-semibold tracking-wide">
+                                            Priced in quotation
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Quantity controls shown ONLY when selected */}
+                                      {isSelected ? (
+                                        quantityRelevant ? (
+                                          <QuantityStepper
+                                            value={qty}
+                                            onChange={(next) => setAddOnQuantity(choice, next)}
+                                          />
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => setAddOnQuantity(choice, 0)}
+                                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:underline cursor-pointer px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                                            title="Remove this service"
+                                          >
+                                            <X size={12} />
+                                            <span>Remove</span>
+                                          </button>
+                                        )
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => setAddOnQuantity(choice, 1)}
+                                          className="text-xs font-semibold text-[#4C81E0] hover:text-[#3b6ec6] hover:underline cursor-pointer px-2 py-1"
+                                        >
+                                          + Add
+                                        </button>
                                       )}
                                     </div>
                                   </div>
-
-                                  <span
-                                    className={cn(
-                                      "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ml-1",
-                                      isChosen
-                                        ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs"
-                                        : "border-slate-300 bg-white text-transparent group-hover:border-slate-400",
-                                    )}
-                                  >
-                                    <Check size={10} strokeWidth={3} />
-                                  </span>
-                                </button>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. Theme and Palette Block */}
+                <div className="border-t border-slate-100 pt-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Event Theme &amp; Color Palette
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Styling preferences for table settings, floral accents, and backdrop concepts.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <FormField
+                      label="Event styling theme"
+                      optional
+                      hint="Preferred aesthetic for table settings, florals, and backdrops."
+                    >
+                      <ThemePicker
+                        value={form.event_theme}
+                        onChange={(theme) => setForm((prev) => ({ ...prev, event_theme: theme }))}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Color palette"
+                      optional
+                      hint="Choose an established color combination or type custom colors."
+                    >
+                      <ColorPalettePicker
+                        value={form.event_palette}
+                        onChange={(palette) =>
+                          setForm((prev) => ({ ...prev, event_palette: palette }))
+                        }
+                      />
+                    </FormField>
+                  </div>
+                </div>
+
+                {/* 3. Special Requests & Dietary Requirements Block */}
+                <div className="border-t border-slate-100 pt-5 space-y-4">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-slate-400" />
+                      Special Requests &amp; Dietary Requirements
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Separate notes for our catering crew regarding allergies or guest dietary preferences.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <FormField
+                      label="Special requests"
+                      optional
+                      hint="Specific instructions or notes for our setup and catering crew."
+                    >
+                      <TTextarea
+                        value={form.special_requests}
+                        maxLength={500}
+                        placeholder="e.g. Please arrange the presidential table near the stage, prepare extra head table seating."
+                        onChange={(val) =>
+                          setForm((prev) => ({ ...prev, special_requests: val }))
+                        }
+                        rows={3}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Food allergies"
+                      optional
+                      hint="List any known allergies among your guests (e.g. peanuts, shellfish)."
+                    >
+                      <TTextarea
+                        value={form.allergies}
+                        maxLength={300}
+                        placeholder="e.g. 2 guests with severe peanut/shellfish allergy."
+                        onChange={(val) => setForm((prev) => ({ ...prev, allergies: val }))}
+                        rows={3}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Dietary restrictions"
+                      optional
+                      hint="Dietary preferences for meals (e.g. Halal, Vegetarian, Pescatarian)."
+                      className="sm:col-span-2"
+                    >
+                      <TTextarea
+                        value={form.dietary_restrictions}
+                        maxLength={300}
+                        placeholder="e.g. 5 vegetarian meals, 2 Halal-friendly portions required."
+                        onChange={(val) =>
+                          setForm((prev) => ({ ...prev, dietary_restrictions: val }))
+                        }
+                        rows={2}
+                      />
+                    </FormField>
+
+                    {showDelivery && !isPickup && (
+                      <FormField
+                        label="Delivery instructions"
+                        optional
+                        hint="Subdivision gate pass rules, unloading dock, or building instructions."
+                        className="sm:col-span-2"
+                      >
+                        <TTextarea
+                          value={form.delivery_instructions}
+                          maxLength={250}
+                          placeholder="e.g. Guard requires gate pass at entrance; drop-off via service driveway."
+                          onChange={(val) =>
+                            setForm((prev) => ({ ...prev, delivery_instructions: val }))
+                          }
+                          rows={2}
+                        />
+                      </FormField>
                     )}
                   </div>
                 </div>
-              </Card>
-            )
-          )}
-
-          {addOnChoices.length > 0 && (
-            <Card className="p-4">
-              <SectionTitle icon={Boxes} right={<EditableBadge>Add or remove</EditableBadge>}>
-                Add-ons &amp; extra services
-              </SectionTitle>
-              <div className="divide-y divide-border">
-                {addOnChoices.map((choice) => (
-                  <div key={choice.name} className="flex items-center justify-between gap-3 py-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm text-foreground">{choice.name}</p>
-                      {choice.description && (
-                        <p className="truncate text-[11px] text-muted-foreground">{choice.description}</p>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <span className="text-xs font-semibold text-muted-foreground">
-                        {choice.price > 0 ? formatCurrency(choice.price) : "Quoted"}
-                      </span>
-                      <QuantityStepper
-                        value={addOnQuantity(choice.name)}
-                        onChange={(next) => setAddOnQuantity(choice, next)}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {scaffoldOptions.length > 1 && (
-            <Card className="p-4">
-              <SectionTitle icon={Ruler} right={<EditableBadge>Choose a size</EditableBadge>}>
-                Event space size
-              </SectionTitle>
-              <Field
-                label="Setup size"
-                hint="The equipment reserved for your event follows the size you pick."
-              >
-                <TSelect
-                  value={form.selected_scaffold_option_id}
-                  onChange={(val) => setForm((prev) => ({ ...prev, selected_scaffold_option_id: val }))}
-                  options={scaffoldOptions.map((option) => ({
-                    value: String(option._id),
-                    label:
-                      eventSpaceLabel({ selected_scaffold_option_id: option._id }, activePackage) ||
-                      option.label ||
-                      "Setup size",
-                  }))}
-                  placeholder="Select a size"
-                />
-              </Field>
-            </Card>
-          )}
-
-          {inquiry.is_custom_setup && (
-            <Card className="p-4">
-              <SectionTitle icon={Palette} right={<EditableBadge>Editable</EditableBadge>}>
-                Custom setup brief
-              </SectionTitle>
-              <div className="grid grid-cols-1 gap-3">
-                <Field label="Target budget" hint="Optional.">
-                  <TInput
-                    placeholder="e.g. 50,000 - 80,000"
-                    value={form.budget_range}
-                    onChange={(val) => setForm((prev) => ({ ...prev, budget_range: val }))}
-                  />
-                </Field>
-                <Field label="Setup notes" hint="Tell our stylists what you have in mind.">
-                  <TTextarea
-                    rows={3}
-                    value={form.custom_setup_notes}
-                    onChange={(val) => setForm((prev) => ({ ...prev, custom_setup_notes: val }))}
-                  />
-                </Field>
-              </div>
-            </Card>
-          )}
-
-
-          <Card className="p-4">
-            <SectionTitle icon={CalendarDays}>Event</SectionTitle>
-            <div className="mb-3">
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                Who is this event for?
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, booking_for: "myself", celebrant_name: "" }))}
-                  className={cn(
-                    "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer",
-                    form.booking_for !== "someone_else"
-                      ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary/30 shadow-2xs"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  )}
-                >
-                  <User className="w-3.5 h-3.5" />
-                  <span>For myself</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, booking_for: "someone_else" }))}
-                  className={cn(
-                    "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer",
-                    form.booking_for === "someone_else"
-                      ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary/30 shadow-2xs"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  )}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>For someone else</span>
-                </button>
-              </div>
-            </div>
-
-            {form.booking_for === "someone_else" && (
-              <div className="mb-3">
-                <Field
-                  label="Celebrant / Honoree name"
-                  required
-                  hint="e.g. Sarah, John & Maria, Baby Liam"
-                  error={errors.celebrant_name}
-                >
-                  <TInput
-                    placeholder="e.g. Sarah"
-                    value={form.celebrant_name || ""}
-                    onChange={(val) => setForm((prev) => ({ ...prev, celebrant_name: val }))}
-                    hasError={!!errors.celebrant_name}
-                  />
-                </Field>
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Event type" required error={errors.event_type}>
-                <TSelect
-                  value={form.event_type}
-                  onChange={(val) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      event_type: val,
-                      event_type_other: val === OTHER_EVENT_TYPE ? prev.event_type_other : "",
-                    }))
-                  }
-                  options={EVENT_TYPES}
-                  placeholder="Select event type"
-                  hasError={!!errors.event_type}
-                />
-              </Field>
-
-              {form.event_type === OTHER_EVENT_TYPE && (
-                <Field label="Which kind of event?" required>
-                  <TInput
-                    placeholder="e.g. Reunion"
-                    value={form.event_type_other}
-                    onChange={(val) => setForm((prev) => ({ ...prev, event_type_other: val }))}
-                  />
-                </Field>
-              )}
-
-              <Field label="Event date" required error={errors.event_date}>
-                <TInput
-                  type="date"
-                  min={toDateInputValue(new Date())}
-                  value={form.event_date}
-                  onChange={(val) => setForm((prev) => ({ ...prev, event_date: val }))}
-                  hasError={!!errors.event_date}
-                />
-              </Field>
-
-              <Field label="Start time" required error={errors.start_time}>
-                <TInput
-                  type="time"
-                  value={form.start_time}
-                  onChange={(val) => setForm((prev) => ({ ...prev, start_time: val }))}
-                  hasError={!!errors.start_time}
-                />
-              </Field>
-
-              <Field label="Duration (hours)" hint="Optional.">
-                <TInput
-                  type="number"
-                  min="1"
-                  value={form.duration_hours}
-                  onChange={(val) => setForm((prev) => ({ ...prev, duration_hours: val }))}
-                />
-              </Field>
-
-              <Field
-                label="Guest count"
-                required={!isOffer}
-                error={errors.guest_count}
-                hint={isOffer ? "Fixed by your Special Offer combo." : undefined}
-              >
-                {isOffer ? (
-                  <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-4 py-2.5">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <strong className="text-sm">{inquiry.guest_count} guests</strong>
+            {/* ========================================================
+                SECTION 4: CONTACT INFORMATION
+            ======================================================== */}
+            {activeSection === "contact" && (
+              <div className="space-y-6">
+                {/* Section Summary Banner */}
+                <div className="rounded-xl border border-blue-100 bg-blue-50/30 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                      <User className="h-3.5 w-3.5 text-[#4C81E0]" />
+                      Primary Contact Summary
+                    </span>
                   </div>
-                ) : (
-                  <GuestCounter
-                    value={Number(form.guest_count) || 1}
-                    onChange={(val) => setForm((prev) => ({ ...prev, guest_count: val }))}
-                    min={1}
-                  />
-                )}
-              </Field>
+                  <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Full Name</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {`${form.contact_first_name} ${form.contact_last_name}`.trim() || "Not set"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Email Address</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {form.contact_email || "Not set"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Mobile Number</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {form.contact_phone || "Not set"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Backup Phone</dt>
+                      <dd className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5">
+                        {form.contact_alt_phone || "None"}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
 
-              {!isOffer && (
-                <Field label="Service type" hint="What you'd like included.">
-                  <TSelect
-                    value={form.service_type}
-                    onChange={(val) => setForm((prev) => ({ ...prev, service_type: val }))}
-                    options={[SERVICE_TYPES.FOOD_ONLY, SERVICE_TYPES.SETUP_ONLY, SERVICE_TYPES.FULL_SERVICE]}
-                  />
-                </Field>
-              )}
-            </div>
-          </Card>
+                {/* Sub-section: Contact Details */}
+                <div className="rounded-2xl border border-slate-200/90 bg-white p-4.5 sm:p-6 shadow-2xs space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 pb-4 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#4C81E0]">
+                        <User className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900">Contact Details</h3>
+                        <p className="text-xs text-slate-500">Primary coordinator for this booking</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-slate-400 self-start sm:self-center">
+                      Required for quote &amp; coordination
+                    </span>
+                  </div>
 
-          <Card className="p-4">
-            <SectionTitle icon={MapPin}>Venue</SectionTitle>
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="Municipality" required={!isPickup} error={errors.municipality}>
-                  <TSelect
-                    value={form.municipality}
-                    onChange={(val) => setForm((prev) => ({ ...prev, municipality: val, barangay: "" }))}
-                    options={municipalities}
-                    placeholder="Select municipality"
-                    hasError={!!errors.municipality}
-                  />
-                </Field>
-                <Field
-                  label="Barangay"
-                  required={!isPickup}
-                  hint={!form.municipality ? "Select a municipality first" : undefined}
-                  error={errors.barangay}
-                >
-                  <TSelect
-                    value={form.barangay}
-                    onChange={(val) => setForm((prev) => ({ ...prev, barangay: val }))}
-                    options={barangays}
-                    placeholder="Select barangay"
-                    disabled={!form.municipality}
-                    hasError={!!errors.barangay}
-                  />
-                </Field>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <FormField
+                      label="First name"
+                      required
+                      error={errorFor("contact_first_name")}
+                    >
+                      <TInput
+                        placeholder="e.g. Maria"
+                        value={form.contact_first_name}
+                        onChange={(val) =>
+                          setForm((prev) => ({ ...prev, contact_first_name: val }))
+                        }
+                        onBlur={() => handleBlur("contact_first_name")}
+                        hasError={!!errorFor("contact_first_name")}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Last name"
+                      required
+                      error={errorFor("contact_last_name")}
+                    >
+                      <TInput
+                        placeholder="e.g. Santos"
+                        value={form.contact_last_name}
+                        onChange={(val) =>
+                          setForm((prev) => ({ ...prev, contact_last_name: val }))
+                        }
+                        onBlur={() => handleBlur("contact_last_name")}
+                        hasError={!!errorFor("contact_last_name")}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Email address"
+                      required
+                      error={errorFor("contact_email")}
+                      hint="We'll send your formal quotation, invoice, and event updates here."
+                      className="sm:col-span-2"
+                    >
+                      <TInput
+                        type="email"
+                        placeholder="e.g. maria.santos@gmail.com"
+                        value={form.contact_email}
+                        onChange={(val) =>
+                          setForm((prev) => ({ ...prev, contact_email: val }))
+                        }
+                        onBlur={() => handleBlur("contact_email")}
+                        hasError={!!errorFor("contact_email")}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Mobile number"
+                      required
+                      error={errorFor("contact_phone")}
+                      hint="11-digit Philippine mobile number (starts with 09)."
+                    >
+                      <TInput
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={11}
+                        placeholder="09171234567"
+                        value={form.contact_phone}
+                        onChange={(val) => handlePhoneChange("contact_phone", val)}
+                        onBlur={() => handleBlur("contact_phone")}
+                        hasError={!!errorFor("contact_phone")}
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Backup phone number"
+                      optional
+                      error={errorFor("contact_alt_phone")}
+                      hint={
+                        !primaryPhoneFilled
+                          ? "Enter primary mobile number first"
+                          : "Optional secondary contact number."
+                      }
+                    >
+                      <TInput
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={11}
+                        placeholder="09181234567"
+                        value={form.contact_alt_phone}
+                        onChange={(val) => handlePhoneChange("contact_alt_phone", val)}
+                        onBlur={() => handleBlur("contact_alt_phone")}
+                        disabled={!primaryPhoneFilled}
+                        hasError={!!errorFor("contact_alt_phone")}
+                      />
+                    </FormField>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200/70 bg-slate-50/70 p-3.5 flex items-start gap-3 text-xs text-slate-600 leading-relaxed">
+                    <HeartHandshake className="h-4 w-4 text-[#4C81E0] shrink-0 mt-0.5" />
+                    <p>
+                      We will use your contact details solely to coordinate event schedule, finalize your formal quotation, and provide live status updates.
+                    </p>
+                  </div>
+                </div>
               </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Field label="Street and building" className="sm:col-span-2">
-                  <TInput
-                    value={form.street}
-                    onChange={(val) => setForm((prev) => ({ ...prev, street: val }))}
-                    placeholder="e.g. Purok 4, Lopez Building"
-                  />
-                </Field>
-                <Field label="ZIP code" hint="Optional.">
-                  <TInput
-                    value={form.zip_code}
-                    onChange={(val) => setForm((prev) => ({ ...prev, zip_code: val }))}
-                    placeholder="e.g. 4200"
-                  />
-                </Field>
-              </div>
-
-              <Field label="Venue type" hint="Optional.">
-                <TSelect
-                  value={form.venue_type}
-                  onChange={(val) => setForm((prev) => ({ ...prev, venue_type: val }))}
-                  options={VENUE_TYPES}
-                  placeholder="Select venue type"
-                />
-              </Field>
-
-              {isVenueTypeOther && (
-                <Field label="Please specify your venue type">
-                  <TInput
-                    value={form.venue_type_other}
-                    onChange={(val) => setForm((prev) => ({ ...prev, venue_type_other: val }))}
-                    placeholder="e.g. Rooftop terrace"
-                  />
-                </Field>
-              )}
-
-              <Field label="Landmark" hint="Optional.">
-                <TInput
-                  value={form.landmark}
-                  onChange={(val) => setForm((prev) => ({ ...prev, landmark: val }))}
-                  placeholder="e.g. Across the municipal hall"
-                />
-              </Field>
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <SectionTitle icon={Palette}>Theme and colour palette</SectionTitle>
-            <p className="mb-3 text-[13px] text-muted-foreground">
-              Two independent, optional choices — change either one without affecting the other.
-            </p>
-
-            <div className="mb-1.5 flex items-center justify-between gap-3">
-              <h4 className="text-[12px] font-semibold text-foreground">Theme</h4>
-              <FieldStatusPill value={form.event_theme} />
-            </div>
-            <ThemePicker
-              value={form.event_theme}
-              onChange={(theme) => setForm((prev) => ({ ...prev, event_theme: theme }))}
-            />
-
-            <div className="mt-4 mb-1.5 flex items-center justify-between gap-3 border-t border-border pt-4">
-              <h4 className="text-[12px] font-semibold text-foreground">Color palette</h4>
-              <FieldStatusPill
-                value={
-                  Array.isArray(form.event_palette) && form.event_palette.length > 0
-                    ? form.event_palette.join(", ")
-                    : ""
-                }
-              />
-            </div>
-            <ColorPalettePicker
-              value={form.event_palette}
-              onChange={(palette) => setForm((prev) => ({ ...prev, event_palette: palette }))}
-            />
-          </Card>
-
-          <Card className="p-4">
-            <SectionTitle icon={Utensils}>Requests and dietary needs</SectionTitle>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Field label="Special requests" hint="Optional. (Max 500 chars)">
-                <TTextarea
-                  value={form.special_requests}
-                  maxLength={500}
-                  onChange={(val) => setForm((prev) => ({ ...prev, special_requests: val }))}
-                  rows={3}
-                />
-              </Field>
-              <Field label="Allergies" hint="Optional. (Max 300 chars)">
-                <TTextarea
-                  value={form.allergies}
-                  maxLength={300}
-                  onChange={(val) => setForm((prev) => ({ ...prev, allergies: val }))}
-                  rows={3}
-                />
-              </Field>
-              <Field label="Dietary restrictions" hint="Optional. (Max 300 chars)" className="md:col-span-2">
-                <TTextarea
-                  value={form.dietary_restrictions}
-                  maxLength={300}
-                  onChange={(val) => setForm((prev) => ({ ...prev, dietary_restrictions: val }))}
-                  rows={3}
-                />
-              </Field>
-            </div>
-          </Card>
-
-          {showDelivery && (
-            <Card className="p-4">
-              <SectionTitle icon={Truck}>Delivery</SectionTitle>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="Method">
-                  <TSelect
-                    value={form.delivery_method}
-                    onChange={(val) => setForm((prev) => ({ ...prev, delivery_method: val }))}
-                    options={[
-                      { value: "delivery", label: "Deliver to my address" },
-                      { value: "pickup", label: "I'll pick it up" },
-                    ]}
-                  />
-                </Field>
-                {!isPickup && (
-                  <Field label="Delivery instructions" hint="Optional. (Max 250 chars)">
-                    <TTextarea
-                      value={form.delivery_instructions}
-                      maxLength={250}
-                      onChange={(val) => setForm((prev) => ({ ...prev, delivery_instructions: val }))}
-                      rows={2}
-                    />
-                  </Field>
-                )}
-              </div>
-            </Card>
-          )}
-
-          <Card className="p-4">
-            <SectionTitle icon={User}>Contact</SectionTitle>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="First name" required error={errorFor("contact_first_name")}>
-                <TInput
-                  value={form.contact_first_name}
-                  onChange={(val) => setForm((prev) => ({ ...prev, contact_first_name: val }))}
-                  onBlur={() => handleBlur("contact_first_name")}
-                  hasError={!!errorFor("contact_first_name")}
-                />
-              </Field>
-              <Field label="Last name" required error={errorFor("contact_last_name")}>
-                <TInput
-                  value={form.contact_last_name}
-                  onChange={(val) => setForm((prev) => ({ ...prev, contact_last_name: val }))}
-                  onBlur={() => handleBlur("contact_last_name")}
-                  hasError={!!errorFor("contact_last_name")}
-                />
-              </Field>
-              <Field label="Email address" required error={errorFor("contact_email")}>
-                <TInput
-                  type="email"
-                  value={form.contact_email}
-                  onChange={(val) => setForm((prev) => ({ ...prev, contact_email: val }))}
-                  onBlur={() => handleBlur("contact_email")}
-                  hasError={!!errorFor("contact_email")}
-                />
-              </Field>
-              <Field label="Mobile number" required error={errorFor("contact_phone")}>
-                <TInput
-                  type="tel"
-                  inputMode="numeric"
-                  maxLength={11}
-                  value={form.contact_phone}
-                  onChange={(val) => handlePhoneChange("contact_phone", val)}
-                  onBlur={() => handleBlur("contact_phone")}
-                  hasError={!!errorFor("contact_phone")}
-                />
-              </Field>
-              <Field
-                label="Backup number"
-                error={errorFor("contact_alt_phone")}
-                hint={!primaryPhoneFilled ? "Enter primary mobile number first" : "Optional."}
-              >
-                <TInput
-                  type="tel"
-                  inputMode="numeric"
-                  maxLength={11}
-                  value={form.contact_alt_phone}
-                  onChange={(val) => handlePhoneChange("contact_alt_phone", val)}
-                  onBlur={() => handleBlur("contact_alt_phone")}
-                  disabled={!primaryPhoneFilled}
-                  hasError={!!errorFor("contact_alt_phone")}
-                />
-              </Field>
-            </div>
-          </Card>
+            )}
+          </main>
         </div>
 
-        <DialogFooter className="px-5 py-3 border-t border-slate-100 bg-slate-50/80 shrink-0 flex items-center justify-end gap-2.5">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={saving} className="rounded-lg h-9 px-4 text-xs font-semibold cursor-pointer">
+        {/* --- Persistent Accessible Bottom Action Footer --- */}
+        <div className="px-5 sm:px-6 py-3 border-t border-slate-100 bg-slate-50/90 shrink-0 flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-lg min-h-[38px] px-4 text-xs font-semibold cursor-pointer border-slate-200 text-slate-700 hover:bg-slate-100"
+          >
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={saving} className="rounded-lg h-9 px-5 text-xs font-semibold bg-[#4C81E0] hover:bg-[#3b6ec6] text-white shadow-2xs cursor-pointer">
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={saving}
+            className="rounded-lg min-h-[38px] px-5 text-xs font-semibold bg-[#4C81E0] hover:bg-[#3b6ec6] text-white shadow-2xs cursor-pointer active:scale-95 transition-all"
+          >
             {saving ? (
               <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Saving…
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Saving changes…
               </>
             ) : (
               "Save changes"
             )}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

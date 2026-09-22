@@ -222,6 +222,28 @@
     100% { background-position: 200% 0; }
   }
 
+  /* Booking wizard entry transition: subtle single-run fade and slight slide-up */
+  @keyframes wizardEnter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .booking-wizard-entry {
+    animation: wizardEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .booking-wizard-entry {
+      animation: none !important;
+    }
+  }
+
   /* ── Page Shell ─────────────────────────────────────────── */
   .page-shell {
     min-height: 100vh;
@@ -1445,8 +1467,11 @@
     transform: translateX(3px);
   }
 
-  /* Navbar variant matching Inquire Now's aesthetic with the custom blue palette */
+  /* Navbar variant matching Inquire Now's aesthetic with the custom blue palette.
+     On mobile (<640px), this collapses into the mobile drawer (where it is already
+     the prominent primary CTA), keeping the mobile navbar spacious and unclipped. */
   .ls-btn-inquire--nav {
+    display: none;
     gap: 7px;
     padding: 8px 16px;
     font-size: 0.8125rem;
@@ -1455,6 +1480,13 @@
     background: linear-gradient(90deg, #6E7FDD 0%, #8EA0F4 50%, #6E7FDD 100%);
     border: 1.5px solid rgba(255, 255, 255, 0.28);
     box-shadow: 0 3px 14px rgba(110, 127, 221, 0.35);
+    flex-shrink: 0;
+  }
+
+  @media (min-width: 640px) {
+    .ls-btn-inquire--nav {
+      display: inline-flex;
+    }
   }
 
   .ls-btn-inquire--nav:hover {
@@ -1476,14 +1508,6 @@
   .ls-btn-inquire--nav .ls-btn-inquire-icon,
   .ls-btn-inquire--nav .ls-btn-inquire-arrow {
     color: #FFFFFF;
-  }
-
-  @media (max-width: 480px) {
-    .ls-btn-inquire--nav {
-      gap: 5px;
-      padding: 7px 12px;
-      font-size: 0.75rem;
-    }
   }
 
   /* Text link with a trailing arrow — used for section-level actions. */
@@ -1566,6 +1590,7 @@
     padding: 0;
     cursor: pointer;
     text-align: left;
+    min-width: 0;
   }
 
   .ls-brand-logo {
@@ -1638,6 +1663,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-shrink: 0;
   }
 
   .ls-header-login { display: none; }
@@ -3110,6 +3136,10 @@
   }
 
   .ls-backlink:hover { color: var(--ls-ink); }
+
+  .ls-detail-loading {
+    min-height: calc(100vh - var(--ls-header-h, 76px));
+  }
 
   /* Copy first, media second — the media column simply disappears when the
      package has no usable image, rather than leaving a hole. */

@@ -28,14 +28,22 @@ import { SERVICE_TYPES } from "./booking/lib/bookingRules";
 const peso = (amount) =>
   "₱" + Number(amount || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 });
 
+// Module-level in-memory cache strictly limited to successfully fetched public package-detail data.
+// Never caches auth, customer, booking, payment, or other sensitive user-specific data.
+const packageDetailCache = new Map();
+
 export default function PackageDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const businessInfo = useBusinessInfo();
-  // The result is stamped with the id it belongs to, so navigating between
-  // packages shows a loading state until the new one lands instead of briefly
-  // rendering the previous package's content under the new URL.
-  const [result, setResult] = useState({ id: null, status: "loading", data: null });
+  // Check memory cache so returning from the booking wizard renders immediately
+  // without a loading flash or footer jump.
+  const [result, setResult] = useState(() => {
+    const cached = packageDetailCache.get(id);
+    return cached
+      ? { id, status: "ready", data: cached }
+      : { id: null, status: "loading", data: null };
+  });
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
   const fetchPackage = useCallback(
@@ -46,6 +54,8 @@ export default function PackageDetails() {
           if (res.data.available === false) {
             return { status: "unavailable", data: null };
           }
+          // Only cache successfully fetched available package data
+          packageDetailCache.set(id, res.data);
           return { status: "ready", data: res.data };
         })
         .catch((error) => ({
@@ -72,6 +82,7 @@ export default function PackageDetails() {
   const pkg = result.id === id ? result : { status: "loading", data: null };
 
   const retry = () => {
+    packageDetailCache.delete(id);
     setResult({ id: null, status: "loading", data: null });
     fetchPackage().then((next) => setResult({ ...next, id }));
   };
@@ -354,7 +365,7 @@ export default function PackageDetails() {
   return (
     <CustomerLayout marketing contentClassName="ls-main">
       {pkg.status === "loading" && (
-        <div className="ls-pagehead">
+        <div className="ls-pagehead ls-detail-loading">
           <div className="ls-inner ls-detail-head" aria-hidden="true">
             <div>
               <div className="ls-skel ls-skel-line" style={{ width: "30%" }} />
@@ -817,7 +828,7 @@ export default function PackageDetails() {
         </>
       )}
 
-      <CustomerFooter businessInfo={businessInfo} />
+      {pkg.status !== "loading" && <CustomerFooter businessInfo={businessInfo} />}
 
       {lightboxIndex !== null && gallery[lightboxIndex] && (
         <div

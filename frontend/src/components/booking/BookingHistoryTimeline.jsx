@@ -7,6 +7,8 @@ import {
   CalendarRange,
   MessageSquare,
   PartyPopper,
+  AlertCircle,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TONE_ACCENT, TONE_TEXT } from "../customer/portal/tones";
@@ -16,12 +18,8 @@ import { formatCurrency } from "../../utils/format";
  * The booking's lifecycle: what happened to the booking, in order.
  *
  * Every entry is derived from data the app already stores — booking.createdAt,
- * booking.change_request, booking.ocular_visit, booking.completed_at and the
- * customer's payments. Nothing here is synthesised: if a field is absent the
- * entry is simply not produced, so an empty timeline means an empty history.
- *
- * Quotation/version events deliberately live in BookingVersionHistory instead,
- * so this stays a lifecycle feed rather than an undifferentiated activity log.
+ * booking.change_request, booking.ocular_visit, booking.completed_at,
+ * booking.cancellation_request and the customer's payments.
  */
 
 const fmtDateTime = (value) => {
@@ -107,6 +105,33 @@ export default function BookingHistoryTimeline({ booking, payments = [] }) {
       });
     });
 
+    if (booking.cancellation_request?.requested_at || booking.cancellation_request?.status) {
+      const cr = booking.cancellation_request;
+      list.push({
+        at: cr.requested_at || cr.updatedAt || booking.updatedAt,
+        icon: AlertCircle,
+        tone: cr.status === "approved" ? "danger" : cr.status === "rejected" ? "neutral" : "warning",
+        title:
+          cr.status === "approved"
+            ? "Cancellation request approved"
+            : cr.status === "rejected"
+              ? "Cancellation request declined"
+              : "Cancellation request submitted",
+        detail: cr.reason || cr.admin_notes || null,
+      });
+    }
+
+    const rawStatus = (booking.status || "").toLowerCase();
+    if (["cancelled", "canceled", "rejected"].includes(rawStatus) && booking.cancellation_request?.status !== "approved") {
+      list.push({
+        at: booking.cancelled_at || booking.updatedAt || booking.createdAt,
+        icon: XCircle,
+        tone: "danger",
+        title: "Booking cancelled",
+        detail: booking.cancellation_reason || "This reservation was cancelled.",
+      });
+    }
+
     if (booking.completed_at) {
       list.push({
         at: booking.completed_at,
@@ -139,8 +164,14 @@ export default function BookingHistoryTimeline({ booking, payments = [] }) {
         <li key={idx} className="relative">
           <span
             className={cn(
-              "absolute -left-[29px] flex h-5 w-5 items-center justify-center rounded-full ring-3 ring-card",
-              TONE_ACCENT[event.tone] || TONE_ACCENT.neutral
+              "absolute -left-[29px] flex h-5 w-5 items-center justify-center rounded-full ring-3 ring-white",
+              event.tone === "danger"
+                ? "bg-rose-50 text-rose-700 border border-rose-200/80"
+                : event.tone === "warning"
+                ? "bg-amber-50 text-amber-700 border border-amber-200/80"
+                : event.tone === "success"
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80"
+                : "bg-blue-50 text-[#4C81E0] border border-blue-200/80"
             )}
             aria-hidden="true"
           >
@@ -149,10 +180,17 @@ export default function BookingHistoryTimeline({ booking, payments = [] }) {
 
           <div className="min-w-0">
             <div className="flex flex-wrap items-baseline justify-between gap-x-2.5 gap-y-0.5">
-              <h4 className={cn("font-sans text-xs sm:text-sm font-semibold", TONE_TEXT[event.tone] || "text-foreground")}>
+              <h4 className={cn(
+                "font-sans text-xs sm:text-sm font-semibold",
+                event.tone === "danger"
+                  ? "text-rose-900"
+                  : event.tone === "warning"
+                  ? "text-amber-900"
+                  : "text-slate-900"
+              )}>
                 {event.title}
               </h4>
-              <time className="font-sans text-[11px] tabular-nums text-muted-foreground">
+              <time className="font-sans text-[11px] tabular-nums text-slate-500">
                 {fmtDateTime(event.at)}
               </time>
             </div>

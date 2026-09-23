@@ -34,39 +34,32 @@ export default function CustomerPaymentsTable({
   const getStatusBadge = (status) => {
     switch (String(status || "").toLowerCase()) {
       case "approved":
+      case "paid":
         return (
-          <Badge
-            variant="default"
-            className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800"
-          >
-            <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> Approved
-          </Badge>
+          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold">
+            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Approved
+          </span>
         );
       case "pending":
         return (
-          <Badge
-            variant="secondary"
-            className="bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800"
-          >
-            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" /> Pending
-          </Badge>
+          <span className="bg-amber-50 text-amber-700 border border-amber-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold">
+            <Clock className="w-3 h-3 text-amber-600" /> Pending
+          </span>
         );
       case "rejected":
       case "cancelled":
+      case "declined":
       case "failed":
         return (
-          <Badge
-            variant="destructive"
-            className="bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800"
-          >
-            <XCircle className="w-3 h-3 text-rose-600 dark:text-rose-400" /> Failed
-          </Badge>
+          <span className="bg-rose-50 text-rose-700 border border-rose-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold">
+            <XCircle className="w-3 h-3 text-rose-600" /> Failed
+          </span>
         );
       default:
         return (
-          <Badge variant="outline" className="capitalize text-[11px] py-0.5 px-2 rounded-md">
+          <span className="bg-slate-100 text-slate-600 border border-slate-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold capitalize">
             {status || "Unknown"}
-          </Badge>
+          </span>
         );
     }
   };
@@ -75,27 +68,27 @@ export default function CustomerPaymentsTable({
     const t = String(type || "").toLowerCase();
     if (t === "deposit") {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50/80 text-[#4C81E0] border border-blue-200/70">
           Initial Deposit
         </span>
       );
     }
     if (t === "balance") {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800">
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50/80 text-[#4C81E0] border border-blue-200/70">
           Remaining Balance
         </span>
       );
     }
     if (t === "full") {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800">
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50/80 text-emerald-700 border border-emerald-200/80">
           Full Payment
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-muted text-muted-foreground border border-border">
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
         Payment
       </span>
     );
@@ -111,8 +104,8 @@ export default function CustomerPaymentsTable({
     else if (m.includes("bank")) label = "Bank Transfer";
 
     return (
-      <span className="inline-flex items-center gap-1 bg-muted/60 px-2 py-0.5 rounded text-[11px] font-medium text-foreground">
-        <CreditCard className="w-3 h-3 text-muted-foreground" />
+      <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/70 px-2 py-0.5 rounded text-[11px] font-medium text-slate-700">
+        <CreditCard className="w-3 h-3 text-slate-400" />
         {label}
       </span>
     );
@@ -138,33 +131,33 @@ export default function CustomerPaymentsTable({
   };
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden bg-card shadow-2xs">
+    <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-xs">
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border">
+            <TableRow className="bg-slate-50/70 hover:bg-slate-50/70 border-b border-slate-100">
+              <TableHead className="font-bold text-[11px] uppercase tracking-wider text-slate-500 py-3 px-4">
+                Date &amp; Time
+              </TableHead>
               {showEventDetails && (
-                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground py-3 px-4 min-w-[200px]">
+                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-slate-500 py-3 px-4 min-w-[200px]">
                   Event / Booking
                 </TableHead>
               )}
-              <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground py-3 px-4">
-                Milestone
+              <TableHead className="font-bold text-[11px] uppercase tracking-wider text-slate-500 py-3 px-4">
+                Payment
               </TableHead>
-              <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground py-3 px-4">
-                Date & Time
-              </TableHead>
-              <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground py-3 px-4">
+              <TableHead className="font-bold text-[11px] uppercase tracking-wider text-slate-500 py-3 px-4">
                 Method
               </TableHead>
-              <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground py-3 px-4">
-                Amount Paid
+              <TableHead className="font-bold text-[11px] uppercase tracking-wider text-slate-500 py-3 px-4">
+                Amount
               </TableHead>
-              <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground py-3 px-4">
+              <TableHead className="font-bold text-[11px] uppercase tracking-wider text-slate-500 py-3 px-4">
                 Status
               </TableHead>
               {onViewReceipt && (
-                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground text-right py-3 px-4 min-w-[100px]">
+                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-slate-500 text-right py-3 px-4 min-w-[100px]">
                   Receipt
                 </TableHead>
               )}
@@ -175,12 +168,12 @@ export default function CustomerPaymentsTable({
               <TableRow>
                 <TableCell
                   colSpan={showEventDetails ? (onViewReceipt ? 7 : 6) : (onViewReceipt ? 6 : 5)}
-                  className="h-32 text-center text-muted-foreground"
+                  className="h-32 text-center text-slate-400"
                 >
                   <div className="flex flex-col items-center justify-center gap-2 py-6">
-                    <CreditCard className="w-8 h-8 text-muted-foreground/30" />
-                    <p className="text-sm font-semibold text-foreground">No transaction records found</p>
-                    <p className="text-xs text-muted-foreground">
+                    <CreditCard className="w-8 h-8 text-slate-300" />
+                    <p className="text-sm font-semibold text-slate-700">No transaction records found</p>
+                    <p className="text-xs text-slate-400">
                       Payments and official receipts will appear here as they are processed.
                     </p>
                   </div>
@@ -218,27 +211,41 @@ export default function CustomerPaymentsTable({
                   : "";
 
                 return (
-                  <TableRow key={p._id} className="hover:bg-muted/20 transition-colors border-b border-border/60">
+                  <TableRow key={p._id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100">
+                    {/* 1. Date & Time */}
+                    <TableCell className="text-slate-500 text-xs py-3 px-4">
+                      <div>
+                        <div className="flex items-center gap-1 text-slate-900 font-semibold">
+                          <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span>{formattedDate}</span>
+                        </div>
+                        {formattedTime && (
+                          <div className="text-[10px] text-slate-400 pl-4">{formattedTime}</div>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* (Optional) Event Details */}
                     {showEventDetails && (
                       <TableCell className="py-3 px-4">
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-xs text-foreground">{eventType}</span>
+                            <span className="font-bold text-xs text-slate-900">{eventType}</span>
                             {bookingRef && b?._id ? (
                               <Link
                                 to={`/customer/bookings/${b._id}`}
-                                className="font-mono text-[11px] font-semibold text-primary hover:underline inline-flex items-center gap-0.5"
+                                className="font-mono text-[11px] font-semibold text-[#4C81E0] hover:underline inline-flex items-center gap-0.5"
                                 title="Open Event Dashboard"
                               >
                                 {bookingRef}
                                 <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                               </Link>
                             ) : bookingRef ? (
-                              <span className="font-mono text-[11px] text-muted-foreground">{bookingRef}</span>
+                              <span className="font-mono text-[11px] text-slate-500">{bookingRef}</span>
                             ) : null}
                           </div>
 
-                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap">
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap">
                             {packageName && (
                               <span className="truncate max-w-[160px]" title={packageName}>
                                 {packageName}
@@ -246,7 +253,7 @@ export default function CustomerPaymentsTable({
                             )}
                             {eventDate && (
                               <span className="inline-flex items-center gap-1">
-                                <CalendarDays className="w-3 h-3 text-muted-foreground/70" />
+                                <CalendarDays className="w-3 h-3 text-slate-400" />
                                 {new Date(eventDate).toLocaleDateString("en-US", {
                                   month: "short",
                                   day: "numeric",
@@ -258,57 +265,50 @@ export default function CustomerPaymentsTable({
                       </TableCell>
                     )}
 
+                    {/* 2. Payment (Milestone) */}
                     <TableCell className="py-3 px-4">
                       {getMilestoneBadge(p.payment_type)}
                     </TableCell>
 
-                    <TableCell className="text-muted-foreground text-xs py-3 px-4">
-                      <div>
-                        <div className="flex items-center gap-1 text-foreground font-medium">
-                          <Calendar className="w-3 h-3 text-muted-foreground shrink-0" />
-                          <span>{formattedDate}</span>
-                        </div>
-                        {formattedTime && (
-                          <div className="text-[10px] text-muted-foreground pl-4">{formattedTime}</div>
-                        )}
-                      </div>
-                    </TableCell>
-
+                    {/* 3. Method */}
                     <TableCell className="py-3 px-4">
                       <div>
                         {getPaymentMethodDisplay(p)}
                         {(p.gateway_reference || p.reference_number) && (
-                          <p className="text-[10px] text-muted-foreground font-mono mt-0.5 truncate max-w-[110px]">
+                          <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate max-w-[110px]" title={p.gateway_reference || p.reference_number}>
                             {p.gateway_reference || p.reference_number}
                           </p>
                         )}
                       </div>
                     </TableCell>
 
+                    {/* 4. Amount Paid */}
                     <TableCell className="py-3 px-4">
                       <div>
-                        <span className="font-bold text-sm text-foreground tabular-nums">
+                        <span className="font-bold text-sm text-slate-900 tabular-nums">
                           {fmt(p.amount)}
                         </span>
                         {b?.total_price && (
-                          <div className="text-[10px] text-muted-foreground">
+                          <div className="text-[10px] text-slate-400">
                             of {fmt(b.total_price)}
                           </div>
                         )}
                       </div>
                     </TableCell>
 
+                    {/* 5. Status */}
                     <TableCell className="py-3 px-4">
                       {getStatusBadge(p.status)}
                     </TableCell>
 
+                    {/* 6. Receipt (Secondary) */}
                     {onViewReceipt && (
                       <TableCell className="text-right py-3 px-4">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => onViewReceipt(p, b)}
-                          className="h-7 text-xs font-medium gap-1 text-primary hover:text-primary hover:bg-primary/10 px-2"
+                          className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3b6ec6] hover:bg-blue-50 px-2 cursor-pointer"
                           title="View Official Receipt"
                         >
                           <Receipt className="w-3.5 h-3.5" />

@@ -28,6 +28,7 @@ import MenuModal from "../../components/admin/ui/MenuModal";
 import { DEFAULT_FOOD_CATEGORIES, sortMenuItemsByCategory } from "../../utils/menuCategories";
 import AIMenuParserModal from "../../components/admin/ui/AIMenuParserModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
+import ItemDeleteWarningModal from "../../components/admin/common/ItemDeleteWarningModal";
 import DataTable from "../../components/admin/table/DataTable";
 import TableToolbar from "../../components/admin/table/TableToolbar";
 import BulkActionBar from "../../components/admin/table/BulkActionBar";
@@ -813,19 +814,15 @@ export default function AdminMenu() {
         availableCategories={DEFAULT_FOOD_CATEGORIES}
       />
 
-      {/* Single Delete Confirmation */}
+      {/* Single Delete Confirmation with Usage Check */}
       {cancelTarget && (
-        <ConfirmDialog
-          title="Delete Food Menu Item"
-          message={`Are you sure you want to delete "${cancelTarget.name}"?${
-            getAssociatedPackages(cancelTarget).length > 0
-              ? ` Note: This dish is currently used in ${getAssociatedPackages(cancelTarget).length} package(s).`
-              : ""
-          } This action cannot be undone.`}
+        <ItemDeleteWarningModal
+          isOpen={!!cancelTarget}
+          item={cancelTarget}
+          type="menu"
+          onClose={() => setCancelTarget(null)}
           onConfirm={() => handleDelete(cancelTarget._id)}
-          onCancel={() => setCancelTarget(null)}
-          confirmText="Delete Dish"
-          confirmVariant="danger"
+          confirmText="Delete Item"
         />
       )}
 

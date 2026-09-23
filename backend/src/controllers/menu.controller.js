@@ -1,7 +1,16 @@
 const MenuItem = require("../models/MenuItem");
+const Package = require("../models/Package");
+const Booking = require("../models/Booking");
+const Inquiry = require("../models/Inquiry");
+const Quotation = require("../models/Quotation");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
 const logAction = require("../utils/logAction");
+
+const escapeRegex = (str) => {
+  if (!str || typeof str !== "string") return "";
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
 
 const ALLOWED_CATEGORIES = [
   "Appetizer",
@@ -89,6 +98,154 @@ exports.remove = async (req, res) => {
   }
 
   res.json({ message: "Deleted" });
+};
+
+exports.getUsage = async (req, res) => {
+  try {
+    const item = await MenuItem.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: "Menu item not found" });
+    }
+
+    const itemIdStr = String(item._id);
+    const itemName = item.name ? item.name.trim() : "";
+    const escapedName = escapeRegex(itemName);
+    const nameRegex = new RegExp(`^${escapedName}$`, "i");
+
+    // 1. Packages / Special Offers / Combos
+    const allPackages = await Package.find({}, "name offer_type event_type menu_items offer_food_items").lean();
+    const matchingPackages = allPackages.filter((pkg) => {
+      // menu_items
+      if (Array.isArray(pkg.menu_items)) {
+        for (const m of pkg.menu_items) {
+          const mId = String(m?._id || m || "");
+          if (mId && mId === itemIdStr) return true;
+        }
+      }
+      // offer_food_items (for combos/special offers)
+      if (Array.isArray(pkg.offer_food_items)) {
+        for (const ofi of pkg.offer_food_items) {
+          if (ofi.item_name && nameRegex.test(ofi.item_name.trim())) return true;
+        }
+      }
+      return false;
+    });
+
+    const matchingPkgIds = matchingPackages.map((p) => p._id);
+    const matchingPkgNames = matchingPackages.map((p) => p.name);
+
+    // 2. Active / upcoming customer usage
+    // Past/completed events should NOT prevent deletion or trigger active usage warning
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    // Active Bookings
+    const activeBookingsRaw = await Booking.find({
+      status: { $nin: ["Cancelled", "cancelled", "refunded", "Completed", "completed"] },
+      event_date: { $gte: startOfToday },
+      $or: [
+        { "menu_items.name": nameRegex },
+        { "offer_food_snapshot.item_name": nameRegex },
+        ...(matchingPkgIds.length > 0 ? [{ package_id: { $in: matchingPkgIds } }] : [])
+      ]
+    }, "reference event_date package_name_snapshot status contact_first_name contact_last_name celebrant_name")
+      .sort({ event_date: 1 })
+      .lean();
+
+    const activeBookings = activeBookingsRaw.map((b) => {
+      const customerName = [b.contact_first_name, b.contact_last_name].filter(Boolean).join(" ");
+      return {
+        _id: b._id,
+        reference: b.reference || "Booking",
+        event_date: b.event_date,
+        package_name: b.package_name_snapshot || (matchingPkgNames.length > 0 ? matchingPkgNames[0] : "Package"),
+        customer_name: customerName || b.celebrant_name || "",
+        status: b.status,
+      };
+    });
+
+    // Active Inquiries
+    const activeInquiriesRaw = await Inquiry.find({
+      status: { $nin: ["Cancelled", "cancelled", "Rejected", "Quote Rejected", "Expired", "Converted to Booking"] },
+      archived: { $ne: true },
+      event_date: { $gte: startOfToday },
+      $or: [
+        { selected_menu: item._id },
+        { "offer_food_snapshot.item_name": nameRegex },
+        ...(matchingPkgIds.length > 0 ? [{ package_id: { $in: matchingPkgIds } }] : [])
+      ]
+    }, "reference event_date package_name_snapshot status contact_first_name contact_last_name celebrant_name")
+      .sort({ event_date: 1 })
+      .lean();
+
+    const activeInquiries = activeInquiriesRaw.map((inq) => {
+      const customerName = [inq.contact_first_name, inq.contact_last_name].filter(Boolean).join(" ");
+      return {
+        _id: inq._id,
+        reference: inq.reference || "Inquiry",
+        event_date: inq.event_date,
+        package_name: inq.package_name_snapshot || (matchingPkgNames.length > 0 ? matchingPkgNames[0] : "Package"),
+        customer_name: customerName || inq.celebrant_name || "",
+        status: inq.status,
+      };
+    });
+
+    // Active Quotations
+    const activeQuotationsRaw = await Quotation.find({
+      status: { $in: ["Draft", "Sent", "Revision Requested", "Accepted", "Awaiting Final Confirmation"] },
+      $or: [
+        { "menu_items.name": nameRegex },
+        { "offer_food_snapshot.item_name": nameRegex },
+        ...(matchingPkgIds.length > 0 ? [{ package_id: { $in: matchingPkgIds } }] : [])
+      ]
+    }, "quotation_number status package_name inquiry_id")
+      .populate("inquiry_id", "reference event_date status archived contact_first_name contact_last_name")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const activeQuotations = activeQuotationsRaw
+      .filter((q) => {
+        if (!q.inquiry_id) return true;
+        const inq = q.inquiry_id;
+        if (inq.archived) return false;
+        if (["Cancelled", "cancelled", "Rejected", "Quote Rejected", "Expired", "Converted to Booking"].includes(inq.status)) {
+          return false;
+        }
+        if (inq.event_date && new Date(inq.event_date) < startOfToday) {
+          return false;
+        }
+        return true;
+      })
+      .map((q) => ({
+        _id: q._id,
+        quotation_number: q.quotation_number || "Quotation",
+        package_name: q.package_name || (matchingPkgNames.length > 0 ? matchingPkgNames[0] : "Package"),
+        inquiry_reference: q.inquiry_id?.reference || "",
+        status: q.status,
+      }));
+
+    const hasActiveCustomerUsage = activeBookings.length > 0 || activeInquiries.length > 0 || activeQuotations.length > 0;
+    const hasUsage = matchingPackages.length > 0 || hasActiveCustomerUsage;
+
+    return res.json({
+      itemId: item._id,
+      itemName: item.name,
+      hasUsage,
+      hasActiveCustomerUsage,
+      packages: matchingPackages.map((p) => ({
+        _id: p._id,
+        name: p.name,
+        offer_type: p.offer_type,
+        event_type: p.event_type,
+      })),
+      activeBookings,
+      activeInquiries,
+      activeQuotations,
+    });
+  } catch (error) {
+    console.error("Error checking menu usage:", error);
+    return res.status(500).json({ message: "Failed to check menu item usage" });
+  }
 };
 
 // Parse Menu Items with Gemini AI (admin)

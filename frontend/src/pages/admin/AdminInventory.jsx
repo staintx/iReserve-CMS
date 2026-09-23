@@ -1,5 +1,22 @@
 import React, { useState, useEffect } from "react";
-import { Eye, Plus, Edit3, Trash2, Calendar, RotateCcw, Search, X, ChevronLeft, ChevronRight, ChevronDown, Check, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  Eye,
+  Plus,
+  Edit3,
+  Trash2,
+  Calendar,
+  RotateCcw,
+  Search,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Check,
+  Sparkles,
+  Package as PackageIcon,
+  ExternalLink,
+} from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
@@ -9,6 +26,7 @@ import useToast from "../../hooks/useToast";
 import InventoryModal from "../../components/admin/ui/InventoryModal";
 import AIInventoryParserModal from "../../components/admin/ui/AIInventoryParserModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
+import ItemDeleteWarningModal from "../../components/admin/common/ItemDeleteWarningModal";
 import FilterPopover from "../../components/admin/table/FilterPopover";
 import FilterChip from "../../components/admin/table/FilterChip";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
@@ -25,12 +43,50 @@ const getTodayDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
+const parseInclusionItem = (str) => {
+  if (!str) return { name: "", quantity: 1 };
+  let text = String(str).trim();
+  for (let i = 0; i < 4; i++) {
+    text = text.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  }
+  text = text.replace(/^\s*\[[^\]]*\]\s*/, "").trim();
+  for (let i = 0; i < 2; i++) {
+    text = text.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  }
+  let quantity = 1;
+  const parenMatch = text.match(/\(([^)]*)\)\s*$/);
+  if (parenMatch) {
+    const digits = parenMatch[1].match(/\d+/);
+    if (digits) quantity = parseInt(digits[0], 10);
+    text = text.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  } else {
+    const xMatch = text.match(/[\s×x](\d+)\s*$/i);
+    if (xMatch) {
+      quantity = parseInt(xMatch[1], 10);
+      text = text.replace(/[\s×x](\d+)\s*$/i, "").trim();
+    } else {
+      const leadMatch = text.match(/^(\d+)\s+(.*)$/);
+      if (leadMatch) {
+        quantity = parseInt(leadMatch[1], 10);
+        text = leadMatch[2].trim();
+      }
+    }
+  }
+  return { name: text.trim(), quantity: Math.max(1, quantity) };
+};
+
+const normalizeInvName = (str) => {
+  if (!str || typeof str !== "string") return "";
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+};
+
 export default function AdminInventory() {
   const { notify } = useToast();
   const [search, setSearch] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
 
   const [inventory, setInventory] = useState([]);
+  const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [showModal, setShowModal] = useState(false);
@@ -42,8 +98,10 @@ export default function AdminInventory() {
   const [availabilityFilter, setAvailabilityFilter] = useState("all");
   const [draftAvailabilityFilter, setDraftAvailabilityFilter] = useState("all");
 
-  const [logState, setLogState] = useState({ itemId: null, entries: [] });
+  const [stockStatusFilter, setStockStatusFilter] = useState("all");
+  const [draftStockStatusFilter, setDraftStockStatusFilter] = useState("all");
 
+  const [logState, setLogState] = useState({ itemId: null, entries: [] });
 
   const eventLabel = {
     created: "Created",
@@ -53,17 +111,62 @@ export default function AdminInventory() {
     retired: "Retired",
   };
 
-  const loadData = (dateParam = selectedDate) => {
+  const loadData = async (dateParam = selectedDate) => {
     setLoading(true);
-    AdminAPI.getInventoryAvailability(dateParam || undefined)
-      .then((res) => setInventory(res.data || []))
-      .catch(() => notify("Failed to load inventory", "error"))
-      .finally(() => setLoading(false));
+    try {
+      const [invRes, pkgRes] = await Promise.all([
+        AdminAPI.getInventoryAvailability(dateParam || undefined),
+        AdminAPI.getPackages().catch(() => ({ data: [] })),
+      ]);
+      setInventory(invRes.data || []);
+      setPackages(Array.isArray(pkgRes.data) ? pkgRes.data : []);
+    } catch {
+      notify("Failed to load inventory", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getAssociatedPackages = (item) => {
+    if (!item || !packages.length) return [];
+    const itemIdStr = String(item._id);
+    const itemNorm = normalizeInvName(item.item_name);
+    const itemIdent = item.identifier ? normalizeInvName(item.identifier) : "";
+
+    return packages.filter((pkg) => {
+      if (Array.isArray(pkg.setup_equipment)) {
+        for (const eq of pkg.setup_equipment) {
+          const eqId = String(eq.inventory_id?._id || eq.inventory_id || "");
+          if (eqId && eqId === itemIdStr) return true;
+        }
+      }
+      if (Array.isArray(pkg.inclusions)) {
+        for (const inc of pkg.inclusions) {
+          const parsed = parseInclusionItem(inc);
+          const incNorm = normalizeInvName(parsed.name);
+          if (incNorm === itemNorm) return true;
+          if (itemIdent && incNorm === itemIdent) return true;
+          if (itemNorm.endsWith("s") && incNorm === itemNorm.slice(0, -1)) return true;
+          if (incNorm.endsWith("s") && incNorm.slice(0, -1) === itemNorm) return true;
+          if (itemNorm.length >= 4 && (incNorm.includes(itemNorm) || itemNorm.includes(incNorm))) return true;
+        }
+      }
+      return false;
+    });
   };
 
   useEffect(() => {
     loadData(selectedDate);
   }, [selectedDate]);
+
+  // Keep drawerRow synchronized with fresh availability & event_usages when date or inventory data updates
+  useEffect(() => {
+    if (!drawerRow) return;
+    const fresh = inventory.find((i) => i._id === drawerRow._id);
+    if (fresh) {
+      setDrawerRow(fresh);
+    }
+  }, [inventory]);
 
   useEffect(() => {
     if (!drawerRow) return;
@@ -91,14 +194,9 @@ export default function AdminInventory() {
     setInventory((prev) =>
       prev.map((i) => {
         if (i._id === item._id) {
-          const total = i.quantity || 0;
-          const reserved = i.reserved_quantity || 0;
-          const stockOnHand = nextStatus ? Math.max(0, total - reserved) : 0;
           return {
             ...i,
             available: nextStatus,
-            available_quantity: stockOnHand,
-            stock_on_hand: stockOnHand,
           };
         }
         return i;
@@ -135,7 +233,18 @@ export default function AdminInventory() {
   const filtered = inventory.filter((i) => {
     const matchSearch = !search || (i.item_name && i.item_name.toLowerCase().includes(search.toLowerCase()));
     const matchAvailability = availabilityFilter === "all" || (availabilityFilter === "available" ? i.available : !i.available);
-    return matchSearch && matchAvailability;
+    
+    const stockOnHand = i.available_quantity ?? Math.max(0, (i.quantity || 0) - (i.reserved_quantity || 0));
+    const threshold = i.low_stock_threshold;
+    let sStatus = i.stock_status;
+    if (!sStatus) {
+      if (stockOnHand === 0) sStatus = "no_stock";
+      else if (threshold != null && threshold > 0 && stockOnHand <= threshold) sStatus = "low_stock";
+      else sStatus = "in_stock";
+    }
+    const matchStockStatus = stockStatusFilter === "all" || sStatus === stockStatusFilter;
+
+    return matchSearch && matchAvailability && matchStockStatus;
   });
 
   const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
@@ -238,7 +347,37 @@ export default function AdminInventory() {
                         checked={draftAvailabilityFilter === v}
                         onChange={() => setDraftAvailabilityFilter(v)}
                       />
-                      {v === "all" ? "All items" : v}
+                      {v === "all" ? "All availability" : v}
+                    </label>
+                  ))}
+                </div>
+              </FilterPopover>
+
+              {/* Stock Status Popover */}
+              <FilterPopover
+                label="Stock Status"
+                activeCount={stockStatusFilter !== "all" ? 1 : 0}
+                onApply={() => setStockStatusFilter(draftStockStatusFilter)}
+                onClear={() => {
+                  setDraftStockStatusFilter("all");
+                  setStockStatusFilter("all");
+                }}
+              >
+                <div className="space-y-1.5">
+                  {[
+                    { value: "all", label: "All stock conditions" },
+                    { value: "in_stock", label: "In Stock" },
+                    { value: "low_stock", label: "Low Stock" },
+                    { value: "no_stock", label: "No Stock" },
+                  ].map((opt) => (
+                    <label key={opt.value} className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                      <input
+                        type="radio"
+                        name="inventory-stock-status"
+                        checked={draftStockStatusFilter === opt.value}
+                        onChange={() => setDraftStockStatusFilter(opt.value)}
+                      />
+                      {opt.label}
                     </label>
                   ))}
                 </div>
@@ -246,15 +385,32 @@ export default function AdminInventory() {
             </div>
           </div>
 
-          {availabilityFilter !== "all" && (
+          {(availabilityFilter !== "all" || stockStatusFilter !== "all") && (
             <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-gray-100 flex-wrap">
-              <FilterChip
-                label={`Status: ${availabilityFilter}`}
-                onRemove={() => {
-                  setAvailabilityFilter("all");
-                  setDraftAvailabilityFilter("all");
-                }}
-              />
+              {availabilityFilter !== "all" && (
+                <FilterChip
+                  label={`Availability: ${availabilityFilter}`}
+                  onRemove={() => {
+                    setAvailabilityFilter("all");
+                    setDraftAvailabilityFilter("all");
+                  }}
+                />
+              )}
+              {stockStatusFilter !== "all" && (
+                <FilterChip
+                  label={`Stock Status: ${
+                    stockStatusFilter === "in_stock" 
+                      ? "In Stock" 
+                      : stockStatusFilter === "low_stock" 
+                        ? "Low Stock" 
+                        : "No Stock"
+                  }`}
+                  onRemove={() => {
+                    setStockStatusFilter("all");
+                    setDraftStockStatusFilter("all");
+                  }}
+                />
+              )}
             </div>
           )}
         </AdminCard>
@@ -285,7 +441,10 @@ export default function AdminInventory() {
                       Stock on Hand
                     </th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                      Status
+                      Stock Status
+                    </th>
+                    <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                      Availability
                     </th>
                     <th className="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500">
                       Actions
@@ -298,18 +457,23 @@ export default function AdminInventory() {
                       i.available_quantity ??
                       Math.max(0, (i.quantity || 0) - (i.reserved_quantity || 0));
                     const isAvailable = i.available !== false;
+                    const threshold = i.low_stock_threshold;
+
+                    let stockStatus = i.stock_status;
+                    if (!stockStatus) {
+                      if (stockOnHand === 0) stockStatus = "no_stock";
+                      else if (threshold != null && threshold > 0 && stockOnHand <= threshold) stockStatus = "low_stock";
+                      else stockStatus = "in_stock";
+                    }
 
                     // Data-driven Stock on Hand styling:
-                    // Green: healthy stock
-                    // Amber: low stock (<= 5 or <= 20% of total)
-                    // Red: 0 / out of stock / unavailable
+                    // Green: healthy stock (> threshold)
+                    // Amber: low stock (<= threshold)
+                    // Red: 0 / no stock
                     let stockBadgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200/80";
-                    if (!isAvailable || stockOnHand <= 0) {
+                    if (stockStatus === "no_stock" || stockOnHand <= 0) {
                       stockBadgeStyle = "bg-rose-50 text-rose-700 border-rose-200/80";
-                    } else if (
-                      stockOnHand <= 5 ||
-                      (i.quantity && stockOnHand / i.quantity <= 0.2)
-                    ) {
+                    } else if (stockStatus === "low_stock") {
                       stockBadgeStyle = "bg-amber-50 text-amber-800 border-amber-200/80";
                     }
 
@@ -325,7 +489,7 @@ export default function AdminInventory() {
                           </div>
                           {i.reserved_quantity > 0 && (
                             <span className="text-[11px] text-amber-700 font-medium block mt-0.5">
-                              {i.reserved_quantity} unit{i.reserved_quantity > 1 ? "s" : ""} in use today
+                              {i.reserved_quantity} unit{i.reserved_quantity > 1 ? "s" : ""} {selectedDate && selectedDate !== getTodayDateString() ? "in use on this date" : "in use today"}
                             </span>
                           )}
                         </td>
@@ -345,7 +509,22 @@ export default function AdminInventory() {
                           </span>
                         </td>
 
-                        <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                        {/* Stock Status (Automatic calculation) */}
+                        <td className="px-5 py-3.5 text-left">
+                          <Badge 
+                            status={
+                              stockStatus === "no_stock" 
+                                ? "No Stock" 
+                                : stockStatus === "low_stock" 
+                                  ? "Low Stock" 
+                                  : "In Stock"
+                            } 
+                            dot 
+                          />
+                        </td>
+
+                        {/* Availability Status (Manual Admin Switch) */}
+                        <td className="px-5 py-3.5 text-left" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
                             onClick={() => handleToggleStatus(i)}
@@ -470,13 +649,12 @@ export default function AdminInventory() {
       )}
 
       {cancelTarget && (
-        <ConfirmDialog
-          title="Delete Item"
-          message={`Are you sure you want to delete "${cancelTarget.item_name}"? This action cannot be undone.`}
+        <ItemDeleteWarningModal
+          isOpen={!!cancelTarget}
+          item={cancelTarget}
+          type="inventory"
+          onClose={() => setCancelTarget(null)}
           onConfirm={() => handleDelete(cancelTarget._id)}
-          onCancel={() => setCancelTarget(null)}
-          confirmText="Delete"
-          confirmVariant="danger"
         />
       )}
 
@@ -513,21 +691,189 @@ export default function AdminInventory() {
           )
         }
       >
-        {drawerRow && (
-          <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-4">
-              <DrawerField label="Total Quantity" value={drawerRow.quantity || 0} />
-              <DrawerField label="In-Use (Today)" value={drawerRow.reserved_quantity || 0} />
-              <DrawerField label="Stock on Hand" value={<strong className="text-emerald-700">{drawerRow.available_quantity || 0}</strong>} />
-              <DrawerField label="Status" value={<Badge status={drawerRow.available !== false ? "available" : "unavailable"} />} />
-            </div>
+        {drawerRow && (() => {
+          const stockOnHand =
+            drawerRow.available_quantity ??
+            Math.max(0, (drawerRow.quantity || 0) - (drawerRow.reserved_quantity || 0));
+          const threshold = drawerRow.low_stock_threshold;
+          let stockStatus = drawerRow.stock_status;
+          if (!stockStatus) {
+            if (stockOnHand === 0) stockStatus = "no_stock";
+            else if (threshold != null && threshold > 0 && stockOnHand <= threshold) stockStatus = "low_stock";
+            else stockStatus = "in_stock";
+          }
 
-            {/* Formula explanation box */}
-            <div className="p-3 bg-slate-50 rounded-md border border-slate-100 text-xs text-slate-600 space-y-1 shadow-2xs">
-              <span className="font-semibold text-slate-700 block">Stock Calculation:</span>
-              <p>
-                <strong>{drawerRow.quantity || 0}</strong> (Total Quantity) − <strong>{drawerRow.reserved_quantity || 0}</strong> (In-Use Today) = <strong className="text-emerald-700">{drawerRow.available_quantity || 0}</strong> (Stock on Hand).
-              </p>
+          return (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <DrawerField label="Total Quantity" value={drawerRow.quantity || 0} />
+                <DrawerField label="Low Stock Threshold" value={threshold != null ? `${threshold} units` : "Not set"} />
+                <DrawerField label={selectedDate && selectedDate !== getTodayDateString() ? "In-Use (Selected Date)" : "In-Use (Today)"} value={drawerRow.reserved_quantity || 0} />
+                <DrawerField 
+                  label="Stock on Hand" 
+                  value={
+                    <strong className={stockStatus === "no_stock" ? "text-rose-700" : stockStatus === "low_stock" ? "text-amber-700" : "text-emerald-700"}>
+                      {stockOnHand}
+                    </strong>
+                  } 
+                />
+                <DrawerField 
+                  label="Stock Status" 
+                  value={
+                    <Badge 
+                      status={
+                        stockStatus === "no_stock" 
+                          ? "No Stock" 
+                          : stockStatus === "low_stock" 
+                            ? "Low Stock" 
+                            : "In Stock"
+                      } 
+                      dot 
+                    />
+                  } 
+                />
+                <DrawerField 
+                  label="Availability Status" 
+                  value={
+                    <Badge 
+                      status={drawerRow.available !== false ? "available" : "unavailable"} 
+                      dot 
+                    />
+                  } 
+                />
+              </div>
+
+              {/* Formula explanation box */}
+              <div className="p-3 bg-slate-50 rounded-md border border-slate-100 text-xs text-slate-600 space-y-1.5 shadow-2xs">
+                <span className="font-semibold text-slate-700 block">Stock &amp; Status Calculation:</span>
+                <p>
+                  <strong>{drawerRow.quantity || 0}</strong> (Total Quantity) − <strong>{drawerRow.reserved_quantity || 0}</strong> ({selectedDate && selectedDate !== getTodayDateString() ? "In-Use on Date" : "In-Use Today"}) = <strong className={stockStatus === "no_stock" ? "text-rose-700" : stockStatus === "low_stock" ? "text-amber-700" : "text-emerald-700"}>{stockOnHand}</strong> (Stock on Hand).
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Threshold: <strong>{threshold != null ? `${threshold} units` : "Not set"}</strong> → Automatic Stock Status: <strong className={stockStatus === "no_stock" ? "text-rose-700" : stockStatus === "low_stock" ? "text-amber-700" : "text-emerald-700"}>{stockStatus === "no_stock" ? "No Stock" : stockStatus === "low_stock" ? "Low Stock" : "In Stock"}</strong>.
+                </p>
+              </div>
+
+            {/* Associated Packages */}
+            {(() => {
+              const associated = getAssociatedPackages(drawerRow);
+              return (
+                <div className="border-t border-gray-100 pt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <PackageIcon size={13} className="text-primary" /> Associated Packages ({associated.length})
+                    </span>
+                  </div>
+
+                  {associated.length > 0 ? (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {associated.map((pkg) => (
+                        <div
+                          key={pkg._id}
+                          className="flex items-center justify-between p-2.5 rounded-md border border-border/70 bg-card hover:bg-muted/40 transition-colors"
+                        >
+                          <div className="min-w-0 flex-1 pr-2">
+                            <p className="text-xs font-bold text-foreground truncate">{pkg.name}</p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {pkg.offer_type === "special" ? "Special Combo" : "Event Package"} · {pkg.event_type || "Catering"}
+                            </p>
+                          </div>
+                          <Link
+                            to={`/admin/packages?id=${pkg._id}&tab=${pkg.offer_type === "special" ? "special" : "regular"}`}
+                            onClick={() => setDrawerRow(null)}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors"
+                          >
+                            View <ExternalLink size={11} />
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-md bg-muted/20 border border-dashed border-border/60 text-center">
+                      <p className="text-xs text-muted-foreground italic">
+                        This inventory item is not currently included in any packages.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Upcoming Event Usage (for selected date) */}
+            <div className="border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Calendar size={13} className="text-amber-600" />
+                  Upcoming Event Usage ({(drawerRow.event_usages || []).length})
+                </span>
+                <span className="text-[10px] font-mono font-medium text-muted-foreground/80 bg-slate-100 px-1.5 py-0.5 rounded">
+                  {selectedDate
+                    ? new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
+                    : "Today"}
+                </span>
+              </div>
+
+              {drawerRow.event_usages && drawerRow.event_usages.length > 0 ? (
+                <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                  {drawerRow.event_usages.map((usage, idx) => (
+                    <div
+                      key={usage.booking_id || idx}
+                      className="p-3 rounded-lg border border-amber-200/80 bg-amber-50/40 hover:bg-amber-50/70 transition-colors flex flex-col gap-1.5"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-foreground truncate">
+                            {usage.package_name || usage.event_name || "Event Reservation"}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Customer: <span className="font-semibold text-foreground/90">{usage.customer_name}</span>
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            Event Date:{" "}
+                            <span className="font-medium text-foreground/80">
+                              {usage.event_date
+                                ? new Date(usage.event_date).toLocaleDateString("en-US", {
+                                    month: "long",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  })
+                                : "—"}
+                            </span>
+                          </p>
+                          <p className="text-[11px] font-semibold text-amber-900 mt-1 flex items-center gap-1.5">
+                            <span>Quantity:</span>
+                            <span className="bg-amber-100/90 text-amber-950 px-1.5 py-0.5 rounded text-[11px] font-bold">
+                              {usage.quantity} {usage.unit || (usage.quantity === 1 ? "unit" : "pcs")}
+                            </span>
+                            {usage.reference && (
+                              <span className="text-[10px] font-mono text-muted-foreground/80 font-normal">
+                                (#{usage.reference})
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <Link
+                          to={`/admin/bookings/${usage.booking_id}/details`}
+                          onClick={() => setDrawerRow(null)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors bg-white px-2 py-1 rounded border border-primary/20 shadow-2xs shrink-0 self-start"
+                        >
+                          View <ExternalLink size={11} />
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-3 rounded-md bg-muted/20 border border-dashed border-border/60 text-center">
+                  <p className="text-xs text-muted-foreground italic">
+                    No upcoming events are using this item on the selected date.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="border-t border-gray-100 pt-4">
@@ -558,9 +904,46 @@ export default function AdminInventory() {
                 </div>
               )}
             </div>
+
+            {/* Metadata timestamps */}
+            <div className="pt-3 border-t border-border/60 grid grid-cols-2 gap-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <Calendar size={13} className="shrink-0" />
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider font-semibold">Created</p>
+                  <p className="text-foreground/80 font-medium">
+                    {drawerRow.createdAt
+                      ? new Date(drawerRow.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Calendar size={13} className="shrink-0" />
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider font-semibold">Last Updated</p>
+                  <p className="text-foreground/80 font-medium">
+                    {drawerRow.updatedAt
+                      ? new Date(drawerRow.updatedAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-        )}
-      </DetailDrawer>
+        );
+      })()}
+    </DetailDrawer>
     </AdminLayout>
   );
 }

@@ -587,7 +587,6 @@ export default function PackageModal({
     inventory: true,
     dining: true,
     addons: true,
-    combo: true,
   });
   const [showItemsList, setShowItemsList] = useState({
     setup: true,
@@ -1521,31 +1520,20 @@ export default function PackageModal({
     });
   };
 
-  // Combo inclusions: based on actual Addons data
+  // Combo inclusions: plain free-text entries managed directly inside the combo
   const handleAddComboInclusion = (overrideValue) => {
     const rawValue = typeof overrideValue === "string" ? overrideValue : comboInclusionInput;
     const value = cleanTextValue(rawValue);
     if (!value) return;
 
-    const matchedAddon = addonNames.find(
-      (a) => a.toLowerCase() === value.toLowerCase()
-    );
-    if (!matchedAddon) {
-      notify(
-        `"${value}" is not an existing Add-on. Please select an existing item from Addons.`,
-        "error"
-      );
-      return;
-    }
-
     const existing = formData.inclusions || [];
-    if (existing.some((entry) => cleanTextValue(entry).toLowerCase() === matchedAddon.toLowerCase())) {
-      notify(`"${matchedAddon}" is already included.`, "info");
+    if (existing.some((entry) => cleanTextValue(entry).toLowerCase() === value.toLowerCase())) {
+      notify(`"${value}" is already included.`, "info");
       return;
     }
     setFormData((prev) => ({
       ...prev,
-      inclusions: [...(prev.inclusions || []), matchedAddon],
+      inclusions: [...(prev.inclusions || []), value],
     }));
     setComboInclusionInput("");
   };
@@ -1557,20 +1545,18 @@ export default function PackageModal({
       return;
     }
 
-    const matchedAddon = addonNames.find(
-      (a) => a.toLowerCase() === value.toLowerCase()
+    const existing = formData.inclusions || [];
+    const isDuplicate = existing.some(
+      (entry, idx) => idx !== index && cleanTextValue(entry).toLowerCase() === value.toLowerCase()
     );
-    if (!matchedAddon) {
-      notify(
-        `"${value}" is not an existing Add-on. Please select an existing item from Addons.`,
-        "error"
-      );
+    if (isDuplicate) {
+      notify(`"${value}" is already included.`, "info");
       return;
     }
 
     setFormData((prev) => {
       const items = [...(prev.inclusions || [])];
-      items[index] = matchedAddon;
+      items[index] = value;
       return { ...prev, inclusions: items };
     });
     setEditingComboInclusionIdx(null);
@@ -2834,15 +2820,18 @@ export default function PackageModal({
 
               <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
                 <div className="flex gap-2 items-center">
-                  <AutocompleteInput
-                    placeholder="Search addon for combo inclusion (e.g. Dessert station)"
+                  <input
+                    type="text"
+                    placeholder="e.g. Buffet Setup, Disposable Plates"
                     value={comboInclusionInput}
-                    onChange={setComboInclusionInput}
-                    candidates={addonNames}
-                    sourceLabel="Addons"
-                    onSubmit={() => handleAddComboInclusion()}
-                    onCreateNew={(name) => handleOpenQuickCreate(name, "Event Setup & Furniture", true)}
-                    createActionLabel="+ Create New Add-on"
+                    onChange={(e) => setComboInclusionInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddComboInclusion();
+                      }
+                    }}
+                    className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-foreground placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
                   />
                   <Btn
                     variant="secondary"
@@ -2853,53 +2842,6 @@ export default function PackageModal({
                   >
                     <Plus size={12} /> Add
                   </Btn>
-                </div>
-
-                {/* Quick Presets Chips for Combo from Addons */}
-                <div className="mb-1">
-                  <button
-                    type="button"
-                    onClick={() => togglePresets("combo")}
-                    className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors mb-2 select-none group"
-                  >
-                    <span>Quick Add Presets from Addons</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-normal group-hover:bg-gray-200">
-                      {addonNames.length}
-                    </span>
-                    {showPresets.combo ? (
-                      <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
-                    ) : (
-                      <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
-                    )}
-                  </button>
-                  {showPresets.combo && (
-                    addonNames.length === 0 ? (
-                      <p className="text-xs text-gray-400 italic py-1">No addons found in database.</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
-                        {addonNames.map((addon, idx) => {
-                          const isAdded = (formData.inclusions || []).some(
-                            (inc) => cleanTextValue(inc).toLowerCase() === addon.toLowerCase()
-                          );
-                          return (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => handleAddComboInclusion(addon)}
-                              className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${
-                                isAdded
-                                  ? "bg-amber-50 border-amber-200 text-amber-800 font-medium"
-                                  : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
-                              }`}
-                            >
-                              {isAdded ? <Check size={10} className="text-amber-600" /> : <Plus size={10} />}
-                              {addon}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )
-                  )}
                 </div>
 
                 {(formData.inclusions || []).length === 0 ? (
@@ -2917,25 +2859,32 @@ export default function PackageModal({
                             key={index}
                             className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50/70 px-2.5 py-2"
                           >
-                            <AutocompleteInput
+                            <input
+                              type="text"
                               value={editComboInclusionValue}
-                              onChange={setEditComboInclusionValue}
-                              candidates={addonNames}
-                              sourceLabel="Addons"
-                              onSubmit={() => handleSaveComboInclusion(index)}
-                              className="flex-1 rounded border border-blue-300 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                              onChange={(e) => setEditComboInclusionValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleSaveComboInclusion(index);
+                                } else if (e.key === "Escape") {
+                                  setEditingComboInclusionIdx(null);
+                                }
+                              }}
+                              autoFocus
+                              className="flex-1 rounded border border-blue-300 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                             />
                             <button
                               type="button"
                               onClick={() => handleSaveComboInclusion(index)}
-                              className="flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-primary/90 shrink-0"
+                              className="flex items-center gap-1 rounded bg-primary px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary/90 shrink-0"
                             >
                               <Check size={12} /> Save
                             </button>
                             <button
                               type="button"
                               onClick={() => setEditingComboInclusionIdx(null)}
-                              className="rounded px-2 py-1 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100 shrink-0"
+                              className="rounded px-2.5 py-1.5 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100 shrink-0"
                             >
                               Cancel
                             </button>

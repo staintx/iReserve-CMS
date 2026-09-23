@@ -1,5 +1,4 @@
 export default function AdminInventoryForm({ form, setForm, onCancel, onSubmit, submitLabel = "Add Item" }) {
-  const categories = ["Event Setup & Furniture", "Dining & Services Inventory", "Adds On"];
   const isAvailable = form.available !== false;
 
   return (
@@ -28,19 +27,6 @@ export default function AdminInventoryForm({ form, setForm, onCancel, onSubmit, 
           />
         </div>
 
-        <div className="form-field">
-          <label className="form-label" style={{ fontWeight: 600, color: "#2B3B8A", marginBottom: "8px", display: "block" }}>Category</label>
-          <select
-            className="inv-form-input"
-            value={form.category || ""}
-            onChange={(e) => setForm({ ...form, category: e.target.value })}
-          >
-            <option value="" disabled>Select Category</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        </div>
 
         <div className="status-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
           <div className="status-meta">

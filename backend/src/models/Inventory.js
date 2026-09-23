@@ -18,7 +18,7 @@ const InventorySchema = new mongoose.Schema({
   item_name: { type: String, required: true, trim: true },
   identifier: { type: String, trim: true, index: true },
   quantity: { type: Number, min: 0, default: 0 },
-  category: { type: String, required: true },
+  category: { type: String, required: false },
   available: { type: Boolean, default: true }
 }, { timestamps: true });
 

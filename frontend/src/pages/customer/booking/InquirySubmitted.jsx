@@ -192,11 +192,11 @@ export default function InquirySubmitted() {
       resolvedOfferName ||
       activeState?.offerName ||
       rawSummary.find((r) => r.label === "Service type")?.value ||
+      rawSummary.find((r) => r.label === "Service")?.value ||
       "";
 
     return [
-      { label: "Service", value: "Special Offer" },
-      { label: "Service type", value: dynamicOfferName },
+      { label: "Service", value: dynamicOfferName || "Special Offer" },
       { label: "Event date", value: eventDate },
       { label: "Guests", value: guests },
     ].filter((row) => Boolean(row?.value));

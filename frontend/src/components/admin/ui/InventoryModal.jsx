@@ -4,20 +4,6 @@ import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
-const ALLOWED_CATEGORIES = [
-  "Event Setup & Furniture",
-  "Dining & Service Inventory"
-];
-
-// Helper to normalize legacy category names when editing an existing item
-const normalizeCategory = (cat) => {
-  if (ALLOWED_CATEGORIES.includes(cat)) return cat;
-  const lower = String(cat || "").toLowerCase();
-  if (lower === "tableware" || lower.includes("dining") || lower.includes("service")) {
-    return "Dining & Service Inventory";
-  }
-  return "Event Setup & Furniture";
-};
 
 // Canonical identifier normalizer for duplicate checks
 const normalizeIdentifier = (name) => {
@@ -37,7 +23,6 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
 
   const [formData, setFormData] = useState({
     item_name: "",
-    category: "Event Setup & Furniture",
     quantity: "",
     available: true,
     reason: ""
@@ -57,7 +42,6 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
     if (item) {
       setFormData({
         item_name: item.item_name || "",
-        category: normalizeCategory(item.category),
         quantity: item.quantity !== undefined ? item.quantity : "",
         available: item.available !== false,
         reason: ""
@@ -65,7 +49,6 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
     } else {
       setFormData({
         item_name: "",
-        category: "Event Setup & Furniture",
         quantity: "",
         available: true,
         reason: ""
@@ -115,10 +98,6 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
       return;
     }
 
-    if (!formData.category || !ALLOWED_CATEGORIES.includes(formData.category)) {
-      notify("Please select a valid Category (Event Setup & Furniture or Dining & Service Inventory)", "error");
-      return;
-    }
 
     if (formData.quantity === "" || isNaN(Number(formData.quantity)) || Number(formData.quantity) < 0) {
       notify("Please enter a valid Total Quantity (0 or greater)", "error");
@@ -130,7 +109,6 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
     try {
       const payload = {
         item_name: formData.item_name.trim(),
-        category: formData.category,
         quantity: Number(formData.quantity),
         available: Boolean(formData.available),
         reason: formData.reason?.trim() || undefined
@@ -196,32 +174,13 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
                       This item is already included in the inventory.
                     </p>
                     <p className="text-[11px] text-amber-700/90 mt-0.5">
-                      "{duplicateMatch.item_name}" ({duplicateMatch.category || "Inventory"}) already exists. Duplicate items cannot be added.
+                      "{duplicateMatch.item_name}" already exists. Duplicate items cannot be added.
                     </p>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Category */}
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                Category <span className="text-red-500">*</span>
-              </label>
-              <select 
-                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all bg-white text-foreground" 
-                value={formData.category} 
-                onChange={e => {
-                  const val = e.target.value;
-                  if (ALLOWED_CATEGORIES.includes(val)) {
-                    setFormData({ ...formData, category: val });
-                  }
-                }}
-              >
-                <option value="Event Setup & Furniture">Event Setup & Furniture</option>
-                <option value="Dining & Service Inventory">Dining & Service Inventory</option>
-              </select>
-            </div>
 
             {/* Total Quantity */}
             <div>

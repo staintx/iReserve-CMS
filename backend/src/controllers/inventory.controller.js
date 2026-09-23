@@ -29,11 +29,6 @@ exports.create = async (req, res) => {
       return res.status(400).json({ message: "Item name is required" });
     }
 
-    if (req.body.category && !ALLOWED_CATEGORIES.includes(req.body.category)) {
-      return res.status(400).json({
-        message: `Invalid category. Allowed categories are: ${ALLOWED_CATEGORIES.join(", ")}`
-      });
-    }
 
     const trimmedName = rawName.trim();
     const identifier = normalizeIdentifier(trimmedName);
@@ -94,11 +89,6 @@ exports.getById = async (req, res) => res.json(await Inventory.findById(req.para
 exports.update = async (req, res) => {
   try {
     const { reason, ...updates } = req.body;
-    if (updates.category && !ALLOWED_CATEGORIES.includes(updates.category)) {
-      return res.status(400).json({
-        message: `Invalid category. Allowed categories are: ${ALLOWED_CATEGORIES.join(", ")}`
-      });
-    }
 
     if (updates.item_name !== undefined) {
       if (typeof updates.item_name !== "string" || !updates.item_name.trim()) {
@@ -188,7 +178,7 @@ exports.getLogs = async (req, res) => {
 exports.getAvailability = async (req, res) => {
   try {
     const { date, excludeBookingId } = req.query;
-    const allInventory = await Inventory.find().sort({ category: 1, item_name: 1 });
+    const allInventory = await Inventory.find().sort({ item_name: 1 });
 
     let startOfDay, endOfDay;
     if (date && typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -336,10 +326,8 @@ exports.parseWithAI = async (req, res) => {
         const rawName = String(i.item_name || i.name || "").trim();
         const cleanedName = rawName.replace(/\s*\(\d+[^)]*\)$/, "").trim();
         const quantity = Math.max(0, parseInt(i.quantity, 10) || 1);
-        const category = normalizeCat(i.category, cleanedName);
         return {
           item_name: cleanedName,
-          category,
           quantity,
           available: i.available !== false,
         };
@@ -390,19 +378,19 @@ exports.createBulk = async (req, res) => {
         continue;
       }
 
-      const validCat = ALLOWED_CATEGORIES.includes(raw.category)
-        ? raw.category
-        : "Event Setup & Furniture";
-
       const qty = Math.max(0, parseInt(raw.quantity, 10) || 0);
 
-      const newItem = await Inventory.create({
+      const itemPayload = {
         item_name: rawName,
         identifier: ident,
-        category: validCat,
         quantity: qty,
         available: raw.available !== false,
-      });
+      };
+      if (raw.category) {
+        itemPayload.category = raw.category;
+      }
+
+      const newItem = await Inventory.create(itemPayload);
 
       writeInventoryLog({
         inventory_id: newItem._id,

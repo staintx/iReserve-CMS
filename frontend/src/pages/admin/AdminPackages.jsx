@@ -737,7 +737,6 @@ export default function AdminPackages() {
                 {paginatedPackages.map((pkg) => {
                   const offer = isSpecialOffer(pkg);
                   const price = priceLine(pkg);
-                  const { dishCount, addonCount } = getPackageMetrics(pkg);
                   const offerCategories = offer ? offerFoodByCategory(pkg) : [];
                   const regularCategories = !offer ? getRegularPackageCategories(pkg) : [];
 
@@ -776,22 +775,14 @@ export default function AdminPackages() {
                           </div>
                         )}
 
-                        {/* Metric chips: dishes & addons */}
-                        <div className="mb-3 flex flex-wrap items-center gap-2">
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                            <Utensils size={11} className="text-primary" />
-                            {dishCount} {dishCount === 1 ? "dish" : "dishes"}
-                          </span>
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                            <Layers size={11} className="text-slate-500" />
-                            {addonCount} {addonCount === 1 ? "item" : "items"}
-                          </span>
-                          {pkg.event_type && (
+                        {/* Event type badge if present */}
+                        {pkg.event_type && (
+                          <div className="mb-3 flex flex-wrap items-center gap-2">
                             <span className="text-[11px] font-medium text-muted-foreground px-2 py-0.5 rounded-md bg-muted/60">
                               {pkg.event_type}
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
                         {/* Pricing */}
                         <div className="mb-3 p-2.5 rounded-md bg-muted/40 border border-border/60">

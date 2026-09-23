@@ -13,6 +13,8 @@ import {
   FolderPlus,
   Lock,
   Package,
+  Search,
+  Utensils,
 } from "lucide-react";
 import Btn from "./Btn";
 import SingleImageField from "./SingleImageField";
@@ -23,7 +25,20 @@ import AIPackageParserModal from "./AIPackageParserModal";
 import { OFFER_TYPES, offerFoodItems, offerInclusions } from "../../../lib/specialOffers";
 import { parseInclusion as parseInclusionDisplay } from "../../../lib/packageDisplay";
 import { resolveGroup, CATEGORY_GROUPS } from "../../../lib/menuCategories";
+import { DEFAULT_FOOD_CATEGORIES } from "../../../utils/menuCategories";
 import QuickInventoryCreateDrawer from "../packages/QuickInventoryCreateDrawer";
+import QuickFoodCreateModal from "../packages/QuickFoodCreateModal";
+
+const getDishesForCategory = (menuItems, categoryName) => {
+  if (!Array.isArray(menuItems) || !categoryName) return [];
+  const target = String(categoryName).trim().toLowerCase();
+  if (!target) return [];
+
+  // Match dishes strictly by their actual category (case-insensitive)
+  return menuItems.filter(
+    (item) => String(item?.category || "").trim().toLowerCase() === target
+  );
+};
 
 const cleanTextValue = (str) => {
   let val = String(str || "").trim();
@@ -697,6 +712,85 @@ export default function PackageModal({
   const [newCategoryName, setNewCategoryName] = useState("");
   const [editingCategory, setEditingCategory] = useState(null);
   const [editCategoryNameValue, setEditCategoryNameValue] = useState("");
+  const [categoryInputs, setCategoryInputs] = useState({});
+
+  // Quick In-Place Creation Modal state for missing food items
+  const [quickFoodModal, setQuickFoodModal] = useState({
+    isOpen: false,
+    initialName: "",
+    category: "",
+  });
+
+  const handleOpenQuickCreateFood = (name = "", category = "") => {
+    setQuickFoodModal({
+      isOpen: true,
+      initialName: name ? String(name).trim() : "",
+      category: category ? String(category).trim() : "",
+    });
+  };
+
+  const handleQuickCreateFoodSuccess = (createdItem) => {
+    const targetCategory =
+      createdItem?.category?.trim() ||
+      quickFoodModal.category?.trim() ||
+      "Main Course";
+
+    setQuickFoodModal({
+      isOpen: false,
+      initialName: "",
+      category: "",
+    });
+
+    if (!createdItem || !createdItem.name) return;
+
+    // 1. Update local catalog (menuItems) so the dish is immediately available everywhere
+    setMenuItems((prev) => {
+      const exists = prev.some(
+        (m) =>
+          (m._id && createdItem._id && m._id === createdItem._id) ||
+          (m.name || "").trim().toLowerCase() === (createdItem.name || "").trim().toLowerCase()
+      );
+      if (exists) return prev;
+      return [...prev, createdItem];
+    });
+
+    // 2. Ensure targetCategory is present in customCategoryHeaders
+    setCustomCategoryHeaders((prev) => {
+      if (prev.some((c) => c.toLowerCase() === targetCategory.toLowerCase())) {
+        return prev;
+      }
+      return [...prev, targetCategory];
+    });
+
+    // 3. Immediately add the new dish to offer_food_items under targetCategory
+    setFormData((prev) => {
+      const currentItems = prev.offer_food_items || [];
+      const isAlreadyAdded = currentItems.some(
+        (item) =>
+          (item.menu_category || "").trim().toLowerCase() === targetCategory.toLowerCase() &&
+          (item.item_name || "").trim().toLowerCase() === (createdItem.name || "").trim().toLowerCase()
+      );
+      if (isAlreadyAdded) return prev;
+      return {
+        ...prev,
+        offer_food_items: [
+          ...currentItems.filter((item) => item.item_name?.trim()),
+          {
+            menu_category: targetCategory,
+            item_name: createdItem.name.trim(),
+          },
+        ],
+      };
+    });
+
+    // 4. Expand targetCategory so admin sees the new dish immediately
+    setCollapsedCategories((prev) => ({
+      ...prev,
+      [targetCategory]: false,
+    }));
+
+    notify(`Food "${createdItem.name}" created and added to ${targetCategory}.`, "success");
+  };
 
   // ============ MEDIA STATE ============
   const [imageFile, setImageFile] = useState(null);
@@ -886,6 +980,33 @@ export default function PackageModal({
     });
     return names;
   }, [menuByGroup]);
+
+  // Dynamically derive all categories from catalog + existing default food categories
+  const allKnownCategories = useMemo(() => {
+    const catsFromMenu = menuItems
+      .map((m) => String(m?.category || "").trim())
+      .filter(Boolean);
+    const combined = [...DEFAULT_FOOD_CATEGORIES, ...catsFromMenu];
+    const unique = [];
+    const seen = new Set();
+    combined.forEach((c) => {
+      const lower = c.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        unique.push(c);
+      }
+    });
+    return unique;
+  }, [menuItems]);
+
+  const availableCategoriesToAdd = useMemo(() => {
+    const activeCats = new Set(
+      categoryGroups.map((g) => g.name.toLowerCase().trim())
+    );
+    return allKnownCategories.filter(
+      (cat) => !activeCats.has(cat.toLowerCase().trim())
+    );
+  }, [allKnownCategories, categoryGroups]);
 
   /** Dish suggestions for a row, narrowed to its course when it names one. */
   const dishSuggestionsFor = (category) => {
@@ -1411,19 +1532,53 @@ export default function PackageModal({
     setCollapsedCategories((prev) => ({ ...prev, [catName]: false }));
   };
 
-  const handleAddNewCategory = (catName) => {
-    const name = String(catName || "").trim();
-    if (!name) return;
-    if (!customCategoryHeaders.includes(name)) {
-      setCustomCategoryHeaders((prev) => [...prev, name]);
+  const handleAddDishToCategory = (catName, dishName) => {
+    const trimmed = cleanTextValue(dishName);
+    if (!trimmed) return;
+
+    const items = formData.offer_food_items || [];
+    const isDuplicate = items.some(
+      (item) =>
+        (item.menu_category || "").trim().toLowerCase() === catName.trim().toLowerCase() &&
+        (item.item_name || "").trim().toLowerCase() === trimmed.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      notify(`"${trimmed}" is already added under ${catName}.`, "error");
+      return;
     }
+
     setFormData((prev) => ({
       ...prev,
       offer_food_items: [
-        ...(prev.offer_food_items || []),
-        { menu_category: name, item_name: "" },
+        ...(prev.offer_food_items || []).filter((i) => i.item_name?.trim()),
+        { menu_category: catName, item_name: trimmed },
       ],
     }));
+
+    setCategoryInputs((prev) => ({ ...prev, [catName]: "" }));
+  };
+
+  const handleAddNewCategory = (catName) => {
+    const name = cleanTextValue(catName);
+    if (!name) return;
+
+    const lowerName = name.toLowerCase();
+    const alreadyInGroups = categoryGroups.some(
+      (g) => g.name.toLowerCase().trim() === lowerName
+    );
+
+    if (alreadyInGroups) {
+      notify(`Category "${name}" is already in this package.`, "info");
+      setCollapsedCategories((prev) => ({ ...prev, [name]: false }));
+      setIsAddingCategory(false);
+      setNewCategoryName("");
+      return;
+    }
+
+    if (!customCategoryHeaders.some((c) => c.toLowerCase() === lowerName)) {
+      setCustomCategoryHeaders((prev) => [...prev, name]);
+    }
     setCollapsedCategories((prev) => ({ ...prev, [name]: false }));
     setNewCategoryName("");
     setIsAddingCategory(false);
@@ -2317,16 +2472,23 @@ export default function PackageModal({
                       No food categories yet. Choose a category below or add a custom one to start listing dishes.
                     </p>
                     <div className="flex flex-wrap justify-center gap-2">
-                      {["Viand", "Fried", "Pasta", "Soup", "Dessert", "Drinks"].map((presetCat) => (
+                      {availableCategoriesToAdd.slice(0, 8).map((presetCat) => (
                         <button
                           key={presetCat}
                           type="button"
                           onClick={() => handleAddNewCategory(presetCat)}
-                          className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 hover:border-amber-400"
+                          className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 hover:border-amber-400 cursor-pointer"
                         >
                           <Plus size={12} /> {presetCat}
                         </button>
                       ))}
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingCategory(true)}
+                        className="flex items-center gap-1 rounded-lg border border-dashed border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-50 cursor-pointer"
+                      >
+                        <Plus size={12} /> Custom Category
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -2334,6 +2496,26 @@ export default function PackageModal({
                     {categoryGroups.map((group) => {
                       const isCollapsed = Boolean(collapsedCategories[group.name]);
                       const isEditingThisCat = editingCategory === group.name;
+
+                      const catDishes = getDishesForCategory(menuItems, group.name);
+                      const selectedDishNames = new Set(
+                        group.items
+                          .map((i) => (i.item_name || "").trim().toLowerCase())
+                          .filter(Boolean)
+                      );
+                      const availableCategoryDishes = catDishes.filter(
+                        (dish) =>
+                          !selectedDishNames.has((dish.name || "").trim().toLowerCase())
+                      );
+                      const currentSearch = categoryInputs[group.name] || "";
+                      const q = currentSearch.trim().toLowerCase();
+                      const filteredAvailableDishes = q
+                        ? availableCategoryDishes.filter(
+                            (d) =>
+                              (d.name || "").toLowerCase().includes(q) ||
+                              (d.description || "").toLowerCase().includes(q)
+                          )
+                        : availableCategoryDishes;
 
                       return (
                         <div
@@ -2346,7 +2528,7 @@ export default function PackageModal({
                               <button
                                 type="button"
                                 onClick={() => toggleCollapseCategory(group.name)}
-                                className="rounded p-1 text-amber-800 transition-colors hover:bg-amber-100 hover:text-amber-950"
+                                className="rounded p-1 text-amber-800 transition-colors hover:bg-amber-100 hover:text-amber-950 cursor-pointer"
                                 title={isCollapsed ? "Expand category" : "Collapse category"}
                               >
                                 {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
@@ -2371,7 +2553,7 @@ export default function PackageModal({
                                   <button
                                     type="button"
                                     onClick={() => handleRenameCategoryGroup(group.name, editCategoryNameValue)}
-                                    className="rounded p-1 text-amber-700 hover:bg-amber-100"
+                                    className="rounded p-1 text-amber-700 hover:bg-amber-100 cursor-pointer"
                                     title="Save name"
                                   >
                                     <Check size={14} />
@@ -2379,7 +2561,7 @@ export default function PackageModal({
                                   <button
                                     type="button"
                                     onClick={() => setEditingCategory(null)}
-                                    className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                                    className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 cursor-pointer"
                                     title="Cancel"
                                   >
                                     <X size={14} />
@@ -2405,7 +2587,7 @@ export default function PackageModal({
                                     setEditingCategory(group.name);
                                     setEditCategoryNameValue(group.name);
                                   }}
-                                  className="rounded p-1 text-gray-400 transition-colors hover:bg-amber-100 hover:text-amber-700"
+                                  className="rounded p-1 text-gray-400 transition-colors hover:bg-amber-100 hover:text-amber-700 cursor-pointer"
                                   title="Rename category"
                                 >
                                   <Pencil size={13} />
@@ -2414,7 +2596,7 @@ export default function PackageModal({
                               <button
                                 type="button"
                                 onClick={() => handleRemoveCategoryGroup(group.name)}
-                                className="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                                className="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
                                 title="Delete category"
                               >
                                 <Trash2 size={13} />
@@ -2422,92 +2604,217 @@ export default function PackageModal({
                             </div>
                           </div>
 
-                          {/* Category Items List */}
+                          {/* Category Items List & Food Selector */}
                           {!isCollapsed && (
-                            <div className="space-y-2 bg-amber-50/20 p-3">
+                            <div className="space-y-3 bg-amber-50/20 p-3">
+                              {/* 1. Configured dishes in this category */}
                               {group.items.length === 0 ? (
-                                <p className="py-3 text-center text-xs italic text-gray-400">
-                                  No items under {group.name} yet. Click "+ Add {group.name} Item" below.
+                                <p className="py-2.5 text-center text-xs italic text-gray-500 bg-amber-50/50 rounded-lg border border-dashed border-amber-200">
+                                  No dishes added under {group.name} yet. Select from available dishes below or create a new one.
                                 </p>
                               ) : (
-                                group.items.map((item, catIdx) => (
-                                  <div
-                                    key={item.globalIndex}
-                                    className="flex items-center gap-2 rounded-lg border border-amber-200/80 bg-white px-2.5 py-2 shadow-2xs"
-                                  >
-                                    <div className="flex flex-col">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleMoveFoodItemWithinCategory(group.name, catIdx, -1)}
-                                        disabled={catIdx === 0}
-                                        aria-label={`Move ${item.item_name || "item"} up`}
-                                        className="rounded px-0.5 text-gray-400 transition-colors hover:text-amber-600 disabled:opacity-20"
-                                      >
-                                        <ChevronUp size={13} />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleMoveFoodItemWithinCategory(group.name, catIdx, 1)}
-                                        disabled={catIdx === group.items.length - 1}
-                                        aria-label={`Move ${item.item_name || "item"} down`}
-                                        className="rounded px-0.5 text-gray-400 transition-colors hover:text-amber-600 disabled:opacity-20"
-                                      >
-                                        <ChevronDown size={13} />
-                                      </button>
-                                    </div>
-
-                                    <div className="flex-1 min-w-0">
-                                      <input
-                                        type="text"
-                                        list={`combo-dish-suggestions-${group.name}-${catIdx}`}
-                                        className={`w-full rounded-md border px-3 py-1.5 text-sm focus:outline-none ${
-                                          String(item.item_name || "").trim()
-                                            ? "border-gray-200 focus:border-amber-500"
-                                            : "border-red-300 focus:border-red-400"
-                                        }`}
-                                        placeholder={`e.g. Dish name under ${group.name}`}
-                                        value={item.item_name || ""}
-                                        onChange={(e) =>
-                                          handleUpdateFoodItem(item.globalIndex, {
-                                            item_name: e.target.value,
-                                          })
-                                        }
-                                        onBlur={(e) => {
-                                          const cleaned = cleanTextValue(e.target.value);
-                                          if (cleaned !== e.target.value) {
-                                            handleUpdateFoodItem(item.globalIndex, {
-                                              item_name: cleaned,
-                                            });
-                                          }
-                                        }}
-                                      />
-                                      <datalist id={`combo-dish-suggestions-${group.name}-${catIdx}`}>
-                                        {dishSuggestionsFor(group.name).map((name) => (
-                                          <option key={name} value={name} />
-                                        ))}
-                                      </datalist>
-                                    </div>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveFoodItem(item.globalIndex)}
-                                      className="rounded p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                                      title="Remove item"
-                                      aria-label={`Remove ${item.item_name || "item"}`}
+                                <div className="space-y-1.5">
+                                  {group.items.map((item, catIdx) => (
+                                    <div
+                                      key={item.globalIndex}
+                                      className="flex items-center gap-2 rounded-lg border border-amber-200/80 bg-white px-2.5 py-1.5 shadow-2xs"
                                     >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                ))
+                                      <div className="flex flex-col">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleMoveFoodItemWithinCategory(group.name, catIdx, -1)}
+                                          disabled={catIdx === 0}
+                                          aria-label={`Move ${item.item_name || "item"} up`}
+                                          className="rounded px-0.5 text-gray-400 transition-colors hover:text-amber-600 disabled:opacity-20 cursor-pointer"
+                                        >
+                                          <ChevronUp size={13} />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleMoveFoodItemWithinCategory(group.name, catIdx, 1)}
+                                          disabled={catIdx === group.items.length - 1}
+                                          aria-label={`Move ${item.item_name || "item"} down`}
+                                          className="rounded px-0.5 text-gray-400 transition-colors hover:text-amber-600 disabled:opacity-20 cursor-pointer"
+                                        >
+                                          <ChevronDown size={13} />
+                                        </button>
+                                      </div>
+
+                                      <div className="flex-1 min-w-0">
+                                        <input
+                                          type="text"
+                                          className={`w-full rounded-md border px-3 py-1 text-sm bg-white focus:outline-none ${
+                                            String(item.item_name || "").trim()
+                                              ? "border-gray-200 focus:border-amber-500"
+                                              : "border-red-300 focus:border-red-400"
+                                          }`}
+                                          placeholder={`e.g. Dish name under ${group.name}`}
+                                          value={item.item_name || ""}
+                                          onChange={(e) =>
+                                            handleUpdateFoodItem(item.globalIndex, {
+                                              item_name: e.target.value,
+                                            })
+                                          }
+                                          onBlur={(e) => {
+                                            const cleaned = cleanTextValue(e.target.value);
+                                            if (cleaned !== e.target.value) {
+                                              handleUpdateFoodItem(item.globalIndex, {
+                                                item_name: cleaned,
+                                              });
+                                            }
+                                          }}
+                                        />
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveFoodItem(item.globalIndex)}
+                                        className="rounded p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                                        title="Remove dish"
+                                        aria-label={`Remove ${item.item_name || "item"}`}
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
                               )}
 
-                              <button
-                                type="button"
-                                onClick={() => handleAddFoodItemToCategory(group.name)}
-                                className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 bg-white py-2 text-xs font-semibold text-amber-700 transition-colors hover:border-amber-500 hover:bg-amber-50/60"
-                              >
-                                <Plus size={13} /> Add {group.name} Item
-                              </button>
+                              {/* 2. Searchable Dish Browser & Inline Creator */}
+                              <div className="rounded-xl border border-amber-200/90 bg-amber-50/40 p-3 space-y-2.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                                      Select Dishes ({availableCategoryDishes.length} available)
+                                    </span>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleOpenQuickCreateFood(currentSearch, group.name)
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white shadow-2xs hover:bg-amber-700 cursor-pointer shrink-0 transition-colors"
+                                    title="Create a new food item in this category"
+                                  >
+                                    <Plus size={13} /> New Food
+                                  </button>
+                                </div>
+
+                                {/* Search Bar */}
+                                <div className="relative">
+                                  <Search
+                                    size={14}
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder={`Search dishes under ${group.name}...`}
+                                    value={currentSearch}
+                                    onChange={(e) =>
+                                      setCategoryInputs((prev) => ({
+                                        ...prev,
+                                        [group.name]: e.target.value,
+                                      }))
+                                    }
+                                    className="w-full rounded-lg border border-gray-200 bg-white pl-8 pr-8 py-1.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all"
+                                  />
+                                  {currentSearch && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setCategoryInputs((prev) => ({
+                                          ...prev,
+                                          [group.name]: "",
+                                        }))
+                                      }
+                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer"
+                                      title="Clear search"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Properly sized, clearly visible searchable list */}
+                                <div className="max-h-48 overflow-y-auto rounded-lg border border-amber-200/80 bg-white shadow-2xs divide-y divide-gray-100">
+                                  {filteredAvailableDishes.length > 0 ? (
+                                    filteredAvailableDishes.map((dish) => (
+                                      <div
+                                        key={dish._id || dish.name}
+                                        onClick={() =>
+                                          handleAddDishToCategory(group.name, dish.name)
+                                        }
+                                        className="flex items-center justify-between px-3 py-2 hover:bg-amber-50/70 transition-colors group cursor-pointer"
+                                        title={`Add "${dish.name}" to ${group.name}`}
+                                      >
+                                        <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                                          <div className="w-6 h-6 rounded-md bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                                            <Utensils size={12} />
+                                          </div>
+                                          <div className="min-w-0">
+                                            <p className="text-xs font-semibold text-gray-800 group-hover:text-amber-950 truncate">
+                                              {dish.name}
+                                            </p>
+                                            {dish.description && (
+                                              <p className="text-[10px] text-gray-400 truncate max-w-sm">
+                                                {dish.description}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAddDishToCategory(group.name, dish.name);
+                                          }}
+                                          className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900 group-hover:bg-amber-600 group-hover:text-white transition-colors shrink-0 shadow-2xs cursor-pointer"
+                                        >
+                                          <Plus size={11} /> Add
+                                        </button>
+                                      </div>
+                                    ))
+                                  ) : availableCategoryDishes.length === 0 ? (
+                                    catDishes.length > 0 ? (
+                                      <div className="p-3 text-center text-xs font-medium text-emerald-700 bg-emerald-50/40">
+                                        ✓ All {catDishes.length} dishes in {group.name} have been added to this combo.
+                                      </div>
+                                    ) : (
+                                      <div className="p-4 text-center text-xs text-gray-500">
+                                        <p className="mb-2">
+                                          No dishes recorded under "{group.name}" yet.
+                                        </p>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleOpenQuickCreateFood("", group.name)
+                                          }
+                                          className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-amber-700 cursor-pointer"
+                                        >
+                                          <Plus size={12} /> Create first dish in {group.name}
+                                        </button>
+                                      </div>
+                                    )
+                                  ) : (
+                                    <div className="p-4 text-center text-xs text-gray-500">
+                                      <p className="mb-2">
+                                        No dishes match "<strong className="text-gray-800">{currentSearch}</strong>".
+                                      </p>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleOpenQuickCreateFood(currentSearch, group.name)
+                                        }
+                                        className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-amber-700 cursor-pointer"
+                                      >
+                                        <Plus size={12} /> Create "{currentSearch}" in {group.name}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -3837,6 +4144,19 @@ export default function PackageModal({
       onClose={() => setQuickDrawer((prev) => ({ ...prev, isOpen: false }))}
       onCreateSuccess={handleQuickCreateSuccess}
     />
+
+    {quickFoodModal.isOpen && (
+      <QuickFoodCreateModal
+        isOpen={quickFoodModal.isOpen}
+        initialName={quickFoodModal.initialName}
+        initialCategory={quickFoodModal.category}
+        existingDishes={getDishesForCategory(menuItems, quickFoodModal.category)}
+        onClose={() =>
+          setQuickFoodModal({ isOpen: false, initialName: "", category: "" })
+        }
+        onCreateSuccess={handleQuickCreateFoodSuccess}
+      />
+    )}
     </>
   );
 }

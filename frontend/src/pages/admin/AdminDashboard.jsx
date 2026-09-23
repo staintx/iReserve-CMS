@@ -68,7 +68,7 @@ export default function AdminDashboard() {
     AdminAPI.getInventoryAvailability()
       .then((res) => {
         const items = Array.isArray(res.data) ? res.data : [];
-        setInventoryAlerts(items.filter((item) => (item.available_quantity ?? 0) <= 0 || item.available === false));
+        setInventoryAlerts(items.filter((item) => item.stock_status === "low_stock" || item.stock_status === "no_stock" || (item.available_quantity ?? 0) <= 0 || item.available === false));
       })
       .catch(() => setInventoryAlerts([]));
   };
@@ -141,15 +141,29 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {inventoryAlerts.slice(0, 6).map((item) => {
                 const isUnavailable = item.available === false;
-                const status = isUnavailable ? "unavailable" : "critical";
+                const status = isUnavailable 
+                  ? "unavailable" 
+                  : (item.stock_status === "no_stock" || (item.available_quantity ?? 0) <= 0) 
+                    ? "no stock" 
+                    : item.stock_status === "low_stock" 
+                      ? "low stock" 
+                      : "critical";
+                const isLow = status === "low stock";
+
                 return (
-                  <div key={item._id} className={`p-3 rounded-md border text-xs shadow-2xs ${isUnavailable ? "border-slate-200 bg-slate-50/60" : "border-rose-200/80 bg-rose-50/40"}`}>
+                  <div key={item._id} className={`p-3 rounded-md border text-xs shadow-2xs ${
+                    isUnavailable 
+                      ? "border-slate-200 bg-slate-50/60" 
+                      : isLow 
+                        ? "border-amber-200/80 bg-amber-50/40" 
+                        : "border-rose-200/80 bg-rose-50/40"
+                  }`}>
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <span className="font-bold text-foreground truncate">{item.item_name}</span>
-                      <Badge status={status} />
+                      <Badge status={status} dot />
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      Stock on Hand: <strong className={isUnavailable ? "text-slate-600" : "text-rose-700 font-bold"}>{item.available_quantity || 0}</strong> (Total: {item.quantity || 0})
+                      Stock on Hand: <strong className={isUnavailable ? "text-slate-600" : isLow ? "text-amber-800 font-bold" : "text-rose-700 font-bold"}>{item.available_quantity || 0}</strong> (Total: {item.quantity || 0})
                     </p>
                   </div>
                 );

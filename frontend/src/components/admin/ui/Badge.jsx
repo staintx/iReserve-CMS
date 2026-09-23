@@ -106,6 +106,8 @@ export default function Badge({ status, variant, icon, children, dot = false, cl
     "inspection passed",
     "created",
     "reservation released",
+    "in stock",
+    "in_stock",
   ].includes(norm);
 
   // 2. Warning / Pending / Attention / In Review / Revision
@@ -127,6 +129,8 @@ export default function Badge({ status, variant, icon, children, dot = false, cl
     "vip",
     "awaiting final confirmation",
     "pending inspection",
+    "low stock",
+    "low_stock",
   ].includes(norm);
 
   // 3. Danger / Cancelled / Rejected / Critical / Failed
@@ -140,6 +144,9 @@ export default function Badge({ status, variant, icon, children, dot = false, cl
     "expired",
     "unavailable",
     "high",
+    "no stock",
+    "no_stock",
+    "out of stock",
   ].includes(norm);
 
   // Determine tone

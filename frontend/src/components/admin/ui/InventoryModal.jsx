@@ -24,6 +24,7 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
   const [formData, setFormData] = useState({
     item_name: "",
     quantity: "",
+    low_stock_threshold: "",
     available: true,
     reason: ""
   });
@@ -43,6 +44,7 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
       setFormData({
         item_name: item.item_name || "",
         quantity: item.quantity !== undefined ? item.quantity : "",
+        low_stock_threshold: item.low_stock_threshold !== undefined && item.low_stock_threshold !== null ? item.low_stock_threshold : "",
         available: item.available !== false,
         reason: ""
       });
@@ -50,6 +52,7 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
       setFormData({
         item_name: "",
         quantity: "",
+        low_stock_threshold: "",
         available: true,
         reason: ""
       });
@@ -98,9 +101,25 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
       return;
     }
 
-
     if (formData.quantity === "" || isNaN(Number(formData.quantity)) || Number(formData.quantity) < 0) {
       notify("Please enter a valid Total Quantity (0 or greater)", "error");
+      return;
+    }
+
+    if (formData.low_stock_threshold === "" || formData.low_stock_threshold === null || formData.low_stock_threshold === undefined) {
+      notify("Low Stock Threshold is required", "error");
+      return;
+    }
+
+    const thresholdNum = Number(formData.low_stock_threshold);
+    if (isNaN(thresholdNum) || !Number.isInteger(thresholdNum) || thresholdNum <= 0) {
+      notify("Low Stock Threshold must be a whole number greater than 0", "error");
+      return;
+    }
+
+    const totalQty = Number(formData.quantity);
+    if (totalQty > 0 && thresholdNum > totalQty) {
+      notify("Low Stock Threshold cannot be greater than Total Quantity", "error");
       return;
     }
 
@@ -110,6 +129,7 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
       const payload = {
         item_name: formData.item_name.trim(),
         quantity: Number(formData.quantity),
+        low_stock_threshold: thresholdNum,
         available: Boolean(formData.available),
         reason: formData.reason?.trim() || undefined
       };
@@ -197,6 +217,26 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
                 onChange={e => setFormData({ ...formData, quantity: e.target.value })} 
               />
               <p className="text-[11px] text-muted-foreground mt-1">Total physical inventory units owned.</p>
+            </div>
+
+            {/* Low Stock Threshold */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                Low Stock Threshold <span className="text-red-500">*</span>
+              </label>
+              <input 
+                type="number" 
+                min="1"
+                step="1"
+                required
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-foreground" 
+                placeholder="e.g. 50" 
+                value={formData.low_stock_threshold} 
+                onChange={e => setFormData({ ...formData, low_stock_threshold: e.target.value })} 
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Notify admin when stock on hand reaches this quantity or below.
+              </p>
             </div>
 
             {/* Reason for Change (when editing) */}

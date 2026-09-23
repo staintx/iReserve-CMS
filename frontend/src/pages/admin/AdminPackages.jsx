@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Plus,
   Search,
@@ -108,6 +109,7 @@ function getRegularPackageCategories(pkg) {
 
 export default function AdminPackages() {
   const { notify } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState(OFFER_TYPES.REGULAR);
   const [viewMode, setViewMode] = useState("cards"); // 'cards' | 'table'
@@ -142,6 +144,27 @@ export default function AdminPackages() {
 
   useRealTimeRefresh(loadData);
 
+  // Automatically select tab and open package modal if ?id=... or ?tab=... is present
+  useEffect(() => {
+    const paramTab = searchParams.get("tab");
+    if (paramTab === OFFER_TYPES.SPECIAL || paramTab === OFFER_TYPES.REGULAR) {
+      setTab(paramTab);
+    }
+    const paramId = searchParams.get("id");
+    if (paramId && packages.length > 0) {
+      const target = packages.find((p) => p._id === paramId);
+      if (target) {
+        if (target.offer_type === "special") {
+          setTab(OFFER_TYPES.SPECIAL);
+        } else {
+          setTab(OFFER_TYPES.REGULAR);
+        }
+        setActivePkg(target);
+        setShowModal(true);
+      }
+    }
+  }, [packages, searchParams]);
+
   const handleOpenModal = (pkg = null) => {
     setActivePkg(pkg);
     setShowModal(true);
@@ -150,6 +173,11 @@ export default function AdminPackages() {
   const handleCloseModal = () => {
     setShowModal(false);
     setActivePkg(null);
+    if (searchParams.get("id")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("id");
+      setSearchParams(next, { replace: true });
+    }
   };
 
   const handleDuplicate = async (pkg) => {

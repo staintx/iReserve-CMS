@@ -25,47 +25,38 @@ import {
 import { cn } from "@/lib/utils";
 import {
   formatCurrency,
-  formatEventDate,
   formatEventDateWithDay,
   formatTime,
   formatShortDate,
 } from "../../utils/format";
 import {
   ArrowLeft,
-  FileText,
-  MessageSquare,
-  FileCheck2,
-  CreditCard,
-  XCircle,
-  Pencil,
-  Clock,
-  CheckCircle2,
-  Check,
-  MapPin,
-  Users,
   Calendar,
+  Users,
+  Clock,
+  MapPin,
+  Truck,
   Utensils,
-  UtensilsCrossed,
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
   Package,
   Layers,
+  FileCheck2,
+  CreditCard,
+  Pencil,
+  MessageSquare,
+  FileText,
+  Check,
+  AlertCircle,
+  Info,
+  ShieldAlert,
   Phone,
   Mail,
   User,
-  Info,
-  AlertCircle,
-  PackagePlus,
-  Palette,
-  Tag,
-  Store,
-  Truck,
-  ExternalLink,
-  ShieldAlert,
-  HelpCircle,
   PartyPopper,
-  Image as ImageIcon,
+  Store,
+  PackagePlus,
+  ChevronRight,
+  Eye,
+  Copy,
 } from "lucide-react";
 
 // Curated mapping for theme color palettes
@@ -168,8 +159,8 @@ export default function CustomerInquiryDetails() {
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Collapsible Package Accordion State
-  const [isPackageExpanded, setIsPackageExpanded] = useState(false);
+  // Progressive Disclosure Modal for complete selections & specs
+  const [isSelectionsModalOpen, setIsSelectionsModalOpen] = useState(false);
 
   // Image preview modal for inspiration photos
   const [selectedPhoto, setSelectedPhoto] = useState(null);
@@ -265,7 +256,7 @@ export default function CustomerInquiryDetails() {
     return parseInclusions(resolvedPackage?.inclusions || []);
   }, [resolvedPackage]);
 
-  // Counts for summary pill
+  // Counts for summary metrics
   const totalPackageInclusionsCount = useMemo(() => {
     return (resolvedPackage?.inclusions || []).length;
   }, [resolvedPackage]);
@@ -291,15 +282,12 @@ export default function CustomerInquiryDetails() {
       ? resolvedPackage.scaffold_size_options
       : [];
 
-    // Priority 1: Option selected in inquiry
     let option = null;
     if (inquiry?.selected_scaffold_option_id) {
       option = options.find(
         (o) => String(o._id) === String(inquiry.selected_scaffold_option_id)
       );
     }
-
-    // Priority 2: Option matching width/length on inquiry
     if (!option && inquiry?.scaffold_width && inquiry?.scaffold_length) {
       option = options.find(
         (o) =>
@@ -307,15 +295,11 @@ export default function CustomerInquiryDetails() {
           Number(o.length_ft) === Number(inquiry.scaffold_length)
       );
     }
-
-    // Priority 3: Package configured default scaffold option
     if (!option && resolvedPackage.default_scaffold_option_id) {
       option = options.find(
         (o) => String(o._id) === String(resolvedPackage.default_scaffold_option_id)
       );
     }
-
-    // Priority 4: First configured scaffold option of the package
     if (!option && options.length > 0) {
       option = options[0];
     }
@@ -485,7 +469,7 @@ export default function CustomerInquiryDetails() {
     return (
       <CustomerDashboardLayout>
         <div className="p-12 text-center text-slate-400 text-sm animate-pulse">
-          Loading full inquiry specifications...
+          Loading inquiry specifications...
         </div>
       </CustomerDashboardLayout>
     );
@@ -498,7 +482,7 @@ export default function CustomerInquiryDetails() {
           <AlertCircle className="w-10 h-10 text-amber-500 mx-auto mb-2" />
           <h2 className="text-lg font-bold text-slate-900">Inquiry Not Found</h2>
           <p className="text-xs text-slate-500 mt-1">The request you are trying to view does not exist or was removed.</p>
-          <Button onClick={() => navigate("/customer/inquiries")} className="mt-4 bg-[#2C4B8A] text-white">
+          <Button onClick={() => navigate("/customer/inquiries")} className="mt-4 bg-[#4C81E0] hover:bg-[#3b6ec6] text-white cursor-pointer shadow-2xs">
             Return to My Inquiries
           </Button>
         </div>
@@ -509,6 +493,12 @@ export default function CustomerInquiryDetails() {
   const titleStr = recordTitle(inquiry);
   const thumbnail = getEventThumbnail(inquiry) || resolvedPackage?.image_url;
   const refCode = inquiry?.reference || (typeof inquiry?._id === "string" ? `INQ-${inquiry._id.substring(0, 6).toUpperCase()}` : "INQ");
+
+  const copyReferenceCode = () => {
+    if (!refCode) return;
+    navigator.clipboard?.writeText(refCode);
+    notify("Reference code copied to clipboard", "success");
+  };
   const isQuotationSent = inquiry.status === "Quotation Sent";
   const isConverted = inquiry.status === "Converted to Booking" || Boolean(inquiry.converted_booking_id);
   const isDepositPaid =
@@ -520,618 +510,428 @@ export default function CustomerInquiryDetails() {
     !isDepositPaid &&
     !isConverted;
   const isUnderRevision = inquiry.status === "Revision Requested" || inquiry.quotation_status === "Revision Requested";
+  const isClosedOrCancelled = ["Cancelled", "Quote Rejected", "Expired"].includes(inquiry.status);
 
-  // 4-Step Journey Stepper
-  const steps = [
-    {
-      id: "submitted",
-      title: "Request Submitted",
-      desc: "Event inquiry received",
-      status: "completed",
-    },
-    {
-      id: "review",
-      title: "Pending review",
-      desc: "Preparing pricing & venue check",
-      status: ["Pending Review", "Under Review", "Revision Requested", "Quotation Sent", "Quote Accepted", "Converted to Booking"].includes(inquiry.status)
-        ? inquiry.status === "Pending Review" || inquiry.status === "Under Review" || inquiry.status === "Revision Requested"
-          ? "active"
-          : "completed"
-        : "pending",
-    },
-    {
-      id: "quote",
-      title: "Quotation ready",
-      desc: "Proposal ready for review",
-      status: isQuotationSent
-        ? "active"
-        : ["Quote Accepted", "Awaiting Final Confirmation", "Converted to Booking"].includes(inquiry.status) || isDepositPaid
-        ? "completed"
-        : "pending",
-    },
-    {
-      id: "confirmed",
-      title: "Deposit & Reservation",
-      desc: "Event date locked",
-      status: isConverted || isDepositPaid
-        ? "completed"
-        : inquiry.status === "Quote Accepted"
-        ? "active"
-        : "pending",
-    },
-  ];
+  // Direct editing is allowed strictly according to backend CUSTOMER_EDITABLE_STATUSES
+  const canEditInquiry = ["Pending Review", "Under Review"].includes(inquiry.status);
 
-  // Check if there are special requests / dietary needs to display
-  const hasSpecialRequests = Boolean(
-    inquiry.special_requests?.trim() ||
+  // Add-on counts
+  const serviceItemsCount = Array.isArray(inquiry.service_items) ? inquiry.service_items.length : 0;
+  const additionalServicesCount = Array.isArray(inquiry.additional_services) ? inquiry.additional_services.length : 0;
+  const totalAddonsCount = serviceItemsCount + additionalServicesCount;
+
+  // Check special requests / dietary notes
+  const hasDietaryOrAllergies = Boolean(
     inquiry.allergies?.trim() ||
     inquiry.dietary_restrictions?.trim() ||
     inquiry.dietary_requirements?.trim()
   );
+  const hasSpecialRequests = Boolean(inquiry.special_requests?.trim());
 
-  // Check if add-ons exist
-  const hasAddons = (Array.isArray(inquiry.service_items) && inquiry.service_items.length > 0) ||
-    (Array.isArray(inquiry.additional_services) && inquiry.additional_services.length > 0);
+  // Stepper definition (4 horizontal steps)
+  const steps = [
+    { id: "submitted", title: "Request Submitted" },
+    { id: "review", title: "Pending Review" },
+    { id: "quote", title: "Quotation Ready" },
+    { id: "confirmed", title: "Deposit & Confirmed" },
+  ];
 
-  // Check if custom setup / inspiration exists
-  const hasCustomSetupOrInspiration = Boolean(
-    inquiry.is_custom_setup ||
-    inquiry.custom_setup_notes?.trim() ||
-    (Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0) ||
-    (Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0)
-  );
-
-  // Comprehensive Next Step & Action Guide Data
-  const getGuideMeta = () => {
-    const rawStatus = inquiry.status;
-    const isConverted = rawStatus === "Converted to Booking" || Boolean(inquiry.converted_booking_id);
-    const isDepositPaid =
-      inquiry.payment_status === "deposit_paid" ||
-      inquiry.payment_status === "fully_paid" ||
-      inquiry.is_deposit_paid === true;
-
-    if (rawStatus === "Quotation Sent") {
-      return {
-        tone: "amber",
-        badge: "Action Required",
-        badgeClass: "bg-amber-100 text-amber-900 border-amber-300 animate-pulse",
-        title: "Your Official Quotation is Ready for Review!",
-        description: inquiry.total_price > 0
-          ? `Caezelle's catering team has finalized your proposal totaling ${formatCurrency(inquiry.total_price)}. Please review your itemized menus, event setup, and service inclusions. You can accept the quote to reserve your date or request adjustments.`
-          : "Caezelle's catering team has finalized your proposal. Please review your itemized menus and setup inclusions to accept or request revisions.",
-        assignedParty: "Awaiting Your Decision",
-        timeline: inquiry.quotation_expiration_date
-          ? `Quote valid until ${formatShortDate(inquiry.quotation_expiration_date)}`
-          : "Please review at your earliest convenience",
-        action: (
-          <Button
-            onClick={openQuotationView}
-            disabled={isLoadingQuotation}
-            className="bg-[#1E3563] hover:bg-[#152547] text-white font-bold text-xs h-10 px-5 rounded-xl shadow-xs gap-1.5 cursor-pointer active:scale-[0.98] transition-all"
-          >
-            <FileCheck2 className="w-4 h-4" />
-            <span>Review &amp; Accept Quotation</span>
-          </Button>
-        ),
-      };
+  const getStepState = (stepId) => {
+    if (isConverted || isDepositPaid) return "completed";
+    if (isQuoteAcceptedAwaitingPayment) {
+      if (stepId === "confirmed") return "active";
+      return "completed";
     }
-
-    if (["Quote Accepted", "Awaiting Final Confirmation"].includes(rawStatus) && !isDepositPaid) {
-      const depositVal = Number(inquiry.deposit_amount) > 0 ? Number(inquiry.deposit_amount) : Number(inquiry.total_price || 0);
-      return {
-        tone: "emerald",
-        badge: "Action Required: Deposit",
-        badgeClass: "bg-emerald-100 text-emerald-900 border-emerald-300 animate-pulse",
-        title: "Quote Accepted! Pay Deposit to Lock Your Event Date",
-        description: `Your quotation has been accepted. Complete the required reservation deposit of ${depositVal > 0 ? formatCurrency(depositVal) : "the agreed amount"} to officially secure our catering team, kitchen, and equipment on our calendar.`,
-        assignedParty: "Customer Payment Checkout",
-        timeline: "Immediate confirmation upon payment",
-        action: (
-          <Button
-            onClick={startInquiryCheckout}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 px-5 rounded-xl shadow-xs gap-1.5 cursor-pointer active:scale-[0.98] transition-all"
-          >
-            <CreditCard className="w-4 h-4" />
-            <span>Pay Deposit Now</span>
-          </Button>
-        ),
-      };
+    if (isQuotationSent) {
+      if (stepId === "quote") return "active";
+      if (stepId === "confirmed") return "pending";
+      return "completed";
     }
+    if (["Pending Review", "Under Review", "Revision Requested"].includes(inquiry.status)) {
+      if (stepId === "submitted") return "completed";
+      if (stepId === "review") return "active";
+      return "pending";
+    }
+    if (isClosedOrCancelled) {
+      if (stepId === "submitted") return "completed";
+      return "pending";
+    }
+    return stepId === "submitted" ? "active" : "pending";
+  };
 
+  // Stage explanation without invented turnaround times
+  const getStageSummary = () => {
     if (isConverted || isDepositPaid) {
       return {
-        tone: "success",
-        badge: "Event Confirmed",
-        badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300",
-        title: "Event Officially Booked & Reserved!",
-        description: "Your deposit payment has been confirmed and your event date is locked on our catering calendar. You can track site visits, food tasting sessions, and final balances in your Bookings portal.",
-        assignedParty: "Caezelle's Production & Culinary Team",
-        timeline: `Reserved for ${formatShortDate(inquiry.event_date)}`,
-        action: inquiry.converted_booking_id ? (
-          <Button
-            onClick={() => navigate(`/customer/bookings/${inquiry.converted_booking_id}`)}
-            className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-bold text-xs h-10 px-5 rounded-xl shadow-xs gap-1.5 cursor-pointer transition-all"
-          >
-            <span>Go to My Bookings</span>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        ) : null,
+        title: "Event Officially Confirmed",
+        description: "Your reservation deposit is confirmed and your event date is locked on our catering calendar. You can track site visits, food tasting, and final balances under My Bookings.",
+        validity: null,
       };
     }
-
-    if (rawStatus === "Revision Requested") {
+    if (isQuoteAcceptedAwaitingPayment) {
       return {
-        tone: "blue",
-        badge: "Under Revision",
-        badgeClass: "bg-blue-100 text-[#1E3563] border-blue-200",
-        title: "Revision in Progress: Updating Your Quotation",
-        description: "Our catering coordinator is updating your quotation with your requested changes. We will send you an updated proposal as soon as the adjustments are finalized.",
-        assignedParty: "Caezelle's Catering Coordinator",
-        timeline: "Updated quote usually delivered within 24 hours",
-        action: (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleOpenChat}
-            className="bg-white hover:bg-slate-50 text-[#2C4B8A] font-bold text-xs h-9 px-4 rounded-xl border-slate-300 shadow-2xs gap-1.5 cursor-pointer"
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            <span>Message Coordinator</span>
-          </Button>
-        ),
+        title: "Quotation Accepted — Deposit Required",
+        description: "You have accepted the quotation. Complete the required reservation deposit to officially lock your event date on our calendar.",
+        validity: null,
       };
     }
-
-    if (["Cancelled", "Quote Rejected", "Expired"].includes(rawStatus)) {
+    if (isQuotationSent) {
       return {
-        tone: "neutral",
-        badge: "Closed",
-        badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
-        title: "This Inquiry is Closed",
-        description: "This inquiry is no longer active. If you would like to explore a new date or catering package, feel free to submit a new inquiry or message our catering team.",
-        assignedParty: "None",
-        timeline: "Closed",
-        action: (
-          <Button
-            onClick={() => navigate("/packages")}
-            className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-bold text-xs h-9 px-4 rounded-xl shadow-xs cursor-pointer"
-          >
-            <span>Browse Packages</span>
-          </Button>
-        ),
+        title: "Official Quotation Ready for Review",
+        description: "Our catering team has finalized your itemized proposal. Review the menu selections, event setup, and service inclusions to accept or request adjustments.",
+        validity: inquiry.quotation_expiration_date ? `Quote valid until ${formatShortDate(inquiry.quotation_expiration_date)}` : null,
       };
     }
-
+    if (isUnderRevision) {
+      return {
+        title: "Quotation Revision in Progress",
+        description: "Our catering coordinator is updating your quotation with your requested changes and will submit an updated proposal.",
+        validity: null,
+      };
+    }
+    if (isClosedOrCancelled) {
+      return {
+        title: "Inquiry Closed",
+        description: "This inquiry is no longer active. Feel free to submit a new inquiry or explore our catering packages anytime.",
+        validity: null,
+      };
+    }
     // Default: Pending Review / Under Review
     return {
-      tone: "blue",
-      badge: "Caezelle's Team Action",
-      badgeClass: "bg-blue-100 text-[#1E3563] border-blue-200",
-      title: "In Review: Preparing Your Custom Proposal",
-      description: `Our catering coordinators are reviewing your event specifications (${inquiry.event_type || 'Event'} for ${inquiry.guest_count ? `${inquiry.guest_count} guests` : 'your guests'} on ${formatShortDate(inquiry.event_date)}). We are verifying schedule availability, chef staffing, and equipment logistics.`,
-      assignedParty: "Caezelle's Coordination Team",
-      timeline: "Usually delivered within 24 to 48 hours",
-      action: (
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleOpenChat}
-            className="bg-white hover:bg-slate-50 text-[#2C4B8A] font-bold text-xs h-9 px-4 rounded-xl border-slate-300 shadow-2xs gap-1.5 cursor-pointer"
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            <span>Message Coordinator</span>
-          </Button>
-        </div>
-      ),
+      title: inquiry.status === "Under Review" ? "Inquiry Under Review" : "Inquiry Received — Pending Review",
+      description: "Our catering coordinators are reviewing your specifications, venue logistics, and kitchen schedule to prepare your custom quotation.",
+      validity: null,
     };
   };
 
-  const guideMeta = getGuideMeta();
+  const stageSummary = getStageSummary();
+
+  // Primary contextual action (single, prioritized)
+  let primaryAction = null;
+  if (isQuotationSent) {
+    primaryAction = (
+      <Button
+        onClick={openQuotationView}
+        disabled={isLoadingQuotation}
+        className="bg-[#4C81E0] hover:bg-[#3b6ec6] text-white font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer gap-1.5 shadow-2xs transition-all active:scale-95"
+      >
+        <FileCheck2 className="w-3.5 h-3.5" />
+        <span>Review Official Quotation</span>
+      </Button>
+    );
+  } else if (isQuoteAcceptedAwaitingPayment) {
+    primaryAction = (
+      <Button
+        onClick={startInquiryCheckout}
+        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs transition-all active:scale-95 gap-1.5"
+      >
+        <CreditCard className="w-3.5 h-3.5" />
+        <span>Pay Deposit Now</span>
+      </Button>
+    );
+  } else if (isConverted && inquiry.converted_booking_id) {
+    const bId = String(inquiry.converted_booking_id?._id || inquiry.converted_booking_id);
+    primaryAction = (
+      <Button
+        onClick={() => navigate(`/customer/bookings/${bId}`)}
+        className="bg-[#4C81E0] hover:bg-[#3b6ec6] text-white font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs transition-all active:scale-95 gap-1"
+      >
+        <span>Go to Confirmed Booking</span>
+        <ChevronRight className="w-3.5 h-3.5" />
+      </Button>
+    );
+  } else if (canEditInquiry) {
+    primaryAction = (
+      <Button
+        variant="outline"
+        onClick={() => setIsEditModalOpen(true)}
+        className="border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer transition-all gap-1.5"
+      >
+        <Pencil className="w-3.5 h-3.5 text-slate-400" />
+        <span>Edit Request</span>
+      </Button>
+    );
+  } else if (isUnderRevision) {
+    primaryAction = (
+      <Button
+        variant="outline"
+        onClick={openQuotationView}
+        disabled={isLoadingQuotation}
+        className="border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer transition-all gap-1.5"
+      >
+        <FileText className="w-3.5 h-3.5 text-slate-400" />
+        <span>View Quotation</span>
+      </Button>
+    );
+  } else if (isClosedOrCancelled) {
+    primaryAction = (
+      <Button
+        onClick={() => navigate("/packages")}
+        className="bg-[#4C81E0] hover:bg-[#3b6ec6] text-white font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs transition-all active:scale-95"
+      >
+        <span>Browse Packages</span>
+      </Button>
+    );
+  }
+
+  // Secondary Action: Message Coordinator
+  const secondaryAction = !isClosedOrCancelled ? (
+    <Button
+      variant="outline"
+      onClick={handleOpenChat}
+      className="border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 hover:text-[#4C81E0] font-semibold text-xs h-9 px-3.5 rounded-lg cursor-pointer transition-all gap-1.5"
+    >
+      <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
+      <span>Message Coordinator</span>
+    </Button>
+  ) : null;
 
   return (
-    <CustomerDashboardLayout>
-      <div className="w-full max-w-7xl mx-auto space-y-6 pb-20 font-sans antialiased">
-        {/* TOP BAR / BACK NAVIGATION */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/customer/inquiries")}
-            className="text-xs font-semibold text-[#2C4B8A] gap-1.5 p-0 hover:bg-transparent cursor-pointer w-fit"
-          >
-            <ArrowLeft className="w-4 h-4" /> Back to My Inquiries
-          </Button>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleOpenChat}
-              className="text-xs font-semibold border-slate-200 text-slate-700 hover:border-[#2C4B8A] hover:text-[#2C4B8A] gap-1.5 h-8 px-3 rounded-lg cursor-pointer shadow-2xs transition-all"
+    <CustomerDashboardLayout fullBleed>
+      <div className="flex-1 overflow-y-auto bg-white px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
+        <div className="w-full max-w-7xl mx-auto space-y-6 pb-16 font-sans antialiased text-slate-900">
+          {/* BACK NAVIGATION */}
+          <div>
+            <button
+              type="button"
+              onClick={() => navigate("/customer/inquiries")}
+              className="group inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-[#4C81E0] focus-visible:text-[#4C81E0] focus-visible:outline-none transition-colors cursor-pointer w-fit p-0 m-0 bg-transparent border-0"
             >
-              <MessageSquare className="w-3.5 h-3.5 text-[#2C4B8A]" /> Message Coordinator
-            </Button>
-
-            {["Pending Review", "Under Review"].includes(inquiry.status) && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditModalOpen(true)}
-                className="text-xs font-semibold border-slate-200 text-slate-700 hover:bg-slate-50 gap-1.5 h-8 px-3 rounded-lg cursor-pointer shadow-2xs"
-              >
-                <Pencil className="w-3.5 h-3.5 text-slate-500" /> Edit Request
-              </Button>
-            )}
+              <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
+              <span>Back to My Inquiries</span>
+            </button>
           </div>
-        </div>
 
-        {/* SECTION A: INQUIRY HEADER HERO */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-5">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-start gap-4">
+          {/* HEADER: IDENTITY, STATUS & ACTIONS (CARDLESS ON WHITE CANVAS) */}
+          <div className="pb-6 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+            <div className="flex items-start gap-4 min-w-0">
               {thumbnail ? (
                 <img
                   src={thumbnail}
                   alt={titleStr}
-                  className="w-20 h-20 rounded-xl object-cover border border-slate-200 shrink-0 shadow-2xs"
+                  className="w-16 h-16 sm:w-18 sm:h-18 rounded-xl object-cover border border-slate-200 shrink-0"
                 />
               ) : (
-                <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-[#2C4B8A]/10 to-blue-100/60 border border-[#2C4B8A]/20 flex items-center justify-center text-[#2C4B8A] shrink-0 shadow-2xs">
-                  <Utensils className="w-8 h-8 opacity-80" />
+                <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                  <Utensils className="w-7 h-7 opacity-80" />
                 </div>
               )}
 
-              <div className="min-w-0">
+              <div className="min-w-0 space-y-1.5">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h1 className="text-xl sm:text-2xl font-bold text-slate-900 font-sans tracking-tight truncate">
                     {titleStr}
                   </h1>
                   <span
                     className={cn(
-                      "px-2.5 py-0.5 rounded-md text-xs font-bold border tracking-tight inline-flex items-center gap-1.5 shadow-2xs",
+                      "px-2.5 py-0.5 rounded text-xs font-semibold border inline-flex items-center gap-1.5 shrink-0 select-none",
                       meta.tone === "success"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        ? "bg-emerald-50/80 text-emerald-800 border-emerald-200/80"
                         : meta.tone === "warning"
-                        ? "bg-amber-50 text-amber-800 border-amber-200"
+                        ? "bg-amber-50/80 text-amber-800 border-amber-200/80"
+                        : meta.tone === "danger"
+                        ? "bg-rose-50/80 text-rose-800 border-rose-200/80"
                         : meta.tone === "info"
-                        ? "bg-blue-50 text-blue-700 border-blue-200"
-                        : "bg-slate-100 text-slate-600 border-slate-200"
+                        ? "bg-blue-50/80 text-[#4C81E0] border-blue-200/80"
+                        : "bg-slate-100 text-slate-600 border-slate-200/80"
                     )}
                   >
-                    <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
                     {meta.label}
                   </span>
                 </div>
 
-                {/* Subtitle with event core details & submission date */}
-                <div className="text-xs text-slate-700 font-medium mt-1.5 flex items-center gap-2 flex-wrap">
-                  <span className="flex items-center gap-1 text-slate-900 font-bold">
-                    <Calendar className="w-3.5 h-3.5 text-[#2C4B8A]" />
-                    {formatEventDateWithDay(inquiry.event_date)}
+                {/* Priority Row: Date, Guests, Package, Service Type, Reference */}
+                <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-slate-600 font-medium">
+                  <span className="flex items-center gap-1.5 font-bold text-slate-900">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    {inquiry.event_date ? formatEventDateWithDay(inquiry.event_date) : "Date TBD"}
+                    {inquiry.start_time && (
+                      <span className="font-normal text-slate-500">· {formatTime(inquiry.start_time)}</span>
+                    )}
                   </span>
-                  {inquiry.start_time && (
-                    <span>• {formatTime(inquiry.start_time)}</span>
+
+                  <span className="flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{inquiry.guest_count ? `${inquiry.guest_count} guests` : "Guests TBD"}</span>
+                  </span>
+
+                  {(resolvedPackage?.name || inquiry.package_name_snapshot) && (
+                    <span className="flex items-center gap-1.5">
+                      <Package className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="truncate max-w-[220px] font-semibold text-slate-800">
+                        {resolvedPackage?.name || inquiry.package_name_snapshot}
+                      </span>
+                    </span>
                   )}
-                  <span>•</span>
-                  <span className="flex items-center gap-1 text-slate-900 font-bold">
-                    <Users className="w-3.5 h-3.5 text-[#2C4B8A]" />
-                    {inquiry.guest_count ? `${inquiry.guest_count} guests` : "Guests TBD"}
-                  </span>
+
                   {resolveServiceType(inquiry) && (
-                    <>
-                      <span>•</span>
-                      <span className="text-slate-600 font-semibold">{resolveServiceType(inquiry)}</span>
-                    </>
+                    <span className="flex items-center gap-1.5 text-slate-500">
+                      <Utensils className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{resolveServiceType(inquiry)}</span>
+                    </span>
                   )}
-                </div>
 
-                <div className="text-xs text-slate-600 font-medium mt-1.5 flex items-center gap-3">
-                  <span className="font-mono font-bold text-slate-700">Ref. #{refCode}</span>
-                  {inquiry.createdAt && (
-                    <span>• Submitted on {formatShortDate(inquiry.createdAt)}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Action Button in Header */}
-            <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
-              {isQuotationSent && (
-                <Button
-                  onClick={openQuotationView}
-                  disabled={isLoadingQuotation}
-                  className="bg-[#1E3563] hover:bg-[#152547] text-white font-bold text-xs h-9 px-4 rounded-xl cursor-pointer gap-1.5 shadow-xs transition-all active:scale-[0.98]"
-                >
-                  <FileCheck2 className="w-4 h-4" />
-                  <span>Review Official Quote</span>
-                </Button>
-              )}
-
-              {isUnderRevision && (
-                <Button
-                  variant="outline"
-                  onClick={openQuotationView}
-                  disabled={isLoadingQuotation}
-                  className="bg-white hover:bg-slate-50 text-slate-700 border-slate-300 font-bold text-xs h-9 px-4 rounded-xl cursor-pointer gap-1.5 shadow-2xs transition-all active:scale-[0.98]"
-                >
-                  <FileText className="w-4 h-4 text-slate-500" />
-                  <span>View Quotation</span>
-                </Button>
-              )}
-
-              {isQuoteAcceptedAwaitingPayment && (
-                <Button
-                  onClick={startInquiryCheckout}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-4 rounded-xl cursor-pointer shadow-xs transition-all active:scale-[0.98]"
-                >
-                  <CreditCard className="w-4 h-4 mr-1.5" /> Pay Deposit
-                </Button>
-              )}
-
-              {isConverted && inquiry.converted_booking_id && (
-                <Button
-                  onClick={() => {
-                    const bId = String(inquiry.converted_booking_id?._id || inquiry.converted_booking_id);
-                    navigate(`/customer/bookings/${bId}`);
-                  }}
-                  className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-bold text-xs h-9 px-4 rounded-xl cursor-pointer shadow-xs transition-all"
-                >
-                  Go to Confirmed Booking <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* ACTION REQUIRED & NEXT STEP HERO GUIDE (Replaces the redundant yellow alert banner) */}
-          <div className={cn(
-            "p-4 sm:p-5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all shadow-2xs",
-            guideMeta.tone === "amber"
-              ? "bg-gradient-to-r from-amber-50/90 via-orange-50/40 to-white border-amber-300"
-              : guideMeta.tone === "emerald"
-              ? "bg-gradient-to-r from-emerald-50/90 via-teal-50/40 to-white border-emerald-300"
-              : guideMeta.tone === "success"
-              ? "bg-gradient-to-r from-emerald-50/80 via-white to-white border-emerald-200"
-              : "bg-gradient-to-r from-blue-50/80 via-slate-50/50 to-white border-blue-200"
-          )}>
-            <div className="flex items-start gap-3.5 min-w-0">
-              <div className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs",
-                guideMeta.tone === "amber"
-                  ? "bg-amber-500 text-white"
-                  : guideMeta.tone === "emerald" || guideMeta.tone === "success"
-                  ? "bg-emerald-600 text-white"
-                  : "bg-[#2C4B8A] text-white"
-              )}>
-                {guideMeta.tone === "amber" ? (
-                  <FileCheck2 className="w-5 h-5" />
-                ) : guideMeta.tone === "emerald" ? (
-                  <CreditCard className="w-5 h-5" />
-                ) : guideMeta.tone === "success" ? (
-                  <CheckCircle2 className="w-5 h-5" />
-                ) : (
-                  <Clock className="w-5 h-5" />
-                )}
-              </div>
-
-              <div className="min-w-0 space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 font-sans">
-                    Current Stage &amp; Next Action
-                  </span>
-                  <span className={cn("px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide border", guideMeta.badgeClass)}>
-                    {guideMeta.badge}
-                  </span>
-                </div>
-                <h3 className="font-bold text-sm sm:text-base text-slate-900 font-sans">
-                  {guideMeta.title}
-                </h3>
-                <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                  {guideMeta.description}
-                </p>
-                <div className="pt-1 flex items-center gap-3 text-[11px] text-slate-600 flex-wrap">
-                  <span><strong>Owner:</strong> {guideMeta.assignedParty}</span>
-                  <span>•</span>
-                  <span><strong>Timeline:</strong> {guideMeta.timeline}</span>
+                  <button
+                    type="button"
+                    onClick={copyReferenceCode}
+                    title="Copy reference code"
+                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-mono font-medium text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-colors cursor-pointer"
+                  >
+                    <span>#{refCode}</span>
+                    <Copy className="h-3 w-3 text-slate-400" />
+                  </button>
                 </div>
               </div>
             </div>
 
-            {guideMeta.action && (
-              <div className="shrink-0 self-start sm:self-center pl-13 sm:pl-0">
-                {guideMeta.action}
+            {/* SINGLE CONTEXTUAL ACTION BAR */}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0 self-start lg:self-center">
+              {primaryAction}
+              {secondaryAction}
+            </div>
+          </div>
+
+          {/* COMPACT STATUS STEPPER & STAGE SUMMARY */}
+          <div className="rounded-xl border border-blue-100/70 bg-blue-50/30 p-4 sm:p-5 space-y-3.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+                <Clock className="w-3.5 h-3.5 text-[#4C81E0]" />
+                <span>Inquiry Progress</span>
               </div>
-            )}
-          </div>
-        </div>
+              {stageSummary.validity && (
+                <span className="text-xs text-slate-500 font-medium">{stageSummary.validity}</span>
+              )}
+            </div>
 
-        {/* SECTION B: INQUIRY PROGRESS TIMELINE */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#2C4B8A]" /> Inquiry Progress Timeline
-            </h2>
-            <span className="text-xs font-mono text-slate-600 font-semibold">Ref: #{refCode}</span>
-          </div>
+            {/* Stepper horizontal line and steps */}
+            <div className="relative pt-2 pb-1 px-2 sm:px-4">
+              {/* Connecting track line */}
+              <div className="absolute top-[21px] left-6 right-6 sm:left-10 sm:right-10 h-0.5 bg-slate-200 z-0" />
+              <div className="grid grid-cols-4 gap-2 relative z-10">
+                {steps.map((step, idx) => {
+                  const state = getStepState(step.id);
+                  const isDone = state === "completed";
+                  const isCurrent = state === "active";
 
-          <div className="relative pt-3 pb-2 px-2 sm:px-6">
-            {/* Connecting Background Line */}
-            <div className="absolute top-7 left-8 right-8 h-0.5 bg-slate-200 -z-0" />
-
-            {/* Steps Container */}
-            <div className="grid grid-cols-4 gap-2 relative z-10">
-              {steps.map((step, idx) => {
-                const isDone = step.status === "completed";
-                const isCurrent = step.status === "active";
-
-                return (
-                  <div key={step.id} className="flex flex-col items-center text-center group">
-                    <div
-                      className={cn(
-                        "w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-2xs",
-                        isDone
-                          ? "bg-emerald-600 text-white"
-                          : isCurrent
-                          ? "bg-[#2C4B8A] text-white ring-4 ring-[#2C4B8A]/15 scale-105"
-                          : "bg-white text-slate-600 border-2 border-slate-300"
-                      )}
-                    >
-                      {isDone ? <Check className="w-4 h-4 stroke-[2.5]" /> : idx + 1}
-                    </div>
-
-                    <div className="mt-2.5 space-y-0.5 max-w-[140px]">
-                      <h3
+                  return (
+                    <div key={step.id} className="flex flex-col items-center text-center">
+                      <div
                         className={cn(
-                          "text-xs sm:text-sm font-sans leading-tight",
+                          "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all relative z-10",
+                          isDone
+                            ? "bg-[#4C81E0] text-white shadow-2xs"
+                            : isCurrent
+                            ? "bg-[#4C81E0] text-white ring-4 ring-blue-100 shadow-2xs"
+                            : "bg-white text-slate-400 border-2 border-slate-300"
+                        )}
+                      >
+                        {isDone ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : idx + 1}
+                      </div>
+
+                      <span
+                        className={cn(
+                          "text-xs mt-2 font-medium leading-tight",
                           isCurrent
-                            ? "font-extrabold text-[#1E3563]"
+                            ? "font-bold text-[#4C81E0]"
                             : isDone
-                            ? "font-bold text-slate-900"
-                            : "font-semibold text-slate-600"
+                            ? "text-slate-800 font-semibold"
+                            : "text-slate-400"
                         )}
                       >
                         {step.title}
-                      </h3>
-                      <p
-                        className={cn(
-                          "text-[11px] leading-snug hidden sm:block",
-                          isCurrent ? "text-slate-700 font-medium" : isDone ? "text-slate-600 font-medium" : "text-slate-500"
-                        )}
-                      >
-                        {step.desc}
-                      </p>
+                      </span>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Stage explanation */}
+            <div className="pt-2.5 border-t border-blue-100/60 flex items-start gap-2.5 text-xs text-slate-600">
+              <Info className="w-4 h-4 text-[#4C81E0] shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-slate-900">{stageSummary.title}: </span>
+                <span>{stageSummary.description}</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* SECTION C & D: MAIN CONTENT TWO-COLUMN GRID */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* LEFT MAIN SPECIFICATIONS COLUMN (lg:col-span-2) */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* 1. EVENT & VENUE SPECIFICATIONS */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-5">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-[#2C4B8A]" /> Event &amp; Venue Specifications
-                </h2>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-[#1E3563] border border-blue-100">
-                  {resolveServiceType(inquiry)}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-xs">
-                {/* Event Type & Celebration */}
-                <div className="space-y-1">
-                  <span className="text-slate-600 font-bold block text-xs uppercase tracking-wider">
-                    Event Type
-                  </span>
-                  <div className="font-bold text-slate-900 text-sm">
-                    {inquiry.event_type || "Event Celebration"}
+          {/* TWO-COLUMN DASHBOARD LAYOUT */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            {/* LEFT MAIN AREA (col-span-2) - Cardless sections on pure white canvas */}
+            <div className="lg:col-span-2 space-y-8">
+              {/* SECTION 1: EVENT SPECIFICATIONS */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <div className="space-y-0.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#4C81E0]">
+                      Event Specifications
+                    </span>
+                    <h2 className="text-base font-bold text-slate-900">Event &amp; Venue Details</h2>
                   </div>
-                  {inquiry.celebrant_name && (
-                    <div className="text-[11px] text-blue-700 font-semibold flex items-center gap-1 pt-0.5">
-                      <PartyPopper className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                      <span>Celebrant / Honoree: <strong>{inquiry.celebrant_name}</strong></span>
-                    </div>
+                  {resolveServiceType(inquiry) && (
+                    <span className="text-xs font-medium px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/80">
+                      {resolveServiceType(inquiry)}
+                    </span>
                   )}
                 </div>
 
-                {/* Guest Count */}
-                <div className="space-y-1">
-                  <span className="text-slate-600 font-bold block text-xs uppercase tracking-wider">
-                    Guest Count
-                  </span>
-                  <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-[#2C4B8A]" />
-                    <span>{inquiry.guest_count ? `${inquiry.guest_count} guests` : "Guests TBD"}</span>
-                  </div>
-                </div>
-
-                {/* Event Date & Time */}
-                <div className="space-y-1">
-                  <span className="text-slate-600 font-bold block text-xs uppercase tracking-wider">
-                    Event Date
-                  </span>
-                  <div className="font-bold text-slate-900 text-sm">
-                    {formatEventDateWithDay(inquiry.event_date)}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-slate-600 font-bold block text-xs uppercase tracking-wider">
-                    Schedule &amp; Duration
-                  </span>
-                  <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                    <Clock className="w-3.5 h-3.5 text-[#2C4B8A]" />
-                    <span>{inquiry.start_time ? formatTime(inquiry.start_time) : "Time TBD"}</span>
-                    {inquiry.duration_hours && (
-                      <span className="text-xs text-slate-600 font-medium">
-                        ({inquiry.duration_hours} {inquiry.duration_hours === 1 ? "hour" : "hours"})
-                      </span>
+                {/* Event core specifications: Clean 2-column label/value grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-xs">
+                  <div>
+                    <span className="text-slate-500 font-medium block">Event Type &amp; Celebration</span>
+                    <div className="font-bold text-slate-900 text-sm mt-0.5">
+                      {inquiry.event_type || "Event Celebration"}
+                    </div>
+                    {inquiry.celebrant_name && (
+                      <div className="text-xs text-slate-600 flex items-center gap-1 pt-1">
+                        <PartyPopper className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>Celebrant: <strong className="text-slate-800">{inquiry.celebrant_name}</strong></span>
+                      </div>
                     )}
                   </div>
-                </div>
 
-                {/* Event Theme & Palette */}
-                {(inquiry.event_theme || (Array.isArray(inquiry.event_palette) && inquiry.event_palette.length > 0)) && (
-                  <div className="space-y-1.5 sm:col-span-2 pt-1 border-t border-slate-100">
-                    <span className="text-slate-600 font-bold block text-xs uppercase tracking-wider">
-                      Theme &amp; Styling Motif
-                    </span>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {inquiry.event_theme && (
-                        <span className="font-bold text-slate-900 text-sm">
-                          {inquiry.event_theme}
+                  <div>
+                    <span className="text-slate-500 font-medium block">Expected Attendance</span>
+                    <div className="font-bold text-slate-900 text-sm mt-0.5 flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{inquiry.guest_count ? `${inquiry.guest_count} guests` : "Guests TBD"}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500 font-medium block">Event Date</span>
+                    <div className="font-bold text-slate-900 text-sm mt-0.5">
+                      {formatEventDateWithDay(inquiry.event_date)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500 font-medium block">Schedule &amp; Duration</span>
+                    <div className="font-bold text-slate-900 text-sm mt-0.5 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{inquiry.start_time ? formatTime(inquiry.start_time) : "Time TBD"}</span>
+                      {inquiry.duration_hours && (
+                        <span className="text-slate-500 font-normal">
+                          ({inquiry.duration_hours} {inquiry.duration_hours === 1 ? "hour" : "hours"})
                         </span>
-                      )}
-                      {Array.isArray(inquiry.event_palette) && inquiry.event_palette.length > 0 && (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {inquiry.event_palette.map((color, i) => (
-                            <span
-                              key={i}
-                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 border border-slate-200 text-slate-800 shadow-2xs"
-                            >
-                              <span
-                                className="w-2.5 h-2.5 rounded-full border border-slate-300 shadow-2xs"
-                                style={{ backgroundColor: getPaletteColorHex(color) }}
-                              />
-                              <span>{color}</span>
-                            </span>
-                          ))}
-                        </div>
                       )}
                     </div>
                   </div>
-                )}
+                </div>
 
-                {/* Complete Venue & Location Breakdown */}
-                <div className="space-y-1.5 sm:col-span-2 pt-2 border-t border-slate-100">
-                  <span className="text-slate-600 font-bold block text-xs uppercase tracking-wider flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-[#2C4B8A]" /> Venue Location &amp; Address
-                  </span>
+                {/* Venue Location & Logistics */}
+                <div className="pt-4 border-t border-slate-100 space-y-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-3.5 h-3.5 text-[#4C81E0]" />
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Venue Location &amp; Staging</h3>
+                  </div>
 
-                  <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/80 space-y-1.5 text-xs">
-                    {inquiry.venue_type && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-600 font-semibold text-xs">Venue Type:</span>
-                        <span className="font-bold text-slate-800">{inquiry.venue_type}</span>
-                      </div>
-                    )}
-
-                    {inquiry.landmark && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-600 font-semibold text-xs">Landmark:</span>
-                        <span className="font-semibold text-slate-800">{inquiry.landmark}</span>
-                      </div>
-                    )}
-
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3.5">
                     <div>
-                      <span className="text-slate-600 font-semibold text-xs">Full Address: </span>
-                      <span className="font-bold text-slate-900">
+                      <span className="text-slate-500 font-medium block">Destination Address</span>
+                      <div className="font-semibold text-slate-900 mt-0.5">
                         {[
                           inquiry.street,
                           inquiry.barangay,
@@ -1143,389 +943,437 @@ export default function CustomerInquiryDetails() {
                           .join(", ") ||
                           inquiry.venue_address ||
                           "Address to be coordinated with our team"}
-                      </span>
+                      </div>
                     </div>
 
-                    {/* Delivery / Setup Logistics */}
+                    <div>
+                      <span className="text-slate-500 font-medium block">Venue Classification</span>
+                      <div className="font-semibold text-slate-900 mt-0.5">
+                        {inquiry.venue_type || "Standard Venue"}
+                        {inquiry.landmark && (
+                          <span className="text-slate-500 font-normal"> · Landmark: {inquiry.landmark}</span>
+                        )}
+                      </div>
+                    </div>
+
                     {inquiry.delivery_method && (
-                      <div className="pt-1.5 border-t border-slate-200/60 flex items-start gap-2 text-xs text-slate-700">
-                        <Truck className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
-                        <div>
-                          <span className="font-bold text-slate-900 capitalize">
-                            Method: {inquiry.delivery_method === "setup" ? "On-site Setup & Catering" : inquiry.delivery_method}
-                          </span>
+                      <div className="sm:col-span-2">
+                        <span className="text-slate-500 font-medium block">Delivery &amp; Setup Method</span>
+                        <div className="font-semibold text-slate-900 mt-0.5 flex items-center gap-1.5">
+                          <Truck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="capitalize">{inquiry.delivery_method === "setup" ? "On-site Setup & Catering" : inquiry.delivery_method}</span>
                           {inquiry.delivery_instructions && (
-                            <div className="text-slate-600 mt-0.5 font-medium">
-                              Instructions: {inquiry.delivery_instructions}
-                            </div>
+                            <span className="text-slate-500 font-normal"> — Note: {inquiry.delivery_instructions}</span>
                           )}
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* 2. SELECTED PACKAGE & INCLUSIONS (COLLAPSIBLE / ACCORDION) */}
-            {hasPackage && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-5">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Package className="w-4 h-4 text-[#2C4B8A]" />
-                    <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans">
-                      Selected Package &amp; Inclusions
-                    </h2>
+                {/* Theme & Palette */}
+                {(inquiry.event_theme || (Array.isArray(inquiry.event_palette) && inquiry.event_palette.length > 0)) && (
+                  <div className="pt-4 border-t border-slate-100 space-y-2 text-xs">
+                    <span className="text-slate-500 font-medium block">Styling Motif &amp; Color Palette</span>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {inquiry.event_theme && (
+                        <span className="font-bold text-slate-900 text-sm">
+                          {inquiry.event_theme}
+                        </span>
+                      )}
+                      {Array.isArray(inquiry.event_palette) && inquiry.event_palette.length > 0 && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {inquiry.event_palette.map((color, i) => (
+                            <span
+                              key={i}
+                              className="inline-flex items-center gap-1.5 text-xs text-slate-700 font-medium"
+                            >
+                              <span
+                                className="w-3 h-3 rounded-full border border-slate-300"
+                                style={{ backgroundColor: getPaletteColorHex(color) }}
+                              />
+                              <span>{color}</span>
+                              {i < inquiry.event_palette.length - 1 && <span className="text-slate-300">·</span>}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-xs font-bold text-[#1E3563] bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
-                    {isSpecialOffer ? "Special Offer Combo" : "Catering Package"}
+                )}
+              </div>
+
+              {/* SECTION 2: PACKAGE & SELECTIONS (Cardless, separated by spacing and subtle divider) */}
+              <div className="pt-6 border-t border-slate-200/80 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <div className="space-y-0.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#4C81E0]">
+                      Menu &amp; Selections
+                    </span>
+                    <h2 className="text-base font-bold text-slate-900">Package &amp; Selections</h2>
+                  </div>
+                  <span className="text-xs font-medium px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/80">
+                    {isSpecialOffer ? "Special Offer Combo" : hasPackage ? "Catering Package" : "Custom Food Selection"}
                   </span>
                 </div>
 
-                {/* Package Main Card */}
-                <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 sm:p-5 transition-all space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                    <div className="flex items-start gap-3.5 min-w-0">
-                      {resolvedPackage?.image_url ? (
-                        <img
-                          src={resolvedPackage.image_url}
-                          alt={resolvedPackage.name}
-                          className="w-16 h-16 rounded-xl object-cover border border-slate-200 shrink-0 shadow-2xs"
-                        />
-                      ) : (
-                        <div className="w-16 h-16 rounded-xl bg-blue-100/70 border border-blue-200 flex items-center justify-center text-[#2C4B8A] shrink-0 shadow-2xs">
-                          <Package className="w-7 h-7 opacity-80" />
-                        </div>
-                      )}
-
-                      <div className="min-w-0">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block leading-none mb-1">
-                          Selected Package
-                        </div>
-                        <h3 className="font-extrabold text-base sm:text-lg text-slate-900 font-sans tracking-tight">
-                          {resolvedPackage?.name || inquiry.package_name_snapshot}
-                        </h3>
-                        <p className="text-xs text-slate-600 mt-1 leading-relaxed max-w-xl">
-                          {resolvedPackage?.description || "Curated catering and event setup package tailored for your event."}
-                        </p>
-
-                        {/* EXACT CONFIGURED SCAFFOLD SIZE (SHOWN ONLY IF CONFIGURED) */}
-                        {resolvedScaffoldSize && (
-                          <div className="mt-3">
-                            <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200/90 shadow-2xs">
-                              <div className="w-6 h-6 rounded-md bg-blue-50 text-[#2C4B8A] flex items-center justify-center shrink-0">
-                                <Store className="w-3.5 h-3.5" />
-                              </div>
-                              <div>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block leading-none">
-                                  Scaffold Size
-                                </span>
-                                <div className="flex items-center gap-1.5 text-xs mt-0.5">
-                                  <span className="font-bold text-slate-900 font-sans">
-                                    {resolvedScaffoldSize.formatted}
-                                  </span>
-                                  {resolvedScaffoldSize.label && (
-                                    <span className="text-slate-500 font-normal">
-                                      ({resolvedScaffoldSize.label})
-                                    </span>
-                                  )}
-                                  {resolvedScaffoldSize.area && (
-                                    <span className="text-slate-400 font-normal">
-                                      • {resolvedScaffoldSize.area}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Badges Summary */}
-                        <div className="flex items-center gap-2 mt-3 flex-wrap">
-                          {totalDishesCount > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white border border-slate-200 px-2.5 py-0.5 rounded-md text-[#1E3563] shadow-2xs">
-                              <Utensils className="w-3 h-3 text-[#2C4B8A]" />
-                              <span>{totalDishesCount} menu items included</span>
-                            </span>
-                          )}
-
-                          {totalPackageInclusionsCount > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white border border-slate-200 px-2.5 py-0.5 rounded-md text-slate-700 shadow-2xs">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              <span>{totalPackageInclusionsCount} setup &amp; inventory inclusions</span>
-                            </span>
-                          )}
-
-                          {resolvedScaffoldSize && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white border border-slate-200 px-2.5 py-0.5 rounded-md text-slate-700 shadow-2xs">
-                              <Layers className="w-3 h-3 text-[#2C4B8A]" />
-                              <span>{resolvedScaffoldSize.formatted} scaffold size</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                {/* Package Identity & Counts */}
+                <div className="space-y-3">
+                  <div>
+                    <div className="font-bold text-base text-slate-900">
+                      {resolvedPackage?.name || inquiry.package_name_snapshot || "Custom Menu Selections"}
                     </div>
-
-                    {/* Toggle Details Accordion Button */}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsPackageExpanded((prev) => !prev)}
-                      className="border-slate-300 hover:border-[#2C4B8A] text-[#1E3563] bg-white hover:bg-blue-50 font-bold text-xs h-8 px-3 rounded-lg gap-1.5 cursor-pointer shadow-2xs shrink-0 self-start sm:self-center transition-all"
-                    >
-                      <span>{isPackageExpanded ? "Hide Package Details" : "View Package Details"}</span>
-                      {isPackageExpanded ? (
-                        <ChevronUp className="w-3.5 h-3.5" />
-                      ) : (
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      )}
-                    </Button>
+                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                      {resolvedPackage?.description || "Curated catering selections tailored for your event."}
+                    </p>
                   </div>
 
-                  {/* EXPANDED ACCORDION CONTENT */}
-                  {isPackageExpanded && (
-                    <div className="pt-4 border-t border-slate-200/90 space-y-5 animate-in fade-in-50 duration-200">
-                      {/* Full description if present */}
-                      {resolvedPackage?.fullDescription && resolvedPackage.fullDescription !== resolvedPackage.description && (
-                        <p className="text-xs text-slate-600 leading-relaxed bg-white p-3.5 rounded-xl border border-slate-200/80">
-                          {resolvedPackage.fullDescription}
-                        </p>
-                      )}
+                  {/* Low-opacity tinted summary banner for counts */}
+                  <div className="rounded-xl border border-blue-100/80 bg-blue-50/30 p-3 sm:p-3.5 flex items-center gap-x-3.5 gap-y-1.5 flex-wrap text-xs text-slate-600">
+                    {totalDishesCount > 0 && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Utensils className="w-3.5 h-3.5 text-[#4C81E0]" />
+                        <span><strong className="text-slate-900 font-semibold">{totalDishesCount}</strong> dishes selected</span>
+                      </span>
+                    )}
 
-                      {/* 1. INCLUDED MENU ITEMS (ORGANIZED BY CATEGORY) */}
-                      {isSpecialOffer ? (
-                        categorizedSpecialOffer.length > 0 && (
-                          <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200/80">
-                            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                              <Utensils className="w-4 h-4 text-[#2C4B8A]" />
-                              <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider font-sans">
-                                Included Combo Menu ({offerFoodItems.length} items)
-                              </h4>
-                            </div>
+                    {totalPackageInclusionsCount > 0 && (
+                      <>
+                        <span className="text-slate-300 hidden sm:inline">•</span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5 text-[#4C81E0]" />
+                          <span><strong className="text-slate-900 font-semibold">{totalPackageInclusionsCount}</strong> setup inclusions</span>
+                        </span>
+                      </>
+                    )}
 
-                            <div className="space-y-3.5">
-                              {categorizedSpecialOffer.map(({ category, dishes }) => (
-                                <div key={category} className="space-y-1.5">
-                                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                                    {category}
-                                  </span>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {dishes.map((d, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200/80 text-xs font-semibold text-slate-800"
-                                      >
-                                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                        <span>{d.item_name || d.name}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      ) : (
-                        categorizedMenu.length > 0 && (
-                          <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200/80">
-                            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                              <Utensils className="w-4 h-4 text-[#2C4B8A]" />
-                              <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider font-sans">
-                                Selected Menu Dishes ({resolvedMenuItems.length} dishes)
-                              </h4>
-                            </div>
+                    {totalAddonsCount > 0 && (
+                      <>
+                        <span className="text-slate-300 hidden sm:inline">•</span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <PackagePlus className="w-3.5 h-3.5 text-[#4C81E0]" />
+                          <span><strong className="text-slate-900 font-semibold">{totalAddonsCount}</strong> add-on items</span>
+                        </span>
+                      </>
+                    )}
 
-                            <div className="space-y-3.5">
-                              {categorizedMenu.map(({ category, dishes }) => (
-                                <div key={category} className="space-y-1.5">
-                                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                                    {category} ({dishes.length})
-                                  </span>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                                    {dishes.map((dish, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="flex items-start gap-2.5 p-2.5 rounded-lg bg-slate-50/90 border border-slate-200/80 shadow-2xs"
-                                      >
-                                        {dish.image_url ? (
-                                          <img
-                                            src={dish.image_url}
-                                            alt={dish.name}
-                                            className="w-10 h-10 rounded-md object-cover border border-slate-200 shrink-0"
-                                          />
-                                        ) : (
-                                          <div className="w-10 h-10 rounded-md bg-blue-100/80 flex items-center justify-center text-[#2C4B8A] shrink-0">
-                                            <Utensils className="w-4 h-4" />
-                                          </div>
-                                        )}
-                                        <div className="min-w-0">
-                                          <div className="font-bold text-slate-900 text-xs truncate">{dish.name}</div>
-                                          {dish.description && (
-                                            <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-snug">
-                                              {dish.description}
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      )}
-
-                      {/* 2. SETUP & SERVICE INCLUSIONS */}
-                      {packageInclusionGroups.length > 0 && (
-                        <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200/80">
-                          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                            <Layers className="w-4 h-4 text-[#2C4B8A]" />
-                            <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider font-sans">
-                              Package Inclusions &amp; Equipment ({totalPackageInclusionsCount} items)
-                            </h4>
-                          </div>
-
-                          <div className="space-y-3.5">
-                            {packageInclusionGroups.map(({ category, items }) => (
-                              <div key={category} className="space-y-1.5">
-                                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                                  {category}
-                                </span>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  {items.map((item, idx) => (
-                                    <div
-                                      key={idx}
-                                      className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200/70 text-xs text-slate-800"
-                                    >
-                                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                                      <span className="leading-snug">{item}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 3. CONFIGURED SCAFFOLD & SETUP SPACE SPECIFICATIONS */}
-                      {resolvedScaffoldSize && (
-                        <div className="bg-white p-4 rounded-xl border border-slate-200/80 space-y-2 text-xs">
-                          <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
-                            <Store className="w-4 h-4 text-[#2C4B8A]" />
-                            <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider font-sans">
-                              Configured Package Scaffold Size
-                            </h4>
-                          </div>
-                          <div className="flex items-center gap-3 flex-wrap pt-1">
-                            <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
-                              <span>{resolvedScaffoldSize.formatted}</span>
-                              {resolvedScaffoldSize.label && (
-                                <span className="text-xs text-slate-500 font-normal">({resolvedScaffoldSize.label})</span>
-                              )}
-                            </div>
-                            {resolvedScaffoldSize.area && (
-                              <span className="text-slate-500 font-normal">• Total Area: {resolvedScaffoldSize.area}</span>
-                            )}
-                            {resolvedScaffoldSize.capacity && (
-                              <span className="text-slate-500 font-normal">• Optimal for {resolvedScaffoldSize.capacity}</span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    {resolvedScaffoldSize && (
+                      <>
+                        <span className="text-slate-300 hidden sm:inline">•</span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Store className="w-3.5 h-3.5 text-[#4C81E0]" />
+                          <span><strong className="text-slate-900 font-semibold">{resolvedScaffoldSize.formatted}</strong> scaffold</span>
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
 
-                {/* CONSOLIDATED CATERING & QUOTATION NOTES */}
-                <div className="pt-3 border-t border-slate-100">
-                  <div className="rounded-xl bg-slate-50/80 border border-slate-200/80 p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-6 h-6 rounded-md bg-blue-100/80 text-[#2C4B8A] flex items-center justify-center shrink-0">
-                        <Info className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="text-xs font-bold text-slate-900 font-sans">
-                        Catering &amp; Quotation Notes
+                {/* Declared dietary or allergy alert if present */}
+                {hasDietaryOrAllergies && (
+                  <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200/80 text-xs text-amber-900 flex items-start gap-2">
+                    <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      {inquiry.allergies && (
+                        <div><strong>Declared Allergies:</strong> {inquiry.allergies}</div>
+                      )}
+                      {(inquiry.dietary_restrictions || inquiry.dietary_requirements) && (
+                        <div><strong>Dietary Preferences:</strong> {inquiry.dietary_restrictions || inquiry.dietary_requirements}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {hasSpecialRequests && (
+                  <div className="text-xs text-slate-600 pt-1">
+                    <span className="font-semibold text-slate-800">Special Requests: </span>
+                    <span className="text-slate-600">{inquiry.special_requests}</span>
+                  </div>
+                )}
+
+                {/* Progressive disclosure action */}
+                <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
+                  <span className="text-xs text-slate-500">
+                    Review complete dish choices, equipment inclusions, and setup details.
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsSelectionsModalOpen(true)}
+                    className="border-slate-200 hover:border-[#4C81E0] text-slate-800 hover:text-[#4C81E0] bg-white hover:bg-slate-50 font-semibold text-xs h-8.5 px-3.5 rounded-lg gap-1.5 cursor-pointer transition-all"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-[#4C81E0]" />
+                    <span>View Selections &amp; Details</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT SIDEBAR COLUMN (col-span-1) - Preserved Functional Cards */}
+            <div className="space-y-5">
+              {/* FUNCTIONAL CARD 1: QUOTATION & PRICING */}
+              <div className="rounded-xl border border-slate-200/90 bg-white p-5 space-y-3.5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide font-sans flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-[#4C81E0]" /> Quotation &amp; Pricing
+                  </h3>
+                  <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/80">
+                    {inquiry.quotation_status || (isQuotationSent ? "Quote Ready" : "Pending Pricing")}
+                  </span>
+                </div>
+
+                {/* Pricing Content */}
+                {isQuotationSent || inquiry.total_price > 0 ? (
+                  <div className="space-y-2.5">
+                    <div>
+                      <span className="text-xs text-slate-500 block">Total Quoted Cost</span>
+                      <span className="text-2xl font-bold text-slate-900 font-sans tracking-tight">
+                        {formatCurrency(inquiry.total_price)}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-xs text-slate-600">
-                      <div className="flex items-start gap-2">
-                        <span className="text-[#2C4B8A] font-bold">•</span>
-                        <span>
-                          <strong className="text-slate-900 font-semibold">Package Inclusions:</strong> Items can be adjusted during quotation, which may reduce base pricing.
+                    {inquiry.deposit_amount > 0 && (
+                      <div className="pt-2 border-t border-slate-100 flex items-baseline justify-between text-xs">
+                        <span className="text-slate-500">Required Deposit</span>
+                        <span className="font-semibold text-emerald-700 font-sans tabular-nums">
+                          {formatCurrency(inquiry.deposit_amount)}
                         </span>
                       </div>
-                      <div className="flex items-start gap-2">
-                        <span className="text-[#2C4B8A] font-bold">•</span>
-                        <span>
-                          <strong className="text-slate-900 font-semibold">Add-ons &amp; Extras:</strong> Additional food and equipment are itemized and priced in your official quotation.
-                        </span>
+                    )}
+
+                    {inquiry.quotation_expiration_date && (
+                      <div className="text-[11px] text-slate-500 pt-0.5">
+                        Quote valid until: {formatShortDate(inquiry.quotation_expiration_date)}
                       </div>
-                      <div className="flex items-start gap-2">
-                        <span className="text-[#2C4B8A] font-bold">•</span>
-                        <span>
-                          <strong className="text-slate-900 font-semibold">Setup &amp; Layout:</strong> Venue configurations can be tailored to ensure guest comfort.
-                        </span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <span className="text-[#2C4B8A] font-bold">•</span>
-                        <span>
-                          <strong className="text-slate-900 font-semibold">Coordinator Review:</strong> Our team will review notes and reach out if any clarifications are needed.
-                        </span>
-                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={openQuotationView}
+                        disabled={isLoadingQuotation}
+                        className="text-xs font-semibold text-[#4C81E0] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>View itemized quotation proposal</span>
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
                     </div>
                   </div>
+                ) : (
+                  /* Subordinate state when pricing is pending */
+                  <div className="space-y-2 text-xs">
+                    <div className="font-semibold text-slate-700">Pricing in Progress</div>
+                    <p className="text-slate-500 leading-relaxed">
+                      Our catering team is reviewing your menu choices, venue setup, and guest count to finalize an itemized proposal.
+                    </p>
+
+                    {inquiry.estimated_total > 0 && (
+                      <div className="pt-2 border-t border-slate-100 space-y-1">
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-slate-500">Preliminary estimate</span>
+                          <span className="font-semibold text-slate-800 font-sans tabular-nums">
+                            ~{formatCurrency(inquiry.estimated_total)}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">Non-binding estimate. Official pricing confirmed upon quote delivery.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* FUNCTIONAL CARD 2: CATERING TEAM & SUPPORT */}
+              <div className="rounded-xl border border-slate-200/90 bg-white p-5 space-y-3.5">
+                <div className="border-b border-slate-100 pb-2.5">
+                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide font-sans flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-[#4C81E0]" /> Catering Team &amp; Support
+                  </h3>
+                </div>
+
+                {/* Team & Messaging */}
+                <div className="space-y-2 text-xs">
+                  <div className="font-semibold text-slate-900">
+                    Caezelle Event Coordination Desk
+                  </div>
+                  <p className="text-slate-500 leading-relaxed">
+                    Have questions about venue setup, tasting sessions, or menu adjustments? Message your coordinator anytime.
+                  </p>
+
+                  <div className="pt-0.5">
+                    <button
+                      type="button"
+                      onClick={handleOpenChat}
+                      className="text-xs font-semibold text-[#4C81E0] hover:underline inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>Message your coordinator</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Registered customer contact on file */}
+                <div className="pt-3 border-t border-slate-100 space-y-1.5 text-xs">
+                  <span className="text-slate-500 font-medium block">Customer Contact on File</span>
+                  <div className="font-semibold text-slate-900">
+                    {inquiry.contact_first_name} {inquiry.contact_last_name}
+                  </div>
+                  {inquiry.contact_phone && (
+                    <div className="flex items-center gap-1.5 text-slate-600">
+                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>{inquiry.contact_phone}</span>
+                    </div>
+                  )}
+                  {inquiry.contact_email && (
+                    <div className="flex items-center gap-1.5 text-slate-600 truncate">
+                      <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">{inquiry.contact_email}</span>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* DESTRUCTIVE CANCEL ACTION (DISCREET & VISUALLY SEPARATED) */}
+              {!isConverted && !isClosedOrCancelled && (
+                <div className="pt-1 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setIsCancelDialogOpen(true)}
+                    className="text-xs text-rose-600 hover:text-rose-700 hover:underline font-medium cursor-pointer transition-colors p-1"
+                  >
+                    Cancel this inquiry
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* PROGRESSIVE DISCLOSURE: SELECTIONS & DETAILS DIALOG */}
+      <Dialog open={isSelectionsModalOpen} onOpenChange={setIsSelectionsModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto p-6 sm:p-7 rounded-2xl">
+          <DialogHeader className="border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-[#4C81E0]" />
+              <DialogTitle className="text-lg font-bold text-slate-900">
+                Selections &amp; Package Details
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-slate-500 mt-1">
+              {resolvedPackage?.name || inquiry.package_name_snapshot || "Custom Catering Selections"} • {inquiry.guest_count ? `${inquiry.guest_count} guests` : "Guests TBD"} • {resolveServiceType(inquiry)}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 pt-3 text-xs">
+            {/* 1. DISHES & MENU SELECTIONS */}
+            {isSpecialOffer ? (
+              categorizedSpecialOffer.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                    <Utensils className="w-4 h-4 text-[#4C81E0]" />
+                    <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider font-sans">
+                      Included Combo Dishes ({offerFoodItems.length})
+                    </h4>
+                  </div>
+
+                  <div className="space-y-3">
+                    {categorizedSpecialOffer.map(({ category, dishes }) => (
+                      <div key={category} className="space-y-1.5">
+                        <span className="text-xs font-semibold text-slate-700 block">
+                          {category}
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {dishes.map((d, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200/80 text-xs font-medium text-slate-800"
+                            >
+                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span>{d.item_name || d.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            ) : (
+              categorizedMenu.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                    <Utensils className="w-4 h-4 text-[#4C81E0]" />
+                    <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider font-sans">
+                      Selected Menu Dishes ({resolvedMenuItems.length})
+                    </h4>
+                  </div>
+
+                  <div className="space-y-4">
+                    {categorizedMenu.map(({ category, dishes }) => (
+                      <div key={category} className="space-y-1.5">
+                        <span className="text-xs font-semibold text-slate-700 block">
+                          {category} ({dishes.length})
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {dishes.map((dish, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-start gap-2.5 p-2 rounded-lg bg-slate-50 border border-slate-200/80"
+                            >
+                              {dish.image_url ? (
+                                <img
+                                  src={dish.image_url}
+                                  alt={dish.name}
+                                  className="w-10 h-10 rounded object-cover border border-slate-200 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded bg-blue-50 flex items-center justify-center text-[#4C81E0] shrink-0">
+                                  <Utensils className="w-4 h-4" />
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <div className="font-semibold text-slate-900 text-xs truncate">{dish.name}</div>
+                                {dish.description && (
+                                  <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">
+                                    {dish.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
             )}
 
-            {/* 3. STANDALONE FOOD / MENU SELECTIONS (If no package chosen) */}
-            {!hasPackage && categorizedMenu.length > 0 && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Utensils className="w-4 h-4 text-[#2C4B8A]" />
-                    <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans">
-                      Food &amp; Menu Selections ({resolvedMenuItems.length} items)
-                    </h2>
-                  </div>
-                  <span className="text-xs font-semibold text-slate-500">Custom Food Selection</span>
+            {/* 2. SETUP & INCLUSIONS */}
+            {packageInclusionGroups.length > 0 && (
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                  <Layers className="w-4 h-4 text-[#4C81E0]" />
+                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider font-sans">
+                    Package Inclusions &amp; Equipment ({totalPackageInclusionsCount})
+                  </h4>
                 </div>
 
-                <div className="space-y-4">
-                  {categorizedMenu.map(({ category, dishes }) => (
-                    <div key={category} className="space-y-2">
-                      <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                        {category} ({dishes.length})
-                      </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {dishes.map((dish, idx) => (
+                <div className="space-y-3">
+                  {packageInclusionGroups.map(({ category, items }) => (
+                    <div key={category} className="space-y-1.5">
+                      <span className="text-xs font-semibold text-slate-700 block">
+                        {category}
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {items.map((item, idx) => (
                           <div
                             key={idx}
-                            className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 shadow-2xs"
+                            className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200/80 text-xs text-slate-800"
                           >
-                            {dish.image_url ? (
-                              <img
-                                src={dish.image_url}
-                                alt={dish.name}
-                                className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center text-[#2C4B8A] shrink-0">
-                                <Utensils className="w-5 h-5" />
-                              </div>
-                            )}
-                            <div className="min-w-0">
-                              <div className="font-bold text-slate-900 text-xs">{dish.name}</div>
-                              {dish.description && (
-                                <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-snug">
-                                  {dish.description}
-                                </p>
-                              )}
-                            </div>
+                            <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                            <span className="leading-snug">{item}</span>
                           </div>
                         ))}
                       </div>
@@ -1535,48 +1383,61 @@ export default function CustomerInquiryDetails() {
               </div>
             )}
 
-            {/* 4. ADD-ONS & EXTRA SERVICES (Only if selected) */}
-            {hasAddons && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-[#2C4B8A]" />
-                    <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans">
-                      Add-ons &amp; Extra Services
-                    </h2>
+            {/* 3. SCAFFOLD SIZE SPECIFICATIONS */}
+            {resolvedScaffoldSize && (
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                  <Store className="w-4 h-4 text-[#4C81E0]" />
+                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider font-sans">
+                    Configured Scaffold Specifications
+                  </h4>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap pt-1 text-xs">
+                  <div className="font-bold text-slate-900 text-sm">
+                    {resolvedScaffoldSize.formatted}
+                    {resolvedScaffoldSize.label && (
+                      <span className="text-xs text-slate-500 font-normal ml-1">({resolvedScaffoldSize.label})</span>
+                    )}
                   </div>
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                    {(inquiry.service_items?.length || 0) + (inquiry.additional_services?.length || 0)} Selected
-                  </span>
+                  {resolvedScaffoldSize.area && (
+                    <span className="text-slate-500">• Total Area: {resolvedScaffoldSize.area}</span>
+                  )}
+                  {resolvedScaffoldSize.capacity && (
+                    <span className="text-slate-500">• Optimal for {resolvedScaffoldSize.capacity}</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 4. ADD-ONS & EXTRA SERVICES */}
+            {totalAddonsCount > 0 && (
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                  <PackagePlus className="w-4 h-4 text-[#4C81E0]" />
+                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider font-sans">
+                    Add-ons &amp; Extra Services ({totalAddonsCount})
+                  </h4>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   {Array.isArray(inquiry.service_items) &&
                     inquiry.service_items.map((item, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200 shadow-2xs"
+                        className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-200/80"
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-lg bg-[#2C4B8A]/10 text-[#2C4B8A] flex items-center justify-center shrink-0">
-                            <PackagePlus className="w-3.5 h-3.5" />
-                          </div>
-                          <div>
-                            <div className="font-bold text-slate-900 truncate">{item.name}</div>
-                            {item.quantity && (
-                              <div className="text-[11px] text-slate-500 font-medium">Qty: {item.quantity}</div>
-                            )}
-                          </div>
+                        <div>
+                          <div className="font-semibold text-slate-900">{item.name}</div>
+                          {item.quantity && (
+                            <div className="text-slate-500 text-[11px]">Qty: {item.quantity}</div>
+                          )}
                         </div>
-
                         {item.price > 0 ? (
-                          <div className="font-bold text-[#2C4B8A] shrink-0">
+                          <div className="font-semibold text-slate-900">
                             {formatCurrency(item.price)}
                           </div>
                         ) : (
-                          <div className="text-[11px] font-semibold text-slate-500 shrink-0">
-                            Quoted with booking
-                          </div>
+                          <div className="text-slate-400 text-[11px]">Quoted in proposal</div>
                         )}
                       </div>
                     ))}
@@ -1585,375 +1446,62 @@ export default function CustomerInquiryDetails() {
                     inquiry.additional_services.map((serv, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 shadow-2xs"
+                        className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 font-medium text-slate-900"
                       >
                         <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         <span>{serv}</span>
                       </div>
                     ))}
                 </div>
+              </div>
+            )}
 
-                <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-100 text-xs text-blue-900 flex items-start gap-2.5">
-                  <Info className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
-                  <p className="text-[11px] leading-relaxed font-medium">
-                    Additional items and add-ons are subject to quotation. Final pricing and itemization will be discussed and confirmed in your official quotation.
+            {/* 5. CUSTOM STYLING & INSPIRATION PHOTOS */}
+            {(inquiry.custom_setup_notes || (Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0)) && (
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                  <Info className="w-4 h-4 text-[#4C81E0]" />
+                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider font-sans">
+                    Custom Styling &amp; Inspiration
+                  </h4>
+                </div>
+
+                {inquiry.custom_setup_notes && (
+                  <p className="text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200/80">
+                    {inquiry.custom_setup_notes}
                   </p>
-                </div>
-              </div>
-            )}
+                )}
 
-            {/* 5. SPECIAL REQUESTS & DIETARY PREFERENCES (Only if provided) */}
-            {hasSpecialRequests && (
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-[#2C4B8A]" />
-                    <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans">
-                      Special Requests &amp; Dietary Notes
-                    </h2>
-                  </div>
-                </div>
-
-                <div className="space-y-3.5 text-xs">
-                  {inquiry.special_requests && (
-                    <div className="space-y-1.5">
-                      <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">
-                        Special Event Requests
-                      </span>
-                      <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 text-slate-900 leading-relaxed whitespace-pre-wrap font-medium">
-                        {inquiry.special_requests}
-                      </div>
-                    </div>
-                  )}
-
-                  {inquiry.allergies && (
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-amber-900">
-                      <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-bold text-[11px] uppercase tracking-wider block">
-                          Declared Food Allergies
-                        </span>
-                        <span className="font-semibold text-xs mt-0.5 block">{inquiry.allergies}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {(inquiry.dietary_restrictions || inquiry.dietary_requirements) && (
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                      <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">
-                        Dietary Preferences &amp; Restrictions
-                      </span>
-                      <p className="text-slate-700 font-medium">
-                        {inquiry.dietary_restrictions || inquiry.dietary_requirements}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* 6. CUSTOM STYLING & INSPIRATION PHOTOS (Only if applicable) */}
-            {hasCustomSetupOrInspiration && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Palette className="w-4 h-4 text-[#2C4B8A]" />
-                    <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans">
-                      Custom Event Styling &amp; Inspiration
-                    </h2>
-                  </div>
-                  {inquiry.is_custom_setup && (
-                    <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
-                      Custom Setup Requested
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-4 text-xs">
-                  {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
-                    <div className="space-y-1.5">
-                      <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">
-                        Styling Scope Elements
-                      </span>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {inquiry.custom_setup_scope.map((item, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-800 font-semibold text-xs"
-                          >
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {inquiry.custom_setup_notes && (
-                    <div className="space-y-1">
-                      <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">
-                        Styling Notes
-                      </span>
-                      <p className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 leading-relaxed font-medium">
-                        {inquiry.custom_setup_notes}
-                      </p>
-                    </div>
-                  )}
-
-                  {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
-                    <div className="space-y-2">
-                      <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">
-                        Customer Uploaded Inspiration Photos ({inquiry.inspiration_images.length})
-                      </span>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                        {inquiry.inspiration_images.map((imgUrl, idx) => (
-                          <div
-                            key={idx}
-                            onClick={() => setSelectedPhoto(imgUrl)}
-                            className="aspect-square rounded-xl overflow-hidden border border-slate-200 relative group cursor-pointer shadow-2xs hover:shadow-md transition-all"
-                          >
-                            <img
-                              src={imgUrl}
-                              alt={`Inspiration ${idx + 1}`}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                            />
-                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold">
-                              Click to view
-                            </div>
+                {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-xs font-semibold text-slate-600">Uploaded Inspiration Photos</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {inquiry.inspiration_images.map((imgUrl, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => setSelectedPhoto(imgUrl)}
+                          className="aspect-square rounded-lg overflow-hidden border border-slate-200 relative group cursor-pointer"
+                        >
+                          <img
+                            src={imgUrl}
+                            alt={`Inspiration ${idx + 1}`}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-semibold">
+                            View photo
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
 
-          {/* RIGHT SUMMARY & ACTION RAIL (lg:col-span-1 space-y-6) */}
-          <div className="space-y-6">
-            {/* 1. PRICING & QUOTATION SUMMARY CARD */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-[#2C4B8A]" /> Pricing &amp; Quotation
-                </h3>
-                {inquiry.quotation_status && (
-                  <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
-                    {inquiry.quotation_status}
-                  </span>
-                )}
-              </div>
-
-              <div className="space-y-3.5">
-                {inquiry.total_price > 0 ? (
-                  <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200/80 space-y-2">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xs font-medium text-slate-600">Total Quoted Cost</span>
-                      <span className="text-lg font-extrabold text-[#1E3563] font-sans">
-                        {formatCurrency(inquiry.total_price)}
-                      </span>
-                    </div>
-
-                    {inquiry.deposit_amount > 0 && (
-                      <div className="flex items-baseline justify-between text-xs pt-1.5 border-t border-blue-200/60">
-                        <span className="text-slate-600 font-medium">Required Deposit</span>
-                        <span className="font-bold text-emerald-700">
-                          {formatCurrency(inquiry.deposit_amount)}
-                        </span>
-                      </div>
-                    )}
-
-                    {inquiry.quotation_expiration_date && (
-                      <div className="text-[10px] text-slate-500 pt-1">
-                        Quote valid until: {formatShortDate(inquiry.quotation_expiration_date)}
-                      </div>
-                    )}
-                  </div>
-                ) : inquiry.estimated_total > 0 ? (
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                    <div className="flex items-baseline justify-between">
-                      <div>
-                        <span className="text-xs font-medium text-slate-600 block">Estimated Total</span>
-                        <span className="text-[10px] text-amber-700 font-semibold inline-block">
-                          Pre-Quotation Estimate
-                        </span>
-                      </div>
-                      <span className="text-base font-extrabold text-slate-900 font-sans">
-                        {formatCurrency(inquiry.estimated_total)}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-snug pt-1.5 border-t border-slate-200/70">
-                      Initial calculation shown at submission. Deductions for removed package inclusions, added item prices, and setup adjustments will be finalized in your official quotation.
-                    </p>
-                  </div>
-                ) : resolvedPackage?.setup_price > 0 ? (
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                    <div className="flex items-baseline justify-between">
-                      <div>
-                        <span className="text-xs font-medium text-slate-600 block">Package Base Price</span>
-                        <span className="text-[10px] text-amber-700 font-semibold inline-block">
-                          Subject to Quotation
-                        </span>
-                      </div>
-                      <span className="text-base font-extrabold text-slate-900 font-sans">
-                        {formatCurrency(resolvedPackage.setup_price)}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-snug pt-1.5 border-t border-slate-200/70">
-                      Official quotation will finalize guest count, catering menus, potential inclusion deductions, and add-on itemization.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed">
-                    Pricing will be calculated based on your specifications and sent via formal quotation.
-                  </div>
-                )}
-
-                {/* Primary Action Buttons */}
-                {isQuotationSent && (
-                  <Button
-                    onClick={openQuotationView}
-                    disabled={isLoadingQuotation}
-                    className="w-full bg-[#1E3563] hover:bg-[#152547] text-white font-bold text-xs h-9 rounded-xl cursor-pointer shadow-xs gap-1.5 transition-all"
-                  >
-                    <FileCheck2 className="w-4 h-4" />
-                    <span>Review Official Quotation</span>
-                  </Button>
-                )}
-
-                {isUnderRevision && (
-                  <Button
-                    variant="outline"
-                    onClick={openQuotationView}
-                    disabled={isLoadingQuotation}
-                    className="w-full bg-white hover:bg-slate-50 text-slate-700 border-slate-300 font-bold text-xs h-9 rounded-xl cursor-pointer shadow-2xs gap-1.5 transition-all"
-                  >
-                    <FileText className="w-4 h-4 text-slate-500" />
-                    <span>View Quotation</span>
-                  </Button>
-                )}
-
-                {isQuoteAcceptedAwaitingPayment && (
-                  <Button
-                    onClick={startInquiryCheckout}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 rounded-xl cursor-pointer shadow-xs gap-1.5 transition-all"
-                  >
-                    <CreditCard className="w-4 h-4" />
-                    <span>Pay Deposit Now</span>
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* 2. CONTACT INFORMATION CARD */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans border-b border-slate-100 pb-3 flex items-center gap-2">
-                <User className="w-4 h-4 text-[#2C4B8A]" /> Contact Information
-              </h3>
-
-              <div className="space-y-3 text-xs">
-                <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#2C4B8A] flex items-center justify-center shrink-0">
-                    <User className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">Customer Name</span>
-                    <span className="font-bold text-slate-900 text-xs truncate block">
-                      {inquiry.contact_first_name} {inquiry.contact_last_name}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#2C4B8A] flex items-center justify-center shrink-0">
-                    <Mail className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">Email Address</span>
-                    <span className="font-semibold text-slate-800 text-xs truncate block">
-                      {inquiry.contact_email || "No email provided"}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#2C4B8A] flex items-center justify-center shrink-0">
-                    <Phone className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">Phone Number</span>
-                    <span className="font-bold text-[#2C4B8A] text-xs block">
-                      {inquiry.contact_phone || "No phone provided"}
-                    </span>
-                  </div>
-                </div>
-
-                {inquiry.contact_alt_phone && (
-                  <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#2C4B8A] flex items-center justify-center shrink-0">
-                      <Phone className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">Alt Phone</span>
-                      <span className="font-medium text-slate-700 text-xs block">
-                        {inquiry.contact_alt_phone}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {inquiry.contact_method && (
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="text-slate-600 font-semibold">Preferred Contact:</span>
-                    <span className="font-semibold text-slate-800 capitalize">{inquiry.contact_method}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* 3. COORDINATOR CHAT / SUPPORT ASSISTANCE */}
-            <div className="bg-gradient-to-br from-blue-50/80 to-indigo-50/60 border border-blue-100 rounded-2xl p-5 shadow-2xs space-y-3 text-xs">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-[#1E3563] text-white flex items-center justify-center shrink-0 shadow-2xs">
-                  <MessageSquare className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-[#1E3563] text-xs">Questions or Changes?</h4>
-                  <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">
-                    Message our catering coordinator directly regarding your venue, menu changes, or quotation inquiry.
-                  </p>
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleOpenChat}
-                className="w-full bg-white hover:bg-blue-50 text-[#1E3563] border-blue-200 font-bold text-xs h-8.5 rounded-xl cursor-pointer shadow-2xs gap-1.5 transition-all"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>Chat with Catering Team</span>
-              </Button>
-            </div>
-
-            {/* 4. CANCEL INQUIRY ACTION (Discreet link) */}
-            {inquiry.status !== "Converted to Booking" && inquiry.status !== "Cancelled" && (
-              <div className="pt-1 text-center">
-                <button
-                  type="button"
-                  onClick={() => setIsCancelDialogOpen(true)}
-                  className="inline-flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 hover:underline font-semibold cursor-pointer transition-colors p-1.5"
-                >
-                  <XCircle className="w-3.5 h-3.5" />
-                  <span>Cancel this inquiry</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* REUSED MODALS */}
+      {/* REUSED QUOTATION MODAL */}
       {isQuotationModalOpen && activeQuotation && (
         <CustomerQuotationModal
           open={isQuotationModalOpen}
@@ -1968,6 +1516,7 @@ export default function CustomerInquiryDetails() {
         />
       )}
 
+      {/* REUSED EDIT INQUIRY MODAL */}
       {isEditModalOpen && (
         <CustomerInquiryEditModal
           open={isEditModalOpen}
@@ -1978,7 +1527,7 @@ export default function CustomerInquiryDetails() {
         />
       )}
 
-      {/* Photo Preview Dialog */}
+      {/* PHOTO PREVIEW MODAL */}
       {selectedPhoto && (
         <Dialog open={Boolean(selectedPhoto)} onOpenChange={() => setSelectedPhoto(null)}>
           <DialogContent className="max-w-3xl p-2 bg-black/95 border-none rounded-2xl overflow-hidden">
@@ -1991,16 +1540,16 @@ export default function CustomerInquiryDetails() {
         </Dialog>
       )}
 
-      {/* Cancel Confirmation Dialog */}
+      {/* CANCEL INQUIRY CONFIRMATION MODAL */}
       <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
-        <DialogContent className="max-w-md rounded-2xl">
+        <DialogContent className="max-w-md rounded-xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-slate-900">Cancel Inquiry Request?</DialogTitle>
+            <DialogTitle className="text-base font-bold text-slate-900">Cancel Inquiry Request?</DialogTitle>
             <DialogDescription className="text-xs text-slate-500 mt-1">
               Are you sure you want to cancel this event inquiry? You can submit a new request anytime.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 sm:gap-0 pt-2">
             <Button
               variant="outline"
               size="sm"

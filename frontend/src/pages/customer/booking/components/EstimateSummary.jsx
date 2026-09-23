@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { ChevronDown, UtensilsCrossed } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, UtensilsCrossed, X } from "lucide-react";
 import { formatPeso } from "../lib/bookingUI";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +33,9 @@ export default function EstimateSummary({
   selectedAddOns: propSelectedAddOns,
   specialRequests: propSpecialRequests,
   currentStepId: propCurrentStepId,
+  onRemoveDish,
+  onClearDishes,
+  isFoodExpandable = false,
 }) {
   const shouldHideIncluded =
     hideIncluded || !showIncluded || Boolean(estimate?.hideIncluded);
@@ -76,39 +79,40 @@ export default function EstimateSummary({
     propSpecialRequests ?? estimateSpecialRequests ?? "",
   ).trim();
 
-  const isMenuStep = currentStepId === "MenuSelection";
   const isAddonsStep =
     currentStepId === "PackageAddOns" || currentStepId === "AddonSelection";
 
-  const [expandedSections, setExpandedSections] = useState(() => ({
-    menu: isMenuStep,
-    addons: isAddonsStep,
-    notes: false,
-  }));
+  const canExpandFood = Boolean(isFoodExpandable || onRemoveDish);
 
-  const prevStepIdRef = useRef(currentStepId);
-
-  useEffect(() => {
-    if (currentStepId !== prevStepIdRef.current) {
-      prevStepIdRef.current = currentStepId;
-      if (currentStepId === "MenuSelection") {
-        setExpandedSections({ menu: true, addons: false, notes: false });
-      } else if (
-        currentStepId === "PackageAddOns" ||
-        currentStepId === "AddonSelection"
-      ) {
-        setExpandedSections({ menu: false, addons: true, notes: false });
-      } else {
-        setExpandedSections({ menu: false, addons: false, notes: false });
-      }
-    }
-  }, [currentStepId]);
+  const [expandedOverrides, setExpandedOverrides] = useState({});
+  const isAddonsExpanded =
+    expandedOverrides.addons !== undefined
+      ? expandedOverrides.addons
+      : isAddonsStep;
+  const isNotesExpanded = Boolean(expandedOverrides.notes);
+  const isFoodExpanded =
+    canExpandFood &&
+    (expandedOverrides.food !== undefined
+      ? expandedOverrides.food
+      : (currentStepId === "MenuSelection" && selectedMenu.length > 0));
 
   const toggleSection = (key) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
+    if (key === "food") {
+      setExpandedOverrides((prev) => ({
+        ...prev,
+        food: !isFoodExpanded,
+      }));
+    } else if (key === "addons") {
+      setExpandedOverrides((prev) => ({
+        ...prev,
+        addons: !isAddonsExpanded,
+      }));
+    } else if (key === "notes") {
+      setExpandedOverrides((prev) => ({
+        ...prev,
+        notes: !isNotesExpanded,
+      }));
+    }
   };
 
   if (variant === "bar") {
@@ -177,7 +181,6 @@ export default function EstimateSummary({
             {lines.map((line) => {
               if (line.id === "food") {
                 const dishCount = selectedMenu.length;
-                const isMenuExpanded = Boolean(expandedSections.menu);
                 return (
                   <div
                     key={line.id}
@@ -185,31 +188,50 @@ export default function EstimateSummary({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <dt className="min-w-0 flex-1">
-                        <button
-                          type="button"
-                          onClick={() => toggleSection("menu")}
-                          className="group inline-flex items-center gap-1.5 text-left text-slate-200 hover:text-white transition-colors cursor-pointer max-w-full"
-                          aria-expanded={isMenuExpanded}
-                        >
-                          <span className="font-semibold text-slate-200 group-hover:text-white transition-colors whitespace-nowrap">
-                            Catering menu ({dishCount}{" "}
-                            {dishCount === 1 ? "dish" : "dishes"})
+                        <div className="flex items-center gap-1.5 text-slate-200">
+                          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#4C81E0]/20 text-[#4C81E0]">
+                            <UtensilsCrossed size={10} />
                           </span>
-                          <span className="text-slate-400 group-hover:text-amber-400 transition-colors shrink-0">
-                            <ChevronDown
-                              size={13}
-                              className={cn(
-                                "transition-transform duration-200",
-                                isMenuExpanded && "rotate-180 text-amber-400",
-                              )}
-                            />
+                          <span className="font-semibold text-slate-200">
+                            Food catering
                           </span>
-                        </button>
-                        {line.detail && (
-                          <span className="block text-[11px] text-slate-400 mt-0.5">
-                            {line.detail}
-                          </span>
+                        </div>
+
+                        {canExpandFood ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleSection("food")}
+                            disabled={dishCount === 0}
+                            className={cn(
+                              "group mt-0.5 pl-5.5 inline-flex items-center gap-1 text-[11px] font-semibold transition-colors text-left",
+                              dishCount > 0
+                                ? "text-[#4C81E0] hover:text-blue-300 cursor-pointer"
+                                : "text-slate-400 cursor-default",
+                            )}
+                            aria-expanded={dishCount > 0 ? isFoodExpanded : false}
+                          >
+                            <span>
+                              {dishCount} {dishCount === 1 ? "dish" : "dishes"} selected
+                            </span>
+                            {dishCount > 0 && (
+                              <ChevronDown
+                                size={12}
+                                className={cn(
+                                  "transition-transform duration-200 shrink-0",
+                                  isFoodExpanded && "rotate-180 text-[#4C81E0]",
+                                )}
+                              />
+                            )}
+                          </button>
+                        ) : (
+                          <p className="text-[11px] font-semibold text-[#4C81E0] mt-0.5 pl-5.5">
+                            {dishCount} {dishCount === 1 ? "dish" : "dishes"} selected
+                          </p>
                         )}
+
+                        <span className="block text-[11px] text-slate-400 mt-0.5 pl-5.5">
+                          {line.detail || (guests > 0 ? `Price to be set on official quotation for ${guests} guests` : "Price to be set on official quotation")}
+                        </span>
                       </dt>
                       <dd
                         className={cn(
@@ -225,34 +247,51 @@ export default function EstimateSummary({
                       </dd>
                     </div>
 
-                    {isMenuExpanded && (
-                      <div className="mt-2 max-h-48 overflow-y-auto overscroll-contain custom-scrollbar-dark pr-1 space-y-1.5 rounded-md bg-slate-950/60 p-2 border border-slate-800/80">
-                        {dishCount === 0 ? (
-                          <p className="text-[11px] text-slate-400 italic py-0.5">
-                            No dishes selected yet. Select dishes from the menu to see them here.
-                          </p>
-                        ) : (
-                          selectedMenu.map((item, idx) => (
-                            <div
-                              key={item._id || item.id || idx}
-                              className="flex items-center gap-2 py-0.5"
-                            >
-                              {item.image_url ? (
-                                <img
-                                  src={item.image_url}
-                                  alt=""
-                                  className="h-6 w-6 shrink-0 rounded object-cover border border-slate-700/60"
-                                />
-                              ) : (
-                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-slate-800 text-slate-400 border border-slate-700/60">
-                                  <UtensilsCrossed size={11} />
+                    {canExpandFood && isFoodExpanded && dishCount > 0 && (
+                      <div className="mt-2 rounded-md bg-slate-950/60 p-2 border border-slate-800/80 space-y-1.5">
+                        <div className="max-h-48 overflow-y-auto overscroll-contain custom-scrollbar-dark pr-1 space-y-1 divide-y divide-slate-800/50">
+                          {selectedMenu.map((item, idx) => {
+                            const dishKey = item._id || item.id || idx;
+                            return (
+                              <div
+                                key={dishKey}
+                                className="flex items-center justify-between gap-2 pt-1 first:pt-0 text-[11px]"
+                              >
+                                <span
+                                  className="min-w-0 flex-1 truncate font-medium text-slate-200"
+                                  title={item.name}
+                                >
+                                  {item.name}
                                 </span>
-                              )}
-                              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-200">
-                                {item.name || item.item_name || "Dish"}
-                              </span>
-                            </div>
-                          ))
+                                {onRemoveDish && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onRemoveDish(item)}
+                                    className="shrink-0 rounded p-0.5 text-slate-400 hover:text-red-400 hover:bg-red-950/40 transition-colors cursor-pointer"
+                                    aria-label={`Remove ${item.name}`}
+                                    title={`Remove ${item.name}`}
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {onClearDishes && dishCount > 0 && (
+                          <div className="pt-1.5 border-t border-slate-800/80 flex items-center justify-between">
+                            <span className="text-[10px] text-slate-500">
+                              {dishCount} chosen
+                            </span>
+                            <button
+                              type="button"
+                              onClick={onClearDishes}
+                              className="text-[10px] font-semibold text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
+                            >
+                              Clear all
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}
@@ -262,7 +301,6 @@ export default function EstimateSummary({
 
               if (line.id === "addons") {
                 const addOnsCount = selectedAddOns.length;
-                const isAddonsExpanded = Boolean(expandedSections.addons);
                 return (
                   <div
                     key={line.id}
@@ -279,12 +317,12 @@ export default function EstimateSummary({
                           <span className="font-semibold text-slate-200 group-hover:text-white transition-colors whitespace-nowrap">
                             Add-ons ({addOnsCount})
                           </span>
-                          <span className="text-slate-400 group-hover:text-amber-400 transition-colors shrink-0">
+                          <span className="text-slate-400 group-hover:text-[#4C81E0] transition-colors shrink-0">
                             <ChevronDown
                               size={13}
                               className={cn(
                                 "transition-transform duration-200",
-                                isAddonsExpanded && "rotate-180 text-amber-400",
+                                isAddonsExpanded && "rotate-180 text-[#4C81E0]",
                               )}
                             />
                           </span>
@@ -347,7 +385,6 @@ export default function EstimateSummary({
               }
 
               if (line.id === "special_requests") {
-                const isNotesExpanded = Boolean(expandedSections.notes);
                 return (
                   <div
                     key={line.id}
@@ -364,12 +401,12 @@ export default function EstimateSummary({
                           <span className="font-semibold text-slate-200 group-hover:text-white transition-colors whitespace-nowrap">
                             Additional requests or notes
                           </span>
-                          <span className="text-slate-400 group-hover:text-amber-400 transition-colors shrink-0">
+                          <span className="text-slate-400 group-hover:text-[#4C81E0] transition-colors shrink-0">
                             <ChevronDown
                               size={13}
                               className={cn(
                                 "transition-transform duration-200",
-                                isNotesExpanded && "rotate-180 text-amber-400",
+                                isNotesExpanded && "rotate-180 text-[#4C81E0]",
                               )}
                             />
                           </span>
@@ -446,7 +483,7 @@ export default function EstimateSummary({
           <div className="mt-2.5 space-y-2 border-t border-slate-800 pt-2 text-xs">
             {included?.length > 0 && (
               <div>
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#4C81E0]">
                   Included in combo
                 </p>
                 <ul className="space-y-0.5 text-slate-300 text-[11px]">

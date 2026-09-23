@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   X,
@@ -6,7 +6,6 @@ import {
   UtensilsCrossed,
   RotateCcw,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import {
@@ -19,8 +18,7 @@ import {
 import { focusRing } from "../lib/bookingUI";
 import { cn } from "@/lib/utils";
 import EstimateSummary from "../components/EstimateSummary";
-import { resolveGroup, CATEGORY_GROUPS } from "@/lib/menuCategories";
-import CourseFilterBar from "../components/CourseFilterBar";
+import { resolveGroup, CATEGORY_GROUPS, getCategoryGuidance } from "@/lib/menuCategories";
 import {
   offerFoodByCategory,
   offerCourseRequirement,
@@ -30,10 +28,10 @@ import {
 } from "@/lib/specialOffers";
 
 /**
- * Clean, touch-optimized dish selection card.
- * Features crisp typography, image thumbnail, clear selected state, and responsive sizing.
+ * Compact, horizontal menu card.
+ * Image on left, readable dish name and description in middle, check indicator on right.
  */
-function DishRow({ item, selected, onToggle }) {
+function DishCard({ item, selected, onToggle }) {
   return (
     <button
       type="button"
@@ -41,59 +39,61 @@ function DishRow({ item, selected, onToggle }) {
       aria-checked={selected}
       onClick={onToggle}
       className={cn(
-        "group relative flex items-center justify-between gap-3 rounded-xl border p-2.5 text-left transition-all cursor-pointer select-none active:scale-[0.99] touch-manipulation",
+        "group relative flex items-center gap-3 rounded-xl border p-2.5 sm:p-3 text-left transition-all cursor-pointer select-none active:scale-[0.99] touch-manipulation",
         selected
-          ? "border-[#4C81E0] bg-[#4C81E0]/[0.06] ring-1 ring-[#4C81E0]/50 shadow-xs"
+          ? "border-[#4C81E0] bg-blue-50/50 ring-1.5 ring-[#4C81E0] shadow-xs"
           : "border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/70 shadow-2xs",
         focusRing,
       )}
     >
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        {item.image_url ? (
-          <span className="relative block h-12 w-12 sm:h-13 sm:w-13 shrink-0 overflow-hidden rounded-lg bg-slate-100 border border-slate-200/70">
-            <img
-              src={item.image_url}
-              alt=""
-              loading="lazy"
-              className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
-            />
-          </span>
-        ) : (
-          <span className="flex h-12 w-12 sm:h-13 sm:w-13 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 border border-slate-200/50">
-            <UtensilsCrossed size={18} />
-          </span>
-        )}
+      {/* Food Thumbnail */}
+      {item.image_url ? (
+        <span className="relative block h-14 w-14 sm:h-16 sm:w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100 border border-slate-200/80">
+          <img
+            src={item.image_url}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+          />
+        </span>
+      ) : (
+        <span className="flex h-14 w-14 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 border border-slate-200/60">
+          <UtensilsCrossed size={18} />
+        </span>
+      )}
 
-        <div className="min-w-0 flex-1">
-          <span
-            className={cn(
-              "block truncate text-xs sm:text-sm font-bold transition-colors leading-snug",
-              selected
-                ? "text-[#4C81E0]"
-                : "text-slate-800 group-hover:text-slate-950",
-            )}
-          >
-            {item.name}
-          </span>
-          {item.description ? (
-            <p className="line-clamp-1 sm:line-clamp-2 text-[11px] text-slate-500 leading-tight mt-0.5">
-              {item.description}
-            </p>
-          ) : (
-            <p className="text-[11px] text-slate-400 italic leading-tight mt-0.5">
-              Standard catering preparation
-            </p>
+      {/* Dish Name & Description */}
+      <div className="min-w-0 flex-1 py-0.5">
+        <h4
+          className={cn(
+            "text-xs sm:text-sm font-bold transition-colors leading-snug line-clamp-2 break-words",
+            selected
+              ? "text-[#4C81E0]"
+              : "text-slate-900 group-hover:text-slate-950",
           )}
-        </div>
+        >
+          {item.name}
+        </h4>
+
+        {item.description ? (
+          <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed mt-0.5 line-clamp-2">
+            {item.description}
+          </p>
+        ) : (
+          <p className="text-[11px] text-slate-400 italic leading-relaxed mt-0.5">
+            Standard catering preparation
+          </p>
+        )}
       </div>
 
+      {/* Clear Selected Checkmark */}
       <div className="shrink-0 pl-1">
         <span
           className={cn(
-            "flex h-5 w-5 items-center justify-center rounded-md border transition-all duration-150",
+            "flex h-5 w-5 items-center justify-center rounded-full border transition-all duration-150",
             selected
               ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs"
-              : "border-slate-300 bg-white text-transparent group-hover:border-slate-400 group-hover:bg-slate-50",
+              : "border-slate-300 bg-white text-transparent group-hover:border-slate-400",
           )}
           aria-hidden="true"
         >
@@ -104,55 +104,71 @@ function DishRow({ item, selected, onToggle }) {
   );
 }
 
-function DishGrid({ items, isSelected, onToggle, emptyMessage }) {
-  if (items.length === 0) {
-    return (
-      <p className="rounded-lg border border-dashed border-slate-200 py-4 text-center text-xs text-slate-400">
-        {emptyMessage}
-      </p>
-    );
-  }
-  return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-2">
-      {items.map((item) => (
-        <DishRow
-          key={item._id}
-          item={item}
-          selected={isSelected(item)}
-          onToggle={() => onToggle(item)}
-        />
-      ))}
-    </div>
-  );
-}
 
-/** Removable chip for the docked selected dishes tray. */
-function PickChip({ item, onRemove }) {
-  const group = resolveGroup(item.category);
+
+/**
+ * Lightweight, compact text-based category navigation tabs.
+ * Clean horizontal text strip with active underline highlight, no bulky pill frames or database counters.
+ */
+function CategoryTabs({
+  groups = [],
+  activeGroupId,
+  onSelectGroup,
+  selectedCounts = {},
+}) {
+  const scrollRef = useRef(null);
+
+  const handleTabClick = (groupId, e) => {
+    onSelectGroup(groupId);
+    if (e?.currentTarget && e.currentTarget.scrollIntoView) {
+      e.currentTarget.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "nearest",
+      });
+    }
+  };
+
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg border border-[#4C81E0]/30 bg-blue-50/80 py-1 pl-2.5 pr-1.5 text-xs font-medium text-blue-900 shadow-2xs">
-      <span className="truncate max-w-[130px] sm:max-w-[180px] font-semibold">
-        {item.name}
-      </span>
-      {group?.label && (
-        <span className="hidden sm:inline text-[10px] text-blue-600/80 bg-blue-100/60 px-1 py-0.2 rounded font-sans">
-          {group.label}
-        </span>
-      )}
-      {onRemove && (
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={`Remove ${item.name}`}
-          className={cn(
-            "flex h-4 w-4 items-center justify-center rounded text-blue-700 hover:bg-blue-200 hover:text-blue-900 cursor-pointer ml-0.5",
-            focusRing,
-          )}
-        >
-          <X size={11} />
-        </button>
-      )}
-    </span>
+    <div className="relative select-none border-b border-slate-200 -mx-1 px-1">
+      <div
+        ref={scrollRef}
+        className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-none scroll-smooth touch-pan-x"
+        role="tablist"
+        aria-label="Food category navigation"
+      >
+        {groups.map((group) => {
+          const selectedInThis = selectedCounts[group.id] || 0;
+          const isActive = activeGroupId === group.id;
+
+          return (
+            <button
+              key={group.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={(e) => handleTabClick(group.id, e)}
+              className={cn(
+                "shrink-0 inline-flex items-center gap-1 py-2 px-2.5 text-xs transition-colors cursor-pointer whitespace-nowrap border-b-2 -mb-px",
+                isActive
+                  ? "border-[#4C81E0] text-[#4C81E0] font-bold"
+                  : selectedInThis > 0
+                    ? "border-transparent text-slate-800 font-semibold hover:text-[#4C81E0]"
+                    : "border-transparent text-slate-500 hover:text-slate-800 font-medium",
+                focusRing,
+              )}
+            >
+              <span>{group.label}</span>
+              {selectedInThis > 0 && (
+                <span className="text-[10px] font-bold text-[#4C81E0] bg-blue-50 border border-blue-200/80 px-1.5 py-0.2 rounded-full">
+                  {selectedInThis}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -163,33 +179,21 @@ export default function StepMenuSelection({
   estimate,
   isFullService,
   offer = null,
+  onRegisterMenuNav,
+  onRemoveDish,
+  onClearDishes,
 }) {
   const selected = useMemo(() => form.selected_menu || [], [form.selected_menu]);
   const [activeGroup, setActiveGroup] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedCategory, setExpandedCategory] = useState(null);
-  const [hasInitializedAccordion, setHasInitializedAccordion] = useState(false);
-  const courses = useMemo(
-    () => (offer ? offerFoodByCategory(offer) : []),
-    [offer],
-  );
-
-  useEffect(() => {
-    setHasInitializedAccordion(false);
-  }, [offer?._id, offer?.id]);
-
-  /**
-   * Initialize expanded category for Special Offer accordion.
-   * Expands the first incomplete category; if all are completed, leaves all collapsed.
-   */
-  useEffect(() => {
-    if (!offer || hasInitializedAccordion || courses.length === 0) return;
-
+  const prevOfferIdRef = useRef(offer?._id || offer?.id);
+  const [expandedCategory, setExpandedCategory] = useState(() => {
+    if (!offer) return null;
+    const initialCourses = offerFoodByCategory(offer);
     const snapshot = Array.isArray(form.offer_food_snapshot)
       ? form.offer_food_snapshot
       : [];
-
-    const firstIncomplete = courses.find((course) => {
+    const firstIncomplete = initialCourses.find((course) => {
       if (course.items.length === 1) return false;
       const req = offerCourseRequirement(course.category);
       const selectedInCat = snapshot.filter(
@@ -197,26 +201,44 @@ export default function StepMenuSelection({
       );
       return selectedInCat.length < req;
     });
+    return firstIncomplete ? firstIncomplete.category : null;
+  });
 
+  const offerId = offer?._id || offer?.id;
+  if (prevOfferIdRef.current !== offerId) {
+    prevOfferIdRef.current = offerId;
+    const nextCourses = offer ? offerFoodByCategory(offer) : [];
+    const snapshot = Array.isArray(form.offer_food_snapshot)
+      ? form.offer_food_snapshot
+      : [];
+    const firstIncomplete = nextCourses.find((course) => {
+      if (course.items.length === 1) return false;
+      const req = offerCourseRequirement(course.category);
+      const selectedInCat = snapshot.filter(
+        (entry) => entry.menu_category === course.category,
+      );
+      return selectedInCat.length < req;
+    });
     setExpandedCategory(firstIncomplete ? firstIncomplete.category : null);
-    setHasInitializedAccordion(true);
-  }, [offer, courses, form.offer_food_snapshot, hasInitializedAccordion]);
+  }
 
   const handleToggleCategory = (category) => {
     setExpandedCategory((prev) => (prev === category ? null : category));
   };
 
+  const comboCourses = useMemo(() => (offer ? offerFoodByCategory(offer) : []), [offer]);
+
   /**
    * Seeding single-item combo courses into snapshot.
    */
   useEffect(() => {
-    if (!offer || courses.length === 0) return;
+    if (!offer || comboCourses.length === 0) return;
 
     setForm((prev) => {
       const current = Array.isArray(prev.offer_food_snapshot)
         ? prev.offer_food_snapshot
         : [];
-      const missing = courses.filter(
+      const missing = comboCourses.filter(
         (course) =>
           course.items.length === 1 &&
           !current.some((entry) => entry.menu_category === course.category),
@@ -234,7 +256,7 @@ export default function StepMenuSelection({
         ],
       };
     });
-  }, [offer, courses, setForm]);
+  }, [offer, comboCourses, setForm]);
 
   const isSelected = (item) =>
     selected.some((chosen) => String(chosen._id) === String(item._id));
@@ -254,19 +276,19 @@ export default function StepMenuSelection({
     });
   };
 
-  const remove = (item) =>
+  const remove = onRemoveDish || ((item) =>
     setForm((prev) => ({
       ...prev,
       selected_menu: (prev.selected_menu || []).filter(
         (chosen) => String(chosen._id) !== String(item._id),
       ),
-    }));
+    })));
 
-  const clearAll = () =>
+  const clearAll = onClearDishes || (() =>
     setForm((prev) => ({
       ...prev,
       selected_menu: [],
-    }));
+    })));
 
   // Group items by category course in standard dining order
   const groupedItems = useMemo(() => {
@@ -298,18 +320,17 @@ export default function StepMenuSelection({
   }, [selected]);
 
   // Ensure activeGroup points to a valid category group
-  useEffect(() => {
-    if (groupedItems.length > 0) {
-      if (!activeGroup || !groupedItems.some((g) => g.id === activeGroup)) {
-        setActiveGroup(groupedItems[0].id);
-      }
+  const currentGroupId = useMemo(() => {
+    if (activeGroup && groupedItems.some((g) => g.id === activeGroup)) {
+      return activeGroup;
     }
-  }, [groupedItems, activeGroup]);
+    return groupedItems[0]?.id || "";
+  }, [activeGroup, groupedItems]);
 
   const currentGroup = useMemo(() => {
     if (groupedItems.length === 0) return null;
-    return groupedItems.find((g) => g.id === activeGroup) || groupedItems[0];
-  }, [groupedItems, activeGroup]);
+    return groupedItems.find((g) => g.id === currentGroupId) || groupedItems[0];
+  }, [groupedItems, currentGroupId]);
 
   const currentGroupIndex = useMemo(() => {
     if (!currentGroup) return -1;
@@ -322,9 +343,51 @@ export default function StepMenuSelection({
       ? groupedItems[currentGroupIndex + 1]
       : null;
 
+  // Register category navigation state with parent wizard so the fixed bottom bar progresses categories
+  useEffect(() => {
+    if (offer || !onRegisterMenuNav) return;
+    if (!currentGroup) {
+      onRegisterMenuNav(null);
+      return;
+    }
+
+    onRegisterMenuNav({
+      currentGroupIndex,
+      totalGroups: groupedItems.length,
+      currentGroup,
+      nextGroup,
+      prevGroup,
+      hasNext: Boolean(nextGroup),
+      hasPrev: currentGroupIndex > 0,
+      nextGroupLabel: nextGroup?.label || "",
+      goToNextGroup: () => {
+        if (nextGroup) {
+          setActiveGroup(nextGroup.id);
+          window.scrollTo({ top: 120, behavior: "smooth" });
+        }
+      },
+      goToPrevGroup: () => {
+        if (prevGroup) {
+          setActiveGroup(prevGroup.id);
+          window.scrollTo({ top: 120, behavior: "smooth" });
+        }
+      },
+    });
+
+    return () => onRegisterMenuNav(null);
+  }, [
+    offer,
+    onRegisterMenuNav,
+    currentGroup,
+    nextGroup,
+    prevGroup,
+    currentGroupIndex,
+    groupedItems.length,
+  ]);
+
   const q = searchQuery.trim().toLowerCase();
 
-  // Filter items in the current active category by search query
+  // Filter items strictly in the current active category by search query (do not mix others in main results)
   const activeDishes = useMemo(() => {
     if (!currentGroup) return [];
     if (!q) return currentGroup.items;
@@ -335,21 +398,20 @@ export default function StepMenuSelection({
     );
   }, [currentGroup, q]);
 
-  // Matches in other categories for the current search query
-  const otherMatches = useMemo(() => {
+  // When active category has no search matches, check if other categories have matches as quick shortcuts
+  const otherCategoryMatches = useMemo(() => {
     if (!q || !currentGroup) return [];
     return groupedItems
       .filter((g) => g.id !== currentGroup.id)
-      .map((g) => ({
-        id: g.id,
-        label: g.label,
-        count: g.items.filter(
+      .map((g) => {
+        const matchCount = g.items.filter(
           (item) =>
             item.name?.toLowerCase().includes(q) ||
             item.description?.toLowerCase().includes(q),
-        ).length,
-      }))
-      .filter((g) => g.count > 0);
+        ).length;
+        return { group: g, matchCount };
+      })
+      .filter((m) => m.matchCount > 0);
   }, [q, currentGroup, groupedItems]);
 
   const requestsField = (placeholder) => (
@@ -368,184 +430,70 @@ export default function StepMenuSelection({
   );
 
   const dishBrowser = (
-    <div className="space-y-3.5 max-w-full overflow-hidden">
-      {/* 1. Quick Search Bar */}
-      <div className="relative">
-        <Search
-          size={14}
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-          aria-hidden="true"
-        />
-        <input
-          type="search"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={`Search dishes in ${currentGroup?.label || "menu"} or ingredients (e.g. Sisig, Pork, Pancit)...`}
-          aria-label="Search dishes"
-          className={cn(
-            "h-9.5 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0] shadow-2xs",
-            focusRing,
-          )}
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={() => setSearchQuery("")}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
-            aria-label="Clear search"
-          >
-            <X size={13} />
-          </button>
-        )}
-      </div>
-
-      {/* Cross-category search match suggestions when searching */}
-      {q && otherMatches.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50/40 p-2 text-xs text-slate-600">
-          <span className="text-[11px] font-medium text-slate-500">Also found in:</span>
-          {otherMatches.map((match) => (
-            <button
-              key={match.id}
-              type="button"
-              onClick={() => setActiveGroup(match.id)}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-md bg-white border border-blue-200 px-2 py-0.5 text-[11px] font-semibold text-[#4C81E0] hover:bg-blue-50 cursor-pointer shadow-2xs transition-colors",
-                focusRing,
-              )}
-            >
-              <span>{match.label}</span>
-              <span className="rounded-full bg-blue-100 px-1 text-[10px] text-blue-800 font-bold">
-                {match.count}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* 2. Docked Selected Dishes Tray */}
-      {selected.length > 0 && (
-        <div className="rounded-xl border border-blue-200/80 bg-blue-50/40 p-3 shadow-2xs">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#4C81E0] text-white text-[10px]">
-                ✓
-              </span>
-              <span>Your Selected Menu ({selected.length} {selected.length === 1 ? "dish" : "dishes"})</span>
-            </span>
-            <button
-              type="button"
-              onClick={clearAll}
-              className="text-[11px] font-semibold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer"
-            >
-              Clear all
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
-            {selected.map((item) => (
-              <PickChip
-                key={item._id}
-                item={item}
-                onRemove={() => remove(item)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 3. Primary Food Category Navigation */}
-      <CourseFilterBar
-        activeGroup={currentGroup?.id || activeGroup}
-        onSelectGroup={setActiveGroup}
-        totalDishCount={menuItems?.length || 0}
+    <div className="space-y-4 max-w-full overflow-hidden pb-24 sm:pb-6">
+      {/* 1. Lightweight Text-Based Category Navigation */}
+      <CategoryTabs
         groups={groupedItems}
-        selectedCountsByGroup={selectedCountsByGroup}
-        showAll={false}
+        activeGroupId={currentGroup?.id || activeGroup}
+        onSelectGroup={setActiveGroup}
+        selectedCounts={selectedCountsByGroup}
       />
 
-      {/* 4. Active Category Dish Selection View */}
+      {/* 2. Active Category Header with Small Secondary Action & Search */}
       {currentGroup ? (
         <div className="space-y-3 pt-1">
-          {/* Active Category Header with Live Status and Stepping */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-                <span>{currentGroup.label}</span>
-                <span className="text-[11px] font-normal text-slate-400 lowercase font-sans">
-                  ({activeDishes.length} {activeDishes.length === 1 ? "dish" : "dishes"})
-                </span>
-              </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                  {currentGroup.label}
+                </h3>
+              </div>
 
-              {selectedCountsByGroup[currentGroup.id] > 0 ? (
-                <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-[#4C81E0] ring-1 ring-[#4C81E0]/30">
-                  <Check size={11} strokeWidth={3} />
-                  {selectedCountsByGroup[currentGroup.id]} selected
-                </span>
-              ) : (
-                <span className="text-[11px] text-slate-400 hidden sm:inline">
-                  (none selected)
-                </span>
-              )}
+              <p className="text-xs text-slate-500 mt-0.5">
+                {getCategoryGuidance(currentGroup)}
+              </p>
             </div>
 
-            {/* Previous / Next Category Stepper Controls */}
-            <div className="flex items-center gap-1.5 text-xs ml-auto">
-              {prevGroup && (
+            {/* Quick Search */}
+            <div className="relative w-full sm:w-56 shrink-0">
+              <Search
+                size={13}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={`Search ${currentGroup.label.toLowerCase()}...`}
+                aria-label={`Search dishes in ${currentGroup.label}`}
+                className={cn(
+                  "h-8 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-7 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1.5 focus:ring-[#4C81E0]/30 focus:border-[#4C81E0] shadow-2xs",
+                  focusRing,
+                )}
+              />
+              {searchQuery && (
                 <button
                   type="button"
-                  onClick={() => setActiveGroup(prevGroup.id)}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 cursor-pointer transition-colors shadow-2xs",
-                    focusRing,
-                  )}
-                  title={`Previous: ${prevGroup.label}`}
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+                  aria-label="Clear search"
                 >
-                  <ChevronLeft size={12} />
-                  <span className="hidden sm:inline">{prevGroup.label}</span>
-                </button>
-              )}
-              {nextGroup && (
-                <button
-                  type="button"
-                  onClick={() => setActiveGroup(nextGroup.id)}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-md border border-[#4C81E0]/30 bg-blue-50/70 px-2 py-1 text-[11px] font-semibold text-[#4C81E0] hover:bg-blue-100/70 cursor-pointer transition-colors shadow-2xs",
-                    focusRing,
-                  )}
-                  title={`Next: ${nextGroup.label}`}
-                >
-                  <span>Next: {nextGroup.label}</span>
-                  <ChevronRight size={12} />
+                  <X size={11} />
                 </button>
               )}
             </div>
           </div>
 
-          {/* Dishes in Active Category */}
+          {/* 3. Dishes Grid: Strictly 2 columns on desktop/tablet, 1 on mobile */}
           {activeDishes.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400 space-y-2.5">
+            <div className="rounded-xl border border-dashed border-slate-200 py-10 px-4 text-center text-xs text-slate-400 space-y-3">
               {q ? (
                 <>
-                  <p>No dishes in {currentGroup.label} match “{searchQuery}”.</p>
-                  {otherMatches.length > 0 ? (
-                    <div className="space-y-1.5">
-                      <p className="text-[11px] text-slate-500">
-                        Matches found in other courses:
-                      </p>
-                      <div className="flex flex-wrap justify-center gap-1.5">
-                        {otherMatches.map((m) => (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() => setActiveGroup(m.id)}
-                            className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-[#4C81E0] hover:bg-blue-100 cursor-pointer"
-                          >
-                            <span>{m.label} ({m.count})</span>
-                            <ChevronRight size={11} />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
+                  <p className="text-slate-600 font-medium">
+                    No dishes in {currentGroup.label} match “{searchQuery}”.
+                  </p>
                   <button
                     type="button"
                     onClick={() => setSearchQuery("")}
@@ -554,46 +502,56 @@ export default function StepMenuSelection({
                     <RotateCcw size={12} />
                     Clear search
                   </button>
+
+                  {otherCategoryMatches.length > 0 && (
+                    <div className="pt-2 border-t border-slate-100 max-w-sm mx-auto">
+                      <p className="text-[11px] text-slate-500 mb-2">
+                        Matches found in other categories:
+                      </p>
+                      <div className="flex flex-wrap items-center justify-center gap-1.5">
+                        {otherCategoryMatches.map(({ group, matchCount }) => (
+                          <button
+                            key={group.id}
+                            type="button"
+                            onClick={() => {
+                              setActiveGroup(group.id);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-full border border-blue-200/80 bg-blue-50/70 px-2.5 py-1 text-[11px] font-semibold text-[#4C81E0] hover:bg-blue-100 transition-colors cursor-pointer"
+                          >
+                            <span>{group.label}</span>
+                            <span className="font-mono text-[10px] text-blue-500">
+                              ({matchCount})
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
-                <p>No dishes currently listed under this course.</p>
+                <p>No dishes currently listed under this category.</p>
               )}
             </div>
           ) : (
-            <div className="space-y-3">
-              <DishGrid
-                items={activeDishes}
-                isSelected={isSelected}
-                onToggle={toggle}
-                emptyMessage="No dishes available."
-              />
-
-              {/* Bottom course transition helper */}
-              {nextGroup && !q && (
-                <div className="pt-2 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setActiveGroup(nextGroup.id)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-[#4C81E0]/40 hover:bg-slate-50 hover:text-[#4C81E0] transition-all cursor-pointer shadow-2xs",
-                      focusRing,
-                    )}
-                  >
-                    <span>Continue to {nextGroup.label}</span>
-                    <ChevronRight size={13} />
-                  </button>
-                </div>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+              {activeDishes.map((item) => (
+                <DishCard
+                  key={item._id}
+                  item={item}
+                  selected={isSelected(item)}
+                  onToggle={() => toggle(item)}
+                />
+              ))}
             </div>
           )}
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
+        <div className="rounded-xl border border-dashed border-slate-200 py-10 text-center text-xs text-slate-400">
           Loading menu items...
         </div>
       )}
 
-      {/* 5. Special requests field */}
+      {/* 4. Special requests field */}
       <div className="mt-4 border-t border-slate-100 pt-3">
         {requestsField(
           "e.g. We would like pork barbecue if you can source it, and keep the pancit separate",
@@ -602,11 +560,12 @@ export default function StepMenuSelection({
     </div>
   );
 
+
   // ---------------------------------------------------------------------------
   // Special Offer — a combo pack
   // ---------------------------------------------------------------------------
   if (offer) {
-    const courses = offerFoodByCategory(offer);
+    const courses = comboCourses;
     const inclusions = offerInclusions(offer);
     const pax = Number(form.guest_count) || offerGuestCount(offer) || 1;
     const perPax = offerPricePerPax(offer);
@@ -1054,102 +1013,87 @@ export default function StepMenuSelection({
     const isFoodIncluded = form.include_food !== false;
 
     return (
-      <StepShell aside={isFoodIncluded ? <EstimateSummary estimate={estimate} /> : undefined}>
-        <SH
-          title="Food Catering Menu"
-          sub="Choose any dishes you'd like for your guests. Food pricing and details will be discussed and finalized in your official quotation."
-        />
-
-        {/* Catering Toggle: Include Food vs Setup Only */}
-        <div className="mb-3.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => setForm((prev) => ({ ...prev, include_food: true }))}
-            className={cn(
-              "flex flex-col items-start rounded-lg border p-3 text-left transition-all cursor-pointer",
-              isFoodIncluded
-                ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0] shadow-xs"
-                : "border-slate-200 bg-white hover:border-slate-300",
-              focusRing,
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold transition-colors",
-                  isFoodIncluded
-                    ? "bg-[#4C81E0] text-white"
-                    : "border border-slate-300 bg-white text-transparent",
-                )}
-              >
-                ✓
-              </span>
-              <span className="font-bold text-slate-900 text-xs sm:text-sm">
-                Add Catering / Food Menu
-              </span>
-            </div>
-            <p className="mt-1 text-[11px] text-slate-500 pl-6">
-              Choose dishes from our menu. The price will be discussed and finalized through the quotation.
+      <StepShell
+        aside={
+          isFoodIncluded ? (
+            <EstimateSummary
+              estimate={estimate}
+              selectedMenu={selected}
+              onRemoveDish={remove}
+              onClearDishes={clearAll}
+              isFoodExpandable
+            />
+          ) : undefined
+        }
+        className="max-w-6xl"
+      >
+        {/* Header with compact catering toggle buttons matching mockup */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3.5 border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-base sm:text-lg font-bold text-slate-900">Food Catering Menu</h2>
+            <p className="text-xs text-slate-500 mt-0.5 max-w-xl">
+              Choose the dishes you'd like for your guests. Food pricing and details will be discussed and finalized in your official quotation.
             </p>
-          </button>
+          </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              setForm((prev) => ({
-                ...prev,
-                include_food: false,
-                selected_menu: [],
-              }))
-            }
-            className={cn(
-              "flex flex-col items-start rounded-lg border p-3 text-left transition-all cursor-pointer",
-              !isFoodIncluded
-                ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0] shadow-xs"
-                : "border-slate-200 bg-white hover:border-slate-300",
-              focusRing,
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold transition-colors",
-                  !isFoodIncluded
-                    ? "bg-[#4C81E0] text-white"
-                    : "border border-slate-300 bg-white text-transparent",
-                )}
-              >
-                ✓
-              </span>
-              <span className="font-bold text-slate-900 text-xs sm:text-sm">
-                Skip Catering (Event Setup Only)
-              </span>
-            </div>
-            <p className="mt-1 text-[11px] text-slate-500 pl-6">
-              No food catering needed. Proceed with Event Setup styling only.
-            </p>
-          </button>
+          <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/90 border border-slate-200/80 shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setForm((prev) => ({ ...prev, include_food: true }))}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer",
+                isFoodIncluded
+                  ? "bg-white text-[#4C81E0] shadow-xs border border-blue-200/80"
+                  : "text-slate-600 hover:text-slate-900",
+              )}
+            >
+              <Check
+                size={12}
+                strokeWidth={isFoodIncluded ? 3 : 2}
+                className={isFoodIncluded ? "text-[#4C81E0]" : "text-transparent"}
+              />
+              Add Catering
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setForm((prev) => ({
+                  ...prev,
+                  include_food: false,
+                  selected_menu: [],
+                }))
+              }
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer",
+                !isFoodIncluded
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-300"
+                  : "text-slate-600 hover:text-slate-900",
+              )}
+            >
+              Skip Catering
+            </button>
+          </div>
         </div>
 
         {!isFoodIncluded ? (
-          <Card className="p-5 text-center">
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-[#4C81E0] mb-2.5">
-              <Check size={20} />
+          <Card className="p-6 text-center">
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-[#4C81E0] mb-3">
+              <Check size={22} />
             </div>
             <h3 className="text-sm font-bold text-slate-900">
               Event Setup Only Selected
             </h3>
             <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto">
-              No food catering will be added. You can proceed to extras and contact details.
+              No food catering will be added. You can proceed with Event Setup styling only.
             </p>
-            <div className="mt-4 border-t border-slate-100 pt-3 text-left">
+            <div className="mt-5 border-t border-slate-100 pt-3 text-left">
               {requestsField(
                 "Optional setup notes or special requests for our team",
               )}
             </div>
           </Card>
         ) : (
-          <Card className="p-3.5 sm:p-4">{dishBrowser}</Card>
+          <Card className="p-3.5 sm:p-5">{dishBrowser}</Card>
         )}
       </StepShell>
     );
@@ -1159,13 +1103,24 @@ export default function StepMenuSelection({
   // Food only render
   // ---------------------------------------------------------------------------
   return (
-    <StepShell aside={<EstimateSummary estimate={estimate} />}>
+    <StepShell
+      aside={
+        <EstimateSummary
+          estimate={estimate}
+          selectedMenu={selected}
+          onRemoveDish={remove}
+          onClearDishes={clearAll}
+          isFoodExpandable
+        />
+      }
+      className="max-w-6xl"
+    >
       <SH
         title="Choose Your Dishes"
         sub="Select your dishes for catering. Your per-guest catering rate will be confirmed on your official quotation."
       />
 
-      <Card className="p-3.5 sm:p-4">{dishBrowser}</Card>
+      <Card className="p-3.5 sm:p-5">{dishBrowser}</Card>
     </StepShell>
   );
 }

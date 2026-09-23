@@ -42,14 +42,39 @@ export function resolveGroup(rawCategory) {
   const raw = String(rawCategory || "").trim();
   if (!raw) return { id: "uncategorised", label: "More Dishes" };
 
-  const normalised = raw.toLowerCase();
+  const cleanRaw = raw.startsWith(OTHER_GROUP_PREFIX)
+    ? raw.slice(OTHER_GROUP_PREFIX.length).trim()
+    : raw;
+
+  const normalised = cleanRaw.toLowerCase();
   const group = CATEGORY_GROUPS.find((candidate) =>
     candidate.match.some((keyword) => normalised.includes(keyword)),
   );
 
   if (group) return { id: group.id, label: group.label };
-  return { id: `${OTHER_GROUP_PREFIX}${normalised}`, label: titleCase(raw) };
+  return { id: `${OTHER_GROUP_PREFIX}${normalised}`, label: titleCase(cleanRaw) };
 }
 
-/** Group id for a menu item, resolved from its raw category. */
-export const groupIdFor = (item) => resolveGroup(item?.category).id;
+/** Group id for a menu item, resolved from its raw category without forcing into predefined groups. */
+export const groupIdFor = (item) => {
+  const cat = typeof item === "string" ? item : (item?.category || item?.menu_category);
+  return resolveGroup(cat).id;
+};
+
+/**
+ * Resolves guidance subtitle for a category.
+ * If guidance, subtitle, or description is explicitly provided by the category data, it is used.
+ * Otherwise, uses the generic subtitle: "Select dishes for your menu."
+ */
+export function getCategoryGuidance(categoryOrGroup) {
+  if (!categoryOrGroup) return "Select dishes for your menu.";
+
+  if (typeof categoryOrGroup === "object") {
+    if (categoryOrGroup.guidance) return categoryOrGroup.guidance;
+    if (categoryOrGroup.subtitle) return categoryOrGroup.subtitle;
+    if (categoryOrGroup.description) return categoryOrGroup.description;
+  }
+
+  return "Select dishes for your menu.";
+}
+

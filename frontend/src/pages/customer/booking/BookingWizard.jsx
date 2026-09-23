@@ -6,9 +6,11 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  ChevronUp,
   Loader2,
   Pencil,
   RotateCcw,
+  UtensilsCrossed,
 } from "lucide-react";
 
 
@@ -36,6 +38,7 @@ import StepContactInfo from "./steps/StepContactInfo";
 import StepReviewBooking from "./steps/StepReviewBooking";
 import StepPackageSelection from "./steps/StepPackageSelection";
 import StepPackageAddOns from "./steps/StepPackageAddOns";
+import SelectedDishesBottomSheet from "./components/SelectedDishesBottomSheet";
 
 
 import {
@@ -104,7 +107,7 @@ const readDraft = (userId) => {
 };
 
 const normalizePhone = (value) => String(value || "").replace(/\D/g, "").slice(0, 11);
-const isValidPhone = (value) => {
+const _isValidPhone = (value) => {
   const digits = normalizePhone(value);
   return /^09\d{9}$/.test(digits);
 };
@@ -284,6 +287,24 @@ export default function BookingWizard() {
   const [draftNoticeVisible, setDraftNoticeVisible] = useState(
     Boolean(restoredDraft),
   );
+  const [menuNav, setMenuNav] = useState(null);
+  const [isMobileDishesOpen, setIsMobileDishesOpen] = useState(false);
+
+  const removeDish = useCallback((item) => {
+    setForm((prev) => ({
+      ...prev,
+      selected_menu: (prev.selected_menu || []).filter(
+        (chosen) => String(chosen._id) !== String(item._id),
+      ),
+    }));
+  }, []);
+
+  const clearAllDishes = useCallback(() => {
+    setForm((prev) => ({
+      ...prev,
+      selected_menu: [],
+    }));
+  }, []);
 
   // --- Remote data ---
   const [menuItems, setMenuItems] = useState([]);
@@ -1187,7 +1208,6 @@ export default function BookingWizard() {
       selectedPackageId,
       guestMin,
       guestMax,
-      setupCapacity,
       isOffer,
       packageDetails,
     ],
@@ -1300,7 +1320,7 @@ export default function BookingWizard() {
   // ---------------------------------------------------------------------------
   // Submit
   // ---------------------------------------------------------------------------
-  const scheduleDisplay = useMemo(() => {
+  const _scheduleDisplay = useMemo(() => {
     if (!form.event_date || !form.start_time) return { date: "", time: "" };
 
     const [year, month, day] = String(form.event_date).split("-").map(Number);
@@ -1646,6 +1666,9 @@ export default function BookingWizard() {
             // A combo replaces browsing entirely: the step shows the meal the
             // combo serves, because there is nothing to choose.
             offer={isOffer ? packageDetails : null}
+            onRegisterMenuNav={setMenuNav}
+            onRemoveDish={removeDish}
+            onClearDishes={clearAllDishes}
           />
         );
 
@@ -1786,13 +1809,46 @@ export default function BookingWizard() {
       <div className="flex-1 pb-28 sm:pb-32 lg:pb-36 booking-wizard-entry">{renderStep()}</div>
 
       {/* Action bar — anchored to the bottom of the viewport at all times across all zoom levels */}
-      <div
-        className="fixed bottom-0 inset-x-0 z-30 border-t border-slate-200/90 bg-white/95 backdrop-blur-md shadow-[0_-4px_20px_rgba(0,0,0,0.05)] transition-all"
-        style={{
-          paddingBottom: "max(0.625rem, env(safe-area-inset-bottom, 0.625rem))",
-        }}
-      >
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 pt-2.5 sm:px-6 sm:pt-3">
+      <div className="fixed bottom-0 inset-x-0 z-30 pointer-events-none">
+        {/* Mobile: Compact "X dishes selected" sticky bar above existing bottom navigation */}
+        {currentStepId === "MenuSelection" &&
+          !isOffer &&
+          form.include_food !== false &&
+          (form.selected_menu?.length || 0) > 0 && (
+            <div className="pointer-events-auto lg:hidden border-t border-b border-slate-200/90 bg-white/95 backdrop-blur-md px-4 py-2 sm:px-6 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setIsMobileDishesOpen(true)}
+                className="flex w-full items-center justify-between text-xs font-semibold text-slate-800 hover:text-[#4C81E0] transition-colors cursor-pointer"
+                aria-label={`View ${form.selected_menu.length} selected dishes`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#4C81E0]/15 text-[#4C81E0]">
+                    <UtensilsCrossed size={11} />
+                  </span>
+                  <span>
+                    <strong className="text-[#4C81E0] font-bold">
+                      {form.selected_menu.length}
+                    </strong>{" "}
+                    {form.selected_menu.length === 1 ? "dish" : "dishes"} selected
+                  </span>
+                </div>
+                <span className="inline-flex items-center gap-1 text-[11px] text-[#4C81E0] font-medium">
+                  <span>View dishes</span>
+                  <ChevronUp size={13} />
+                </span>
+              </button>
+            </div>
+          )}
+
+        {/* Action bar */}
+        <div
+          className="pointer-events-auto border-t border-slate-200/90 bg-white/95 backdrop-blur-md shadow-[0_-4px_20px_rgba(0,0,0,0.05)] transition-all"
+          style={{
+            paddingBottom: "max(0.625rem, env(safe-area-inset-bottom, 0.625rem))",
+          }}
+        >
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 pt-2.5 sm:px-6 sm:pt-3">
           {error && (
             <div
               role="alert"
@@ -1808,59 +1864,114 @@ export default function BookingWizard() {
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-3">
-            <PrimaryBtn
-              variant="ghost"
-              onClick={isEditing ? returnToReview : handleBack}
-              className="px-3 sm:px-4"
-            >
-              <ArrowLeft size={16} />
-              {isEditing ? "Cancel & Review" : "Back"}
-            </PrimaryBtn>
+          {(() => {
+            const isMenuCategoryNav =
+              currentStepId === "MenuSelection" &&
+              !isOffer &&
+              form.include_food !== false &&
+              Boolean(menuNav);
 
-            <p className="hidden min-w-0 flex-1 truncate text-center text-xs text-[#64748B] sm:block">
-              {isEditing
-                ? `Editing ${wizardSteps[step]?.label} · Saving takes you directly back to your review.`
-                : isReview
-                  ? "Sending this asks for a quotation. No payment is taken."
+            const hasNextCategory = isMenuCategoryNav && menuNav?.hasNext;
+            const hasPrevCategory = isMenuCategoryNav && menuNav?.hasPrev;
+
+            const onBackClick = () => {
+              if (isEditing) {
+                returnToReview();
+              } else if (hasPrevCategory) {
+                menuNav.goToPrevGroup();
+              } else {
+                handleBack();
+              }
+            };
+
+            const onNextClick = () => {
+              if (isEditing) {
+                handleNext();
+              } else if (hasNextCategory) {
+                menuNav.goToNextGroup();
+              } else {
+                handleNext();
+              }
+            };
+
+            const nextButtonLabel = isReview
+              ? "Send request"
+              : isEditing
+                ? "Save & Return to Review"
+                : hasNextCategory
+                  ? `Next: ${menuNav.nextGroupLabel}`
+                  : "Continue";
+
+            const centerSubtitle = isEditing
+              ? `Editing ${wizardSteps[step]?.label} · Saving takes you directly back to your review.`
+              : isReview
+                ? "Sending this asks for a quotation. No payment is taken."
+                : hasNextCategory
+                  ? `Next course: ${menuNav.nextGroupLabel}`
                   : nextStepLabel
                     ? `Next: ${nextStepLabel}`
-                    : ""}
-            </p>
+                    : "";
 
-            {isReview ? (
-              <PrimaryBtn
-                variant="primary"
-                onClick={submitInquiry}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Sending
-                  </>
+            return (
+              <div className="flex items-center justify-between gap-3">
+                <PrimaryBtn
+                  variant="ghost"
+                  onClick={onBackClick}
+                  className="px-3 sm:px-4"
+                >
+                  <ArrowLeft size={16} />
+                  {isEditing ? "Cancel & Review" : "Back"}
+                </PrimaryBtn>
+
+                <p className="hidden min-w-0 flex-1 truncate text-center text-xs text-[#64748B] sm:block">
+                  {centerSubtitle}
+                </p>
+
+                {isReview ? (
+                  <PrimaryBtn
+                    variant="primary"
+                    onClick={submitInquiry}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Sending
+                      </>
+                    ) : (
+                      "Send request"
+                    )}
+                  </PrimaryBtn>
                 ) : (
-                  "Send request"
+                  <PrimaryBtn variant="primary" onClick={onNextClick}>
+                    {isEditing ? (
+                      <>
+                        <Check size={16} />
+                        Save & Return to Review
+                      </>
+                    ) : (
+                      <>
+                        {nextButtonLabel}
+                        <ArrowRight size={16} />
+                      </>
+                    )}
+                  </PrimaryBtn>
                 )}
-              </PrimaryBtn>
-            ) : (
-              <PrimaryBtn variant="primary" onClick={handleNext}>
-                {isEditing ? (
-                  <>
-                    <Check size={16} />
-                    Save & Return to Review
-                  </>
-                ) : (
-                  <>
-                    Continue
-                    <ArrowRight size={16} />
-                  </>
-                )}
-              </PrimaryBtn>
-            )}
-          </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
+    </div>
+
+      {/* Mobile Selected Dishes Bottom Sheet */}
+      <SelectedDishesBottomSheet
+        isOpen={isMobileDishesOpen}
+        onClose={() => setIsMobileDishesOpen(false)}
+        selected={form.selected_menu || []}
+        onRemove={removeDish}
+        onClearAll={clearAllDishes}
+      />
 
       {/* Customer Policy Dialog */}
       <CustomerPolicyModal

@@ -1,10 +1,15 @@
 const Inventory = require("../models/Inventory");
 const Booking = require("../models/Booking");
+const Package = require("../models/Package");
+const Inquiry = require("../models/Inquiry");
+const Quotation = require("../models/Quotation");
 const InventoryLog = require("../models/InventoryLog");
 const writeInventoryLog = require("../utils/writeInventoryLog");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { INVENTORY_PARSER_PROMPT } = require("../services/zellePrompts");
 const logAction = require("../utils/logAction");
+const Notification = require("../models/Notification");
+const { notifyAdmins } = require("../utils/notify");
 
 const ALLOWED_CATEGORIES = ["Event Setup & Furniture", "Dining & Service Inventory"];
 
@@ -22,13 +27,63 @@ const escapeRegex = (str) => {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 };
 
+const checkAndNotifyStockAlerts = async (alertItems, targetDateStr, io) => {
+  if (!Array.isArray(alertItems) || alertItems.length === 0) return;
+
+  for (const alert of alertItems) {
+    const { item, stockOnHand, stockStatus, threshold } = alert;
+    if (!item || !item._id || !["low_stock", "no_stock"].includes(stockStatus)) continue;
+
+    try {
+      // Deduplication: check if an unread notification exists OR one created within last 24h for this item, date, and status
+      const existing = await Notification.findOne({
+        "meta.inventory_id": item._id,
+        "meta.date": targetDateStr,
+        "meta.stock_status": stockStatus,
+        $or: [
+          { is_read: false },
+          { createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } }
+        ]
+      });
+
+      if (existing) continue;
+
+      let title = "";
+      let body = "";
+      if (stockStatus === "no_stock") {
+        title = "No Stock Alert";
+        body = `${item.item_name} has reached no stock.\nStock on Hand: 0\nTotal Quantity: ${item.quantity || 0}`;
+      } else {
+        title = "Low Stock Alert";
+        body = `${item.item_name} is now low in stock.\nStock on Hand: ${stockOnHand}\nLow Stock Threshold: ${threshold}`;
+      }
+
+      await notifyAdmins({
+        title,
+        body,
+        type: "warning",
+        link: "/admin/inventory",
+        meta: {
+          inventory_id: item._id,
+          item_name: item.item_name,
+          date: targetDateStr,
+          stock_status: stockStatus,
+          stock_on_hand: stockOnHand,
+          threshold: threshold
+        }
+      }, io);
+    } catch (err) {
+      console.error("Error sending stock alert notification for", item.item_name, err);
+    }
+  }
+};
+
 exports.create = async (req, res) => {
   try {
     const rawName = req.body.item_name;
     if (!rawName || typeof rawName !== "string" || !rawName.trim()) {
       return res.status(400).json({ message: "Item name is required" });
     }
-
 
     const trimmedName = rawName.trim();
     const identifier = normalizeIdentifier(trimmedName);
@@ -48,10 +103,23 @@ exports.create = async (req, res) => {
       });
     }
 
+    let threshold = null;
+    if (req.body.low_stock_threshold !== undefined && req.body.low_stock_threshold !== null && req.body.low_stock_threshold !== "") {
+      threshold = Number(req.body.low_stock_threshold);
+      if (!Number.isInteger(threshold) || threshold <= 0) {
+        return res.status(400).json({ message: "Low stock threshold must be a whole number greater than 0" });
+      }
+      const rawQty = req.body.quantity !== undefined ? Number(req.body.quantity) : 0;
+      if (rawQty > 0 && threshold > rawQty) {
+        return res.status(400).json({ message: "Low stock threshold cannot be greater than Total Quantity" });
+      }
+    }
+
     const payload = {
       ...req.body,
       item_name: trimmedName,
-      identifier: identifier
+      identifier: identifier,
+      low_stock_threshold: threshold
     };
 
     const item = await Inventory.create(payload);
@@ -121,6 +189,20 @@ exports.update = async (req, res) => {
       return res.status(404).json({ message: "Inventory item not found" });
     }
 
+    if (updates.low_stock_threshold !== undefined && updates.low_stock_threshold !== null && updates.low_stock_threshold !== "") {
+      const threshold = Number(updates.low_stock_threshold);
+      if (!Number.isInteger(threshold) || threshold <= 0) {
+        return res.status(400).json({ message: "Low stock threshold must be a whole number greater than 0" });
+      }
+      const targetQty = updates.quantity !== undefined ? Number(updates.quantity) : (before ? before.quantity : 0);
+      if (targetQty > 0 && threshold > targetQty) {
+        return res.status(400).json({ message: "Low stock threshold cannot be greater than Total Quantity" });
+      }
+      updates.low_stock_threshold = threshold;
+    } else if (updates.low_stock_threshold === null || updates.low_stock_threshold === "") {
+      updates.low_stock_threshold = null;
+    }
+
     const item = await Inventory.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' });
 
     if (before && item && typeof updates.quantity === "number" && updates.quantity !== before.quantity) {
@@ -175,25 +257,302 @@ exports.getLogs = async (req, res) => {
   res.json(logs);
 };
 
+const parseInclusionItem = (str) => {
+  if (!str) return { name: "", quantity: 1 };
+  let text = String(str).trim();
+
+  // Strip wrapping quotes and escapes
+  for (let i = 0; i < 4; i++) {
+    text = text.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  }
+
+  // Strip category brackets at start: [Dining & Service Inventory]
+  text = text.replace(/^\s*\[[^\]]*\]\s*/, "").trim();
+
+  // Strip quotes again if they were inside brackets
+  for (let i = 0; i < 2; i++) {
+    text = text.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  }
+
+  let quantity = 1;
+  // 1. Check parens at end e.g. (150) or (150 pcs) or (1 tray)
+  const parenMatch = text.match(/\(([^)]*)\)\s*$/);
+  if (parenMatch) {
+    const digits = parenMatch[1].match(/\d+/);
+    if (digits) {
+      quantity = parseInt(digits[0], 10);
+    }
+    text = text.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  } else {
+    // 2. Check x6 or × 6 at end
+    const xMatch = text.match(/[\s×x](\d+)\s*$/i);
+    if (xMatch) {
+      quantity = parseInt(xMatch[1], 10);
+      text = text.replace(/[\s×x](\d+)\s*$/i, "").trim();
+    } else {
+      // 3. Check leading digits e.g. '6 Round Tables'
+      const leadMatch = text.match(/^(\d+)\s+(.*)$/);
+      if (leadMatch) {
+        quantity = parseInt(leadMatch[1], 10);
+        text = leadMatch[2].trim();
+      }
+    }
+  }
+
+  return { name: text.trim(), quantity: Math.max(1, quantity) };
+};
+
+const normalizeInventoryName = (str) => {
+  if (!str || typeof str !== "string") return "";
+  return str
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+};
+
+const findInventoryItem = (nameOrId, invById, invByName, allInventory) => {
+  if (!nameOrId) return null;
+  const idStr = String(nameOrId._id || nameOrId);
+  if (invById.has(idStr)) return invById.get(idStr);
+
+  const clean = normalizeInventoryName(
+    typeof nameOrId === "string" ? nameOrId : nameOrId.name || nameOrId.item_name
+  );
+  if (!clean) return null;
+
+  if (invByName.has(clean)) return invByName.get(clean);
+
+  // Check singular/plural
+  if (clean.endsWith("s") && invByName.has(clean.slice(0, -1))) {
+    return invByName.get(clean.slice(0, -1));
+  }
+  if (invByName.has(clean + "s")) {
+    return invByName.get(clean + "s");
+  }
+
+  // Check startsWith/prefix match
+  for (const inv of allInventory) {
+    const invNorm = normalizeInventoryName(inv.item_name);
+    if (invNorm === clean) return inv;
+    if (invNorm && clean && (invNorm.startsWith(clean) || clean.startsWith(invNorm))) {
+      return inv;
+    }
+  }
+
+  return null;
+};
+
+const isSameEventDate = (eventDate, targetDateStr) => {
+  if (!eventDate || !targetDateStr) return false;
+  const d = new Date(eventDate);
+  if (isNaN(d.getTime())) return false;
+  const utc = d.toISOString().slice(0, 10);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  return utc === targetDateStr || local === targetDateStr;
+};
+
+exports.getUsage = async (req, res) => {
+  try {
+    const item = await Inventory.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: "Inventory item not found" });
+    }
+
+    const itemIdStr = String(item._id);
+    const itemNameNorm = normalizeInventoryName(item.item_name);
+    const itemIdent = item.identifier ? normalizeInventoryName(item.identifier) : "";
+
+    // 1. Check all packages where this item is used
+    const allPackages = await Package.find({}, "name offer_type event_type inclusions setup_equipment").lean();
+    const matchingPackages = allPackages.filter((pkg) => {
+      // Check setup_equipment
+      if (Array.isArray(pkg.setup_equipment)) {
+        for (const eq of pkg.setup_equipment) {
+          const eqId = String(eq.inventory_id?._id || eq.inventory_id || "");
+          if (eqId && eqId === itemIdStr) return true;
+        }
+      }
+      // Check inclusions
+      if (Array.isArray(pkg.inclusions)) {
+        for (const inc of pkg.inclusions) {
+          const parsed = parseInclusionItem(inc);
+          const incNorm = normalizeInventoryName(parsed.name);
+          if (incNorm === itemNameNorm) return true;
+          if (itemIdent && incNorm === itemIdent) return true;
+          if (itemNameNorm.endsWith("s") && incNorm === itemNameNorm.slice(0, -1)) return true;
+          if (incNorm.endsWith("s") && incNorm.slice(0, -1) === itemNameNorm) return true;
+          if (itemNameNorm.length >= 4 && (incNorm.includes(itemNameNorm) || itemNameNorm.includes(incNorm))) return true;
+        }
+      }
+      return false;
+    });
+
+    const matchingPkgIds = matchingPackages.map((p) => p._id);
+    const matchingPkgNames = matchingPackages.map((p) => p.name);
+
+    // 2. Active / upcoming customer usage
+    // Past/completed events should NOT prevent deletion or trigger active usage warning
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    // Active bookings
+    const activeBookingsRaw = await Booking.find({
+      status: { $nin: ["Cancelled", "cancelled", "refunded", "Completed", "completed"] },
+      event_date: { $gte: startOfToday },
+      $or: [
+        { "inventory_items.inventory_id": item._id },
+        { "inventory_items.name": { $regex: new RegExp(`^${escapeRegex(item.item_name)}$`, "i") } },
+        { package_inclusions: { $regex: new RegExp(escapeRegex(item.item_name), "i") } },
+        ...(matchingPkgIds.length > 0 ? [{ package_id: { $in: matchingPkgIds } }] : [])
+      ]
+    }, "reference event_date package_name_snapshot status contact_first_name contact_last_name celebrant_name")
+      .sort({ event_date: 1 })
+      .lean();
+
+    const activeBookings = activeBookingsRaw.map((b) => {
+      const customerName = [b.contact_first_name, b.contact_last_name].filter(Boolean).join(" ");
+      return {
+        _id: b._id,
+        reference: b.reference || "Booking",
+        event_date: b.event_date,
+        package_name: b.package_name_snapshot || (matchingPkgNames.length > 0 ? matchingPkgNames[0] : "Package"),
+        customer_name: customerName || b.celebrant_name || "",
+        status: b.status,
+      };
+    });
+
+    // Active inquiries
+    const activeInquiriesRaw = await Inquiry.find({
+      status: { $nin: ["Cancelled", "cancelled", "Rejected", "Quote Rejected", "Expired", "Converted to Booking"] },
+      archived: { $ne: true },
+      event_date: { $gte: startOfToday },
+      $or: [
+        { "inventory_items.inventory_id": item._id },
+        { "inventory_items.name": { $regex: new RegExp(`^${escapeRegex(item.item_name)}$`, "i") } },
+        ...(matchingPkgIds.length > 0 ? [{ package_id: { $in: matchingPkgIds } }] : [])
+      ]
+    }, "reference event_date package_name_snapshot status contact_first_name contact_last_name celebrant_name")
+      .sort({ event_date: 1 })
+      .lean();
+
+    const activeInquiries = activeInquiriesRaw.map((inq) => {
+      const customerName = [inq.contact_first_name, inq.contact_last_name].filter(Boolean).join(" ");
+      return {
+        _id: inq._id,
+        reference: inq.reference || "Inquiry",
+        event_date: inq.event_date,
+        package_name: inq.package_name_snapshot || (matchingPkgNames.length > 0 ? matchingPkgNames[0] : "Package"),
+        customer_name: customerName || inq.celebrant_name || "",
+        status: inq.status,
+      };
+    });
+
+    // Active quotations
+    const activeQuotationsRaw = await Quotation.find({
+      status: { $in: ["Draft", "Sent", "Revision Requested", "Accepted", "Awaiting Final Confirmation"] },
+      $or: [
+        { package_inclusions: { $regex: new RegExp(escapeRegex(item.item_name), "i") } },
+        ...(matchingPkgIds.length > 0 ? [{ package_id: { $in: matchingPkgIds } }] : [])
+      ]
+    }, "quotation_number status package_name inquiry_id")
+      .populate("inquiry_id", "reference event_date status archived contact_first_name contact_last_name")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Filter quotations to only those with active inquiry
+    const activeQuotations = activeQuotationsRaw
+      .filter((q) => {
+        if (!q.inquiry_id) return true;
+        const inq = q.inquiry_id;
+        if (inq.archived) return false;
+        if (["Cancelled", "cancelled", "Rejected", "Quote Rejected", "Expired", "Converted to Booking"].includes(inq.status)) {
+          return false;
+        }
+        if (inq.event_date && new Date(inq.event_date) < startOfToday) {
+          return false;
+        }
+        return true;
+      })
+      .map((q) => ({
+        _id: q._id,
+        quotation_number: q.quotation_number || "Quotation",
+        package_name: q.package_name || (matchingPkgNames.length > 0 ? matchingPkgNames[0] : "Package"),
+        inquiry_reference: q.inquiry_id?.reference || "",
+        status: q.status,
+      }));
+
+    const hasActiveCustomerUsage = activeBookings.length > 0 || activeInquiries.length > 0 || activeQuotations.length > 0;
+    const hasUsage = matchingPackages.length > 0 || hasActiveCustomerUsage;
+
+    return res.json({
+      itemId: item._id,
+      itemName: item.item_name,
+      hasUsage,
+      hasActiveCustomerUsage,
+      packages: matchingPackages.map((p) => ({
+        _id: p._id,
+        name: p.name,
+        offer_type: p.offer_type,
+        event_type: p.event_type,
+      })),
+      activeBookings,
+      activeInquiries,
+      activeQuotations,
+    });
+  } catch (error) {
+    console.error("Error checking inventory usage:", error);
+    return res.status(500).json({ message: "Failed to check inventory usage" });
+  }
+};
+
+
 exports.getAvailability = async (req, res) => {
   try {
     const { date, excludeBookingId } = req.query;
     const allInventory = await Inventory.find().sort({ item_name: 1 });
 
+    const invById = new Map(allInventory.map((i) => [String(i._id), i]));
+    const invByName = new Map(allInventory.map((i) => [normalizeInventoryName(i.item_name), i]));
+
+    let targetDateStr = "";
     let startOfDay, endOfDay;
     if (date && typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      targetDateStr = date;
       const [y, m, d] = date.split("-").map(Number);
-      startOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
-      endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
-    } else {
-      const targetDate = date ? new Date(date) : new Date();
+      const localStart = new Date(y, m - 1, d, 0, 0, 0, 0);
+      const localEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
+      const utcStart = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      const utcEnd = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+      startOfDay = new Date(Math.min(localStart.getTime(), utcStart.getTime()));
+      endOfDay = new Date(Math.max(localEnd.getTime(), utcEnd.getTime()));
+    } else if (date) {
+      const targetDate = new Date(date);
       if (isNaN(targetDate.getTime())) {
         return res.status(400).json({ message: "Invalid date format" });
       }
-      startOfDay = new Date(targetDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      endOfDay = new Date(targetDate);
-      endOfDay.setHours(23, 59, 59, 999);
+      targetDateStr = targetDate.toISOString().slice(0, 10);
+      const y = targetDate.getFullYear();
+      const m = targetDate.getMonth() + 1;
+      const d = targetDate.getDate();
+      const localStart = new Date(y, m - 1, d, 0, 0, 0, 0);
+      const localEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
+      const utcStart = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      const utcEnd = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+      startOfDay = new Date(Math.min(localStart.getTime(), utcStart.getTime()));
+      endOfDay = new Date(Math.max(localEnd.getTime(), utcEnd.getTime()));
+    } else {
+      const now = new Date();
+      targetDateStr = now.toISOString().slice(0, 10);
+      const y = now.getFullYear();
+      const m = now.getMonth() + 1;
+      const d = now.getDate();
+      const localStart = new Date(y, m - 1, d, 0, 0, 0, 0);
+      const localEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
+      const utcStart = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      const utcEnd = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+      startOfDay = new Date(Math.min(localStart.getTime(), utcStart.getTime()));
+      endOfDay = new Date(Math.max(localEnd.getTime(), utcEnd.getTime()));
     }
 
     const bookingQuery = {
@@ -207,37 +566,149 @@ exports.getAvailability = async (req, res) => {
       bookingQuery._id = { $ne: excludeBookingId };
     }
 
-    const activeBookings = await Booking.find(bookingQuery);
+    const activeBookings = await Booking.find(bookingQuery).populate("package_id");
+    const dateBookings = activeBookings.filter((b) => isSameEventDate(b.event_date, targetDateStr));
 
     const reservedQuantities = {};
-    activeBookings.forEach(booking => {
+    const itemEventUsages = {};
+
+    dateBookings.forEach((booking) => {
+      const bookingReservedMap = new Map();
+
+      // 1. Explicit inventory items assigned on the booking (e.g. manager equipment assignments)
       if (Array.isArray(booking.inventory_items)) {
-        booking.inventory_items.forEach(item => {
-          if (item.inventory_id) {
-            const idStr = item.inventory_id.toString();
-            reservedQuantities[idStr] = (reservedQuantities[idStr] || 0) + (item.quantity || 0);
+        booking.inventory_items.forEach((item) => {
+          const inv = findInventoryItem(item.inventory_id || item.name, invById, invByName, allInventory);
+          if (inv && item.quantity != null) {
+            const idStr = String(inv._id);
+            bookingReservedMap.set(idStr, (bookingReservedMap.get(idStr) || 0) + Number(item.quantity || 0));
           }
+        });
+      }
+
+      // 2. Setup equipment from booking or package
+      const setupEq = (Array.isArray(booking.setup_equipment) && booking.setup_equipment.length > 0)
+        ? booking.setup_equipment
+        : (Array.isArray(booking.package_id?.setup_equipment) ? booking.package_id.setup_equipment : []);
+
+      setupEq.forEach((eq) => {
+        const inv = findInventoryItem(eq.inventory_id || eq.name || eq.item_name, invById, invByName, allInventory);
+        if (inv && eq.quantity != null) {
+          const idStr = String(inv._id);
+          if (!bookingReservedMap.has(idStr)) {
+            bookingReservedMap.set(idStr, Number(eq.quantity || 1));
+          }
+        }
+      });
+
+      // 3. Package inclusions
+      const rawInclusions = 
+        (Array.isArray(booking.package_inclusions) && booking.package_inclusions.length > 0)
+          ? booking.package_inclusions
+          : (Array.isArray(booking.inclusions) && booking.inclusions.length > 0)
+            ? booking.inclusions
+            : (Array.isArray(booking.package_id?.inclusions) ? booking.package_id.inclusions : []);
+
+      // Check removed inclusions
+      const removedNames = new Set(
+        (Array.isArray(booking.removed_inclusions) ? booking.removed_inclusions : [])
+          .map((r) => parseInclusionItem(r?.name || r).name.toLowerCase())
+      );
+
+      // Check inclusion adjustments
+      const adjustmentsMap = new Map();
+      (Array.isArray(booking.inclusion_adjustments) ? booking.inclusion_adjustments : []).forEach((adj) => {
+        if (adj && adj.name) {
+          const parsedName = parseInclusionItem(adj.name).name.toLowerCase();
+          if (adj.quantity != null) {
+            adjustmentsMap.set(parsedName, Number(adj.quantity));
+          }
+        }
+      });
+
+      rawInclusions.forEach((inc) => {
+        const { name, quantity: defaultQty } = parseInclusionItem(inc);
+        const nameLower = name.toLowerCase();
+        if (removedNames.has(nameLower)) return;
+
+        const finalQty = adjustmentsMap.has(nameLower) ? adjustmentsMap.get(nameLower) : defaultQty;
+        const inv = findInventoryItem(name, invById, invByName, allInventory);
+        if (inv && finalQty > 0) {
+          const idStr = String(inv._id);
+          if (!bookingReservedMap.has(idStr)) {
+            bookingReservedMap.set(idStr, finalQty);
+          }
+        }
+      });
+
+      // Sum this booking's reserved items into the date-wide reservedQuantities and track individual event usages
+      const customerName = [booking.contact_first_name, booking.contact_last_name].filter(Boolean).join(" ") || booking.celebrant_name || "Customer";
+      for (const [idStr, qty] of bookingReservedMap.entries()) {
+        reservedQuantities[idStr] = (reservedQuantities[idStr] || 0) + qty;
+        if (!itemEventUsages[idStr]) {
+          itemEventUsages[idStr] = [];
+        }
+        itemEventUsages[idStr].push({
+          booking_id: booking._id,
+          reference: booking.reference || "Booking",
+          event_date: booking.event_date,
+          customer_name: customerName,
+          event_name: booking.event_type || booking.package_name_snapshot || booking.package_id?.name || "Event",
+          package_name: booking.package_name_snapshot || booking.package_id?.name || "Package",
+          quantity: qty,
+          unit: qty === 1 ? "unit" : "pcs",
         });
       }
     });
 
-    const result = allInventory.map(item => {
+    const alertItems = [];
+
+    const result = allInventory.map((item) => {
       const idStr = item._id.toString();
       const reserved = reservedQuantities[idStr] || 0;
       const total = item.quantity || 0;
-      const isAvailable = item.available !== false;
-      const stockOnHand = isAvailable ? Math.max(0, total - reserved) : 0;
+      const stockOnHand = Math.max(0, total - reserved);
+      const threshold = (item.low_stock_threshold != null && item.low_stock_threshold > 0) ? item.low_stock_threshold : null;
+
+      let stockStatus = "in_stock";
+      if (stockOnHand === 0) {
+        stockStatus = "no_stock";
+      } else if (threshold != null && stockOnHand <= threshold) {
+        stockStatus = "low_stock";
+      } else {
+        stockStatus = "in_stock";
+      }
+
+      if (stockStatus === "low_stock" || stockStatus === "no_stock") {
+        alertItems.push({
+          item,
+          stockOnHand,
+          stockStatus,
+          threshold: threshold || 0
+        });
+      }
+
       const itemObj = item.toObject ? item.toObject() : { ...item };
       if (!itemObj.identifier && itemObj.item_name) {
         itemObj.identifier = normalizeIdentifier(itemObj.item_name);
       }
       return {
         ...itemObj,
+        low_stock_threshold: item.low_stock_threshold,
         reserved_quantity: reserved,
         available_quantity: stockOnHand,
-        stock_on_hand: stockOnHand
+        stock_on_hand: stockOnHand,
+        stock_status: stockStatus,
+        event_usages: itemEventUsages[idStr] || [],
       };
     });
+
+    if (alertItems.length > 0) {
+      const io = req.app?.get("io");
+      checkAndNotifyStockAlerts(alertItems, targetDateStr, io).catch((err) => {
+        console.error("Error in background stock alert check:", err);
+      });
+    }
 
     res.json(result);
   } catch (error) {

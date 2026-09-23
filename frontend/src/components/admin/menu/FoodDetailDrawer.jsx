@@ -155,7 +155,7 @@ export default function FoodDetailDrawer({
                     </p>
                   </div>
                   <Link
-                    to="/admin/packages"
+                    to={`/admin/packages?id=${pkg._id}&tab=${pkg.offer_type === "special" ? "special" : "regular"}`}
                     onClick={() => onOpenChange(false)}
                     className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors"
                   >

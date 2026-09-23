@@ -11,6 +11,7 @@ router.post("/bulk", protect, authorize("admin"), ctrl.createBulk);
 router.post("/", protect, authorize("admin"), upload.single("image"), validate(menuSchema), ctrl.create);
 router.get("/", ctrl.getAll);
 router.get("/:id", ctrl.getById);
+router.get("/:id/usage", protect, authorize("admin"), ctrl.getUsage);
 router.put("/:id", protect, authorize("admin"), upload.single("image"), validate(menuUpdateSchema), ctrl.update);
 router.delete("/:id", protect, authorize("admin"), ctrl.remove);
 

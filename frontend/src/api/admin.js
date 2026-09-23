@@ -74,6 +74,7 @@ export const AdminAPI = {
     }),
   updateMenu: (id, data) => api.put(`/menu/${id}`, data),
   deleteMenu: (id) => api.delete(`/menu/${id}`),
+  getMenuUsage: (id) => api.get(`/menu/${id}/usage`),
 
   // Inventory
   getInventory: () => api.get("/inventory"),
@@ -88,6 +89,7 @@ export const AdminAPI = {
   updateInventory: (id, data) => api.put(`/inventory/${id}`, data),
   deleteInventory: (id) => api.delete(`/inventory/${id}`),
   getInventoryLogs: (id) => api.get(`/inventory/${id}/logs`),
+  getInventoryUsage: (id) => api.get(`/inventory/${id}/usage`),
 
   // Addons
   getAddons: () => api.get("/addons"),

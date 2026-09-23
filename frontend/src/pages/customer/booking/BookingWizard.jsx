@@ -1461,8 +1461,7 @@ export default function BookingWizard() {
 
       const requestSummary = isOffer
         ? [
-            { label: "Service", value: "Special Offer" },
-            { label: "Service type", value: offerName },
+            { label: "Service", value: offerName || "Special Offer" },
             { label: "Event date", value: formatEventDate(form.event_date) },
             { label: "Guests", value: form.guest_count ? `${form.guest_count}` : "" },
           ]

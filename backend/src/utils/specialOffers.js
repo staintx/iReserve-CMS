@@ -472,7 +472,7 @@ function isSetupInclusion(str) {
   return SETUP_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
-/** Plain inclusion lines, deduped, sanitized of setup items, and emptied of blanks. */
+/** Plain inclusion lines, deduped, and emptied of blanks. */
 function normalizeOfferInclusions(raw) {
   if (!raw) return [];
   const rawList = unwrapJsonOrArray(raw);
@@ -491,7 +491,6 @@ function normalizeOfferInclusions(raw) {
       clean = cleanTextValue(clean);
 
       if (!clean) return;
-      if (isSetupInclusion(clean)) return;
 
       const lower = clean.toLowerCase();
       if (seen.has(lower)) return;

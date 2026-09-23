@@ -18,10 +18,6 @@ import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
-const INVENTORY_CATEGORIES = [
-  "Event Setup & Furniture",
-  "Dining & Service Inventory",
-];
 
 const normalizeIdentifier = (name) => {
   if (!name || typeof name !== "string") return "";
@@ -59,7 +55,6 @@ export default function AIInventoryParserModal({
   const parsingSteps = [
     "Uploading document...",
     "Zelle AI is scanning your equipment & service inventory...",
-    "Classifying into Event Setup & Dining categories...",
     "Extracting stock quantities...",
     "Almost ready for your review...",
   ];
@@ -366,8 +361,8 @@ Dining & Service Inventory:
             </h2>
             <p className="text-xs text-slate-500 mt-1 max-w-lg">
               {step === "review"
-                ? "Verify item names, categories, and quantities before importing them to your live inventory."
-                : "Upload a PDF brochure, equipment sheet, invoice, or paste text. Zelle AI will extract items, categories, and counts automatically."}
+                ? "Verify item names and quantities before importing them to your live inventory."
+                : "Upload a PDF brochure, equipment sheet, invoice, or paste text. Zelle AI will extract items and counts automatically."}
             </p>
           </div>
           <button
@@ -693,19 +688,6 @@ Dining & Service Inventory:
                               placeholder="Item Name (e.g. Plates, Food Warmer)"
                             />
 
-                            <select
-                              value={item.category}
-                              onChange={(e) =>
-                                handleUpdateItem(idx, "category", e.target.value)
-                              }
-                              className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 outline-none cursor-pointer hover:bg-white focus:border-indigo-500 transition-colors shrink-0"
-                            >
-                              {INVENTORY_CATEGORIES.map((cat) => (
-                                <option key={cat} value={cat}>
-                                  {cat}
-                                </option>
-                              ))}
-                            </select>
 
                             <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 shrink-0">
                               <span className="text-[11px] font-semibold text-slate-500">Qty:</span>

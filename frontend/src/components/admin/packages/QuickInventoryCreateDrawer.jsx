@@ -4,10 +4,6 @@ import Btn from "../ui/Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
-const ALLOWED_CATEGORIES = [
-  "Event Setup & Furniture",
-  "Dining & Service Inventory",
-];
 
 const normalizeIdentifier = (name) => {
   if (!name || typeof name !== "string") return "";
@@ -31,7 +27,6 @@ const normalizeIdentifier = (name) => {
 export default function QuickInventoryCreateDrawer({
   isOpen,
   initialName = "",
-  defaultCategory = "Event Setup & Furniture",
   isAddon = false,
   existingItems = [],
   existingAddons = [],
@@ -44,7 +39,6 @@ export default function QuickInventoryCreateDrawer({
 
   const [formData, setFormData] = useState({
     item_name: "",
-    category: "Event Setup & Furniture",
     total_quantity: "",
     package_quantity: "1",
     description: "",
@@ -54,15 +48,12 @@ export default function QuickInventoryCreateDrawer({
     if (isOpen) {
       setFormData({
         item_name: initialName.trim(),
-        category: ALLOWED_CATEGORIES.includes(defaultCategory)
-          ? defaultCategory
-          : "Event Setup & Furniture",
         total_quantity: "",
         package_quantity: "1",
         description: "",
       });
     }
-  }, [isOpen, initialName, defaultCategory, isAddon]);
+  }, [isOpen, initialName, isAddon]);
 
   // Duplicate match check against catalog
   const duplicateMatch = useMemo(() => {
@@ -137,11 +128,6 @@ export default function QuickInventoryCreateDrawer({
       return;
     }
 
-    // Inventory Item creation flow
-    if (!formData.category || !ALLOWED_CATEGORIES.includes(formData.category)) {
-      notify("Please select a valid Category.", "error");
-      return;
-    }
 
     const totalQtyNum = parseInt(formData.total_quantity, 10);
     if (formData.total_quantity === "" || isNaN(totalQtyNum) || totalQtyNum < 0) {
@@ -169,7 +155,6 @@ export default function QuickInventoryCreateDrawer({
     try {
       const payload = {
         item_name: trimmedName,
-        category: formData.category,
         quantity: totalQtyNum,
         available: true,
       };
@@ -258,20 +243,6 @@ export default function QuickInventoryCreateDrawer({
 
             {!isAddon && (
               <>
-                {/* Category */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Inventory Category <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary transition-all text-gray-800"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  >
-                    <option value="Event Setup & Furniture">Event Setup & Furniture</option>
-                    <option value="Dining & Service Inventory">Dining & Service Inventory</option>
-                  </select>
-                </div>
 
                 {/* Total Quantity */}
                 <div>

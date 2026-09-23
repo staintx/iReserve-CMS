@@ -58,16 +58,7 @@ async function validatePackageItems({
   );
 
   if (isOffer) {
-    // For Special Offers, combo inclusions must exist in Addons
-    const validAddonNames = addonItems.map((a) => a.name.toLowerCase().trim());
-    for (const inc of inclusions) {
-      const clean = String(inc || "").trim().toLowerCase();
-      if (!clean) continue;
-      if (existingInclusionsSet.has(clean)) continue; // grandfather existing
-      if (!validAddonNames.includes(clean)) {
-        return `Combo Inclusion "${inc}" does not exist in Addons. Only existing Addons can be added.`;
-      }
-    }
+    // For Special Offers, combo inclusions are independent free-text entries managed directly inside the combo (no Addon validation needed)
   } else {
     // For Regular Packages:
     // 1. Inclusions must exist in Inventory under the appropriate category and not exceed Total Quantity
@@ -195,15 +186,11 @@ async function sanitizeAIPackageItems({
   const skippedAddOns = [];
 
   if (isOffer) {
-    // For Special Offers, combo inclusions must exist in Addons
+    // For Special Offers, combo inclusions are independent free-text entries
     for (const inc of inclusions) {
       const clean = String(inc || "").trim();
       if (!clean) continue;
-      if (validAddonNames.has(clean.toLowerCase())) {
-        filteredInclusions.push(clean);
-      } else {
-        skippedInclusions.push(clean);
-      }
+      filteredInclusions.push(clean);
     }
   } else {
     // For Regular Packages:

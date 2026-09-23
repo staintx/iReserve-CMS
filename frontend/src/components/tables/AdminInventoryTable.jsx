@@ -15,7 +15,6 @@ export default function AdminInventoryTable({ items = [], onEdit, onToggleAvaila
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead>Item Name</TableHead>
-            <TableHead>Category</TableHead>
             <TableHead className="text-center">Total Quantity</TableHead>
             <TableHead className="text-center">Stock on Hand</TableHead>
             <TableHead>Status</TableHead>
@@ -25,7 +24,7 @@ export default function AdminInventoryTable({ items = [], onEdit, onToggleAvaila
         <TableBody>
           {items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                 No inventory items found.
               </TableCell>
             </TableRow>
@@ -36,7 +35,6 @@ export default function AdminInventoryTable({ items = [], onEdit, onToggleAvaila
               return (
                 <TableRow key={i._id}>
                   <TableCell className="font-medium">{i.item_name}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{i.category || "General"}</TableCell>
                   <TableCell className="text-center font-semibold">{i.quantity || 0}</TableCell>
                   <TableCell className="text-center font-semibold text-emerald-600">
                     {isAvailable ? stockOnHand : 0}

@@ -15,12 +15,6 @@ import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import DetailDrawer from "../../components/admin/table/DetailDrawer";
 import DrawerField from "../../components/admin/table/DrawerField";
 import usePagination from "../../hooks/usePagination";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "../../components/ui/dropdown-menu";
 
 // Returns today's local date in YYYY-MM-DD format (as required by HTML5 date inputs)
 const getTodayDateString = () => {
@@ -34,7 +28,6 @@ const getTodayDateString = () => {
 export default function AdminInventory() {
   const { notify } = useToast();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
   const [selectedDate, setSelectedDate] = useState("");
 
   const [inventory, setInventory] = useState([]);
@@ -51,60 +44,6 @@ export default function AdminInventory() {
 
   const [logState, setLogState] = useState({ itemId: null, entries: [] });
 
-  const CATEGORY_MAP = {
-    "Event Setup & Furniture": [
-      "equipment",
-      "furniture",
-      "decorations",
-      "decoration",
-      "event setup & furniture",
-      "event setup",
-    ],
-    "Dining & Service Inventory": [
-      "tableware",
-      "dining & service inventory",
-      "dining & service",
-      "dinnerware",
-      "cutlery",
-      "food warmer",
-      "service",
-    ],
-  };
-
-  const matchesCategory = (itemCategory, selectedFilter) => {
-    if (!selectedFilter || selectedFilter === "all") return true;
-    const raw = String(itemCategory || "").trim().toLowerCase();
-
-    if (selectedFilter === "Event Setup & Furniture") {
-      return (
-        raw === "equipment" ||
-        raw === "furniture" ||
-        raw === "decorations" ||
-        raw === "decoration" ||
-        raw === "event setup & furniture" ||
-        raw.includes("setup") ||
-        raw.includes("furniture") ||
-        raw.includes("equipment") ||
-        raw.includes("decoration")
-      );
-    }
-
-    if (selectedFilter === "Dining & Service Inventory") {
-      return (
-        raw === "tableware" ||
-        raw === "dining & service inventory" ||
-        raw === "dining & service" ||
-        raw === "dinnerware" ||
-        raw.includes("tableware") ||
-        raw.includes("dining") ||
-        raw.includes("service") ||
-        raw.includes("cutlery") ||
-        raw.includes("warmer")
-      );
-    }
-
-    return raw === selectedFilter.toLowerCase();
-  };
 
   const eventLabel = {
     created: "Created",
@@ -195,9 +134,8 @@ export default function AdminInventory() {
 
   const filtered = inventory.filter((i) => {
     const matchSearch = !search || (i.item_name && i.item_name.toLowerCase().includes(search.toLowerCase()));
-    const matchCategory = matchesCategory(i.category, filter);
     const matchAvailability = availabilityFilter === "all" || (availabilityFilter === "available" ? i.available : !i.available);
-    return matchSearch && matchCategory && matchAvailability;
+    return matchSearch && matchAvailability;
   });
 
   const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
@@ -254,73 +192,9 @@ export default function AdminInventory() {
               </div>
             </div>
 
-            {/* Right: Categories Filter → Date Filter → Availability */}
+            {/* Right: Date Filter → Availability */}
             <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
-              {/* 1. Categories Filter Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className={`px-3 py-1.5 h-9 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shadow-2xs flex items-center gap-1.5 border ${
-                      filter !== "all"
-                        ? "bg-primary text-white border-primary shadow-xs font-bold"
-                        : "bg-white text-gray-700 hover:bg-gray-50 border-gray-200"
-                    }`}
-                  >
-                    <span>{filter !== "all" ? filter : "Categories"}</span>
-                    <ChevronDown
-                      size={13}
-                      className={filter !== "all" ? "text-white" : "text-gray-400"}
-                    />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-60 p-1.5 rounded-xl shadow-lg border border-gray-200/80 bg-white"
-                >
-                  <DropdownMenuItem
-                    onClick={() => setFilter("all")}
-                    className={`flex items-center justify-between px-3 py-2 text-xs rounded-lg cursor-pointer transition-colors ${
-                      filter === "all"
-                        ? "bg-blue-50 text-primary font-bold"
-                        : "text-gray-700 hover:bg-gray-100"
-                    }`}
-                  >
-                    <span>All Categories</span>
-                    {filter === "all" && (
-                      <Check size={14} className="text-primary shrink-0" />
-                    )}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setFilter("Event Setup & Furniture")}
-                    className={`flex items-center justify-between px-3 py-2 text-xs rounded-lg cursor-pointer transition-colors ${
-                      filter === "Event Setup & Furniture"
-                        ? "bg-blue-50 text-primary font-bold"
-                        : "text-gray-700 hover:bg-gray-100"
-                    }`}
-                  >
-                    <span>Event Setup & Furniture</span>
-                    {filter === "Event Setup & Furniture" && (
-                      <Check size={14} className="text-primary shrink-0" />
-                    )}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setFilter("Dining & Service Inventory")}
-                    className={`flex items-center justify-between px-3 py-2 text-xs rounded-lg cursor-pointer transition-colors ${
-                      filter === "Dining & Service Inventory"
-                        ? "bg-blue-50 text-primary font-bold"
-                        : "text-gray-700 hover:bg-gray-100"
-                    }`}
-                  >
-                    <span>Dining & Service Inventory</span>
-                    {filter === "Dining & Service Inventory" && (
-                      <Check size={14} className="text-primary shrink-0" />
-                    )}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* 2. Date Filter */}
+              {/* Date Filter */}
               <div className="flex items-center gap-1.5 px-2.5 h-9 bg-white border border-gray-200 rounded-lg text-xs shadow-2xs hover:border-gray-300 transition-colors">
                 <Calendar size={13} className="text-gray-400 shrink-0" />
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Date:</span>
@@ -345,7 +219,7 @@ export default function AdminInventory() {
                 </button>
               </div>
 
-              {/* 3. Availability Popover */}
+              {/* Availability Popover */}
               <FilterPopover
                 label="Availability"
                 activeCount={availabilityFilter !== "all" ? 1 : 0}
@@ -372,23 +246,15 @@ export default function AdminInventory() {
             </div>
           </div>
 
-          {(availabilityFilter !== "all" || filter !== "all") && (
+          {availabilityFilter !== "all" && (
             <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-gray-100 flex-wrap">
-              {filter !== "all" && (
-                <FilterChip
-                  label={`Category: ${filter}`}
-                  onRemove={() => setFilter("all")}
-                />
-              )}
-              {availabilityFilter !== "all" && (
-                <FilterChip
-                  label={`Status: ${availabilityFilter}`}
-                  onRemove={() => {
-                    setAvailabilityFilter("all");
-                    setDraftAvailabilityFilter("all");
-                  }}
-                />
-              )}
+              <FilterChip
+                label={`Status: ${availabilityFilter}`}
+                onRemove={() => {
+                  setAvailabilityFilter("all");
+                  setDraftAvailabilityFilter("all");
+                }}
+              />
             </div>
           )}
         </AdminCard>
@@ -400,7 +266,7 @@ export default function AdminInventory() {
           ) : pageRows.length === 0 ? (
             <div className="p-12 text-center space-y-1">
               <p className="text-sm font-semibold text-gray-700">No inventory found.</p>
-              {(search || filter !== "all" || availabilityFilter !== "all") && (
+              {(search || availabilityFilter !== "all") && (
                 <p className="text-xs text-gray-400">Try adjusting your search or filters.</p>
               )}
             </div>
@@ -411,9 +277,6 @@ export default function AdminInventory() {
                   <tr>
                     <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
                       Item Name
-                    </th>
-                    <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                      Category
                     </th>
                     <th className="px-5 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500">
                       Total Quantity
@@ -465,12 +328,6 @@ export default function AdminInventory() {
                               {i.reserved_quantity} unit{i.reserved_quantity > 1 ? "s" : ""} in use today
                             </span>
                           )}
-                        </td>
-
-                        <td className="px-5 py-3.5">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100/90 text-slate-700 border border-slate-200/60 shadow-2xs">
-                            {i.category || "General"}
-                          </span>
                         </td>
 
                         <td className="px-5 py-3.5 text-center">
@@ -627,7 +484,6 @@ export default function AdminInventory() {
         open={!!drawerRow}
         onOpenChange={(open) => !open && setDrawerRow(null)}
         title={drawerRow?.item_name}
-        description={drawerRow?.category}
         footer={
           drawerRow && (
             <>

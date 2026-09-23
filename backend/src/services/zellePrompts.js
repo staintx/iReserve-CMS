@@ -48,7 +48,6 @@ Use the following schema:
   "inventory": [
     {
       "item_name": "string (Clean, title-cased name of the item WITHOUT trailing count in parentheses, e.g. 'Food Warmer', 'Monoblock Chairs', 'Plates', 'Serving Spoons')",
-      "category": "Event Setup & Furniture" | "Dining & Service Inventory",
       "quantity": number (integer >= 0; if no quantity is specified, default to 1),
       "available": true
     }
@@ -56,13 +55,6 @@ Use the following schema:
 }
 
 Guidelines:
-1. Category Standardization: You MUST map each item to one of the following exact two categories:
-   - "Event Setup & Furniture":
-     * Physical setup structures, furniture, backdrops, staging, event styling, lighting/electricals.
-     * Examples: Stage Setup, Buffet Setup, Backdrop, Couch, Grass Carpet, Cake Table, Giveaway Rack, Round Tables, Monoblock Chairs, Tiffany Chairs, Industrial Fan, Water Station, Red Carpet, Chandelier, Dove, Centerpiece, Lights & Sounds, Entourage Setup, Standee, etc.
-   - "Dining & Service Inventory":
-     * Food service equipment, chafing dishes, tableware, dining wares, containers, catering utensils, dishwashing/cleaning equipment, party supplies.
-     * Examples: Food Warmer, Serving Spoons, Plates, Plastic Plates for Pahapunan, Charger Plates, Glasses, Trays of Glasses, Highball Glass and Goblets, Cutlery Sets, Tissues, Planggana, Tulyasi, Tungko, Dishwashing Liquid, Styrofoam Containers, Ice Cooler, Ice Cubes, Mineral Water Gallon, Water Jug, etc.
 2. Item Name Cleaning:
    - Clean the item name thoroughly! Remove any trailing numbers or parentheses from the name:
      * "Food Warmer (7)" -> item_name: "Food Warmer", quantity: 7

@@ -11,6 +11,7 @@ import {
   offerInclusions,
   offerPricePerPax,
   offerBaseFoodPrice,
+  isSpecialOffer,
 } from "@/lib/specialOffers";
 import {
   SERVICE_TYPES,
@@ -172,7 +173,25 @@ export default function StepReviewBooking({
   const hasExtras = addOns.length > 0 || Boolean(form.special_requests);
   const hasDietary =
     Boolean(form.allergies) || Boolean(form.dietary_restrictions);
-  const showPackageSection = Boolean(packageName || eventSpace);
+  const isSpecialOfferBooking =
+    Boolean(offer) ||
+    isSpecialOffer(offer) ||
+    isSpecialOffer(form) ||
+    form?.booking_type === "special";
+
+  const specialOfferName =
+    offer?.name ||
+    packageName ||
+    form?.package_name_snapshot ||
+    form?.package_name ||
+    "";
+
+  const resolvedService =
+    isSpecialOfferBooking && specialOfferName
+      ? specialOfferName
+      : SERVICE_LABELS[serviceType] || serviceType;
+
+  const showPackageSection = !isSpecialOfferBooking && Boolean(packageName || eventSpace);
 
   const isFoodOnly =
     serviceType === SERVICE_TYPES.FOOD_ONLY ||
@@ -192,7 +211,7 @@ export default function StepReviewBooking({
             <Section title="Service Type" onEdit={edit(editTargets.service)}>
               <Row
                 label="Service"
-                value={SERVICE_LABELS[serviceType] || serviceType}
+                value={resolvedService}
               />
             </Section>
           ) : (
@@ -200,15 +219,17 @@ export default function StepReviewBooking({
               title={
                 form.is_custom_setup
                   ? "Custom Event Setup & Styling"
-                  : showPackageSection
-                    ? "Service and package"
-                    : "Service"
+                  : isSpecialOfferBooking
+                    ? "Service Type"
+                    : showPackageSection
+                      ? "Service and package"
+                      : "Service"
               }
               onEdit={edit(editTargets.packageSetup || editTargets.service)}
             >
               <Row
                 label="Service"
-                value={SERVICE_LABELS[serviceType] || serviceType}
+                value={resolvedService}
               />
               <Row
                 label={guestCountLabel(offer)}
@@ -264,10 +285,10 @@ export default function StepReviewBooking({
                 </>
               ) : (
                 <>
-                  {showPackageSection && (
+                  {!isSpecialOfferBooking && showPackageSection && (
                     <Row label="Setup Package" value={packageName} />
                   )}
-                  {eventSpace && (
+                  {!isSpecialOfferBooking && eventSpace && (
                     <Row label="Event space / scaffold size" value={eventSpace} />
                   )}
                 </>

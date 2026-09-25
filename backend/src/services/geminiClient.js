@@ -207,9 +207,8 @@ async function generateContentWithRetry({
     }
   }
 
-  // If all models failed, throw enhanced error
   const customMessage = isTransientError(lastError)
-    ? "The AI service is currently experiencing high demand across Google servers. Please wait a few moments and try again."
+    ? "The AI service is currently experiencing high demand. Please wait a few moments and try again."
     : lastError?.message || "Failed to generate AI response";
 
   const enhancedError = new Error(customMessage);

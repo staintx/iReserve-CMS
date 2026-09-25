@@ -97,7 +97,7 @@ async function chatWithZelle({
 }) {
   if (!process.env.GEMINI_API_KEY) {
     return {
-      text: "Zelle AI is currently in offline mode (Gemini API key not configured). Please configure GEMINI_API_KEY in your .env file to enable full AI capabilities.",
+      text: "Zelle AI is currently offline for maintenance. Please check back shortly or reach out to our team directly.",
       ui_cards: [],
       conversation_id: conversationId,
     };
@@ -216,7 +216,7 @@ async function chatWithZelle({
     }
   } catch (error) {
     console.error("Zelle AI Generation Error:", error);
-    responseText = "I apologize, but I encountered an issue while retrieving catering information. Please try asking again.";
+    responseText = "I apologize, but I'm having trouble processing that request right now. Please give me a moment and try asking again.";
   }
 
   // 4. Extract Generative UI cards

@@ -100,7 +100,7 @@ exports.deleteAddon = async (req, res) => {
 exports.parseWithAI = async (req, res) => {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "Gemini API Key missing" });
+    if (!apiKey) return res.status(503).json({ error: "AI service is currently unavailable. Please try again later." });
 
 
     const prompt = `You are an expert data extraction assistant for an event catering & rental CMS.

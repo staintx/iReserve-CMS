@@ -720,7 +720,7 @@ exports.getAvailability = async (req, res) => {
 exports.parseWithAI = async (req, res) => {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "Gemini API Key missing" });
+    if (!apiKey) return res.status(503).json({ error: "AI service is currently unavailable. Please try again later." });
 
 
     const parts = [INVENTORY_PARSER_PROMPT];

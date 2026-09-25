@@ -5,7 +5,7 @@ const Inquiry = require("../models/Inquiry");
 const Quotation = require("../models/Quotation");
 const InventoryLog = require("../models/InventoryLog");
 const writeInventoryLog = require("../utils/writeInventoryLog");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { generateContentWithRetry, cleanAndParseJson } = require("../services/geminiClient");
 const { INVENTORY_PARSER_PROMPT } = require("../services/zellePrompts");
 const logAction = require("../utils/logAction");
 const Notification = require("../models/Notification");
@@ -722,13 +722,6 @@ exports.parseWithAI = async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "Gemini API Key missing" });
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    });
 
     const parts = [INVENTORY_PARSER_PROMPT];
 
@@ -745,14 +738,14 @@ exports.parseWithAI = async (req, res) => {
       return res.status(400).json({ error: "No file or text provided" });
     }
 
-    const result = await model.generateContent(parts);
-    const response = await result.response;
-    let text = response.text().trim();
-    if (text.startsWith("```json")) text = text.substring(7);
-    if (text.startsWith("```")) text = text.substring(3);
-    if (text.endsWith("```")) text = text.substring(0, text.length - 3).trim();
+    const { text } = await generateContentWithRetry({
+      contents: parts,
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    });
 
-    const parsedData = JSON.parse(text);
+    const parsedData = cleanAndParseJson(text);
 
     let rawList = [];
     if (Array.isArray(parsedData.inventory)) {
@@ -808,8 +801,8 @@ exports.parseWithAI = async (req, res) => {
   } catch (error) {
     console.error("AI Inventory parsing error:", error);
     res.status(500).json({
-      error: "Failed to parse inventory items with AI",
-      details: error.message,
+      error: error.message || "Failed to parse inventory items with AI",
+      details: error.originalError?.message || error.message,
     });
   }
 };

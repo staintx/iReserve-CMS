@@ -3,7 +3,7 @@ const Package = require("../models/Package");
 const Booking = require("../models/Booking");
 const Inquiry = require("../models/Inquiry");
 const Quotation = require("../models/Quotation");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { generateContentWithRetry, cleanAndParseJson } = require("../services/geminiClient");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
 const logAction = require("../utils/logAction");
 
@@ -254,13 +254,6 @@ exports.parseWithAI = async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "Gemini API Key missing" });
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    });
 
     const prompt = `You are an expert culinary data extraction assistant for an event catering CMS.
 Analyze the provided document/menu/flyer/image/text and extract ALL distinct food and beverage items into a JSON object with an "items" array.
@@ -309,14 +302,14 @@ Return ONLY valid JSON.`;
       return res.status(400).json({ error: "No file or text provided" });
     }
 
-    const result = await model.generateContent(parts);
-    const response = await result.response;
-    let text = response.text().trim();
-    if (text.startsWith("```json")) text = text.substring(7);
-    if (text.startsWith("```")) text = text.substring(3);
-    if (text.endsWith("```")) text = text.substring(0, text.length - 3).trim();
+    const { text } = await generateContentWithRetry({
+      contents: parts,
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    });
 
-    const parsedData = JSON.parse(text);
+    const parsedData = cleanAndParseJson(text);
 
     let items = [];
     if (Array.isArray(parsedData.items)) {
@@ -343,8 +336,8 @@ Return ONLY valid JSON.`;
   } catch (error) {
     console.error("AI Menu parsing error:", error);
     res.status(500).json({
-      error: "Failed to parse menu items with AI",
-      details: error.message,
+      error: error.message || "Failed to parse menu items with AI",
+      details: error.originalError?.message || error.message,
     });
   }
 };

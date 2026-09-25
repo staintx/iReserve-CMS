@@ -1,21 +1,9 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { getGenAI, getCandidateModels, isTransientError } = require("./geminiClient");
 const ZelleConversation = require("../models/ZelleConversation");
 const { CUSTOMER_SYSTEM_PROMPT, ADMIN_SYSTEM_PROMPT } = require("./zellePrompts");
 const { CUSTOMER_TOOLS, ADMIN_TOOLS } = require("./zelleTools");
 const { executeTool } = require("./zelleToolExecutor");
 const Rating = require("../models/Rating");
-
-let genAI = null;
-function getGenAI() {
-  if (!genAI) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.warn("⚠️ Warning: GEMINI_API_KEY is not set in environment variables.");
-    }
-    genAI = new GoogleGenerativeAI(apiKey || "dummy_key");
-  }
-  return genAI;
-}
 
 /**
  * Format internal DB messages for the Google Generative AI SDK
@@ -136,15 +124,34 @@ async function chatWithZelle({
   const systemInstruction = isCustomer ? CUSTOMER_SYSTEM_PROMPT : ADMIN_SYSTEM_PROMPT;
   const toolDeclarations = isCustomer ? CUSTOMER_TOOLS : ADMIN_TOOLS;
 
+  const candidateModels = getCandidateModels();
   const ai = getGenAI();
-  const model = ai.getGenerativeModel({
-    model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
-    systemInstruction: {
-      role: "system",
-      parts: [{ text: systemInstruction }],
-    },
-    tools: [{ functionDeclarations: toolDeclarations }],
-  });
+
+  const callChatTurn = async (chatContents) => {
+    let lastErr = null;
+    for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
+      const modelName = candidateModels[mIdx];
+      try {
+        const m = ai.getGenerativeModel({
+          model: modelName,
+          systemInstruction: {
+            role: "system",
+            parts: [{ text: systemInstruction }],
+          },
+          tools: [{ functionDeclarations: toolDeclarations }],
+        });
+        return await m.generateContent({ contents: chatContents });
+      } catch (err) {
+        lastErr = err;
+        if (isTransientError(err) && mIdx < candidateModels.length - 1) {
+          console.warn(`[Zelle AI] Model "${modelName}" busy (${err.message}). Trying "${candidateModels[mIdx + 1]}"...`);
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastErr;
+  };
 
   // 3. Format history and start conversation contents
   const history = formatHistoryForGemini(conversation.messages);
@@ -163,7 +170,7 @@ async function chatWithZelle({
   try {
     // Multi-turn tool execution loop
     for (let turn = 0; turn < 5; turn++) {
-      const result = await model.generateContent({ contents });
+      const result = await callChatTurn(contents);
       const candidate = result.response.candidates?.[0]?.content;
 
       if (!candidate) {

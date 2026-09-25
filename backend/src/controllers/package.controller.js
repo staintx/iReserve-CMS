@@ -1,7 +1,7 @@
 const Package = require("../models/Package");
 const Inventory = require("../models/Inventory");
 const Addon = require("../models/Addon");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { generateContentWithRetry, cleanAndParseJson } = require("../services/geminiClient");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
 const logAction = require("../utils/logAction");
 const {
@@ -1066,14 +1066,6 @@ exports.parseWithAI = async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "Gemini API Key missing" });
     
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    });
-    
     const isOffer = req.body.offer_type === OFFER_TYPES.SPECIAL;
 
     const comboPrompt = `You are a data extraction assistant for an event catering CMS.
@@ -1172,14 +1164,14 @@ Return ONLY valid JSON.`;
       return res.status(400).json({ error: "No file or text provided" });
     }
 
-    const result = await model.generateContent(parts);
-    const response = await result.response;
-    let text = response.text().trim();
-    if (text.startsWith("```json")) text = text.substring(7);
-    if (text.startsWith("```")) text = text.substring(3);
-    if (text.endsWith("```")) text = text.substring(0, text.length - 3).trim();
+    const { text } = await generateContentWithRetry({
+      contents: parts,
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    });
     
-    const parsedData = JSON.parse(text);
+    const parsedData = cleanAndParseJson(text);
 
     // Normalize packages array output
     let packages = [];
@@ -1228,7 +1220,10 @@ Return ONLY valid JSON.`;
     });
   } catch (error) {
     console.error("AI Parse Error:", error);
-    res.status(500).json({ error: "Failed to parse with AI", details: error.message });
+    res.status(500).json({
+      error: error.message || "Failed to parse with AI",
+      details: error.originalError?.message || error.message,
+    });
   }
 };
 

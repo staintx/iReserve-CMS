@@ -258,7 +258,21 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
         error.response?.data?.message ||
         "Failed to extract package details with AI.";
 
-      if (error.code === "ECONNABORTED" || error.message?.toLowerCase().includes("timeout")) {
+      const rawDetail = String(
+        error.response?.data?.details ||
+        error.response?.data?.error ||
+        error.message ||
+        ""
+      ).toLowerCase();
+
+      if (
+        rawDetail.includes("503") ||
+        rawDetail.includes("high demand") ||
+        rawDetail.includes("spikes in demand") ||
+        rawDetail.includes("service unavailable")
+      ) {
+        errorMsg = "The AI service is experiencing high demand. Please try again in a moment.";
+      } else if (error.code === "ECONNABORTED" || error.message?.toLowerCase().includes("timeout")) {
         errorMsg = "The AI reading took longer than expected. Please try uploading again or use a smaller document.";
       }
 

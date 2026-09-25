@@ -142,12 +142,21 @@ export default function AdminCopilotPanel() {
         },
       ]);
     } catch (err) {
+      const serverMessage = err.response?.data?.text || err.response?.data?.message;
+      const isConfigIssue =
+        serverMessage?.toLowerCase().includes("offline") ||
+        serverMessage?.toLowerCase().includes("maintenance");
+
+      const userFriendlyText = isConfigIssue
+        ? serverMessage
+        : "I'm having trouble connecting to the assistant right now. Please try asking again in a moment.";
+
       notify(err.response?.data?.message || "Failed to reach Zelle Copilot.", "error");
       setMessages((prev) => [
         ...prev,
         {
           role: "model",
-          text: "I encountered an error communicating with the AI service. Please verify your GEMINI_API_KEY.",
+          text: userFriendlyText,
           timestamp: new Date().toISOString(),
         },
       ]);

@@ -51,7 +51,7 @@ const app = express();
 // so req.ip correctly resolves to the real visitor IP instead of Cloudflare's IP
 app.set("trust proxy", 1);
 
-const rateLimit = require("express-rate-limit");
+const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
 
 const defaultAllowedOrigins = [
   "http://localhost:5173",
@@ -84,11 +84,11 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Helper to determine the true client IP (prioritizing Cloudflare headers)
+// Helper to determine the true client IP (prioritizing Cloudflare headers and normalizing IPv6 subnets)
 const getClientIp = (req) => {
 	const cfIp = req.headers["cf-connecting-ip"];
-	if (cfIp) return Array.isArray(cfIp) ? cfIp[0] : cfIp;
-	return req.ip;
+	const rawIp = cfIp ? (Array.isArray(cfIp) ? cfIp[0] : cfIp) : req.ip;
+	return ipKeyGenerator(rawIp);
 };
 
 // Global API rate limiter: generous limits, skipped in development to prevent 429 lockout
@@ -98,7 +98,7 @@ const apiLimiter = rateLimit({
 	standardHeaders: true,
 	legacyHeaders: false,
 	keyGenerator: getClientIp,
-	validate: { trustProxy: false },
+	validate: { trustProxy: false, keyGeneratorIpFallback: false },
 	skip: () => process.env.NODE_ENV !== "production",
 	message: { message: "Too many requests from this IP, please try again after 15 minutes" }
 });
@@ -111,7 +111,7 @@ const authLimiter = rateLimit({
 	standardHeaders: true,
 	legacyHeaders: false,
 	keyGenerator: getClientIp,
-	validate: { trustProxy: false },
+	validate: { trustProxy: false, keyGeneratorIpFallback: false },
 	skip: () => process.env.NODE_ENV !== "production",
 	message: { message: "Too many authentication attempts, please try again later" }
 });

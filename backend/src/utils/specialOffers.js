@@ -256,6 +256,8 @@ const PACKAGE_ONLY_FIELDS = [
   "default_scaffold_option_id",
   "setup_equipment",
   "setup_price",
+  "guest_min",
+  "guest_max",
   "add_ons",
   "menu_items",
 ];

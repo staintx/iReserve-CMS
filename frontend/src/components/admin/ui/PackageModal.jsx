@@ -823,8 +823,10 @@ export default function PackageModal({
         event_type: pkg.event_type || "",
         event_type_other: "",
         available: pkg.available !== false,
-        guest_min: pkg.guest_min || "",
-        guest_max: pkg.guest_max || "",
+        guest_min:
+          pkg.offer_type === OFFER_TYPES.SPECIAL ? "" : pkg.guest_min || "",
+        guest_max:
+          pkg.offer_type === OFFER_TYPES.SPECIAL ? "" : pkg.guest_max || "",
         guest_count: pkg.guest_count || "",
         setup_price: pkg.setup_price || "",
         price_per_guest: pkg.price_per_guest || "",
@@ -1958,8 +1960,8 @@ export default function PackageModal({
         inclusions: normalizedInclusions,
         // Derived from scaffold size options for regular packages
         setup_price: isOffer ? "" : String(derivedSetupPrice),
-        guest_min: isOffer ? formData.guest_min || "" : String(derivedGuestMin),
-        guest_max: isOffer ? formData.guest_max || "" : String(derivedGuestMax),
+        guest_min: isOffer ? "" : String(derivedGuestMin),
+        guest_max: isOffer ? "" : String(derivedGuestMax),
         guest_count: isOffer ? formData.guest_count || "" : "",
         price_per_guest: isOffer ? formData.price_per_guest || "" : "",
         // Saved in the order shown; the server renumbers `sort_order` from it.
@@ -2382,46 +2384,6 @@ export default function PackageModal({
                     Pricing: <strong>₱{Number(formData.price_per_guest).toLocaleString("en-PH")} / pax</strong> · Customer will specify guest count during booking.
                   </p>
                 )}
-
-                <div>
-                  <label className="block text-sm text-gray-600 mb-1">
-                    Minimum Guests
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none border-amber-300 bg-amber-50/40 focus:border-amber-500"
-                    placeholder="e.g. 50"
-                    value={formData.guest_min}
-                    onChange={(e) => {
-                      if (Number(e.target.value) < 0) return;
-                      setFormData({ ...formData, guest_min: e.target.value });
-                    }}
-                  />
-                  <p className="mt-1 text-[11px] text-gray-400">
-                    Minimum guest count required to book this combo.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm text-gray-600 mb-1">
-                    Maximum Guests
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none border-amber-300 bg-amber-50/40 focus:border-amber-500"
-                    placeholder="e.g. 80"
-                    value={formData.guest_max}
-                    onChange={(e) => {
-                      if (Number(e.target.value) < 0) return;
-                      setFormData({ ...formData, guest_max: e.target.value });
-                    }}
-                  />
-                  <p className="mt-1 text-[11px] text-gray-400">
-                    Absolute limit: customer cannot select or enter more guests than this.
-                  </p>
-                </div>
               </div>
             </section>
           )}

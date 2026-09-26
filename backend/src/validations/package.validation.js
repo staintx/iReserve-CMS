@@ -27,8 +27,8 @@ exports.packageSchema = Joi.object({
   // A regular package's advisory guest range. A combo has one exact count
   // instead, so these are dropped for it rather than kept beside `guest_count`
   // where they would read as a second, contradicting answer.
-  guest_min: Joi.number().min(1).optional().allow("", null),
-  guest_max: Joi.number().min(1).optional().allow("", null),
+  guest_min: packageOnly(Joi.number().min(1).optional().allow("", null)),
+  guest_max: packageOnly(Joi.number().min(1).optional().allow("", null)),
   price_per_guest: Joi.number().min(0).optional().allow(""),
   // What a regular package's event set-up starts at. A combo has none.
   setup_price: packageOnly(Joi.number().min(0).optional().allow("")),
@@ -145,8 +145,8 @@ exports.packageUpdateSchema = Joi.object({
   // A regular package's advisory guest range. A combo has one exact count
   // instead, so these are dropped for it rather than kept beside `guest_count`
   // where they would read as a second, contradicting answer.
-  guest_min: Joi.number().min(1).optional().allow("", null),
-  guest_max: Joi.number().min(1).optional().allow("", null),
+  guest_min: packageOnly(Joi.number().min(1).optional().allow("", null)),
+  guest_max: packageOnly(Joi.number().min(1).optional().allow("", null)),
   price_per_guest: Joi.number().min(0).optional().allow(""),
   // What a regular package's event set-up starts at. A combo has none.
   setup_price: packageOnly(Joi.number().min(0).optional().allow("")),

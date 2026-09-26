@@ -1,5 +1,5 @@
 const Addon = require("../models/Addon");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { generateContentWithRetry, cleanAndParseJson } = require("../services/geminiClient");
 const logAction = require("../utils/logAction");
 
 // Get all addons (public)
@@ -100,15 +100,8 @@ exports.deleteAddon = async (req, res) => {
 exports.parseWithAI = async (req, res) => {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "Gemini API Key missing" });
+    if (!apiKey) return res.status(503).json({ error: "AI service is currently unavailable. Please try again later." });
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    });
 
     const prompt = `You are an expert data extraction assistant for an event catering & rental CMS.
 Analyze the provided document/image/text and extract ALL distinct ADD-ON items into a JSON object with an "addons" array.
@@ -146,14 +139,14 @@ Return ONLY valid JSON.`;
       return res.status(400).json({ error: "No file or text provided" });
     }
 
-    const result = await model.generateContent(parts);
-    const response = await result.response;
-    let text = response.text().trim();
-    if (text.startsWith("```json")) text = text.substring(7);
-    if (text.startsWith("```")) text = text.substring(3);
-    if (text.endsWith("```")) text = text.substring(0, text.length - 3).trim();
+    const { text } = await generateContentWithRetry({
+      contents: parts,
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    });
 
-    const parsedData = JSON.parse(text);
+    const parsedData = cleanAndParseJson(text);
 
     let addons = [];
     if (Array.isArray(parsedData.addons)) {
@@ -176,8 +169,8 @@ Return ONLY valid JSON.`;
   } catch (error) {
     console.error("AI Addon parsing error:", error);
     res.status(500).json({
-      error: "Failed to parse addons with AI",
-      details: error.message,
+      error: error.message || "Failed to parse addons with AI",
+      details: error.originalError?.message || error.message,
     });
   }
 };

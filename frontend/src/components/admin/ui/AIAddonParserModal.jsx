@@ -180,7 +180,21 @@ export default function AIAddonParserModal({
         err.message ||
         "Failed to parse add-ons with AI";
 
-      if (err.code === "ECONNABORTED" || err.message?.toLowerCase().includes("timeout")) {
+      const rawDetail = String(
+        err.response?.data?.details ||
+        err.response?.data?.error ||
+        err.message ||
+        ""
+      ).toLowerCase();
+
+      if (
+        rawDetail.includes("503") ||
+        rawDetail.includes("high demand") ||
+        rawDetail.includes("spikes in demand") ||
+        rawDetail.includes("service unavailable")
+      ) {
+        errorMsg = "The AI service is experiencing high demand. Please try again in a moment.";
+      } else if (err.code === "ECONNABORTED" || err.message?.toLowerCase().includes("timeout")) {
         errorMsg = "The AI reading took longer than expected. Please try uploading again or use a smaller document.";
       }
 

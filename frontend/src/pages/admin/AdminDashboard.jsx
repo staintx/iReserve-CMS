@@ -18,15 +18,58 @@ export default function AdminDashboard() {
   const [inventoryAlerts, setInventoryAlerts] = useState([]);
 
   const KPIS = [
-    { title: "Pending Inquiries", value: summary.pendingInquiries || "0", sub: "Awaiting review", badge: summary.pendingInquiries > 0 ? "Review Needed" : null, icon: Clock },
-    { title: "Accepted Quotes", value: summary.acceptedQuotes || "0", sub: "Awaiting deposit", trend: "+12%", up: true, icon: FileText },
-    { title: "Upcoming Events", value: summary.upcomingEvents || "0", sub: "Next 30 days", trend: summary.reservationTrend || "+8.2%", up: true, icon: Calendar },
-    { title: "Completed Events", value: summary.completedEvents || "0", sub: "All time total", icon: CheckCircle2 },
+    { 
+      title: "Pending Inquiries", 
+      value: summary.pendingInquiries ?? "0", 
+      sub: "Awaiting review", 
+      badge: summary.pendingInquiries > 0 ? "Review Needed" : null, 
+      icon: Clock 
+    },
+    { 
+      title: "Accepted Quotes", 
+      value: summary.acceptedQuotes ?? "0", 
+      sub: "Awaiting deposit", 
+      trend: summary.acceptedQuotesTrend || null, 
+      up: summary.acceptedQuotesTrendUp ?? true, 
+      icon: FileText 
+    },
+    { 
+      title: "Upcoming Events", 
+      value: summary.upcomingEvents ?? "0", 
+      sub: "Next 30 days", 
+      trend: summary.reservationTrend || null, 
+      up: summary.reservationTrendUp ?? true, 
+      icon: Calendar 
+    },
+    { 
+      title: "Completed Events", 
+      value: summary.completedEvents ?? "0", 
+      sub: "All time total", 
+      icon: CheckCircle2 
+    },
   ];
 
   const parseDate = (value) => {
+    if (!value) return null;
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  /**
+   * Calculate Month-over-Month (MoM) percentage change.
+   * "Only render the trend badge if there is actual historical data to compare against."
+   */
+  const computeMoMTrend = (current, previous) => {
+    if (!previous || previous <= 0) {
+      return { trend: null, up: true };
+    }
+
+    const diff = current - previous;
+    const percent = Math.round((diff / previous) * 100);
+    const up = percent >= 0;
+    const trend = `${up ? "+" : ""}${percent}%`;
+
+    return { trend, up };
   };
 
   const loadData = () => {
@@ -42,22 +85,69 @@ export default function AdminDashboard() {
         setBookings(data);
 
         const now = new Date();
+
+        // Month boundaries for Month-over-Month (MoM) comparisons
+        const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        const endOfThisMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+        const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+        // Upcoming events within next 30 days
+        const next30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
         const allFuture = data
           .map((booking) => ({
             ...booking,
             eventDate: parseDate(booking.event_date),
           }))
-          .filter((booking) => booking.eventDate && booking.eventDate >= now)
+          .filter((booking) => booking.eventDate && booking.eventDate >= now && booking.status !== "cancelled")
           .sort((a, b) => a.eventDate - b.eventDate);
+
+        const upcomingNext30Days = allFuture.filter((b) => b.eventDate <= next30Days);
+
+        // Accepted Quotes Month-over-Month calculation
+        const isAcceptedQuote = (inq) =>
+          inq.status === "Quote Accepted" || inq.status === "Awaiting Final Confirmation";
+
+        const thisMonthAccepted = inquiries.filter((inq) => {
+          if (!isAcceptedQuote(inq) && !inq.converted_booking_id) return false;
+          const d = parseDate(inq.updatedAt || inq.createdAt);
+          return d && d >= startOfThisMonth && d <= endOfThisMonth;
+        }).length;
+
+        const lastMonthAccepted = inquiries.filter((inq) => {
+          if (!isAcceptedQuote(inq) && !inq.converted_booking_id) return false;
+          const d = parseDate(inq.updatedAt || inq.createdAt);
+          return d && d >= startOfLastMonth && d <= endOfLastMonth;
+        }).length;
+
+        const acceptedQuotesTrend = computeMoMTrend(thisMonthAccepted, lastMonthAccepted);
+
+        // Reservation / Bookings Month-over-Month calculation
+        const thisMonthBookings = data.filter((b) => {
+          if (b.status === "cancelled") return false;
+          const d = parseDate(b.createdAt);
+          return d && d >= startOfThisMonth && d <= endOfThisMonth;
+        }).length;
+
+        const lastMonthBookings = data.filter((b) => {
+          if (b.status === "cancelled") return false;
+          const d = parseDate(b.createdAt);
+          return d && d >= startOfLastMonth && d <= endOfLastMonth;
+        }).length;
+
+        const reservationTrend = computeMoMTrend(thisMonthBookings, lastMonthBookings);
 
         setSummary({
           totalReservations: data.length,
-          upcomingEvents: allFuture.length,
+          upcomingEvents: upcomingNext30Days.length,
+          totalUpcomingEvents: allFuture.length,
           pendingInquiries: inquiries.filter((inq) => inq.status === "Pending Review").length,
-          acceptedQuotes: inquiries.filter((inq) => inq.status === "Quote Accepted").length,
+          acceptedQuotes: inquiries.filter(isAcceptedQuote).length,
           completedEvents: data.filter((booking) => booking.status === "completed" || booking.status === "Completed").length,
-          reservationTrend: "+8.2%",
-          reservationTrendUp: true,
+          acceptedQuotesTrend: acceptedQuotesTrend.trend,
+          acceptedQuotesTrendUp: acceptedQuotesTrend.up,
+          reservationTrend: reservationTrend.trend,
+          reservationTrendUp: reservationTrend.up,
         });
       } catch (err) {
         console.error(err);

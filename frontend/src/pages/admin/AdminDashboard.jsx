@@ -198,7 +198,7 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto">
             <Btn variant="secondary" size="sm"><Download size={13} /> Export Report</Btn>
-            <Btn variant="primary" size="sm" onClick={() => navigate("/admin/bookings/new")}><Plus size={13} /> New Booking</Btn>
+            <Btn variant="primary" size="sm" onClick={() => navigate("/admin/bookings/reservations?new=true")}><Plus size={13} /> New Booking</Btn>
           </div>
         </div>
 

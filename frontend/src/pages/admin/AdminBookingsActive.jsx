@@ -68,7 +68,7 @@ export default function AdminBookingsActive() {
         <div className="admin-search">
           <input placeholder="Search by client name, booking ID, or event type..." value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
-        <button className="btn" type="button" onClick={() => navigate("/admin/bookings/new")}>Add New Booking</button>
+        <button className="btn" type="button" onClick={() => navigate("/admin/bookings/reservations?new=true")}>Add New Booking</button>
       </div>
       <div className="panel">
         <AdminBookingsActiveTable

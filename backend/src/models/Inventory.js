@@ -18,10 +18,10 @@ const InventorySchema = new mongoose.Schema({
   item_name: { type: String, required: true, trim: true },
   identifier: { type: String, trim: true, index: true },
   quantity: { type: Number, min: 0, default: 0 },
-  low_stock_threshold: { type: Number, min: 1, default: null },
+  low_stock_threshold: { type: Number, min: 1, default: null, alias: "lowStockThreshold" },
   category: { type: String, required: false },
   available: { type: Boolean, default: true }
-}, { timestamps: true });
+}, { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } });
 
 // Pre-validate hook to populate canonical identifier
 InventorySchema.pre("validate", function() {

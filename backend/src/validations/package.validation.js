@@ -53,8 +53,9 @@ exports.packageSchema = Joi.object({
               price: Joi.number().optional().allow(0),
               pricing_type: Joi.string().valid("fixed", "quantity").optional(),
               inventory_id: Joi.string().optional().allow(null, ""),
+              qty: Joi.alternatives().try(Joi.string(), Joi.number()).optional().allow(""),
               _id: Joi.string().optional(),
-            })
+            }).unknown(true)
           )
         ),
         Joi.string(),
@@ -170,8 +171,9 @@ exports.packageUpdateSchema = Joi.object({
               price: Joi.number().optional().allow(0),
               pricing_type: Joi.string().valid("fixed", "quantity").optional(),
               inventory_id: Joi.string().optional().allow(null, ""),
+              qty: Joi.alternatives().try(Joi.string(), Joi.number()).optional().allow(""),
               _id: Joi.string().optional(),
-            })
+            }).unknown(true)
           )
         ),
         Joi.string(),

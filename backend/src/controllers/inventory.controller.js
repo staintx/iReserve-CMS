@@ -103,9 +103,16 @@ exports.create = async (req, res) => {
       });
     }
 
+    const rawThreshold =
+      req.body.low_stock_threshold !== undefined &&
+      req.body.low_stock_threshold !== null &&
+      req.body.low_stock_threshold !== ""
+        ? req.body.low_stock_threshold
+        : req.body.lowStockThreshold;
+
     let threshold = null;
-    if (req.body.low_stock_threshold !== undefined && req.body.low_stock_threshold !== null && req.body.low_stock_threshold !== "") {
-      threshold = Number(req.body.low_stock_threshold);
+    if (rawThreshold !== undefined && rawThreshold !== null && rawThreshold !== "") {
+      threshold = Number(rawThreshold);
       if (!Number.isInteger(threshold) || threshold <= 0) {
         return res.status(400).json({ message: "Low stock threshold must be a whole number greater than 0" });
       }
@@ -189,8 +196,15 @@ exports.update = async (req, res) => {
       return res.status(404).json({ message: "Inventory item not found" });
     }
 
-    if (updates.low_stock_threshold !== undefined && updates.low_stock_threshold !== null && updates.low_stock_threshold !== "") {
-      const threshold = Number(updates.low_stock_threshold);
+    const rawUpdateThreshold =
+      updates.low_stock_threshold !== undefined &&
+      updates.low_stock_threshold !== null &&
+      updates.low_stock_threshold !== ""
+        ? updates.low_stock_threshold
+        : updates.lowStockThreshold;
+
+    if (rawUpdateThreshold !== undefined && rawUpdateThreshold !== null && rawUpdateThreshold !== "") {
+      const threshold = Number(rawUpdateThreshold);
       if (!Number.isInteger(threshold) || threshold <= 0) {
         return res.status(400).json({ message: "Low stock threshold must be a whole number greater than 0" });
       }
@@ -199,7 +213,7 @@ exports.update = async (req, res) => {
         return res.status(400).json({ message: "Low stock threshold cannot be greater than Total Quantity" });
       }
       updates.low_stock_threshold = threshold;
-    } else if (updates.low_stock_threshold === null || updates.low_stock_threshold === "") {
+    } else if (rawUpdateThreshold === null || rawUpdateThreshold === "") {
       updates.low_stock_threshold = null;
     }
 

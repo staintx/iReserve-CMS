@@ -1049,7 +1049,9 @@ export default function PackageModal({
     return true;
   };
 
-  const isDiningInclusion = (incStr) => !isEventSetupInclusion(incStr) && !isStaffInclusion(incStr);
+  const isInventoryInclusion = (incStr) =>
+    !isEventSetupInclusion(incStr) && !isStaffInclusion(incStr);
+  const isDiningInclusion = isInventoryInclusion;
 
   const handleAddSetupInclusion = (customName) => {
     const rawName = customName || setupInput.name;
@@ -1733,9 +1735,7 @@ export default function PackageModal({
   // Computed inclusion lists partitioned into Services (Setup + Staff), and Inventory classes
   const setupInclusions = (formData.inclusions || []).filter(isEventSetupInclusion);
   const staffInclusions = (formData.inclusions || []).filter(isStaffInclusion);
-  const inventoryInclusions = (formData.inclusions || []).filter(
-    (inc) => !isEventSetupInclusion(inc) && !isStaffInclusion(inc),
-  );
+  const inventoryInclusions = (formData.inclusions || []).filter(isInventoryInclusion);
   const diningInclusions = inventoryInclusions;
   const servicesInclusionsCount = setupInclusions.length + staffInclusions.length;
 
@@ -1786,9 +1786,10 @@ export default function PackageModal({
         (opt) =>
           !opt.width_ft ||
           !opt.length_ft ||
-          opt.price === undefined ||
-          opt.price === "" ||
-          Number(opt.price) < 0
+          (!opt.free_setup &&
+            (opt.price === undefined ||
+              opt.price === "" ||
+              Number(opt.price) < 0))
       );
       if (invalidScaffold) {
         notify("Every scaffold size needs valid dimensions and a base setup price.", "error");

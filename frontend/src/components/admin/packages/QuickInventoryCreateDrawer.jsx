@@ -40,6 +40,7 @@ export default function QuickInventoryCreateDrawer({
   const [formData, setFormData] = useState({
     item_name: "",
     total_quantity: "",
+    low_stock_threshold: "",
     package_quantity: "1",
     description: "",
   });
@@ -49,6 +50,7 @@ export default function QuickInventoryCreateDrawer({
       setFormData({
         item_name: initialName.trim(),
         total_quantity: "",
+        low_stock_threshold: "",
         package_quantity: "1",
         description: "",
       });
@@ -135,6 +137,26 @@ export default function QuickInventoryCreateDrawer({
       return;
     }
 
+    if (
+      formData.low_stock_threshold === "" ||
+      formData.low_stock_threshold === null ||
+      formData.low_stock_threshold === undefined
+    ) {
+      notify("Low Stock Threshold is required.", "error");
+      return;
+    }
+
+    const thresholdNum = Number(formData.low_stock_threshold);
+    if (isNaN(thresholdNum) || !Number.isInteger(thresholdNum) || thresholdNum <= 0) {
+      notify("Low Stock Threshold must be a whole number greater than 0.", "error");
+      return;
+    }
+
+    if (totalQtyNum > 0 && thresholdNum > totalQtyNum) {
+      notify("Low Stock Threshold cannot be greater than Total Quantity.", "error");
+      return;
+    }
+
     const pkgQtyNum = parseInt(formData.package_quantity, 10);
     if (formData.package_quantity === "" || isNaN(pkgQtyNum) || pkgQtyNum < 1) {
       notify("Quantity Included in This Package must be at least 1.", "error");
@@ -156,6 +178,8 @@ export default function QuickInventoryCreateDrawer({
       const payload = {
         item_name: trimmedName,
         quantity: totalQtyNum,
+        low_stock_threshold: thresholdNum,
+        lowStockThreshold: thresholdNum,
         available: true,
       };
 
@@ -262,6 +286,26 @@ export default function QuickInventoryCreateDrawer({
                     Total quantity of that item currently recorded in inventory.
                   </p>
                 </div>
+
+                {/* Low Stock Threshold */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Low Stock Threshold <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    required
+                    placeholder="e.g. 50"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary transition-all text-gray-800"
+                    value={formData.low_stock_threshold}
+                    onChange={(e) => setFormData({ ...formData, low_stock_threshold: e.target.value })}
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Notify admin when stock on hand reaches this quantity or below.
+                  </p>
+                </div>
               </>
             )}
 
@@ -347,6 +391,7 @@ export default function QuickInventoryCreateDrawer({
                 !formData.item_name.trim() ||
                 (!isAddon &&
                   (formData.total_quantity === "" ||
+                    formData.low_stock_threshold === "" ||
                     Number(formData.package_quantity) > Number(formData.total_quantity)))
               }
             >

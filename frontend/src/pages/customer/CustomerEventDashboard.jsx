@@ -501,6 +501,38 @@ export default function CustomerEventDashboard() {
     setIsChoiceModalOpen(true);
   };
 
+  const handlePayDeposit = async () => {
+    if (!booking?._id) return;
+    const depositPayable = Number(activeQuotation?.deposit_amount) > 0
+      ? Number(activeQuotation.deposit_amount)
+      : Number(booking?.deposit_amount) > 0
+      ? Number(booking.deposit_amount)
+      : (grandTotal > 0 ? Math.round(grandTotal * 0.2) : outstandingAmount);
+
+    const payAmount = Math.min(outstandingAmount, depositPayable > 0 ? depositPayable : outstandingAmount);
+    if (payAmount <= 0) return;
+
+    setPayingPaymentId(booking._id);
+    try {
+      notify("Generating secure PayMongo checkout for deposit...", "info");
+      const res = await CustomerAPI.createPaymentCheckout({
+        booking_id: booking._id,
+        amount: payAmount,
+        payment_type: "deposit",
+      });
+
+      if (res.data?.checkout_url) {
+        window.location.assign(res.data.checkout_url);
+      } else {
+        notify("Could not generate checkout session.", "error");
+        setPayingPaymentId(null);
+      }
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to start payment checkout.", "error");
+      setPayingPaymentId(null);
+    }
+  };
+
   const fetchBookingRating = async (bId) => {
     try {
       setLoadingRating(true);
@@ -914,12 +946,12 @@ export default function CustomerEventDashboard() {
         action: (
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              onClick={handlePayRemainingBalance}
+              onClick={handlePayDeposit}
               disabled={payingPaymentId !== null}
               className="bg-[#4C81E0] hover:bg-[#3B6EC9] text-white font-bold text-xs h-9 px-4 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
             >
               <CreditCard className="w-4 h-4" />
-              <span>Pay Deposit Now</span>
+              <span>{payingPaymentId ? "Opening Checkout…" : "Pay Deposit Now"}</span>
             </Button>
             {needsOcular && (
               <Button
@@ -1177,12 +1209,12 @@ export default function CustomerEventDashboard() {
   } else if (["deposit pending", "pending deposit"].includes(rawStatus) || (booking.payment_status === "pending" && !isFullyPaid)) {
     headerPrimaryAction = (
       <Button
-        onClick={handlePayRemainingBalance}
+        onClick={handlePayDeposit}
         disabled={payingPaymentId !== null}
         className="bg-[#4C81E0] hover:bg-[#3b6ec6] text-white font-semibold text-xs h-9 px-4 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-95 transition-all"
       >
         <CreditCard className="w-3.5 h-3.5" />
-        <span>Pay Deposit Now</span>
+        <span>{payingPaymentId ? "Opening Checkout…" : "Pay Deposit Now"}</span>
       </Button>
     );
   } else if (needsOcular && canModifyBooking) {
@@ -2537,24 +2569,11 @@ export default function CustomerEventDashboard() {
         open={isChoiceModalOpen}
         onClose={() => setIsChoiceModalOpen(false)}
         booking={booking}
+        balanceAmount={outstandingAmount}
         remainingBalance={outstandingAmount}
-        onPaymentSelected={(_method) => {
-          setIsChoiceModalOpen(false);
-          setPayingPaymentId(booking._id);
-          CustomerAPI.createPaymentCheckout({
-            booking_id: booking._id,
-            amount: outstandingAmount,
-            payment_type: "balance",
-          })
-            .then((res) => {
-              if (res.data?.checkout_url) {
-                window.location.assign(res.data.checkout_url);
-              } else {
-                notify("Could not generate payment URL.", "error");
-              }
-            })
-            .catch((err) => notify(err.response?.data?.message || "Failed to start checkout.", "error"))
-            .finally(() => setPayingPaymentId(null));
+        onSuccess={() => {
+          fetchBooking();
+          fetchPayments();
         }}
       />
 

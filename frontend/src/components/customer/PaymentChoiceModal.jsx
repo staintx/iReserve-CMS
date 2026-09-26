@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Modal from "../common/Modal";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
@@ -19,8 +19,10 @@ export default function PaymentChoiceModal({
   open,
   onClose,
   booking,
-  balanceAmount = 0,
-  onSuccess
+  balanceAmount,
+  remainingBalance,
+  onSuccess,
+  onPaymentSelected
 }) {
   const { notify } = useToast();
   const [selectedMethod, setSelectedMethod] = useState(
@@ -29,9 +31,25 @@ export default function PaymentChoiceModal({
   const [notes, setNotes] = useState(booking?.balance_payment_notes || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (open && booking) {
+      setSelectedMethod(
+        booking?.balance_payment_preference === "in_person" ? "in_person" : "online"
+      );
+      setNotes(booking?.balance_payment_notes || "");
+      setIsSubmitting(false);
+    }
+  }, [open, booking]);
+
   if (!open || !booking) return null;
 
-  const payable = Number(balanceAmount || 0);
+  const rawPayable = balanceAmount != null
+    ? balanceAmount
+    : remainingBalance != null
+    ? remainingBalance
+    : (booking?.remaining_balance ?? booking?.quotation_id?.remaining_balance ?? 0);
+
+  const payable = Math.max(0, Number(rawPayable || 0));
   const refCode = booking.reference || (booking._id ? booking._id.slice(-8).toUpperCase() : "-");
   const eventDateStr = booking.event_date
     ? new Date(booking.event_date).toLocaleDateString("en-US", {
@@ -45,6 +63,11 @@ export default function PaymentChoiceModal({
     if (payable <= 0) {
       notify("No remaining balance found for this booking.", "info");
       onClose();
+      return;
+    }
+
+    if (selectedMethod === "online" && typeof onPaymentSelected === "function") {
+      onPaymentSelected("online");
       return;
     }
 

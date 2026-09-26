@@ -42,6 +42,7 @@ import KPICard from "../../components/admin/ui/KPICard";
 import Badge from "../../components/admin/ui/Badge";
 import ConflictModal from "../../components/admin/ui/ConflictModal";
 import AdminAssignStaffModal from "../../components/admin/ui/AdminAssignStaffModal";
+import WalkInBookingModal from "../../components/admin/booking/WalkInBookingModal";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
@@ -114,7 +115,31 @@ const AvatarInitials = ({ name, className = "w-9 h-9 text-xs" }) => {
 export default function AdminReservations() {
   const navigate = useNavigate();
   const { notify } = useToast();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showNewBookingModal, setShowNewBookingModal] = useState(
+    () => searchParams.get("new") === "true" || searchParams.get("action") === "new"
+  );
+
+  useEffect(() => {
+    if (searchParams.get("new") === "true" || searchParams.get("action") === "new") {
+      setShowNewBookingModal(true);
+    }
+  }, [searchParams]);
+
+  const handleCloseNewBooking = () => {
+    setShowNewBookingModal(false);
+    if (searchParams.get("new") === "true" || searchParams.get("action") === "new") {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("new");
+      nextParams.delete("action");
+      setSearchParams(nextParams, { replace: true });
+    }
+  };
+
+  const handleNewBookingCreated = () => {
+    loadData();
+    handleCloseNewBooking();
+  };
 
   // State
   const [bookings, setBookings] = useState([]);
@@ -530,7 +555,7 @@ export default function AdminReservations() {
               <RefreshCw size={13} className={loading ? "animate-spin text-primary" : ""} /> Refresh
             </button>
             <button
-              onClick={() => navigate("/admin/bookings/new")}
+              onClick={() => setShowNewBookingModal(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-semibold text-xs shadow-xs hover:bg-primary/90 transition-colors cursor-pointer"
             >
               <Plus size={14} /> New Booking
@@ -1195,6 +1220,12 @@ export default function AdminReservations() {
           }}
         />
       )}
+
+      <WalkInBookingModal
+        open={showNewBookingModal}
+        onClose={handleCloseNewBooking}
+        onCreated={handleNewBookingCreated}
+      />
     </AdminLayout>
   );
 }

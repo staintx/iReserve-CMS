@@ -58,7 +58,6 @@ import AdminReservations from "../pages/admin/AdminReservations";
 import AdminBookingsCalendar from "../pages/admin/AdminBookingsCalendar";
 import AdminInquiries from "../pages/admin/AdminInquiries";
 import AdminBookingsHistory from "../pages/admin/AdminBookingsHistory";
-import AdminBookingWizard from "../pages/admin/AdminBookingWizard";
 import AdminPackages from "../pages/admin/AdminPackages";
 import AdminInventory from "../pages/admin/AdminInventory";
 import AdminAddons from "../pages/admin/AdminAddons";
@@ -180,7 +179,7 @@ export default function AppRoutes() {
         <Route path="/admin/bookings/inquiries/:id" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
         <Route path="/admin/bookings/inquiries/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
         <Route path="/admin/bookings/ocular" element={<ProtectedRoute allowedRoles={adminOnly}><AdminOcular /></ProtectedRoute>} />
-        <Route path="/admin/bookings/new" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingWizard /></ProtectedRoute>} />
+        <Route path="/admin/bookings/new" element={<ProtectedRoute allowedRoles={adminOnly}><Navigate to="/admin/bookings/reservations?new=true" replace /></ProtectedRoute>} />
         <Route path="/admin/bookings/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminBookingDetails /></ProtectedRoute>} />
         <Route path="/admin/bookings/history" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsHistory /></ProtectedRoute>} />
         <Route path="/admin/packages" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminPackages /></ProtectedRoute>} />

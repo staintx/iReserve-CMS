@@ -288,18 +288,13 @@ exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
       }
     }
 
-    // Update pass
-    returns.forEach((ret) => {
-      const item = booking.equipment_returns.find(
-        (eq) => String(eq.inventory_id) === String(ret.inventory_id) || String(eq._id) === String(ret._id)
-      );
-      if (item) {
-        item.quantity_returned = Math.max(0, Number(ret.quantity_returned !== undefined ? ret.quantity_returned : ret.quantity_booked || 0));
-        item.quantity_damaged = Math.max(0, Number(ret.quantity_damaged || 0));
-        item.notes = ret.notes || "";
-        item.verified_at = new Date();
-        item.verified_by = req.user._id;
-      }
+    const { reconcileEquipmentTurnover } = require("../utils/reconcileInventory");
+    await reconcileEquipmentTurnover({
+      booking,
+      returns,
+      actorId: req.user._id,
+      notes: note || "",
+      isManagerVerification: false,
     });
   }
 
@@ -374,18 +369,13 @@ exports.completeEvent = asyncHandler(async (req, res) => {
       }
     }
 
-    // Update pass
-    returns.forEach((ret) => {
-      const item = booking.equipment_returns.find(
-        (eq) => String(eq.inventory_id) === String(ret.inventory_id) || String(eq._id) === String(ret._id)
-      );
-      if (item) {
-        item.quantity_returned = Math.max(0, Number(ret.quantity_returned !== undefined ? ret.quantity_returned : ret.quantity_booked || 0));
-        item.quantity_damaged = Math.max(0, Number(ret.quantity_damaged || 0));
-        item.notes = ret.notes || "";
-        item.verified_at = new Date();
-        item.verified_by = req.user._id;
-      }
+    const { reconcileEquipmentTurnover } = require("../utils/reconcileInventory");
+    await reconcileEquipmentTurnover({
+      booking,
+      returns,
+      actorId: req.user._id,
+      notes: req.body.note || "",
+      isManagerVerification: false,
     });
   }
 

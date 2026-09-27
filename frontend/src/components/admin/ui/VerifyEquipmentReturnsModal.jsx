@@ -35,32 +35,48 @@ export default function VerifyEquipmentReturnsModal({
   useEffect(() => {
     if (!booking) return;
 
-    const inventoryItems = booking.inventory_items || [];
-    const returns = booking.equipment_returns || [];
+    const inventoryItems = Array.isArray(booking.inventory_items) ? booking.inventory_items : [];
+    const returns = Array.isArray(booking.equipment_returns) ? booking.equipment_returns : [];
 
-    const initialized = inventoryItems.map((item) => {
+    const itemMap = new Map();
+
+    inventoryItems.forEach((item) => {
       const invId = item.inventory_id?._id || item.inventory_id;
-      const returnRec = returns.find(
-        (r) => String(r.inventory_id?._id || r.inventory_id) === String(invId)
-      );
-
-      const booked = Number(item.quantity || 1);
-      const returned = returnRec ? Number(returnRec.quantity_returned ?? booked) : booked;
-      const damaged = returnRec ? Number(returnRec.quantity_damaged ?? 0) : 0;
-      const notes = returnRec?.notes || "";
-
-      return {
+      if (!invId) return;
+      const key = String(invId);
+      itemMap.set(key, {
         inventory_id: invId,
         name: item.name || item.inventory_id?.item_name || "Equipment Item",
         category: item.inventory_id?.category || item.category || "Equipment",
+        quantity_booked: Number(item.quantity || 1),
+        quantity_returned: Number(item.quantity || 1),
+        quantity_damaged: 0,
+        notes: "",
+      });
+    });
+
+    returns.forEach((ret) => {
+      const invId = ret.inventory_id?._id || ret.inventory_id;
+      if (!invId) return;
+      const key = String(invId);
+      const existing = itemMap.get(key);
+      const booked = Number(ret.quantity_booked || existing?.quantity_booked || 1);
+      const returned = Number(ret.quantity_returned !== undefined ? ret.quantity_returned : (existing?.quantity_returned ?? booked));
+      const damaged = Number(ret.quantity_damaged !== undefined ? ret.quantity_damaged : (existing?.quantity_damaged ?? 0));
+      const notes = ret.notes !== undefined ? ret.notes : (existing?.notes || "");
+
+      itemMap.set(key, {
+        inventory_id: invId,
+        name: ret.name || existing?.name || ret.inventory_id?.item_name || "Equipment Item",
+        category: ret.inventory_id?.category || existing?.category || "Equipment",
         quantity_booked: booked,
         quantity_returned: returned,
         quantity_damaged: damaged,
         notes: notes,
-      };
+      });
     });
 
-    setItems(initialized);
+    setItems(Array.from(itemMap.values()));
     setInspectionNotes(booking.equipment_manager_verified?.additional_notes || "");
     setChargeCustomer(false);
     setDamageFee(0);
@@ -176,6 +192,29 @@ export default function VerifyEquipmentReturnsModal({
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-5 max-h-[calc(85vh-140px)] overflow-y-auto">
             
+            {/* Manager Verification Notice */}
+            {booking.equipment_manager_verified?.confirmed && (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-emerald-950">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <span className="font-bold">Manager Verified</span>
+                    <span className="text-emerald-700 ml-1.5">
+                      by <strong>{booking.equipment_manager_verified.confirmed_by?.full_name || "Manager / Admin"}</strong>
+                      {booking.equipment_manager_verified.confirmed_at && (
+                        <> · {new Date(booking.equipment_manager_verified.confirmed_at).toLocaleString()}</>
+                      )}
+                    </span>
+                  </div>
+                </div>
+                {booking.equipment_manager_verified.additional_notes && (
+                  <span className="text-[11px] text-emerald-800 italic">
+                    "{booking.equipment_manager_verified.additional_notes}"
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Quick Action & Summary Banner */}
             <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
               <div className="flex flex-wrap items-center gap-2 text-xs">

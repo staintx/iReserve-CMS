@@ -595,7 +595,21 @@ exports.getAvailability = async (req, res) => {
           const inv = findInventoryItem(item.inventory_id || item.name, invById, invByName, allInventory);
           if (inv && item.quantity != null) {
             const idStr = String(inv._id);
-            bookingReservedMap.set(idStr, (bookingReservedMap.get(idStr) || 0) + Number(item.quantity || 0));
+            let activeQty = Number(item.quantity || 0);
+            if (Array.isArray(booking.equipment_returns)) {
+              const ret = booking.equipment_returns.find(
+                (r) => String(r.inventory_id?._id || r.inventory_id) === idStr
+              );
+              if (ret) {
+                const accounted = Number(ret.reconciled_returned !== undefined ? ret.reconciled_returned : ret.quantity_returned || 0) +
+                                  Number(ret.reconciled_damaged !== undefined ? ret.reconciled_damaged : ret.quantity_damaged || 0) +
+                                  Number(ret.reconciled_missing !== undefined ? ret.reconciled_missing : ret.quantity_missing || 0);
+                activeQty = Math.max(0, activeQty - accounted);
+              }
+            }
+            if (activeQty > 0) {
+              bookingReservedMap.set(idStr, (bookingReservedMap.get(idStr) || 0) + activeQty);
+            }
           }
         });
       }

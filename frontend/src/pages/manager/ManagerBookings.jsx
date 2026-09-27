@@ -42,7 +42,10 @@ import {
   Wrench,
   HelpCircle,
   Building2,
-  CalendarDays
+  CalendarDays,
+  CreditCard,
+  Receipt,
+  ShieldCheck
 } from "lucide-react";
 import { formatEventDate, initialsOf } from "../../utils/format";
 import { recordTitle } from "../../components/customer/portal/statusMeta";
@@ -132,7 +135,7 @@ function CrewGroup({ label, icon: Icon, hint, addLabel, onAdd, secondaryAddLabel
 export default function ManagerBookings() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { notify } = useToast();
 
   const [tab, setTab] = useState("pending");
@@ -264,12 +267,27 @@ export default function ManagerBookings() {
   }, [assignment]);
 
   const openDetails = (booking) => {
-    ManagerAPI.getBooking(booking._id).then((res) => {
+    const bId = booking?._id || booking;
+    ManagerAPI.getBooking(bId).then((res) => {
       const b = res.data;
       setDetail(b);
       setManagerConfirmed(Boolean(b?.equipment_manager_verified?.confirmed));
       setManagerEquipmentNotes(b?.equipment_manager_verified?.additional_notes || "");
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("booking_id", bId);
+        return next;
+      }, { replace: true });
     });
+  };
+
+  const closeDetails = () => {
+    setDetail(null);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("booking_id");
+      return next;
+    }, { replace: true });
   };
 
   const handleSaveEquipmentVerification = () => {
@@ -645,6 +663,29 @@ export default function ManagerBookings() {
       }
     }
   ];
+
+  const detailTotalCost = Number(detail?.total_price || detail?.total_cost || 0);
+  const detailPayments = Array.isArray(detail?.payments) ? detail.payments : [];
+  const detailApprovedPayments = detailPayments.filter((p) =>
+    ["approved", "paid", "completed"].includes(String(p.status || "").toLowerCase().trim())
+  );
+  const detailTotalPaid = Number(
+    detail?.total_paid !== undefined
+      ? detail.total_paid
+      : detailApprovedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+  );
+  const detailRemainingBalance = Number(
+    detail?.remaining_balance !== undefined
+      ? detail.remaining_balance
+      : Math.max(0, detailTotalCost - detailTotalPaid)
+  );
+  const detailPaymentStatus = detail?.payment_status || (
+    detailRemainingBalance === 0 && detailTotalCost > 0
+      ? "fully_paid"
+      : detailTotalPaid > 0
+      ? "deposit_paid"
+      : "pending"
+  );
 
   return (
     <ManagerLayout>
@@ -1063,55 +1104,250 @@ export default function ManagerBookings() {
         {/* Event Detail Modal */}
         {detail && (
           <Modal 
-            title={`Event Specifications — ${detail.event_type || "Event"}`} 
-            icon={ClipboardList}
-            badge={<Badge status={detail.status || "confirmed"} />}
-            description="Full operational details, client contact, catering menu specifications, and dispatched crew."
-            onClose={() => setDetail(null)} 
-            className="sm:max-w-3xl"
-            footer={
-              <div className="flex items-center justify-between gap-2">
-                {!['completed', 'Completed'].includes(detail.status) ? (
-                  <Btn
-                    variant="primary"
-                    size="sm"
-                    onClick={() => {
-                      const target = detail;
-                      setDetail(null);
-                      setCompleteTarget(target);
-                    }}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5"
-                  >
-                    <CheckCircle2 size={14} /> Mark as Completed
-                  </Btn>
-                ) : (
-                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                    <CheckCircle2 size={13} /> Event completed
-                  </span>
-                )}
-                <Btn variant="secondary" size="sm" onClick={() => setDetail(null)}>Close</Btn>
-              </div>
-            }
-          >
-            <div className="space-y-4 text-xs sm:text-sm">
-              {/* Header Status & Reference Bar */}
-              <div className="p-3.5 bg-muted/40 border border-border/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <span className="font-mono text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-md">
-                    REF: {detail.reference || detail._id?.slice(-6).toUpperCase()}
-                  </span>
-                  <Badge status={detail.status || "confirmed"} />
+              title={`Event Specifications — ${detail.event_type || "Event"}`} 
+              icon={ClipboardList}
+              badge={<Badge status={detail.status || "confirmed"} />}
+              description="Full operational details, client contact, catering menu specifications, and dispatched crew."
+              onClose={closeDetails} 
+              className="sm:max-w-3xl"
+              footer={
+                <div className="flex items-center justify-between gap-2">
+                  {!['completed', 'Completed'].includes(detail.status) ? (
+                    <Btn
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        const target = detail;
+                        closeDetails();
+                        setCompleteTarget(target);
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5"
+                    >
+                      <CheckCircle2 size={14} /> Mark as Completed
+                    </Btn>
+                  ) : (
+                    <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 size={13} /> Event completed
+                    </span>
+                  )}
+                  <Btn variant="secondary" size="sm" onClick={closeDetails}>Close</Btn>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] text-muted-foreground font-semibold">
-                    Payment: <strong className="text-foreground uppercase font-semibold">{detail.payment_status?.replace(/_/g, " ") || "Deposit Paid"}</strong>
-                  </span>
-                  <span className="text-muted-foreground">•</span>
-                  <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                    {formatMoney(detail.total_price || detail.total_cost)}
-                  </span>
+              }
+            >
+              <div className="space-y-4 text-xs sm:text-sm">
+                {/* Header Status & Reference Bar */}
+                <div className="p-3.5 bg-muted/40 border border-border/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="font-mono text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-md">
+                      REF: {detail.reference || detail._id?.slice(-6).toUpperCase()}
+                    </span>
+                    <Badge status={detail.status || "confirmed"} />
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`inline-block text-[10.5px] font-bold px-2 py-0.5 rounded-md uppercase tracking-tight ${
+                      ["fully_paid", "paid"].includes(detailPaymentStatus.toLowerCase())
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                        : ["deposit_paid"].includes(detailPaymentStatus.toLowerCase())
+                        ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                        : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                    }`}>
+                      {detailPaymentStatus.replace(/_/g, " ")}
+                    </span>
+                    <span className="text-muted-foreground">•</span>
+                    <span className="text-sm font-bold text-foreground font-mono">
+                      {formatMoney(detailTotalCost)}
+                    </span>
+                    {detailRemainingBalance > 0 ? (
+                      <span className="text-xs font-bold text-amber-700 dark:text-amber-400 font-mono">
+                        (Due: {formatMoney(detailRemainingBalance)})
+                      </span>
+                    ) : (
+                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 font-mono">
+                        (Settled)
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
+
+                {/* Financial State & Payment Overview */}
+                <div className="p-4 bg-card border border-border/80 rounded-xl space-y-3.5 shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-border/60">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                        <CreditCard size={15} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                          Financial State &amp; Payment Overview
+                        </h4>
+                        <p className="text-[11px] text-muted-foreground">
+                          Current booking balance, client payment history, and collection status.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground font-semibold">Payment Status:</span>
+                      <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded-md uppercase tracking-tight ${
+                        ["fully_paid", "paid"].includes(detailPaymentStatus.toLowerCase())
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                          : ["deposit_paid"].includes(detailPaymentStatus.toLowerCase())
+                          ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                          : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                      }`}>
+                        {detailPaymentStatus.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 4 Financial Metrics: Total Cost, Amount Paid, Remaining Balance, Payment Status */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                    {/* Total Cost */}
+                    <div className="p-3 bg-muted/20 border border-border/80 rounded-xl space-y-1 shadow-2xs">
+                      <span className="text-[10.5px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1.5">
+                        <DollarSign size={12} className="text-primary" /> Total Cost
+                      </span>
+                      <div className="text-base font-bold font-mono text-foreground">
+                        {formatMoney(detailTotalCost)}
+                      </div>
+                      <div className="text-[10.5px] text-muted-foreground truncate">
+                        Contracted booking total
+                      </div>
+                    </div>
+
+                    {/* Amount Paid */}
+                    <div className="p-3 bg-muted/20 border border-border/80 rounded-xl space-y-1 shadow-2xs">
+                      <span className="text-[10.5px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1.5">
+                        <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400" /> Amount Paid
+                      </span>
+                      <div className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                        {formatMoney(detailTotalPaid)}
+                      </div>
+                      <div className="text-[10.5px] text-muted-foreground truncate">
+                        {detailApprovedPayments.length} approved payment{detailApprovedPayments.length === 1 ? "" : "s"}
+                      </div>
+                    </div>
+
+                    {/* Remaining Balance */}
+                    <div className={`p-3 border rounded-xl space-y-1 shadow-2xs ${
+                      detailRemainingBalance > 0
+                        ? "bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800"
+                        : "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800"
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10.5px] uppercase font-bold tracking-wider flex items-center gap-1.5 ${
+                          detailRemainingBalance > 0 ? "text-amber-800 dark:text-amber-300" : "text-emerald-800 dark:text-emerald-300"
+                        }`}>
+                          <Receipt size={12} /> Remaining Balance
+                        </span>
+                        <span className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-full uppercase ${
+                          detailRemainingBalance > 0
+                            ? "bg-amber-100 text-amber-900 dark:bg-amber-900/60 dark:text-amber-200"
+                            : "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-200"
+                        }`}>
+                          {detailRemainingBalance > 0 ? "Due" : "Settled"}
+                        </span>
+                      </div>
+                      <div className={`text-base font-bold font-mono ${
+                        detailRemainingBalance > 0 ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400"
+                      }`}>
+                        {formatMoney(detailRemainingBalance)}
+                      </div>
+                      <div className={`text-[10.5px] truncate ${
+                        detailRemainingBalance > 0 ? "text-amber-700/80 dark:text-amber-400/80" : "text-emerald-700/80 dark:text-emerald-400/80"
+                      }`}>
+                        {detailRemainingBalance > 0 ? "Due on event completion" : "Fully settled in full"}
+                      </div>
+                    </div>
+
+                    {/* Payment Status & Settlement */}
+                    <div className="p-3 bg-muted/20 border border-border/80 rounded-xl space-y-1 shadow-2xs">
+                      <span className="text-[10.5px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1.5">
+                        <ShieldCheck size={12} className="text-primary" /> Payment Status
+                      </span>
+                      <div className="text-sm font-bold text-foreground capitalize truncate pt-0.5">
+                        {detailPaymentStatus.replace(/_/g, " ")}
+                      </div>
+                      <div className="text-[10.5px] text-muted-foreground truncate" title={detail.balance_payment_preference === "in_person" ? "Customer elected Cash on Event Day" : "Online Gateway Settlement"}>
+                        {detail.balance_payment_preference === "in_person" ? "Cash on Event Day" : "Online Payment"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Relevant Payment Transaction Breakdown */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Receipt size={13} className="text-primary" /> Payment Transactions Breakdown
+                      </h5>
+                      <span className="text-[11px] font-mono text-muted-foreground">
+                        {detailPayments.length} {detailPayments.length === 1 ? "transaction" : "transactions"}
+                      </span>
+                    </div>
+
+                    {detailPayments.length === 0 ? (
+                      <div className="p-3 bg-muted/20 border border-border/60 rounded-xl text-xs text-muted-foreground italic text-center">
+                        No payment transactions recorded for this booking.
+                      </div>
+                    ) : (
+                      <div className="border border-border/70 rounded-xl overflow-hidden shadow-2xs divide-y divide-border/60">
+                        <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-muted/40 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                          <div className="col-span-4 sm:col-span-3">Reference / ID</div>
+                          <div className="col-span-3 sm:col-span-2">Type</div>
+                          <div className="hidden sm:block sm:col-span-2">Method</div>
+                          <div className="col-span-2 sm:col-span-2">Date</div>
+                          <div className="col-span-3 sm:col-span-1 text-center">Status</div>
+                          <div className="hidden sm:block sm:col-span-2 text-right">Amount</div>
+                        </div>
+                        {detailPayments.map((p, idx) => {
+                          const isApproved = ["approved", "paid", "completed"].includes(String(p.status || "").toLowerCase().trim());
+                          const isPending = String(p.status || "").toLowerCase().trim() === "pending";
+                          const refCode = p.gateway_reference || p.gateway_checkout_id || `PAY-${(p._id || "").slice(-6).toUpperCase()}`;
+                          return (
+                            <div key={p._id || idx} className="grid grid-cols-12 gap-2 px-3 py-2.5 items-center text-xs hover:bg-muted/20 transition-colors">
+                              <div className="col-span-4 sm:col-span-3 min-w-0">
+                                <span className="font-mono font-bold text-foreground block truncate" title={refCode}>
+                                  {refCode}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground sm:hidden block font-mono">
+                                  {formatMoney(p.amount)}
+                                </span>
+                              </div>
+                              <div className="col-span-3 sm:col-span-2">
+                                <span className="capitalize font-semibold text-foreground text-[11px] block truncate">
+                                  {p.payment_type ? p.payment_type.replace(/_/g, " ") : "Payment"}
+                                </span>
+                              </div>
+                              <div className="hidden sm:block sm:col-span-2">
+                                <span className="text-[11px] font-medium text-muted-foreground capitalize block truncate">
+                                  {p.method || p.gateway || "Manual"}
+                                </span>
+                              </div>
+                              <div className="col-span-2 sm:col-span-2 text-[11px] text-muted-foreground">
+                                {p.paid_at || p.createdAt ? new Date(p.paid_at || p.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                              </div>
+                              <div className="col-span-3 sm:col-span-1 text-center">
+                                <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded capitalize ${
+                                  isApproved
+                                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                                    : isPending
+                                    ? "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                                    : "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
+                                }`}>
+                                  {p.status || "pending"}
+                                </span>
+                              </div>
+                              <div className="hidden sm:block sm:col-span-2 text-right font-mono font-bold">
+                                <span className={isApproved ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>
+                                  {formatMoney(p.amount)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
               {/* Client & Contact Information */}
               <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-3 shadow-2xs">

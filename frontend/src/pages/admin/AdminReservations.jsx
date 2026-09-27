@@ -49,6 +49,7 @@ import ConfirmDialog from "../../components/common/ConfirmDialog";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
 import { menuLineTotal } from "../../utils/quotationPricing";
+import { recordTitle } from "../../components/customer/portal/statusMeta";
 
 /**
  * Format currency to PHP string (e.g. ₱12,500.00)
@@ -265,7 +266,7 @@ export default function AdminReservations() {
           customer: b.customer_id?.full_name || `${b.contact_first_name || ""} ${b.contact_last_name || ""}`.trim() || "Customer",
           email: b.customer_id?.email || b.contact_email || "N/A",
           phone: b.contact_phone || b.customer_id?.phone || "N/A",
-          eventType: b.event_type || "Catering Event",
+          eventType: recordTitle(b),
           pkg: b.package_id?.name || "Custom Catering",
           guests: b.guest_count || 0,
           dateFormatted: b.event_date ? formatDateClean(b.event_date) : "TBA",

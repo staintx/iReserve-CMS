@@ -45,6 +45,7 @@ import {
   CalendarDays
 } from "lucide-react";
 import { formatEventDate, initialsOf } from "../../utils/format";
+import { recordTitle } from "../../components/customer/portal/statusMeta";
 
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
 
@@ -512,7 +513,9 @@ export default function ManagerBookings() {
         return (
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-sm font-bold text-foreground">{b.event_type || "Event"}</span>
+              <span className="text-sm font-bold text-foreground">
+                {recordTitle(b)}
+              </span>
               {isPast && !isCompleted && (
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.2 rounded border border-rose-200 dark:border-rose-800">
                   <AlertTriangle size={10} /> Event Passed

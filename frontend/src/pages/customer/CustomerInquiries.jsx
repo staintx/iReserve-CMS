@@ -319,6 +319,18 @@ export default function CustomerInquiries() {
     }
   };
 
+  const handledDeepLinkRef = useRef(null);
+  useEffect(() => {
+    const targetInqId = location.state?.openQuoteId || location.state?.inquiry_id;
+    if (targetInqId && inquiries.length > 0 && handledDeepLinkRef.current !== targetInqId) {
+      handledDeepLinkRef.current = targetInqId;
+      const match = inquiries.find((i) => i._id === targetInqId);
+      if (match) {
+        openQuotationView(match);
+      }
+    }
+  }, [location.state, inquiries]);
+
   // Start Deposit Checkout
   const startInquiryCheckout = async (inq) => {
     try {

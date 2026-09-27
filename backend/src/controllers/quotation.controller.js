@@ -510,6 +510,24 @@ exports.createQuotation = asyncHandler(async (req, res) => {
   await inquiry.save();
 
   const io = req.app.get("io");
+
+  const customerId = inquiry.customer_id?._id || inquiry.customer_id;
+  if (customerId) {
+    const { createNotification } = require("../utils/notify");
+    const isRevision = (nextVersion > 1);
+    const quoteRef = quotation.quotation_number || inquiry.reference;
+    await createNotification({
+      userId: customerId,
+      title: isRevision ? "Updated Quotation Ready" : "Quotation Ready",
+      body: isRevision
+        ? `An updated quotation (${quoteRef}) is ready for your review.`
+        : `A quotation for your inquiry (${inquiry.reference}) is ready for your review.`,
+      type: "info",
+      link: "/customer/inquiries",
+      meta: { inquiry_id: inquiry._id, quotation_id: quotation._id, quotation_number: quotation.quotation_number, reference: inquiry.reference, openQuoteId: inquiry._id }
+    }, io);
+  }
+
   if (io) io.emit("system:refresh", { type: "quotation", action: "create" });
 
   res.status(201).json(quotation);
@@ -693,6 +711,35 @@ exports.acceptQuotation = asyncHandler(async (req, res) => {
   }
 
   const io = req.app.get("io");
+
+  const customerName = inquiry
+    ? `${inquiry.contact_first_name} ${inquiry.contact_last_name}`.trim()
+    : (req.user?.full_name || "A customer");
+  const quoteRef = quotation.quotation_number || inquiry?.reference || "quotation";
+
+  // Notify Admins
+  await notifyAdmins({
+    title: "Quotation Accepted by Customer",
+    body: `${customerName} accepted quotation ${quoteRef}. Awaiting deposit payment.`,
+    type: "success",
+    link: `/admin/quotes/${inquiryId}/details`,
+    meta: { inquiry_id: inquiryId, quotation_id: quotation._id }
+  }, io);
+
+  // Notify Customer
+  const customerId = inquiry?.customer_id?._id || inquiry?.customer_id || req.user?._id;
+  if (customerId) {
+    const { createNotification } = require("../utils/notify");
+    await createNotification({
+      userId: customerId,
+      title: "Quotation Accepted",
+      body: `You accepted quotation ${quoteRef}. Please complete your deposit payment to lock in your event date.`,
+      type: "success",
+      link: "/customer/inquiries",
+      meta: { inquiry_id: inquiryId, quotation_id: quotation._id, openQuoteId: inquiryId }
+    }, io);
+  }
+
   if (io) io.emit("system:refresh", { type: "quotation", action: "accept" });
 
   res.json({ message: "Quotation accepted, awaiting final admin confirmation", quotation });
@@ -737,6 +784,19 @@ exports.requestRevision = asyncHandler(async (req, res) => {
     meta: { inquiry_id: inquiryId, quotation_id: quotation._id }
   }, io);
 
+  const customerId = inquiry?.customer_id?._id || inquiry?.customer_id || req.user?._id;
+  if (customerId) {
+    const { createNotification } = require("../utils/notify");
+    await createNotification({
+      userId: customerId,
+      title: "Quotation Change Requested",
+      body: `Your change request for quotation ${quotation.quotation_number || inquiry?.reference} has been submitted. Our team will review and update your proposal.`,
+      type: "info",
+      link: "/customer/inquiries",
+      meta: { inquiry_id: inquiryId, quotation_id: quotation._id, openQuoteId: inquiryId }
+    }, io);
+  }
+
   if (io) io.emit("system:refresh", { type: "quotation", action: "revise" });
 
   res.json({ message: "Revision requested", quotation });
@@ -767,6 +827,35 @@ exports.rejectQuotation = asyncHandler(async (req, res) => {
   }
 
   const io = req.app.get("io");
+
+  const customerName = inquiry
+    ? `${inquiry.contact_first_name} ${inquiry.contact_last_name}`.trim()
+    : (req.user?.full_name || "A customer");
+  const quoteRef = quotation.quotation_number || inquiry?.reference || "quotation";
+
+  // Notify Admins
+  await notifyAdmins({
+    title: "Quotation Declined by Customer",
+    body: `${customerName} declined quotation ${quoteRef}.`,
+    type: "warning",
+    link: `/admin/quotes/${inquiryId}/details`,
+    meta: { inquiry_id: inquiryId, quotation_id: quotation._id }
+  }, io);
+
+  // Notify Customer
+  const customerId = inquiry?.customer_id?._id || inquiry?.customer_id || req.user?._id;
+  if (customerId) {
+    const { createNotification } = require("../utils/notify");
+    await createNotification({
+      userId: customerId,
+      title: "Quotation Declined",
+      body: `You declined quotation ${quoteRef}.`,
+      type: "info",
+      link: "/customer/inquiries",
+      meta: { inquiry_id: inquiryId, quotation_id: quotation._id, openQuoteId: inquiryId }
+    }, io);
+  }
+
   if (io) io.emit("system:refresh", { type: "quotation", action: "reject" });
 
   res.json({ message: "Quotation rejected", quotation });

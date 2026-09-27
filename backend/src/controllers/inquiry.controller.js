@@ -254,13 +254,25 @@ exports.createInquiry = asyncHandler(async (req, res) => {
   
   const io = req.app.get("io");
 
-  const { notifyAdmins } = require("../utils/notify");
+  const { notifyAdmins, createNotification } = require("../utils/notify");
   await notifyAdmins({
     title: "New Inquiry Submitted",
     body: `A new inquiry (${inquiry.reference}) has been submitted by ${inquiry.contact_first_name} ${inquiry.contact_last_name}.`,
     type: "new_inquiry",
-    link: "/admin/bookings/inquiries"
+    link: "/admin/bookings/inquiries",
+    meta: { inquiry_id: inquiry._id, reference: inquiry.reference }
   }, io);
+
+  if (inquiry.customer_id) {
+    await createNotification({
+      userId: inquiry.customer_id,
+      title: "Inquiry Submitted",
+      body: `We have received your inquiry (${inquiry.reference}) and will review it shortly.`,
+      type: "info",
+      link: "/customer/inquiries",
+      meta: { inquiry_id: inquiry._id, reference: inquiry.reference }
+    }, io);
+  }
 
   if (io) io.emit("system:refresh", { type: "inquiry", action: "create" });
 
@@ -715,8 +727,9 @@ exports.updateInquiryByCustomer = asyncHandler(async (req, res) => {
 
 // Admin updates inquiry (status, details)
 exports.updateInquiry = asyncHandler(async (req, res) => {
-  // runValidators: the enum was previously unenforced on this path, which is
-  // how "Cancelled" got written for months without being a legal value.
+  const previousInquiry = await Inquiry.findById(req.params.id);
+  if (!previousInquiry) return res.status(404).json({ message: "Inquiry not found" });
+
   const inquiry = await Inquiry.findByIdAndUpdate(req.params.id, req.body, {
     returnDocument: "after",
     runValidators: true,
@@ -724,6 +737,21 @@ exports.updateInquiry = asyncHandler(async (req, res) => {
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
 
   const io = req.app.get("io");
+
+  // If status changed and customer exists, notify customer
+  const inquiryCustomerId = inquiry.customer_id?._id || inquiry.customer_id;
+  if (req.body.status && req.body.status !== previousInquiry.status && inquiryCustomerId) {
+    const { createNotification } = require("../utils/notify");
+    await createNotification({
+      userId: inquiryCustomerId,
+      title: "Inquiry Status Updated",
+      body: `Your inquiry (${inquiry.reference}) status has been updated to "${inquiry.status}".`,
+      type: "info",
+      link: "/customer/inquiries",
+      meta: { inquiry_id: inquiry._id, reference: inquiry.reference }
+    }, io);
+  }
+
   if (io) io.emit("system:refresh", { type: "inquiry", action: "update" });
 
   res.json(inquiry);
@@ -755,7 +783,8 @@ exports.deleteInquiry = asyncHandler(async (req, res) => {
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
 
   const inquiryCustomerId = inquiry.customer_id?._id || inquiry.customer_id;
-  if (req.user.role === "customer" && String(inquiryCustomerId) !== String(req.user._id)) {
+  const isCustomerActor = req.user.role === "customer";
+  if (isCustomerActor && String(inquiryCustomerId) !== String(req.user._id)) {
     return res.status(403).json({ message: "Forbidden: You do not have access to this inquiry" });
   }
   
@@ -763,6 +792,42 @@ exports.deleteInquiry = asyncHandler(async (req, res) => {
   await inquiry.save();
   
   const io = req.app.get("io");
+  const { notifyAdmins, createNotification } = require("../utils/notify");
+
+  if (isCustomerActor) {
+    const customerName = `${inquiry.contact_first_name || ""} ${inquiry.contact_last_name || ""}`.trim() || req.user.full_name || "Customer";
+    await notifyAdmins({
+      title: "Inquiry Cancelled by Customer",
+      body: `${customerName} cancelled inquiry ${inquiry.reference}.`,
+      type: "warning",
+      link: "/admin/bookings/inquiries",
+      meta: { inquiry_id: inquiry._id, reference: inquiry.reference }
+    }, io);
+
+    if (inquiryCustomerId) {
+      await createNotification({
+        userId: inquiryCustomerId,
+        title: "Inquiry Cancelled",
+        body: `Your inquiry (${inquiry.reference}) has been cancelled.`,
+        type: "info",
+        link: "/customer/inquiries",
+        meta: { inquiry_id: inquiry._id, reference: inquiry.reference }
+      }, io);
+    }
+  } else {
+    // Admin cancelled the inquiry
+    if (inquiryCustomerId) {
+      await createNotification({
+        userId: inquiryCustomerId,
+        title: "Inquiry Cancelled",
+        body: `Your inquiry (${inquiry.reference}) was cancelled by the catering team.`,
+        type: "info",
+        link: "/customer/inquiries",
+        meta: { inquiry_id: inquiry._id, reference: inquiry.reference }
+      }, io);
+    }
+  }
+
   if (io) io.emit("system:refresh", { type: "inquiry", action: "delete" });
 
   res.json({ message: "Inquiry cancelled" });

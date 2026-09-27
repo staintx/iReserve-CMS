@@ -28,6 +28,12 @@ exports.markRead = asyncHandler(async (req, res) => {
     { returnDocument: 'after' }
   );
   if (!notification) return res.status(404).json({ message: "Notification not found" });
+
+  const io = req.app.get("io");
+  if (io) {
+    io.to(`user:${req.user._id}`).emit("notification:read", { id: notification._id });
+  }
+
   res.json(notification);
 });
 
@@ -36,5 +42,12 @@ exports.markAllRead = asyncHandler(async (req, res) => {
     { user_id: req.user._id, is_read: false },
     { is_read: true, read_at: new Date() }
   );
+
+  const io = req.app.get("io");
+  if (io) {
+    io.to(`user:${req.user._id}`).emit("notification:read_all");
+  }
+
   res.json({ ok: true });
 });
+

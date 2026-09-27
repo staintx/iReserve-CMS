@@ -394,12 +394,21 @@ exports.update = asyncHandler(async (req, res) => {
 		}
 		
 		if (payment.customer_id && io) {
-			const statusLabel = payment.status === "approved" ? "Payment approved" : "Payment update";
+			let refText = "";
+			if (payment.booking_id) {
+				const b = await Booking.findById(payment.booking_id).select("reference");
+				if (b?.reference) refText = `booking #${b.reference}`;
+			}
+			if (!refText && payment.inquiry_id) {
+				const inq = await Inquiry.findById(payment.inquiry_id).select("reference");
+				if (inq?.reference) refText = `inquiry #${inq.reference}`;
+			}
+			const statusLabel = payment.status === "approved" ? "Payment Approved" : payment.status === "rejected" ? "Payment Failed" : "Payment Update";
 			const body = payment.status === "approved"
-				? "Your payment has been approved."
+				? `Your payment of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} has been approved.`
 				: payment.status === "rejected"
-					? "Your payment failed. Please try again."
-					: "Your payment is being processed.";
+					? `Your payment of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} failed. Please try again.`
+					: `Your payment of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} is being processed.`;
 			await createNotification({
 				userId: payment.customer_id,
 				title: statusLabel,
@@ -1061,20 +1070,30 @@ exports.handleWebhook = asyncHandler(async (req, res) => {
 		}
 	}
 
+	let refText = "";
+	if (payment.booking_id) {
+		const b = await Booking.findById(payment.booking_id).select("reference");
+		if (b?.reference) refText = `booking #${b.reference}`;
+	}
+	if (!refText && payment.inquiry_id) {
+		const inq = await Inquiry.findById(payment.inquiry_id).select("reference");
+		if (inq?.reference) refText = `inquiry #${inq.reference}`;
+	}
+
 	if (payment.customer_id) {
-		const statusLabel = payment.status === "approved" ? "Payment approved" : "Payment update";
+		const statusLabel = payment.status === "approved" ? "Payment Approved" : payment.status === "rejected" ? "Payment Failed" : "Payment Update";
 		const body = payment.status === "approved"
-			? "Your payment has been approved."
+			? `Your payment of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} has been approved.`
 			: payment.status === "rejected"
-				? "Your payment failed. Please try again."
-				: "Your payment is being processed.";
+				? `Your payment of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} failed. Please try again.`
+				: `Your payment of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} is being processed.`;
 		await createNotification({
 			userId: payment.customer_id,
 			title: statusLabel,
 			body,
 			type: payment.status === "approved" ? "success" : payment.status === "rejected" ? "error" : "info",
 			link: "/customer/payments",
-			meta: { payment_id: payment._id, booking_id: payment.booking_id }
+			meta: { payment_id: payment._id, booking_id: payment.booking_id, inquiry_id: payment.inquiry_id }
 		}, io);
 	}
 
@@ -1082,10 +1101,10 @@ exports.handleWebhook = asyncHandler(async (req, res) => {
 		const { notifyAdmins } = require("../utils/notify");
 		await notifyAdmins({
 			title: "Payment Received",
-			body: `Payment of ₱${Number(payment.amount).toLocaleString()} has been approved for booking.`,
+			body: `Payment of ₱${Number(payment.amount).toLocaleString()} has been approved${refText ? ` for ${refText}` : ""}.`,
 			type: "success",
 			link: "/admin/payments",
-			meta: { payment_id: payment._id, booking_id: payment.booking_id }
+			meta: { payment_id: payment._id, booking_id: payment.booking_id, inquiry_id: payment.inquiry_id }
 		}, io);
 
 		// Send payment receipt email

@@ -7,15 +7,16 @@ const InventoryLog = require("../models/InventoryLog");
  *
  * @param {Object} opts
  * @param {string|ObjectId} opts.inventory_id
- * @param {"created"|"manual_adjustment"|"reservation_allocated"|"reservation_released"|"retired"} opts.event_type
+ * @param {"created"|"manual_adjustment"|"adjustment"|"reservation_allocated"|"reservation_released"|"retired"|"damage_loss"|"missing"} opts.event_type
  * @param {number} [opts.delta]        - Signed change to available stock
  * @param {string|ObjectId} [opts.actor_id]
  * @param {string|ObjectId} [opts.booking_id]
  * @param {string} [opts.reason]
+ * @returns {Promise<Object>}
  */
 const writeInventoryLog = async ({ inventory_id, event_type, delta = 0, actor_id, booking_id, reason }) => {
   try {
-    await InventoryLog.create({
+    return await InventoryLog.create({
       inventory_id,
       event_type,
       delta,
@@ -25,6 +26,7 @@ const writeInventoryLog = async ({ inventory_id, event_type, delta = 0, actor_id
     });
   } catch (err) {
     console.error("InventoryLog write failed:", err.message);
+    throw err;
   }
 };
 

@@ -721,7 +721,7 @@ exports.getById = asyncHandler(async (req, res) => {
 
   res.json(
     await Booking.findById(req.params.id).populate(
-      "customer_id package_id event_manager_id staff_assignments.user_id inquiry_id quotation_id",
+      "customer_id package_id event_manager_id staff_assignments.user_id inquiry_id quotation_id equipment_returns.verified_by equipment_manager_verified.confirmed_by staff_reports.staff_id",
     ).lean(),
   );
 });
@@ -1597,175 +1597,216 @@ exports.verifyReturns = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-  const { returns, damage_fee, damage_reason, mark_clean, additional_notes } = req.body;
-  const Inventory = require("../models/Inventory");
-  const currentReturns = booking.equipment_returns || [];
-  const inventoryItems = booking.inventory_items || [];
+  const { returns, damage_fee, damage_reason, mark_clean, additional_notes, inventory_id, equipment_return_id } =
+    req.body;
+  const { reconcileEquipmentTurnover } = require("../utils/reconcileInventory");
 
-  if (mark_clean) {
-    // 1-Click Clean Return: Mark 100% of booked items as returned in perfect condition
-    for (const item of inventoryItems) {
-      if (!item.inventory_id) continue;
-      const invIdStr = String(item.inventory_id._id || item.inventory_id);
-      let existingRecord = currentReturns.find(
-        (r) => String(r.inventory_id?._id || r.inventory_id) === invIdStr,
-      );
+  await reconcileEquipmentTurnover({
+    booking,
+    returns,
+    markClean: Boolean(mark_clean),
+    actorId: req.user._id,
+    notes: additional_notes || (mark_clean ? "All equipment verified returned in good condition." : "Equipment return inspection completed."),
+    isManagerVerification: true,
+  });
 
-      const bookedQty = Number(item.quantity || 1);
-      const oldReturned = Number(existingRecord?.quantity_returned || 0);
-      const delta = bookedQty - oldReturned;
-
-      if (!existingRecord) {
-        existingRecord = {
-          inventory_id: item.inventory_id,
-          name: item.name || "Equipment Item",
-          quantity_booked: bookedQty,
-          quantity_returned: bookedQty,
-          quantity_damaged: 0,
-          notes: "Returned in good condition",
-          verified_at: new Date(),
-          verified_by: req.user._id,
-        };
-        currentReturns.push(existingRecord);
-      } else {
-        existingRecord.quantity_returned = bookedQty;
-        existingRecord.quantity_damaged = 0;
-        existingRecord.notes = "Returned in good condition";
-        existingRecord.verified_at = new Date();
-        existingRecord.verified_by = req.user._id;
-      }
-
-      if (delta > 0) {
-        const invItem = await Inventory.findById(item.inventory_id);
-        if (invItem) {
-          invItem.quantity = (invItem.quantity || 0) + delta;
-          await invItem.save();
-          writeInventoryLog({
-            inventory_id: item.inventory_id,
-            event_type: "reservation_released",
-            delta,
-            booking_id: booking._id,
-            reason: `Clean return verified for booking #${booking.reference || booking._id}`,
-          });
-        }
-      }
-    }
-
-    booking.equipment_returns = currentReturns;
-    booking.equipment_manager_verified = {
-      confirmed: true,
-      confirmed_by: req.user._id,
-      confirmed_at: new Date(),
-      additional_notes: additional_notes || "All equipment verified returned in good condition.",
-    };
-  } else if (Array.isArray(returns)) {
-    // Item-by-item verification
-    for (const returnData of returns) {
-      const { inventory_id, quantity_returned, quantity_damaged, notes } = returnData;
-      if (!inventory_id) continue;
-      const invIdStr = String(inventory_id._id || inventory_id);
-
-      let existingRecord = currentReturns.find(
-        (r) => String(r.inventory_id?._id || r.inventory_id) === invIdStr,
-      );
-
-      const bookedItem = inventoryItems.find(
-        (i) => String(i.inventory_id?._id || i.inventory_id) === invIdStr,
-      );
-      const bookedQty = Number(bookedItem?.quantity || existingRecord?.quantity_booked || 1);
-
-      if (!existingRecord) {
-        existingRecord = {
-          inventory_id,
-          name: bookedItem?.name || "Equipment Item",
-          quantity_booked: bookedQty,
-          quantity_returned: 0,
-          quantity_damaged: 0,
-          notes: "",
-        };
-        currentReturns.push(existingRecord);
-      }
-
-      const oldReturned = Number(existingRecord.quantity_returned || 0);
-      const newReturned = Math.max(0, Number(quantity_returned || 0));
-      const newDamaged = Math.max(0, Number(quantity_damaged || 0));
-      const delta = newReturned - oldReturned;
-
-      if (delta !== 0) {
-        const invItem = await Inventory.findById(inventory_id);
-        if (invItem) {
-          invItem.quantity = Math.max(0, (invItem.quantity || 0) + delta);
-          await invItem.save();
-          writeInventoryLog({
-            inventory_id,
-            event_type: delta > 0 ? "reservation_released" : "adjustment",
-            delta,
-            booking_id: booking._id,
-            reason: `Return verification for booking #${booking.reference || booking._id}`,
-          });
-        }
-      }
-
-      if (newDamaged > 0) {
-        writeInventoryLog({
-          inventory_id,
-          event_type: "damage_loss",
-          delta: -newDamaged,
-          booking_id: booking._id,
-          reason: `Equipment damage logged (${newDamaged} units): ${notes || "Damaged during event"}`,
-        });
-      }
-
-      existingRecord.quantity_returned = newReturned;
-      existingRecord.quantity_damaged = newDamaged;
-      existingRecord.notes = notes || "";
-      existingRecord.verified_at = new Date();
-      existingRecord.verified_by = req.user._id;
-    }
-
-    booking.equipment_returns = currentReturns;
-    booking.equipment_manager_verified = {
-      confirmed: true,
-      confirmed_by: req.user._id,
-      confirmed_at: new Date(),
-      additional_notes: additional_notes || "Equipment return inspection completed.",
-    };
-  }
-
-  // Process Damage Fee if assessed
+  // Process Damage Fee if assessed or adjusted
   const numDamageFee = Number(damage_fee);
-  if (numDamageFee > 0) {
+  const hasDamageFeeParam = damage_fee !== undefined && damage_fee !== null && !isNaN(numDamageFee);
+
+  if (hasDamageFeeParam) {
+    if (!booking.additional_charges) booking.additional_charges = [];
+    if (!booking.equipment_returns) booking.equipment_returns = [];
+
+    // Determine target equipment return item / incident
+    let targetInventoryId = inventory_id ? String(inventory_id?._id || inventory_id) : null;
+    let targetReturnId = equipment_return_id ? String(equipment_return_id?._id || equipment_return_id) : null;
+
+    let targetReturnItem = null;
+    if (targetReturnId) {
+      targetReturnItem = booking.equipment_returns.find((r) => String(r._id) === targetReturnId);
+    }
+    if (!targetReturnItem && targetInventoryId) {
+      targetReturnItem = booking.equipment_returns.find(
+        (r) => String(r.inventory_id?._id || r.inventory_id) === targetInventoryId,
+      );
+    }
+    if (!targetReturnItem) {
+      targetReturnItem = booking.equipment_returns.find(
+        (r) => Number(r.quantity_damaged) > 0 || Number(r.quantity_missing) > 0,
+      );
+    }
+
+    if (targetReturnItem) {
+      if (!targetInventoryId && targetReturnItem.inventory_id) {
+        targetInventoryId = String(targetReturnItem.inventory_id?._id || targetReturnItem.inventory_id);
+      }
+      if (!targetReturnId && targetReturnItem._id) {
+        targetReturnId = String(targetReturnItem._id);
+      }
+    }
+
+    const itemName = targetReturnItem?.name || "Equipment";
     const chargeName = damage_reason && damage_reason.trim()
       ? `Equipment Damage / Loss Charge: ${damage_reason.trim()}`
-      : "Equipment Damage & Loss Assessment Fee";
+      : `Equipment Damage / Loss Charge: ${itemName}`;
 
-    if (!booking.additional_charges) booking.additional_charges = [];
-    booking.additional_charges.push({
-      name: chargeName,
-      amount: numDamageFee,
-    });
+    // Look for existing damage charge for this specific item incident
+    let existingChargeIndex = -1;
 
-    booking.total_price = (Number(booking.total_price) || 0) + numDamageFee;
-
-    // Check payment status: if previously fully paid, set to deposit_paid because balance is now owed
-    if (booking.payment_status === "fully_paid") {
-      booking.payment_status = "deposit_paid";
+    if (targetReturnItem?.damage_charge_id) {
+      existingChargeIndex = booking.additional_charges.findIndex(
+        (c) => String(c._id) === String(targetReturnItem.damage_charge_id),
+      );
+    }
+    if (existingChargeIndex === -1 && targetReturnId) {
+      existingChargeIndex = booking.additional_charges.findIndex(
+        (c) => String(c.equipment_return_id) === targetReturnId,
+      );
+    }
+    if (existingChargeIndex === -1 && targetInventoryId) {
+      existingChargeIndex = booking.additional_charges.findIndex(
+        (c) => String(c.inventory_id?._id || c.inventory_id) === targetInventoryId,
+      );
+    }
+    if (existingChargeIndex === -1 && itemName) {
+      existingChargeIndex = booking.additional_charges.findIndex(
+        (c) =>
+          (c.name || "").toLowerCase().includes(itemName.toLowerCase()) &&
+          ((c.name || "").toLowerCase().includes("damage") || (c.name || "").toLowerCase().includes("loss")),
+      );
     }
 
-    // Send Realtime & In-App Notification to customer
-    const io = req.app.get("io");
-    if (booking.customer_id) {
-      await createNotification(
-        {
-          userId: booking.customer_id,
-          title: "Equipment Damage Fee Applied",
-          body: `An equipment damage fee of ₱${numDamageFee.toLocaleString()} was charged to booking #${booking.reference || booking._id}. Reason: ${damage_reason || "Equipment damage inspection"}.`,
-          type: "warning",
-          link: `/customer/bookings/${booking._id}`,
-          meta: { booking_id: booking._id, damage_fee: numDamageFee },
-        },
-        io,
-      );
+    if (existingChargeIndex !== -1) {
+      // Existing charge found: adjust or re-confirm idempotently
+      const existingCharge = booking.additional_charges[existingChargeIndex];
+      const oldAmount = Number(existingCharge.amount) || 0;
+      const chargeDiff = numDamageFee - oldAmount;
+
+      // If fee is being changed, enforce paid-booking protection and total floor rules
+      if (chargeDiff !== 0) {
+        const Payment = require("../models/Payment");
+        const approvedPayments = await Payment.find({ booking_id: booking._id, status: "approved" });
+        const totalPaid = approvedPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const currentTotalPrice = Number(booking.total_price) || 0;
+
+        // 1. Fully paid booking protection: if totalPaid >= currentTotalPrice, charge is already paid
+        if (totalPaid >= currentTotalPrice && totalPaid > 0) {
+          return res.status(400).json({
+            message: "Cannot adjust damage fee because this booking and damage charge have already been paid in full."
+          });
+        }
+
+        // 2. Prevent adjustment that would make the resulting total less than total amount already paid
+        const projectedTotal = currentTotalPrice + chargeDiff;
+        if (projectedTotal < totalPaid) {
+          return res.status(400).json({
+            message: `Cannot adjust damage fee to ₱${numDamageFee.toLocaleString()} because the resulting booking total (₱${projectedTotal.toLocaleString()}) would be less than the amount already paid (₱${totalPaid.toLocaleString()}).`
+          });
+        }
+      }
+
+      existingCharge.name = chargeName;
+      existingCharge.amount = numDamageFee;
+      existingCharge.charge_type = "equipment_damage";
+      if (targetInventoryId) existingCharge.inventory_id = targetInventoryId;
+      if (targetReturnId) existingCharge.equipment_return_id = targetReturnId;
+
+      // Clean up any historical duplicate charges for this item incident
+      const duplicatesToRemove = [];
+      for (let i = booking.additional_charges.length - 1; i >= 0; i--) {
+        if (i === existingChargeIndex) continue;
+        const c = booking.additional_charges[i];
+        const isMatch =
+          (targetReturnId && String(c.equipment_return_id) === targetReturnId) ||
+          (targetInventoryId && String(c.inventory_id?._id || c.inventory_id) === targetInventoryId) ||
+          ((c.name || "").toLowerCase().includes(itemName.toLowerCase()) &&
+            (c.name || "").toLowerCase().includes("damage"));
+        if (isMatch) {
+          duplicatesToRemove.push(i);
+          booking.total_price = Math.max(0, (Number(booking.total_price) || 0) - (Number(c.amount) || 0));
+        }
+      }
+      duplicatesToRemove.forEach((idx) => {
+        booking.additional_charges.splice(idx, 1);
+      });
+
+      // Apply net charge delta to booking total_price
+      if (chargeDiff !== 0) {
+        booking.total_price = Math.max(0, (Number(booking.total_price) || 0) + chargeDiff);
+      }
+
+      if (targetReturnItem) {
+        targetReturnItem.damage_fee = numDamageFee;
+        targetReturnItem.damage_charge_id = existingCharge._id;
+      }
+
+      // Re-evaluate payment status against approved payments
+      const Payment = require("../models/Payment");
+      const approvedPayments = await Payment.find({ booking_id: booking._id, status: "approved" });
+      const totalPaid = approvedPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+      if (booking.total_price > totalPaid && booking.payment_status === "fully_paid") {
+        booking.payment_status = "deposit_paid";
+      } else if (
+        booking.total_price <= totalPaid &&
+        totalPaid > 0 &&
+        ["deposit_paid", "pending"].includes(booking.payment_status)
+      ) {
+        booking.payment_status = "fully_paid";
+      }
+
+      if (chargeDiff !== 0 && booking.customer_id) {
+        const io = req.app.get("io");
+        await createNotification(
+          {
+            userId: booking.customer_id,
+            title: "Equipment Damage Fee Adjusted",
+            body: `An equipment damage fee for ${itemName} was adjusted from ₱${oldAmount.toLocaleString()} to ₱${numDamageFee.toLocaleString()} on booking #${booking.reference || booking._id}. Reason: ${damage_reason || "Equipment damage inspection"}.`,
+            type: "warning",
+            link: `/customer/bookings/${booking._id}`,
+            meta: { booking_id: booking._id, damage_fee: numDamageFee, previous_fee: oldAmount },
+          },
+          io,
+        );
+      }
+    } else if (numDamageFee > 0) {
+      // New damage charge creation
+      const newCharge = {
+        name: chargeName,
+        amount: numDamageFee,
+        charge_type: "equipment_damage",
+        inventory_id: targetInventoryId || undefined,
+        equipment_return_id: targetReturnId || undefined,
+      };
+
+      booking.additional_charges.push(newCharge);
+      booking.total_price = (Number(booking.total_price) || 0) + numDamageFee;
+
+      const createdCharge = booking.additional_charges[booking.additional_charges.length - 1];
+      if (targetReturnItem) {
+        targetReturnItem.damage_fee = numDamageFee;
+        targetReturnItem.damage_charge_id = createdCharge?._id;
+      }
+
+      if (booking.payment_status === "fully_paid") {
+        booking.payment_status = "deposit_paid";
+      }
+
+      const io = req.app.get("io");
+      if (booking.customer_id) {
+        await createNotification(
+          {
+            userId: booking.customer_id,
+            title: "Equipment Damage Fee Applied",
+            body: `An equipment damage fee of ₱${numDamageFee.toLocaleString()} was charged to booking #${booking.reference || booking._id}. Reason: ${damage_reason || "Equipment damage inspection"}.`,
+            type: "warning",
+            link: `/customer/bookings/${booking._id}`,
+            meta: { booking_id: booking._id, damage_fee: numDamageFee },
+          },
+          io,
+        );
+      }
     }
   }
 
@@ -3497,6 +3538,12 @@ exports.assignInventory = asyncHandler(async (req, res) => {
       name: item.name,
       quantity_booked: item.quantity,
       quantity_returned: existing ? existing.quantity_returned : 0,
+      quantity_damaged: existing ? existing.quantity_damaged : 0,
+      quantity_missing: existing ? existing.quantity_missing : 0,
+      reconciled_returned: existing ? existing.reconciled_returned : 0,
+      reconciled_damaged: existing ? existing.reconciled_damaged : 0,
+      reconciled_missing: existing ? existing.reconciled_missing : 0,
+      notes: existing ? existing.notes : "",
       verified_at: existing ? existing.verified_at : null,
       verified_by: existing ? existing.verified_by : null
     };

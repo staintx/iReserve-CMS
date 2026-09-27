@@ -126,6 +126,9 @@ const BookingSchema = new mongoose.Schema(
       {
         name: String,
         amount: Number,
+        charge_type: { type: String, default: "general" },
+        inventory_id: { type: mongoose.Schema.Types.ObjectId, ref: "Inventory" },
+        equipment_return_id: { type: mongoose.Schema.Types.ObjectId },
       },
     ],
 
@@ -334,6 +337,12 @@ const BookingSchema = new mongoose.Schema(
         quantity_booked: Number,
         quantity_returned: { type: Number, default: 0 },
         quantity_damaged: { type: Number, default: 0 },
+        quantity_missing: { type: Number, default: 0 },
+        reconciled_returned: { type: Number, default: 0 },
+        reconciled_damaged: { type: Number, default: 0 },
+        reconciled_missing: { type: Number, default: 0 },
+        damage_fee: { type: Number, default: 0 },
+        damage_charge_id: { type: mongoose.Schema.Types.ObjectId },
         notes: String,
         verified_at: Date,
         verified_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

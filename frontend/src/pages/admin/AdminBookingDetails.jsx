@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
   ChevronLeft, 
@@ -38,12 +38,15 @@ import {
   Info,
   Tag,
   Plus,
-  X
+  X,
+  Boxes,
+  PackageCheck
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 import AdminAssignStaffModal from "../../components/admin/ui/AdminAssignStaffModal";
+import VerifyEquipmentReturnsModal from "../../components/admin/ui/VerifyEquipmentReturnsModal";
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
 import PrintableInvoice from "../../components/admin/ui/PrintableInvoice";
@@ -55,6 +58,7 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
+import useAuth from "../../hooks/useAuth";
 import { createConversation } from "../../api/messages";
 import { menuAmountLabel, menuLineTotal } from "../../utils/quotationPricing";
 import { isFoodOnly, isSetupOnly, resolveServiceType } from "../../components/customer/portal/statusMeta";
@@ -73,6 +77,7 @@ export default function AdminBookingDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { notify } = useToast();
+  const { user } = useAuth();
   
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -91,6 +96,14 @@ export default function AdminBookingDetails() {
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [showProposalModal, setShowProposalModal] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showVerifyReturnsModal, setShowVerifyReturnsModal] = useState(false);
+
+  // Damage / Loss Charge Modal state (Admin Only)
+  const [showDamageChargeModal, setShowDamageChargeModal] = useState(false);
+  const [selectedDamageItem, setSelectedDamageItem] = useState(null);
+  const [damageFeeInput, setDamageFeeInput] = useState("");
+  const [damageFeeReason, setDamageFeeReason] = useState("");
+  const [damageChargeSubmitting, setDamageChargeSubmitting] = useState(false);
 
   // Cancellation modal states
   const [showApproveCancelModal, setShowApproveCancelModal] = useState(false);
@@ -114,6 +127,140 @@ export default function AdminBookingDetails() {
   const [managers, setManagers] = useState([]);
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [savingManager, setSavingManager] = useState(false);
+
+  // --- Equipment Turnover & Verification Hooks (Unconditional Top-Level) ---
+  const equipmentItems = useMemo(() => {
+    if (!booking) return [];
+    const returns = Array.isArray(booking.equipment_returns) ? booking.equipment_returns : [];
+    const assigned = Array.isArray(booking.inventory_items) ? booking.inventory_items : [];
+
+    const itemMap = new Map();
+
+    assigned.forEach((item) => {
+      const invId = item.inventory_id?._id || item.inventory_id || item._id;
+      if (!invId) return;
+      const key = String(invId);
+      itemMap.set(key, {
+        inventory_id: invId,
+        name: item.name || item.inventory_id?.item_name || "Equipment Item",
+        category: item.inventory_id?.category || item.category || "Equipment",
+        quantity_assigned: Number(item.quantity || 1),
+        quantity_returned: 0,
+        quantity_damaged: 0,
+        quantity_missing: 0,
+        notes: "",
+        verified_at: null,
+        verified_by: null,
+      });
+    });
+
+    returns.forEach((ret) => {
+      const invId = ret.inventory_id?._id || ret.inventory_id;
+      if (!invId) return;
+      const key = String(invId);
+      const existing = itemMap.get(key);
+      const booked = Number(ret.quantity_booked || existing?.quantity_assigned || 1);
+      const returned = Number(ret.quantity_returned !== undefined ? ret.quantity_returned : (existing?.quantity_returned ?? 0));
+      const damaged = Number(ret.quantity_damaged !== undefined ? ret.quantity_damaged : 0);
+      const missing = ret.quantity_missing !== undefined
+        ? Number(ret.quantity_missing)
+        : Math.max(0, booked - (returned + damaged));
+      const notes = ret.notes !== undefined ? ret.notes : (existing?.notes || "");
+
+      itemMap.set(key, {
+        inventory_id: invId,
+        name: ret.name || existing?.name || ret.inventory_id?.item_name || "Equipment Item",
+        category: ret.inventory_id?.category || existing?.category || "Equipment",
+        quantity_assigned: booked,
+        quantity_returned: returned,
+        quantity_damaged: damaged,
+        quantity_missing: missing,
+        notes: notes,
+        verified_at: ret.verified_at || existing?.verified_at,
+        verified_by: ret.verified_by || existing?.verified_by,
+      });
+    });
+
+    return Array.from(itemMap.values());
+  }, [booking]);
+
+  const equipmentSummary = useMemo(() => {
+    let totalAssigned = 0;
+    let totalReturned = 0;
+    let totalDamaged = 0;
+    let totalMissing = 0;
+
+    equipmentItems.forEach((it) => {
+      totalAssigned += it.quantity_assigned;
+      totalReturned += it.quantity_returned;
+      totalDamaged += it.quantity_damaged;
+      totalMissing += it.quantity_missing;
+    });
+
+    const hasIssues = totalDamaged > 0 || totalMissing > 0;
+    const hasReturnsLogged = equipmentItems.some(
+      (it) => it.verified_at || it.notes || it.quantity_returned > 0 || it.quantity_damaged > 0 || it.quantity_missing > 0
+    );
+
+    return { totalAssigned, totalReturned, totalDamaged, totalMissing, hasIssues, hasReturnsLogged };
+  }, [equipmentItems]);
+
+  const resolveStaffReporter = (item) => {
+    if (item.verified_by?.full_name && item.verified_by?.role === "staff") {
+      return item.verified_by.full_name;
+    }
+
+    const staffReport = (booking?.staff_reports || [])
+      .slice()
+      .reverse()
+      .find((r) => (r.role === "Equipment Verification" || r.role === "Staff") && (r.staff_id?.full_name || r.staff_name));
+    if (staffReport?.staff_id?.full_name) {
+      return staffReport.staff_id.full_name;
+    }
+    if (staffReport?.staff_name) {
+      return staffReport.staff_name;
+    }
+
+    const verifiedId = String(item.verified_by?._id || item.verified_by || "");
+    const staffAssignment = (booking?.staff_assignments || []).find(
+      (s) => String(s.user_id?._id || s.user_id) === verifiedId
+    );
+    if (staffAssignment?.name || staffAssignment?.user_id?.full_name) {
+      return staffAssignment.name || staffAssignment.user_id?.full_name;
+    }
+
+    const fallbackStaff = (booking?.staff_assignments || []).find((s) => {
+      const role = (s.role || "").toLowerCase();
+      return role.includes("server") || role.includes("setup") || role.includes("crew") || role.includes("staff");
+    }) || (booking?.staff_assignments || [])[0];
+
+    if (fallbackStaff?.name || fallbackStaff?.user_id?.full_name) {
+      return fallbackStaff.name || fallbackStaff.user_id?.full_name;
+    }
+
+    if (item.verified_by?.full_name) {
+      return item.verified_by.full_name;
+    }
+
+    return "Assigned Staff";
+  };
+
+  const formatDateTime = (dateVal) => {
+    if (!dateVal) return "N/A";
+    try {
+      const d = new Date(dateVal);
+      return isNaN(d.getTime()) ? "N/A" : d.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch {
+      return "N/A";
+    }
+  };
 
   const handleUpdateManager = async () => {
     if (!booking) return;
@@ -168,6 +315,129 @@ export default function AdminBookingDetails() {
       notify(err.response?.data?.message || "Failed to decline cancellation.", "error");
     } finally {
       setCancelActionLoading(false);
+    }
+  };
+
+  const isAdmin = user?.role === "admin" || (!user?.role && user?.role !== "manager" && user?.role !== "staff");
+
+  const findExistingDamageCharge = (item) => {
+    if (!booking?.additional_charges || !item) return null;
+    const charges = booking.additional_charges;
+    const invId = String(item.inventory_id?._id || item.inventory_id || "");
+    const retId = String(item._id || "");
+    const itemName = (item.name || "").toLowerCase();
+
+    // 1. By equipment_return_id or damage_charge_id
+    let match = charges.find(
+      (c) =>
+        (retId && String(c.equipment_return_id) === retId) ||
+        (item.damage_charge_id && String(c._id) === String(item.damage_charge_id)),
+    );
+
+    // 2. By inventory_id
+    if (!match && invId) {
+      match = charges.find((c) => String(c.inventory_id?._id || c.inventory_id) === invId);
+    }
+
+    // 3. Fallback match by item name and damage
+    if (!match && itemName) {
+      match = charges.find(
+        (c) =>
+          (c.name || "").toLowerCase().includes(itemName) &&
+          ((c.name || "").toLowerCase().includes("damage") || (c.name || "").toLowerCase().includes("loss")),
+      );
+    }
+
+    return match || null;
+  };
+
+  const handleOpenDamageModal = (item) => {
+    const existing = findExistingDamageCharge(item);
+    const existingAmount = existing ? Number(existing.amount) || 0 : 0;
+    const isPaid = existingAmount > 0 && (remainingBalance === 0 || totalPaid >= (booking?.total_price || 0)) && totalPaid > 0;
+    if (isPaid) {
+      notify("This damage fee has already been paid in full and cannot be adjusted.", "info");
+      return;
+    }
+
+    setSelectedDamageItem(item);
+    if (existing && Number(existing.amount) > 0) {
+      setDamageFeeInput(String(existing.amount));
+      const rawReason = existing.name ? existing.name.replace(/^Equipment Damage \/ Loss Charge:\s*/i, "") : "";
+      setDamageFeeReason(rawReason);
+    } else {
+      setDamageFeeInput("");
+      const defaultReason = `${item.quantity_damaged || item.quantity_missing || 1}x ${item.name}${item.notes ? `: ${item.notes}` : " damage / loss"}`;
+      setDamageFeeReason(defaultReason);
+    }
+    setShowDamageChargeModal(true);
+  };
+
+  const handleConfirmDamageCharge = async () => {
+    if (!selectedDamageItem || !booking) return;
+    const numFee = Number(damageFeeInput);
+    if (isNaN(numFee) || numFee < 0) {
+      notify("Please enter a valid damage/loss fee amount (0 or greater).", "error");
+      return;
+    }
+
+    const existing = findExistingDamageCharge(selectedDamageItem);
+    const existingAmount = existing ? Number(existing.amount) || 0 : 0;
+    const isAdjustment = existingAmount > 0;
+
+    if (isAdjustment && numFee !== existingAmount) {
+      const isPaid = (remainingBalance === 0 || totalPaid >= (booking.total_price || 0)) && totalPaid > 0;
+      if (isPaid) {
+        notify("Cannot adjust damage fee because this booking/damage charge has already been paid in full.", "error");
+        return;
+      }
+      const netDelta = numFee - existingAmount;
+      const projectedTotal = (booking.total_price || 0) + netDelta;
+      if (projectedTotal < totalPaid) {
+        notify(
+          `Cannot adjust damage fee because the resulting total (₱${projectedTotal.toLocaleString()}) would be less than total amount already paid (₱${totalPaid.toLocaleString()}).`,
+          "error"
+        );
+        return;
+      }
+    }
+
+    setDamageChargeSubmitting(true);
+    try {
+      const defaultReason = `${selectedDamageItem.quantity_damaged || selectedDamageItem.quantity_missing || 1}x ${selectedDamageItem.name}${selectedDamageItem.notes ? `: ${selectedDamageItem.notes}` : " damage / loss"}`;
+      const payload = {
+        returns: equipmentItems.map((i) => ({
+          inventory_id: i.inventory_id,
+          quantity_returned: Number(i.quantity_returned || 0),
+          quantity_damaged: Number(i.quantity_damaged || 0),
+          quantity_missing: Number(i.quantity_missing || 0),
+          notes: i.notes || "",
+        })),
+        damage_fee: numFee,
+        damage_reason: (damageFeeReason || defaultReason).trim(),
+        inventory_id: selectedDamageItem.inventory_id,
+        equipment_return_id: selectedDamageItem._id,
+        additional_notes: isAdjustment
+          ? `Damage fee adjusted from ₱${existingAmount.toLocaleString()} to ₱${numFee.toLocaleString()} for ${selectedDamageItem.name}.`
+          : `Equipment damage fee of ₱${numFee.toLocaleString()} assessed for ${selectedDamageItem.name}.`,
+      };
+
+      await AdminAPI.verifyEquipmentReturns(booking._id, payload);
+      notify(
+        isAdjustment
+          ? `Damage charge for ${selectedDamageItem.name} adjusted to ₱${numFee.toLocaleString()} successfully.`
+          : `Damage charge of ₱${numFee.toLocaleString()} confirmed and applied to booking.`,
+        "success",
+      );
+      setShowDamageChargeModal(false);
+      setSelectedDamageItem(null);
+      setDamageFeeInput("");
+      setDamageFeeReason("");
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to confirm damage charge.", "error");
+    } finally {
+      setDamageChargeSubmitting(false);
     }
   };
 
@@ -944,7 +1214,8 @@ export default function AdminBookingDetails() {
                 id: "staff_equipment", 
                 label: "Staff & Equipment", 
                 icon: Users,
-                count: booking.staff_assignments?.length || undefined
+                badge: equipmentSummary.hasIssues ? "Issue Reported" : (equipmentSummary.hasReturnsLogged ? "Turnover Logged" : undefined),
+                count: (booking.staff_assignments?.length || 0) + (equipmentItems.length || 0) || undefined
               },
               { 
                 id: "financials_history", 
@@ -988,6 +1259,58 @@ export default function AdminBookingDetails() {
           {activeTab === "overview" && (
             <div className="p-4 sm:p-5 space-y-4">
               
+              {/* Equipment Turnover Alert / Banner in Overview */}
+              {equipmentSummary.hasIssues ? (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+                  <div className="flex items-start gap-2.5 text-rose-950">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="font-bold text-sm block sm:inline">Equipment Issues Reported: </span>
+                      <span className="text-rose-900">
+                        {equipmentSummary.totalDamaged > 0 && <strong>{equipmentSummary.totalDamaged} damaged</strong>}
+                        {equipmentSummary.totalDamaged > 0 && equipmentSummary.totalMissing > 0 && " and "}
+                        {equipmentSummary.totalMissing > 0 && <strong>{equipmentSummary.totalMissing} missing</strong>}
+                        {" "}items reported from event turnover.
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Btn
+                      size="xs"
+                      variant="secondary"
+                      onClick={() => setActiveTab("staff_equipment")}
+                      className="text-xs font-semibold border-rose-300 text-rose-800 hover:bg-rose-100 cursor-pointer"
+                    >
+                      View in Staff &amp; Equipment
+                    </Btn>
+                    <Btn
+                      size="xs"
+                      variant="primary"
+                      onClick={() => setShowVerifyReturnsModal(true)}
+                      className="text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+                    >
+                      Verify Returns
+                    </Btn>
+                  </div>
+                </div>
+              ) : equipmentSummary.hasReturnsLogged && (
+                <div className="p-3 bg-muted/30 border border-border/70 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                  <div className="flex items-center gap-2 text-foreground">
+                    <Boxes className="w-4 h-4 text-primary shrink-0" />
+                    <span>
+                      <strong>Equipment Turnover:</strong> {equipmentSummary.totalReturned} of {equipmentSummary.totalAssigned} items accounted for
+                      {booking.equipment_manager_verified?.confirmed ? " (Manager Verified ✓)" : " (Staff Reported · Pending Verification)"}.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab("staff_equipment")}
+                    className="text-xs font-semibold text-primary hover:underline cursor-pointer shrink-0 text-left"
+                  >
+                    View Details →
+                  </button>
+                </div>
+              )}
+
               {/* Event Specs & Venue */}
               <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between border-b border-border/50 pb-2">
@@ -1554,6 +1877,330 @@ export default function AdminBookingDetails() {
                 )}
               </div>
 
+              {/* Equipment Turnover & Return Verification */}
+              <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-border/50 pb-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Boxes size={13} className="text-primary" /> Assigned Equipment &amp; Turnover Status
+                    </h3>
+                    <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                      {equipmentItems.length} Dispatched Items
+                    </span>
+                    {booking.equipment_manager_verified?.confirmed ? (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
+                        <ShieldCheck size={11} /> Manager Verified
+                      </span>
+                    ) : equipmentSummary.hasReturnsLogged ? (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1">
+                        <AlertTriangle size={11} /> Staff Reported · Pending Verification
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded flex items-center gap-1">
+                        <Clock size={11} /> Pending Turnover
+                      </span>
+                    )}
+                  </div>
+
+                  <Btn
+                    size="xs"
+                    variant="primary"
+                    onClick={() => setShowVerifyReturnsModal(true)}
+                    className="font-bold gap-1 text-xs shrink-0 cursor-pointer"
+                  >
+                    <PackageCheck size={13} />
+                    {booking.equipment_manager_verified?.confirmed ? "Re-verify / Adjust Returns" : "Verify Equipment Returns"}
+                  </Btn>
+                </div>
+
+                {/* Verification & Staff Report Banner */}
+                {booking.equipment_manager_verified?.confirmed ? (
+                  <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-lg text-xs space-y-1">
+                    <div className="flex items-center justify-between flex-wrap gap-2 text-emerald-950 font-semibold">
+                      <span className="flex items-center gap-1.5">
+                        <ShieldCheck size={14} className="text-emerald-600" />
+                        Manager Verification Confirmed by <strong>{booking.equipment_manager_verified.confirmed_by?.full_name || "Manager / Admin"}</strong>
+                      </span>
+                      {booking.equipment_manager_verified.confirmed_at && (
+                        <span className="text-emerald-800 text-[11px] font-normal">
+                          {formatDateTime(booking.equipment_manager_verified.confirmed_at)}
+                        </span>
+                      )}
+                    </div>
+                    {booking.equipment_manager_verified.additional_notes && (
+                      <p className="text-emerald-900 text-[11px] pl-5 italic">
+                        Inspection Notes: "{booking.equipment_manager_verified.additional_notes}"
+                      </p>
+                    )}
+                  </div>
+                ) : equipmentSummary.hasReturnsLogged && (
+                  <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-lg text-xs space-y-1">
+                    <div className="flex items-center justify-between flex-wrap gap-2 text-amber-950 font-semibold">
+                      <span className="flex items-center gap-1.5">
+                        <AlertTriangle size={14} className="text-amber-600" />
+                        Turnover Report Submitted by Staff
+                      </span>
+                      {equipmentItems.some((it) => it.verified_at) && (
+                        <span className="text-amber-800 text-[11px] font-normal">
+                          {formatDateTime(equipmentItems.find((it) => it.verified_at)?.verified_at)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-amber-900 text-[11px] pl-5">
+                      Staff has submitted the equipment turnover report. Please review the counts and notes below and confirm verification.
+                    </p>
+                  </div>
+                )}
+
+                {/* Equipment Summary KPI Strip */}
+                {equipmentItems.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Total Assigned</span>
+                      <span className="font-mono font-bold text-sm text-foreground">{equipmentSummary.totalAssigned}</span>
+                    </div>
+                    <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Returned (Good)</span>
+                      <span className="font-mono font-bold text-sm text-emerald-600">{equipmentSummary.totalReturned}</span>
+                    </div>
+                    <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Damaged / Broken</span>
+                      <span className={`font-mono font-bold text-sm ${equipmentSummary.totalDamaged > 0 ? "text-rose-600 font-bold" : "text-muted-foreground"}`}>
+                        {equipmentSummary.totalDamaged}
+                      </span>
+                    </div>
+                    <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Missing / Lost</span>
+                      <span className={`font-mono font-bold text-sm ${equipmentSummary.totalMissing > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}`}>
+                        {equipmentSummary.totalMissing}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Itemized Equipment Cards */}
+                {equipmentItems.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {equipmentItems.map((item, idx) => {
+                      const reporterName = resolveStaffReporter(item);
+                      const isDamaged = item.quantity_damaged > 0;
+                      const isMissing = item.quantity_missing > 0;
+                      const isClean = !isDamaged && !isMissing && item.quantity_returned > 0;
+                      const isPending = item.quantity_returned === 0 && !isDamaged && !isMissing;
+
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-3.5 bg-card border rounded-lg space-y-2.5 shadow-2xs transition-all ${
+                            isDamaged ? "border-rose-300/80 bg-rose-50/15" :
+                            isMissing ? "border-amber-300/80 bg-amber-50/15" :
+                            "border-border/60 hover:border-border"
+                          }`}
+                        >
+                          {/* Item Header & Condition Badge */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-sm text-foreground truncate flex items-center gap-1.5">
+                                <Boxes size={14} className="text-primary/70 shrink-0" />
+                                <span>{item.name}</span>
+                              </h4>
+                              <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                                {item.category}
+                              </span>
+                            </div>
+
+                            <div className="shrink-0">
+                              {isDamaged ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                                  <AlertTriangle size={10} /> Damaged
+                                </span>
+                              ) : isMissing ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                                  <AlertCircle size={10} /> Missing
+                                </span>
+                              ) : isClean ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                                  <CheckCircle2 size={10} /> Returned Good
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground border border-border flex items-center gap-1">
+                                  <Clock size={10} /> Pending
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quantities Grid */}
+                          <div className="grid grid-cols-4 gap-1.5 py-1.5 px-2 bg-muted/40 rounded-md border border-border/40 text-center text-xs">
+                            <div>
+                              <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Assigned</span>
+                              <span className="font-mono font-bold text-foreground text-xs">{item.quantity_assigned}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Returned</span>
+                              <span className="font-mono font-bold text-emerald-600 text-xs">{item.quantity_returned}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Damaged</span>
+                              <span className={`font-mono font-bold text-xs ${item.quantity_damaged > 0 ? "text-rose-600 font-bold" : "text-muted-foreground"}`}>
+                                {item.quantity_damaged}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Missing</span>
+                              <span className={`font-mono font-bold text-xs ${item.quantity_missing > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}`}>
+                                {item.quantity_missing}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Item-Specific Staff Note */}
+                          {item.notes ? (
+                            <div className="p-2 bg-amber-50/70 border border-amber-200/80 rounded-md text-xs">
+                              <div className="flex items-start gap-1.5">
+                                <FileText size={12} className="text-amber-700 shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                                    Item Note:
+                                  </span>
+                                  <p className="text-foreground text-xs italic font-semibold mt-0.5">
+                                    "{item.notes}"
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-muted-foreground italic px-1">
+                              No specific damage notes reported.
+                            </div>
+                          )}
+
+                          {/* Footer Details: Reporter, Timestamp, Verification */}
+                          <div className="pt-2 border-t border-border/50 space-y-1 text-[11px] text-muted-foreground">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate">
+                                Reported by: <strong className="text-foreground font-semibold">{reporterName}</strong>
+                              </span>
+                              {item.verified_at && (
+                                <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                                  {formatDateTime(item.verified_at)}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 pt-0.5">
+                              <span className="flex items-center gap-1">
+                                <ShieldCheck size={11} className={booking.equipment_manager_verified?.confirmed ? "text-emerald-600" : "text-muted-foreground/60"} />
+                                <span className={booking.equipment_manager_verified?.confirmed ? "text-emerald-700 font-semibold" : "text-muted-foreground"}>
+                                  {booking.equipment_manager_verified?.confirmed
+                                    ? `Verified by ${booking.equipment_manager_verified.confirmed_by?.full_name || "Manager"}`
+                                    : "Pending Manager Verification"}
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Admin-only damage/loss charge action */}
+                          {isAdmin && (isDamaged || isMissing) && (() => {
+                            const existing = findExistingDamageCharge(item);
+                            const hasExisting = Boolean(existing && Number(existing.amount) > 0);
+                            const existingAmount = hasExisting ? Number(existing.amount) : 0;
+                            const isDamagePaid = hasExisting && (remainingBalance === 0 || totalPaid >= (booking.total_price || 0)) && totalPaid > 0;
+
+                            if (isDamagePaid) {
+                              return (
+                                <div className="pt-2 border-t border-border/50 space-y-1.5">
+                                  {/* Damage Fee Paid Non-Editable Indicator */}
+                                  <div className="p-2 bg-emerald-50/90 border border-emerald-200/90 rounded text-[11px] space-y-1 text-emerald-950">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-semibold flex items-center gap-1 text-emerald-800">
+                                        <DollarSign size={11} className="text-emerald-600" /> Damage Fee
+                                      </span>
+                                      <span className="font-mono font-bold text-emerald-900">
+                                        ₱{existingAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between pt-1 border-t border-emerald-200/70 text-[10px]">
+                                      <span className="text-emerald-700 font-medium">Status:</span>
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold uppercase tracking-wider text-[9px]">
+                                        <CheckCircle2 size={10} /> Paid
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <Btn
+                                    size="xs"
+                                    variant="outline"
+                                    disabled
+                                    className="w-full font-semibold text-xs flex items-center justify-center gap-1.5 opacity-80 bg-slate-100 text-slate-600 border-slate-200 cursor-not-allowed shadow-none"
+                                    data-testid="damage-charge-btn"
+                                    id={`damage-charge-btn-${idx}`}
+                                    title={`Damage fee for ${item.name} has already been paid in full and cannot be adjusted.`}
+                                  >
+                                    <CheckCircle2 size={12} className="text-emerald-600" />
+                                    Damage Fee Paid
+                                  </Btn>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="pt-2 border-t border-border/50 space-y-1.5">
+                                {/* Damage Fee Charged indicator if already assessed on booking */}
+                                {hasExisting && (
+                                  <div className="p-1.5 bg-amber-50/80 border border-amber-200/90 rounded text-[11px] flex items-center justify-between text-amber-950">
+                                    <span className="font-semibold flex items-center gap-1">
+                                      <DollarSign size={11} className="text-amber-700" /> Current Damage Fee:
+                                    </span>
+                                    <span className="font-mono font-bold text-amber-900">
+                                      ₱{existingAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                )}
+
+                                <Btn
+                                  size="xs"
+                                  variant="primary"
+                                  onClick={() => handleOpenDamageModal(item)}
+                                  className={`w-full font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs ${
+                                    hasExisting
+                                      ? "bg-amber-600 hover:bg-amber-700 text-white"
+                                      : "bg-rose-600 hover:bg-rose-700 text-white"
+                                  }`}
+                                  data-testid="damage-charge-btn"
+                                  id={`damage-charge-btn-${idx}`}
+                                  title={hasExisting ? `Adjust Damage / Loss Fee for ${item.name}` : `Assess Damage / Loss Fee for ${item.name}`}
+                                >
+                                  {hasExisting ? (
+                                    <>
+                                      <Edit size={12} />
+                                      Adjust Damage / Loss Fee
+                                    </>
+                                  ) : (
+                                    <>
+                                      <DollarSign size={13} />
+                                      Damage / Loss Fee
+                                    </>
+                                  )}
+                                </Btn>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => setShowVerifyReturnsModal(true)}
+                    className="p-6 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
+                  >
+                    <Boxes size={20} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
+                    <p className="text-xs font-semibold text-foreground">No Equipment Assigned Yet</p>
+                    <p className="text-[11px] text-muted-foreground">Click here to review and assign equipment items for this booking.</p>
+                  </div>
+                )}
+              </div>
 
             </div>
           )}
@@ -2144,6 +2791,283 @@ export default function AdminBookingDetails() {
                 {cancelActionLoading ? "Submitting..." : "Send Decline Notice"}
               </Btn>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Verify Equipment Returns Modal */}
+        <VerifyEquipmentReturnsModal
+          booking={booking}
+          open={showVerifyReturnsModal}
+          onClose={() => setShowVerifyReturnsModal(false)}
+          onSave={loadData}
+        />
+
+        {/* Assess / Adjust Damage / Loss Charge Modal (Admin Only) */}
+        <Dialog open={showDamageChargeModal} onOpenChange={setShowDamageChargeModal}>
+          <DialogContent className="max-w-md sm:max-w-lg">
+            {selectedDamageItem && (() => {
+              const existing = findExistingDamageCharge(selectedDamageItem);
+              const isAdjustment = Boolean(existing && Number(existing.amount) > 0);
+              const existingAmount = isAdjustment ? Number(existing.amount) : 0;
+              const enteredFee = Number(damageFeeInput) || 0;
+              const netDifference = isAdjustment ? (enteredFee - existingAmount) : enteredFee;
+              const projectedTotal = (booking.total_price || 0) + netDifference;
+              const makesTotalLessThanPaid = isAdjustment && projectedTotal < totalPaid;
+              const isPaidBooking = isAdjustment && netDifference !== 0 && (remainingBalance === 0 || totalPaid >= (booking.total_price || 0)) && totalPaid > 0;
+
+              return (
+                <>
+                  <DialogHeader>
+                    <div className="flex items-center justify-between">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-1 ${
+                        isAdjustment ? "bg-amber-50 border border-amber-200 text-amber-700" : "bg-rose-50 border border-rose-200 text-rose-600"
+                      }`}>
+                        <DollarSign className="w-5 h-5" />
+                      </div>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                        isAdjustment
+                          ? "bg-amber-100 text-amber-900 border-amber-300"
+                          : "bg-rose-100 text-rose-900 border-rose-300"
+                      }`}>
+                        {isAdjustment ? "Existing Charge / Adjustment" : "New Charge"}
+                      </span>
+                    </div>
+                    <DialogTitle className="text-base font-bold text-foreground">
+                      {isAdjustment ? "Adjust Equipment Damage / Loss Fee" : "Assess Equipment Damage / Loss Fee"}
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-muted-foreground">
+                      {isAdjustment
+                        ? `Editing existing ₱${existingAmount.toLocaleString()} charge for this equipment incident. Changes will adjust the current fee rather than creating a duplicate.`
+                        : `Review affected equipment and assess an itemized damage or replacement fee to booking #${booking.reference || booking._id}.`}
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-3.5 py-1 text-xs">
+                    {/* Equipment Review Box */}
+                    <div className="p-3 bg-muted/40 rounded-xl border border-border/70 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h4 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                            <Boxes size={14} className="text-primary/70 shrink-0" />
+                            {selectedDamageItem.name}
+                          </h4>
+                          <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                            {selectedDamageItem.category}
+                          </span>
+                        </div>
+                        <div className="shrink-0">
+                          {selectedDamageItem.quantity_damaged > 0 ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              Damaged: {selectedDamageItem.quantity_damaged}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              Missing: {selectedDamageItem.quantity_missing}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Assigned / Returned / Damaged Grid */}
+                      <div className="grid grid-cols-3 gap-2 py-1.5 px-2 bg-card rounded-md border border-border/50 text-center">
+                        <div>
+                          <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Assigned</span>
+                          <span className="font-mono font-bold text-foreground">{selectedDamageItem.quantity_assigned}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Returned</span>
+                          <span className="font-mono font-bold text-emerald-600">{selectedDamageItem.quantity_returned}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Damaged</span>
+                          <span className="font-mono font-bold text-rose-600">{selectedDamageItem.quantity_damaged}</span>
+                        </div>
+                      </div>
+
+                      {/* Reporter & Staff Note */}
+                      <div className="space-y-1 pt-0.5 text-xs">
+                        <div className="text-muted-foreground">
+                          Reported by: <strong className="text-foreground font-semibold">{resolveStaffReporter(selectedDamageItem)}</strong>
+                        </div>
+                        {selectedDamageItem.notes && (
+                          <div className="p-2 bg-amber-50/70 border border-amber-200/80 rounded-md text-xs space-y-0.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">
+                              Staff Note:
+                            </span>
+                            <p className="text-foreground italic font-semibold">
+                              "{selectedDamageItem.notes}"
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Damage Fee Input */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-bold text-foreground block">
+                          Damage / Loss Fee <span className="text-rose-500">*</span>
+                        </label>
+                        {isAdjustment && (
+                          <span className="text-[11px] text-muted-foreground">
+                            Current: <strong className="font-mono text-foreground">₱{existingAmount.toLocaleString()}</strong>
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
+                          ₱
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={damageFeeInput}
+                          onChange={(e) => setDamageFeeInput(e.target.value)}
+                          placeholder="1500"
+                          id="damage-fee-input"
+                          data-testid="damage-fee-input"
+                          className="w-full pl-8 pr-3 py-2 text-sm font-mono font-bold rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Charge Description */}
+                    <div>
+                      <label className="text-xs font-bold text-foreground block mb-1">
+                        Charge Description (Customer Invoice)
+                      </label>
+                      <input
+                        type="text"
+                        value={damageFeeReason}
+                        onChange={(e) => setDamageFeeReason(e.target.value)}
+                        placeholder={`e.g. ${selectedDamageItem.quantity_damaged || 1}x ${selectedDamageItem.name} damage`}
+                        id="damage-fee-reason"
+                        data-testid="damage-fee-reason"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <span className="text-[10.5px] text-muted-foreground mt-0.5 block">
+                        Itemized label for customer's invoice and billing transactions.
+                      </span>
+                    </div>
+
+                    {/* Financial Effect & Updated Total Preview Box */}
+                    <div className="p-3 bg-muted/30 rounded-lg border border-border/70 space-y-2 text-xs">
+                      {isAdjustment ? (
+                        <>
+                          <div className="flex items-center justify-between text-muted-foreground pb-1.5 border-b border-border/50">
+                            <span>Current Assessed Fee:</span>
+                            <span className="font-mono font-bold text-foreground">
+                              ₱{existingAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between font-semibold">
+                            <span>Proposed New Fee:</span>
+                            <span className="font-mono font-bold text-foreground">
+                              ₱{enteredFee.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          <div className={`p-2 rounded-md border flex items-center justify-between font-semibold ${
+                            netDifference > 0 ? "bg-rose-50 border-rose-200 text-rose-900" :
+                            netDifference < 0 ? "bg-emerald-50 border-emerald-200 text-emerald-900" :
+                            "bg-muted/60 border-border/60 text-muted-foreground"
+                          }`}>
+                            <span>Actual Financial Effect (Net Change):</span>
+                            <span className="font-mono font-bold text-sm">
+                              {netDifference > 0 ? `+ ₱${netDifference.toLocaleString("en-PH", { minimumFractionDigits: 2 })}` :
+                               netDifference < 0 ? `- ₱${Math.abs(netDifference).toLocaleString("en-PH", { minimumFractionDigits: 2 })}` :
+                               "₱0.00 (Unchanged)"}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-center justify-between font-semibold">
+                          <span className="text-muted-foreground">Additional Charge Preview:</span>
+                          <span className="font-mono font-bold text-rose-600 text-sm">
+                            {enteredFee > 0 ? `+ ₱${enteredFee.toLocaleString("en-PH", { minimumFractionDigits: 2 })}` : "+ ₱0.00"}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="pt-2 border-t border-border/50 space-y-1.5">
+                        <span className="font-bold text-foreground text-[11px] uppercase tracking-wider block">
+                          Updated Booking Financials
+                        </span>
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>Current Booking Total:</span>
+                          <span className="font-mono font-semibold text-foreground">
+                            ₱{(booking.total_price || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-foreground font-bold">
+                          <span>New Booking Total:</span>
+                          <span className="font-mono font-bold text-primary text-sm">
+                            ₱{((booking.total_price || 0) + netDifference).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-muted-foreground pt-1 border-t border-border/40 text-[11px]">
+                          <span>New Remaining Balance:</span>
+                          <span className="font-mono font-bold text-amber-700">
+                            ₱{Math.max(0, ((booking.total_price || 0) + netDifference) - totalPaid).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {makesTotalLessThanPaid && (
+                        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+                          <AlertCircle size={14} className="shrink-0 mt-0.5 text-rose-600" />
+                          <span>
+                            Cannot reduce fee: resulting booking total (₱{projectedTotal.toLocaleString()}) would be less than amount already paid (₱{totalPaid.toLocaleString()}).
+                          </span>
+                        </div>
+                      )}
+
+                      {isPaidBooking && (
+                        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+                          <AlertCircle size={14} className="shrink-0 mt-0.5 text-rose-600" />
+                          <span>
+                            This booking is already fully paid. The damage fee has been satisfied and cannot be altered.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <DialogFooter className="gap-2 sm:gap-0">
+                    <Btn
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        setShowDamageChargeModal(false);
+                        setSelectedDamageItem(null);
+                      }}
+                      disabled={damageChargeSubmitting}
+                    >
+                      Cancel
+                    </Btn>
+                    <Btn
+                      type="button"
+                      variant="primary"
+                      className={`font-bold text-white cursor-pointer ${
+                        isAdjustment ? "bg-amber-600 hover:bg-amber-700" : "bg-rose-600 hover:bg-rose-700"
+                      }`}
+                      onClick={handleConfirmDamageCharge}
+                      disabled={damageChargeSubmitting || damageFeeInput === "" || Number(damageFeeInput) < 0 || makesTotalLessThanPaid || isPaidBooking}
+                      id="confirm-damage-charge-btn"
+                      data-testid="confirm-damage-charge-btn"
+                    >
+                      {damageChargeSubmitting
+                        ? "Saving..."
+                        : isAdjustment
+                        ? netDifference === 0
+                          ? "Confirm Damage Charge"
+                          : `Confirm Fee Adjustment (${netDifference > 0 ? "+" : ""}${netDifference.toLocaleString()})`
+                        : "Confirm Damage Charge"}
+                    </Btn>
+                  </DialogFooter>
+                </>
+              );
+            })()}
           </DialogContent>
         </Dialog>
 

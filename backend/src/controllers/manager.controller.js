@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const Booking = require("../models/Booking");
+const Payment = require("../models/Payment");
 const StaffAvailability = require("../models/StaffAvailability");
 const asyncHandler = require("../utils/asyncHandler");
 
@@ -183,6 +184,38 @@ exports.getBookings = asyncHandler(async (req, res) => {
     .sort({ event_date: statusTab === "completed" ? -1 : 1 })
     .lean();
 
+  if (bookings.length > 0) {
+    const bookingIds = bookings.map((b) => b._id);
+    const inquiryIds = bookings.map((b) => b.inquiry_id).filter(Boolean);
+    const payments = await Payment.find({
+      $or: [
+        { booking_id: { $in: bookingIds } },
+        ...(inquiryIds.length > 0 ? [{ inquiry_id: { $in: inquiryIds } }] : [])
+      ]
+    }).lean();
+
+    const paymentMap = {};
+    for (const p of payments) {
+      if (["approved", "paid", "completed"].includes(String(p.status || "").toLowerCase().trim())) {
+        const bKey = p.booking_id ? String(p.booking_id) : "";
+        const inqKey = p.inquiry_id ? String(p.inquiry_id) : "";
+        const amt = Number(p.amount) || 0;
+        if (bKey) {
+          paymentMap[bKey] = (paymentMap[bKey] || 0) + amt;
+        } else if (inqKey) {
+          paymentMap[inqKey] = (paymentMap[inqKey] || 0) + amt;
+        }
+      }
+    }
+
+    for (const b of bookings) {
+      const paid = paymentMap[String(b._id)] ?? (b.inquiry_id ? paymentMap[String(b.inquiry_id)] : 0) ?? 0;
+      const totalCost = Number(b.total_price || 0);
+      b.total_paid = paid;
+      b.remaining_balance = Math.max(0, totalCost - paid);
+    }
+  }
+
   res.json(bookings);
 });
 
@@ -203,7 +236,29 @@ exports.getBooking = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Booking not found or not assigned to you" });
   }
 
-  res.json(booking);
+  const payments = await Payment.find({
+    $or: [
+      { booking_id: booking._id },
+      ...(booking.inquiry_id ? [{ inquiry_id: booking.inquiry_id }] : [])
+    ]
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const approvedPayments = payments.filter((p) =>
+    ["approved", "paid", "completed"].includes(String(p.status || "").toLowerCase().trim())
+  );
+  const totalPaid = approvedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const totalCost = Number(booking.total_price || 0);
+  const remainingBalance = Math.max(0, totalCost - totalPaid);
+
+  const bookingObj = booking.toObject ? booking.toObject() : booking;
+  bookingObj.payments = payments;
+  bookingObj.approved_payments = approvedPayments;
+  bookingObj.total_paid = totalPaid;
+  bookingObj.remaining_balance = remainingBalance;
+
+  res.json(bookingObj);
 });
 
 exports.assignStaff = asyncHandler(async (req, res) => {
@@ -332,14 +387,23 @@ exports.verifyEquipment = asyncHandler(async (req, res) => {
   const { confirmed, additional_notes } = req.body;
   const isConfirmed = Boolean(confirmed);
 
-  booking.equipment_manager_verified = {
-    confirmed: isConfirmed,
-    confirmed_by: req.user._id,
-    confirmed_at: isConfirmed ? new Date() : null,
-    additional_notes: typeof additional_notes === "string" ? additional_notes.trim() : ""
-  };
-
-  await booking.save();
+  if (isConfirmed && Array.isArray(booking.equipment_returns) && booking.equipment_returns.length > 0) {
+    const { reconcileEquipmentTurnover } = require("../utils/reconcileInventory");
+    await reconcileEquipmentTurnover({
+      booking,
+      actorId: req.user._id,
+      notes: typeof additional_notes === "string" ? additional_notes.trim() : "",
+      isManagerVerification: true,
+    });
+  } else {
+    booking.equipment_manager_verified = {
+      confirmed: isConfirmed,
+      confirmed_by: req.user._id,
+      confirmed_at: isConfirmed ? new Date() : null,
+      additional_notes: typeof additional_notes === "string" ? additional_notes.trim() : ""
+    };
+    await booking.save();
+  }
 
   const populated = await Booking.findById(booking._id)
     .populate("equipment_manager_verified.confirmed_by", "full_name role");

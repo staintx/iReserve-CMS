@@ -5,7 +5,16 @@ const InventoryLogSchema = new mongoose.Schema(
     inventory_id: { type: mongoose.Schema.Types.ObjectId, ref: "Inventory", required: true },
     event_type: {
       type: String,
-      enum: ["created", "manual_adjustment", "reservation_allocated", "reservation_released", "retired"],
+      enum: [
+        "created",
+        "manual_adjustment",
+        "adjustment",
+        "reservation_allocated",
+        "reservation_released",
+        "retired",
+        "damage_loss",
+        "missing",
+      ],
       required: true,
     },
     delta: { type: Number, default: 0 },

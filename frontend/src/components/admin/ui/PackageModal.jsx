@@ -15,6 +15,10 @@ import {
   Package,
   Search,
   Utensils,
+  ConciergeBell,
+  Layers,
+  Ruler,
+  Users,
 } from "lucide-react";
 import Btn from "./Btn";
 import SingleImageField from "./SingleImageField";
@@ -2742,7 +2746,7 @@ export default function PackageModal({
                                   ) : availableCategoryDishes.length === 0 ? (
                                     catDishes.length > 0 ? (
                                       <div className="p-3 text-center text-xs font-medium text-emerald-700 bg-emerald-50/40">
-                                        ✓ All {catDishes.length} dishes in {group.name} have been added to this combo.
+                                        <Check size={13} className="inline-block mr-1 text-emerald-600" />All {catDishes.length} dishes in {group.name} have been added to this combo.
                                       </div>
                                     ) : (
                                       <div className="p-4 text-center text-xs text-gray-500">
@@ -2966,12 +2970,14 @@ export default function PackageModal({
                               )}
                             </div>
                             <div className="mt-1 flex flex-wrap items-center gap-x-2.5 text-xs text-gray-500">
-                              <span className="font-medium text-slate-700">
-                                📐 {opt.width_ft} × {opt.length_ft} ft ({opt.area_ft2 || opt.width_ft * opt.length_ft} ft²)
+                              <span className="font-medium text-slate-700 flex items-center gap-1">
+                                <Ruler size={12} className="text-slate-400 shrink-0" />
+                                {opt.width_ft} × {opt.length_ft} ft ({opt.area_ft2 || opt.width_ft * opt.length_ft} ft²)
                               </span>
                               <span>·</span>
-                              <span className="font-medium text-blue-700">
-                                👥 {opt.guest_min || 0} – {opt.guest_max || "∞"} guests
+                              <span className="font-medium text-blue-700 flex items-center gap-1">
+                                <Users size={12} className="text-blue-500 shrink-0" />
+                                {opt.guest_min || 0} – {opt.guest_max || "∞"} guests
                               </span>
                               <span>·</span>
                               <span className="font-bold text-emerald-700">
@@ -3233,7 +3239,7 @@ export default function PackageModal({
                     : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                <span>🛎️</span>
+                <ConciergeBell size={14} className="shrink-0" />
                 <span className="truncate">Services</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-bold border border-gray-200 shrink-0">
                   {servicesInclusionsCount}
@@ -3249,7 +3255,7 @@ export default function PackageModal({
                     : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                <span>📦</span>
+                <Package size={14} className="shrink-0" />
                 <span className="truncate">Inventory</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-bold border border-gray-200 shrink-0">
                   {inventoryInclusions.length}
@@ -3265,7 +3271,7 @@ export default function PackageModal({
                     : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                <span>✨</span>
+                <Sparkles size={14} className="shrink-0" />
                 <span className="truncate">Add Ons</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-bold border border-gray-200 shrink-0">
                   {(formData.add_ons || []).length}
@@ -3281,7 +3287,7 @@ export default function PackageModal({
                   {/* SUBSECTION 1: Event Setup Inclusions */}
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-base">🎪</span>
+                      <Layers size={16} className="text-primary/80 shrink-0" />
                       <label className="font-semibold text-gray-800 text-sm">
                         Event Setup Inclusions
                       </label>
@@ -3389,7 +3395,7 @@ export default function PackageModal({
                   {/* SUBSECTION 2: Staff & Personnel */}
                   <div className="pt-5 border-t border-gray-200/90">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-base">👥</span>
+                      <Users size={16} className="text-primary/80 shrink-0" />
                       <label className="font-semibold text-gray-800 text-sm">
                         Staff & Personnel
                       </label>
@@ -3549,7 +3555,7 @@ export default function PackageModal({
                 <div className="space-y-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-base">📦</span>
+                      <Package size={16} className="text-primary/80 shrink-0" />
                       <label className="font-semibold text-gray-800 text-sm">
                         Inventory Inclusions
                       </label>
@@ -3826,7 +3832,7 @@ export default function PackageModal({
                 <div className="space-y-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-base">✨</span>
+                      <Sparkles size={16} className="text-primary/80 shrink-0" />
                       <label className="font-semibold text-gray-800 text-sm">
                         Add Ons
                       </label>

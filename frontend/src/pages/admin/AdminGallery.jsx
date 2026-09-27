@@ -5,10 +5,8 @@ import {
   Edit3,
   Trash2,
   Image as ImageIcon,
-  ExternalLink,
   Eye,
   X,
-  Globe,
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -152,18 +150,7 @@ export default function AdminGallery() {
               Manage portfolio photos, captions, and event albums displayed to customers on the public website.
             </p>
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-            <a
-              href="/gallery"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-primary bg-powder border border-primary/20 shadow-2xs hover:bg-powder/80 transition-all cursor-pointer"
-              title="Preview the live website gallery page"
-            >
-              <Globe size={13} className="text-primary" />
-              <span>View Public Gallery</span>
-              <ExternalLink size={11} className="text-primary/70" />
-            </a>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
             <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>
               <Plus size={13} /> Add Photo
             </Btn>

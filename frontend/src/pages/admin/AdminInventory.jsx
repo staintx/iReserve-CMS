@@ -658,292 +658,326 @@ export default function AdminInventory() {
         />
       )}
 
-      <DetailDrawer
-        open={!!drawerRow}
-        onOpenChange={(open) => !open && setDrawerRow(null)}
-        title={drawerRow?.item_name}
-        footer={
-          drawerRow && (
-            <>
-              <Btn
-                variant="danger"
-                size="sm"
-                onClick={() => {
-                  const row = drawerRow;
-                  setDrawerRow(null);
-                  setCancelTarget(row);
-                }}
-              >
-                <Trash2 size={13} /> Delete
-              </Btn>
-              <Btn
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  const row = drawerRow;
-                  setDrawerRow(null);
-                  handleOpenModal(row);
-                }}
-              >
-                <Edit3 size={13} /> Edit item
-              </Btn>
-            </>
-          )
+      {(() => {
+        const stockOnHand = drawerRow
+          ? (drawerRow.available_quantity ?? Math.max(0, (drawerRow.quantity || 0) - (drawerRow.reserved_quantity || 0)))
+          : 0;
+        const threshold = drawerRow?.low_stock_threshold;
+        let stockStatus = drawerRow?.stock_status;
+        if (drawerRow && !stockStatus) {
+          if (stockOnHand === 0) stockStatus = "no_stock";
+          else if (threshold != null && threshold > 0 && stockOnHand <= threshold) stockStatus = "low_stock";
+          else stockStatus = "in_stock";
         }
-      >
-        {drawerRow && (() => {
-          const stockOnHand =
-            drawerRow.available_quantity ??
-            Math.max(0, (drawerRow.quantity || 0) - (drawerRow.reserved_quantity || 0));
-          const threshold = drawerRow.low_stock_threshold;
-          let stockStatus = drawerRow.stock_status;
-          if (!stockStatus) {
-            if (stockOnHand === 0) stockStatus = "no_stock";
-            else if (threshold != null && threshold > 0 && stockOnHand <= threshold) stockStatus = "low_stock";
-            else stockStatus = "in_stock";
-          }
 
-          return (
-            <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <DrawerField label="Total Quantity" value={drawerRow.quantity || 0} />
-                <DrawerField label="Low Stock Threshold" value={threshold != null ? `${threshold} units` : "Not set"} />
-                <DrawerField label={selectedDate && selectedDate !== getTodayDateString() ? "In-Use (Selected Date)" : "In-Use (Today)"} value={drawerRow.reserved_quantity || 0} />
-                <DrawerField 
-                  label="Stock on Hand" 
-                  value={
-                    <strong className={stockStatus === "no_stock" ? "text-rose-700" : stockStatus === "low_stock" ? "text-amber-700" : "text-emerald-700"}>
-                      {stockOnHand}
-                    </strong>
-                  } 
-                />
-                <DrawerField 
-                  label="Stock Status" 
-                  value={
-                    <Badge 
-                      status={
-                        stockStatus === "no_stock" 
-                          ? "No Stock" 
-                          : stockStatus === "low_stock" 
-                            ? "Low Stock" 
-                            : "In Stock"
-                      } 
-                      dot 
-                    />
-                  } 
-                />
-                <DrawerField 
-                  label="Availability Status" 
-                  value={
-                    <Badge 
-                      status={drawerRow.available !== false ? "available" : "unavailable"} 
-                      dot 
-                    />
-                  } 
-                />
-              </div>
-
-              {/* Formula explanation box */}
-              <div className="p-3 bg-slate-50 rounded-md border border-slate-100 text-xs text-slate-600 space-y-1.5 shadow-2xs">
-                <span className="font-semibold text-slate-700 block">Stock &amp; Status Calculation:</span>
-                <p>
-                  <strong>{drawerRow.quantity || 0}</strong> (Total Quantity) − <strong>{drawerRow.reserved_quantity || 0}</strong> ({selectedDate && selectedDate !== getTodayDateString() ? "In-Use on Date" : "In-Use Today"}) = <strong className={stockStatus === "no_stock" ? "text-rose-700" : stockStatus === "low_stock" ? "text-amber-700" : "text-emerald-700"}>{stockOnHand}</strong> (Stock on Hand).
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Threshold: <strong>{threshold != null ? `${threshold} units` : "Not set"}</strong> → Automatic Stock Status: <strong className={stockStatus === "no_stock" ? "text-rose-700" : stockStatus === "low_stock" ? "text-amber-700" : "text-emerald-700"}>{stockStatus === "no_stock" ? "No Stock" : stockStatus === "low_stock" ? "Low Stock" : "In Stock"}</strong>.
-                </p>
-              </div>
-
-            {/* Associated Packages */}
-            {(() => {
-              const associated = getAssociatedPackages(drawerRow);
-              return (
-                <div className="border-t border-gray-100 pt-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <PackageIcon size={13} className="text-primary" /> Associated Packages ({associated.length})
+        return (
+          <DetailDrawer
+            open={!!drawerRow}
+            onOpenChange={(open) => !open && setDrawerRow(null)}
+            title={drawerRow?.item_name || ""}
+            headerExtra={
+              drawerRow && (
+                <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                  <Badge 
+                    status={
+                      stockStatus === "no_stock" 
+                        ? "No Stock" 
+                        : stockStatus === "low_stock" 
+                          ? "Low Stock" 
+                          : "In Stock"
+                    } 
+                    dot 
+                  />
+                  <Badge 
+                    status={drawerRow.available !== false ? "available" : "unavailable"} 
+                    dot 
+                  />
+                </div>
+              )
+            }
+            footer={
+              drawerRow && (
+                <div className="flex items-center justify-between w-full gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const row = drawerRow;
+                      setDrawerRow(null);
+                      setCancelTarget(row);
+                    }}
+                    className="py-2 px-3.5 rounded-lg font-semibold text-xs transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 bg-rose-600 hover:bg-rose-700 text-white active:scale-[0.99]"
+                  >
+                    <Trash2 size={13} /> Delete
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const row = drawerRow;
+                      setDrawerRow(null);
+                      handleOpenModal(row);
+                    }}
+                    className="flex-1 py-2 px-4 rounded-lg font-semibold text-xs text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer bg-primary text-primary-foreground hover:bg-primary-hover active:scale-[0.99]"
+                  >
+                    <Edit3 size={13} /> Edit item
+                  </button>
+                </div>
+              )
+            }
+          >
+            {drawerRow && (
+              <div className="space-y-3">
+                {/* 3 Key Metric Blocks */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-slate-50/70 rounded-lg p-2 border border-slate-200/60">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block truncate">Total Quantity</span>
+                    <span className="font-mono font-semibold text-sm text-slate-800 block truncate mt-0.5">{drawerRow.quantity || 0}</span>
+                  </div>
+                  <div className="bg-slate-50/70 rounded-lg p-2 border border-slate-200/60">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block truncate">
+                      {selectedDate && selectedDate !== getTodayDateString() ? "In-Use (Date)" : "In-Use (Today)"}
+                    </span>
+                    <span className={`font-mono font-semibold text-sm block truncate mt-0.5 ${drawerRow.reserved_quantity > 0 ? "text-amber-600" : "text-slate-800"}`}>
+                      {drawerRow.reserved_quantity || 0}
                     </span>
                   </div>
+                  <div className="bg-slate-50/90 rounded-lg p-2 border border-slate-300/70 shadow-2xs">
+                    <span className="text-[10px] uppercase font-bold text-slate-600 block truncate">Stock on Hand</span>
+                    <span className={`font-mono font-extrabold text-lg leading-tight block truncate mt-0.5 ${
+                      stockStatus === "no_stock" ? "text-rose-600" : stockStatus === "low_stock" ? "text-amber-600" : "text-emerald-600"
+                    }`}>
+                      {stockOnHand}
+                    </span>
+                  </div>
+                </div>
 
-                  {associated.length > 0 ? (
-                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                      {associated.map((pkg) => (
-                        <div
-                          key={pkg._id}
-                          className="flex items-center justify-between p-2.5 rounded-md border border-border/70 bg-card hover:bg-muted/40 transition-colors"
-                        >
-                          <div className="min-w-0 flex-1 pr-2">
-                            <p className="text-xs font-bold text-foreground truncate">{pkg.name}</p>
-                            <p className="text-[11px] text-muted-foreground">
-                              {pkg.offer_type === "special" ? "Special Combo" : "Event Package"} · {pkg.event_type || "Catering"}
+              {/* Low Stock Threshold - Compact secondary info line */}
+              <div className="flex items-center justify-between text-xs px-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Low Stock Threshold</span>
+                <span className="text-xs font-semibold text-slate-700">
+                  {threshold != null ? `${threshold} units` : "Not set"}
+                </span>
+              </div>
+
+              {/* Formula explanation box - reduced padding & prominence */}
+              <div className="px-2.5 py-2 bg-slate-50/60 rounded-md border border-slate-200/60 text-[11px] text-slate-600 space-y-0.5">
+                <span className="font-semibold text-slate-700 block text-[11px]">Stock &amp; Status Calculation:</span>
+                <p className="text-slate-600 leading-relaxed text-[11px]">
+                  <strong className="text-slate-900 font-semibold">{drawerRow.quantity || 0}</strong> (Total Quantity) −{" "}
+                  <strong className="text-slate-900 font-semibold">{drawerRow.reserved_quantity || 0}</strong> (
+                  {selectedDate && selectedDate !== getTodayDateString() ? "In-Use on Date" : "In-Use Today"}
+                  ) ={" "}
+                  <strong className={stockStatus === "no_stock" ? "text-rose-600 font-semibold" : stockStatus === "low_stock" ? "text-amber-600 font-semibold" : "text-emerald-600 font-semibold"}>
+                    {stockOnHand}
+                  </strong>{" "}
+                  (Stock on Hand).
+                </p>
+                <p className="text-[10.5px] text-slate-500">
+                  Threshold:{" "}
+                  <strong className="text-slate-700 font-semibold">{threshold != null ? `${threshold} units` : "Not set"}</strong>{" "}
+                  → Automatic Stock Status:{" "}
+                  <strong className={stockStatus === "no_stock" ? "text-rose-600 font-semibold" : stockStatus === "low_stock" ? "text-amber-600 font-semibold" : "text-emerald-600 font-semibold"}>
+                    {stockStatus === "no_stock" ? "No Stock" : stockStatus === "low_stock" ? "Low Stock" : "In Stock"}
+                  </strong>.
+                </p>
+              </div>
+
+              {/* Associated Packages */}
+              {(() => {
+                const associated = getAssociatedPackages(drawerRow);
+                return (
+                  <div className="pt-3 border-t border-slate-100 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <PackageIcon size={11} className="text-blue-600" /> Associated Packages ({associated.length})
+                      </h5>
+                    </div>
+
+                    {associated.length > 0 ? (
+                      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
+                        {associated.map((pkg) => (
+                          <div
+                            key={pkg._id}
+                            className="flex items-center justify-between px-2.5 py-1.5 rounded-lg border border-slate-200/80 bg-white hover:bg-slate-50/70 transition-colors"
+                          >
+                            <div className="min-w-0 flex-1 pr-2">
+                              <p className="text-xs font-semibold text-slate-900 truncate">{pkg.name}</p>
+                              <p className="text-[10.5px] text-slate-500 mt-0.5">
+                                {pkg.offer_type === "special" ? "Special Combo" : "Event Package"} · {pkg.event_type || "Catering"}
+                              </p>
+                            </div>
+                            <Link
+                              to={`/admin/packages?id=${pkg._id}&tab=${pkg.offer_type === "special" ? "special" : "regular"}`}
+                              onClick={() => setDrawerRow(null)}
+                              className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-blue-600 hover:text-blue-700 transition-colors bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs hover:bg-slate-50 shrink-0"
+                            >
+                              View <ExternalLink size={10} />
+                            </Link>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-2 px-3 rounded-md bg-slate-50/40 border border-dashed border-slate-200/80 text-center">
+                        <p className="text-[11px] text-slate-400 italic">
+                          This inventory item is not currently included in any packages.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Upcoming Event Usage (for selected date) */}
+              <div className="pt-3 border-t border-slate-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-bold text-[10px] uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Calendar size={11} className="text-blue-600" />
+                    Upcoming Event Usage ({(drawerRow.event_usages || []).length})
+                  </h5>
+                  <span className="text-[10px] font-mono font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/60">
+                    {selectedDate
+                      ? new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                      : "Today"}
+                  </span>
+                </div>
+
+                {drawerRow.event_usages && drawerRow.event_usages.length > 0 ? (
+                  <div className="space-y-1.5 max-h-60 overflow-y-auto pr-0.5">
+                    {drawerRow.event_usages.map((usage, idx) => (
+                      <div
+                        key={usage.booking_id || idx}
+                        className="p-2 rounded-lg border border-slate-200/80 bg-white hover:bg-slate-50/70 transition-colors flex flex-col gap-1.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-slate-900 truncate">
+                              {usage.package_name || usage.event_name || "Event Reservation"}
                             </p>
+                            <div className="grid grid-cols-2 gap-1 mt-0.5 text-[10.5px] text-slate-500">
+                              <div>
+                                Customer: <span className="font-semibold text-slate-800">{usage.customer_name}</span>
+                              </div>
+                              <div>
+                                Event Date:{" "}
+                                <span className="font-medium text-slate-800">
+                                  {usage.event_date
+                                    ? new Date(usage.event_date).toLocaleDateString("en-US", {
+                                        long: "numeric",
+                                        month: "long",
+                                        day: "numeric",
+                                        year: "numeric",
+                                      })
+                                    : "—"}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 text-[10.5px]">
+                              <span className="text-slate-500 font-medium">Quantity:</span>
+                              <span className="bg-amber-50 text-amber-700 px-1.5 py-0.2 rounded text-[10.5px] font-bold border border-amber-200">
+                                {usage.quantity} {usage.unit || (usage.quantity === 1 ? "unit" : "pcs")}
+                              </span>
+                              {usage.reference && (
+                                <span className="text-[10px] font-mono text-slate-500">
+                                  (#{usage.reference})
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <Link
-                            to={`/admin/packages?id=${pkg._id}&tab=${pkg.offer_type === "special" ? "special" : "regular"}`}
+                            to={`/admin/bookings/${usage.booking_id}/details`}
                             onClick={() => setDrawerRow(null)}
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors"
+                            className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-blue-600 hover:text-blue-700 transition-colors bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs hover:bg-slate-50 shrink-0"
                           >
-                            View <ExternalLink size={11} />
+                            View <ExternalLink size={10} />
                           </Link>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-3 rounded-md bg-muted/20 border border-dashed border-border/60 text-center">
-                      <p className="text-xs text-muted-foreground italic">
-                        This inventory item is not currently included in any packages.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* Upcoming Event Usage (for selected date) */}
-            <div className="border-t border-gray-100 pt-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Calendar size={13} className="text-amber-600" />
-                  Upcoming Event Usage ({(drawerRow.event_usages || []).length})
-                </span>
-                <span className="text-[10px] font-mono font-medium text-muted-foreground/80 bg-slate-100 px-1.5 py-0.5 rounded">
-                  {selectedDate
-                    ? new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })
-                    : "Today"}
-                </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-2 px-3 rounded-md bg-slate-50/40 border border-dashed border-slate-200/80 text-center">
+                    <p className="text-[11px] text-slate-400 italic">
+                      No upcoming events are using this item on the selected date.
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {drawerRow.event_usages && drawerRow.event_usages.length > 0 ? (
-                <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-                  {drawerRow.event_usages.map((usage, idx) => (
-                    <div
-                      key={usage.booking_id || idx}
-                      className="p-3 rounded-lg border border-amber-200/80 bg-amber-50/40 hover:bg-amber-50/70 transition-colors flex flex-col gap-1.5"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-foreground truncate">
-                            {usage.package_name || usage.event_name || "Event Reservation"}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Customer: <span className="font-semibold text-foreground/90">{usage.customer_name}</span>
-                          </p>
-                          <p className="text-[11px] text-muted-foreground">
-                            Event Date:{" "}
-                            <span className="font-medium text-foreground/80">
-                              {usage.event_date
-                                ? new Date(usage.event_date).toLocaleDateString("en-US", {
-                                    month: "long",
-                                    day: "numeric",
-                                    year: "numeric",
-                                  })
-                                : "—"}
+              {/* Inventory Log */}
+              <div className="pt-3 border-t border-slate-100 space-y-2">
+                <h5 className="font-bold text-[10px] uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <RotateCcw size={11} className="text-blue-600" /> Inventory Log
+                </h5>
+                {logsLoading ? (
+                  <p className="text-xs text-slate-400 py-1.5 text-center">Loading log…</p>
+                ) : logs.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 py-1.5 text-center italic">No stock changes recorded yet.</p>
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5">
+                    {logs.map((entry) => (
+                      <div key={entry._id} className="space-y-0.5 pb-2 border-b border-slate-100 last:border-b-0 last:pb-0">
+                        <div className="flex items-center gap-2">
+                          <Badge status={eventLabel[entry.event_type] || entry.event_type} />
+                          {entry.delta !== 0 && (
+                            <span className={`text-xs font-bold font-mono ${entry.delta > 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                              {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
                             </span>
-                          </p>
-                          <p className="text-[11px] font-semibold text-amber-900 mt-1 flex items-center gap-1.5">
-                            <span>Quantity:</span>
-                            <span className="bg-amber-100/90 text-amber-950 px-1.5 py-0.5 rounded text-[11px] font-bold">
-                              {usage.quantity} {usage.unit || (usage.quantity === 1 ? "unit" : "pcs")}
-                            </span>
-                            {usage.reference && (
-                              <span className="text-[10px] font-mono text-muted-foreground/80 font-normal">
-                                (#{usage.reference})
-                              </span>
-                            )}
-                          </p>
+                          )}
                         </div>
-                        <Link
-                          to={`/admin/bookings/${usage.booking_id}/details`}
-                          onClick={() => setDrawerRow(null)}
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors bg-white px-2 py-1 rounded border border-primary/20 shadow-2xs shrink-0 self-start"
-                        >
-                          View <ExternalLink size={11} />
-                        </Link>
+                        {entry.reason && <p className="text-xs text-slate-800 font-medium">{entry.reason}</p>}
+                        <p className="text-[10.5px] text-slate-400">
+                          {entry.actor_id?.full_name || "System"} · {new Date(entry.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                          {entry.booking_id?.reference && ` · Booking ${entry.booking_id.reference}`}
+                        </p>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-3 rounded-md bg-muted/20 border border-dashed border-border/60 text-center">
-                  <p className="text-xs text-muted-foreground italic">
-                    No upcoming events are using this item on the selected date.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-gray-100 pt-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 mb-3">Inventory Log</p>
-              {logsLoading ? (
-                <p className="text-xs text-gray-400">Loading log…</p>
-              ) : logs.length === 0 ? (
-                <p className="text-xs text-gray-400">No stock changes recorded yet.</p>
-              ) : (
-                <div className="space-y-4">
-                  {logs.map((entry) => (
-                    <div key={entry._id}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge status={eventLabel[entry.event_type] || entry.event_type} />
-                        {entry.delta !== 0 && (
-                          <span className={`text-xs font-bold ${entry.delta > 0 ? "text-emerald-600" : "text-red-500"}`}>
-                            {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
-                          </span>
-                        )}
-                      </div>
-                      {entry.reason && <p className="text-xs text-foreground">{entry.reason}</p>}
-                      <p className="text-[11px] text-muted-foreground/70 mt-0.5">
-                        {entry.actor_id?.full_name || "System"} · {new Date(entry.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                        {entry.booking_id?.reference && ` · Booking ${entry.booking_id.reference}`}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Metadata timestamps */}
-            <div className="pt-3 border-t border-border/60 grid grid-cols-2 gap-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <Calendar size={13} className="shrink-0" />
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider font-semibold">Created</p>
-                  <p className="text-foreground/80 font-medium">
-                    {drawerRow.createdAt
-                      ? new Date(drawerRow.createdAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })
-                      : "—"}
-                  </p>
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-1.5">
-                <Calendar size={13} className="shrink-0" />
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider font-semibold">Last Updated</p>
-                  <p className="text-foreground/80 font-medium">
-                    {drawerRow.updatedAt
-                      ? new Date(drawerRow.updatedAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })
-                      : "—"}
-                  </p>
+
+              {/* Metadata timestamps */}
+              <div className="pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-3 text-xs text-slate-500">
+                <div className="flex items-center gap-2">
+                  <Calendar size={12} className="shrink-0 text-slate-400" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Created</p>
+                    <p className="text-slate-700 font-medium text-[11px]">
+                      {drawerRow.createdAt
+                        ? new Date(drawerRow.createdAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })
+                        : "—"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar size={12} className="shrink-0 text-slate-400" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Last Updated</p>
+                    <p className="text-slate-700 font-medium text-[11px]">
+                      {drawerRow.updatedAt
+                        ? new Date(drawerRow.updatedAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })
+                        : "—"}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
-    </DetailDrawer>
-    </AdminLayout>
-  );
+          )}
+        </DetailDrawer>
+      );
+    })()}
+  </AdminLayout>
+);
 }

@@ -51,12 +51,17 @@ export default function CustomerNotifications() {
     const socket = getSocket();
     if (!socket.connected) socket.connect();
 
-    const handleNew = () => {
-      load();
-    };
+    const handleNew = () => load();
+    const handleRead = () => load();
 
     socket.on("notification:new", handleNew);
-    return () => socket.off("notification:new", handleNew);
+    socket.on("notification:read", handleRead);
+    socket.on("notification:read_all", handleRead);
+    return () => {
+      socket.off("notification:new", handleNew);
+      socket.off("notification:read", handleRead);
+      socket.off("notification:read_all", handleRead);
+    };
   }, [load]);
 
   const changeFilter = (key) => {

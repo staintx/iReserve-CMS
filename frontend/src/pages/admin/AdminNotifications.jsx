@@ -57,9 +57,16 @@ export default function AdminNotifications() {
     if (!socket.connected) socket.connect();
 
     const handleNew = () => load();
+    const handleRead = () => load();
 
     socket.on("notification:new", handleNew);
-    return () => socket.off("notification:new", handleNew);
+    socket.on("notification:read", handleRead);
+    socket.on("notification:read_all", handleRead);
+    return () => {
+      socket.off("notification:new", handleNew);
+      socket.off("notification:read", handleRead);
+      socket.off("notification:read_all", handleRead);
+    };
   }, [load]);
 
   const changeFilter = (key) => {
@@ -168,7 +175,7 @@ export default function AdminNotifications() {
                     {label}
                   </div>
                   {groupItems.map((item) => {
-                    const meta = getNotificationMeta(item.type);
+                    const meta = getNotificationMeta(item);
                     const Icon = meta.icon;
                     return (
                       <button

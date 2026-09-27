@@ -48,15 +48,29 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
 
   useEffect(() => {
     const socket = getSocket();
-    if (!socket.connected) socket.connect();
-
     const handleNew = (notification) => {
-      setItems((prev) => [notification, ...prev].slice(0, 10));
+      setItems((prev) => [notification, ...prev.filter(n => n._id !== notification._id)].slice(0, 10));
       setUnreadCount((count) => count + 1);
     };
 
+    const handleRead = ({ id }) => {
+      setItems((prev) => prev.map((item) => (item._id === id ? { ...item, is_read: true } : item)));
+      setUnreadCount((count) => Math.max(count - 1, 0));
+    };
+
+    const handleReadAll = () => {
+      setItems((prev) => prev.map((item) => ({ ...item, is_read: true })));
+      setUnreadCount(0);
+    };
+
     socket.on("notification:new", handleNew);
-    return () => socket.off("notification:new", handleNew);
+    socket.on("notification:read", handleRead);
+    socket.on("notification:read_all", handleReadAll);
+    return () => {
+      socket.off("notification:new", handleNew);
+      socket.off("notification:read", handleRead);
+      socket.off("notification:read_all", handleReadAll);
+    };
   }, []);
 
   const markRead = useCallback(async (notificationId) => {

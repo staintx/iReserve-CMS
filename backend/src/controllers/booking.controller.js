@@ -969,10 +969,10 @@ exports.update = asyncHandler(async (req, res) => {
       let message = "Your booking details have been updated.";
       if (statusChanged) {
         label = "Booking Status Update";
-        message = `Your booking status is now: ${updated.status}.`;
+        message = `Your booking #${updated.reference || updated._id} status is now: ${updated.status}.`;
       } else if (paymentChanged) {
         label = "Payment Status Update";
-        message = `Your payment status is now: ${updated.payment_status}.`;
+        message = `Your payment status for booking #${updated.reference || updated._id} is now: ${updated.payment_status}.`;
       }
 
       const io = req.app.get("io");
@@ -983,7 +983,8 @@ exports.update = asyncHandler(async (req, res) => {
           title: label,
           body: message,
           type: "info",
-          link: "/customer/bookings",
+          link: `/customer/bookings/${updated._id}`,
+          meta: { booking_id: updated._id, reference: updated.reference },
         },
         io,
       ).catch(console.error);
@@ -1364,6 +1365,20 @@ exports.requestChange = asyncHandler(async (req, res) => {
     },
     io
   ).catch(console.error);
+
+  if (booking.customer_id) {
+    createNotification(
+      {
+        userId: booking.customer_id,
+        title: isUpdate ? "Change Request Updated" : "Change Request Submitted",
+        body: `Your change request for booking #${booking.reference || booking._id} has been submitted to catering management.`,
+        type: "info",
+        link: `/customer/bookings/${booking._id}`,
+        meta: { booking_id: booking._id, reference: booking.reference },
+      },
+      io
+    ).catch(console.error);
+  }
 
   res.json(booking);
 });
@@ -2078,6 +2093,20 @@ exports.requestOcular = asyncHandler(async (req, res) => {
     io,
   );
 
+  if (booking.customer_id) {
+    await createNotification(
+      {
+        userId: booking.customer_id,
+        title: "Ocular Visit Requested",
+        body: `Your request for an ocular inspection on ${new Date(scheduled_date).toLocaleDateString()} has been sent to catering management.`,
+        type: "info",
+        link: `/customer/bookings/${booking._id}`,
+        meta: { booking_id: booking._id, reference: booking.reference },
+      },
+      io,
+    ).catch(console.error);
+  }
+
   await logAction({
     user_id: req.user._id,
     action: "ocular_requested",
@@ -2128,6 +2157,20 @@ exports.requestCancellation = asyncHandler(async (req, res) => {
     },
     io,
   );
+
+  if (booking.customer_id) {
+    await createNotification(
+      {
+        userId: booking.customer_id,
+        title: "Cancellation Request Submitted",
+        body: `Your cancellation request for booking #${booking.reference || booking._id} has been submitted to management for review.`,
+        type: "warning",
+        link: `/customer/bookings/${booking._id}`,
+        meta: { booking_id: booking._id, reference: booking.reference },
+      },
+      io,
+    ).catch(console.error);
+  }
 
   await logAction({
     user_id: req.user._id,
@@ -2965,12 +3008,39 @@ exports.acceptQuote = asyncHandler(async (req, res) => {
     ip_address: req.ip,
   });
 
-  res.json({ message: "Quote accepted", booking, checkout_url });
+  const io = req.app.get("io");
+  const customerName = `${booking.contact_first_name || ""} ${booking.contact_last_name || ""}`.trim() || req.user.full_name || "A customer";
+  notifyAdmins(
+    {
+      title: "Quote Accepted by Customer",
+      body: `${customerName} accepted the quote for booking #${booking.reference || booking._id}.`,
+      type: "success",
+      link: `/admin/bookings/${booking._id}/details`,
+      meta: { booking_id: booking._id, reference: booking.reference },
+    },
+    io
+  ).catch(console.error);
+
+  if (booking.customer_id) {
+    createNotification(
+      {
+        userId: booking.customer_id,
+        title: "Quote Accepted",
+        body: `You accepted the quote for booking #${booking.reference || booking._id}. Please complete your deposit payment.`,
+        type: "success",
+        link: `/customer/bookings/${booking._id}`,
+        meta: { booking_id: booking._id, reference: booking.reference },
+      },
+      io
+    ).catch(console.error);
+  }
+
   // Emit realtime refresh so admin/customer views update
   try {
-    const io = req.app.get("io");
     if (io) io.emit("system:refresh", { type: "booking", action: "accept_quote", booking_id: booking._id });
   } catch (e) {}
+
+  res.json({ message: "Quote accepted", booking, checkout_url });
 });
 
 exports.executeInquiryConversion = async ({
@@ -3283,6 +3353,39 @@ exports.executeInquiryConversion = async ({
       io.emit("system:refresh", { type: "payment", action: "update" });
     } catch (e) {}
   }
+
+  const customerId = newBooking.customer_id?._id || newBooking.customer_id;
+  const eventDateFormatted = newBooking.event_date
+    ? new Date(newBooking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : "Upcoming Event";
+  const customerName = `${newBooking.contact_first_name || ""} ${newBooking.contact_last_name || ""}`.trim() || "Customer";
+
+  // Notify customer
+  if (customerId) {
+    createNotification(
+      {
+        userId: customerId,
+        title: "Booking Confirmed",
+        body: `Your booking for ${newBooking.event_type || "Event"} on ${eventDateFormatted} has been confirmed! Reference: ${newBooking.reference || newBooking._id}.`,
+        type: "success",
+        link: `/customer/bookings/${newBooking._id}`,
+        meta: { booking_id: newBooking._id, reference: newBooking.reference },
+      },
+      io
+    ).catch(console.error);
+  }
+
+  // Notify admins
+  notifyAdmins(
+    {
+      title: "Booking Confirmed",
+      body: `Booking #${newBooking.reference || newBooking._id} (${newBooking.event_type || "Event"}) for ${customerName} has been confirmed for ${eventDateFormatted}.`,
+      type: "success",
+      link: `/admin/bookings/${newBooking._id}/details`,
+      meta: { booking_id: newBooking._id, reference: newBooking.reference },
+    },
+    io
+  ).catch(console.error);
 
   if (finalManagerId) {
     createNotification(

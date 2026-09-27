@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   X, Search, Plus, ChevronRight, ChevronLeft, User, CalendarDays,
   Utensils, Package, Box, CreditCard, CheckCircle2, AlertCircle,
-  Loader2, Check, Minus, Users, Phone, Mail, ShoppingCart,
+  Loader2, Check, Minus, Users, Phone, Mail, ShoppingCart, Sliders, Sparkles,
 } from "lucide-react";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
@@ -25,9 +25,9 @@ import { cn } from "@/lib/utils";
 const STAGES = ["Booking Setup", "Event & Services", "Review & Payment"];
 
 const SERVICE_TYPE_OPTIONS = [
-  { value: "food_event", label: "Food & Event Setup", description: "Complete catering & event services", icon: Utensils },
-  { value: "food_only",  label: "Food Only",          description: "Menu & catering services",           icon: ShoppingCart },
-  { value: "event_only", label: "Event Setup Only",   description: "Planning, setup & decor",           icon: Box },
+  { value: "food_only",  label: "Food Only",          description: "Menu & catering services without event setup or styling", icon: Utensils },
+  { value: "event_only", label: "Event Setup Only",   description: "Planning, setup & decor without food catering services", icon: Box },
+  { value: "food_event", label: "Food & Event Setup", description: "Complete catering & full event styling services together", icon: Sparkles },
 ];
 
 const PAYMENT_METHODS = [
@@ -93,457 +93,458 @@ function QtyBtn({ onClick, icon: Icon, disabled }) {
   );
 }
 
-// ─── Stage progress bar ───────────────────────────────────────────────────────
-function StageBar({ stage }) {
-  return (
-    <div className="flex items-center">
-      {STAGES.map((s, i) => {
-        const active = i === stage;
-        const done   = i < stage;
-        return (
-          <React.Fragment key={s}>
-            <div className="flex items-center gap-2">
-              <div
-                className={cn(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all",
-                  done
-                    ? "bg-blue-600 text-white"
-                    : active
-                    ? "bg-blue-600 text-white ring-4 ring-blue-600/20"
-                    : "bg-slate-100 text-slate-400"
-                )}
-              >
-                {done ? <Check size={13} /> : i + 1}
-              </div>
-              <span
-                className={cn(
-                  "whitespace-nowrap text-[13px] font-semibold transition-colors",
-                  active ? "text-slate-900" : done ? "text-blue-600" : "text-slate-400"
-                )}
-              >
-                {s}
-              </span>
-            </div>
-            {i < STAGES.length - 1 && (
-              <div
-                className={cn(
-                  "mx-3 h-px flex-1 min-w-[16px] transition-colors",
-                  done ? "bg-blue-400" : "bg-slate-200"
-                )}
-              />
-            )}
-          </React.Fragment>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Booking Summary Sidebar ──────────────────────────────────────────────────
-function BookingSummary({ form, packages, menuItems, selectedMenuIds, selectedInventory }) {
-  const pkg    = packages.find((p) => p._id === form.package_id);
-  const dishes = menuItems.filter((m) => selectedMenuIds.includes(m._id));
-  const customerName =
-    [form.contact_first_name, form.contact_last_name].filter(Boolean).join(" ") || "—";
-  const guestCount = Number(form.guest_count) || 0;
-
-  let pkgTotal = 0;
-  if (pkg) {
-    if (isSpecialOffer(pkg)) pkgTotal = offerGuestCount(pkg) * (offerPricePerPax(pkg) || 0);
-    else if (pkg.package_type === "Event Setup Only") pkgTotal = Number(pkg.setup_price) || 0;
-    else pkgTotal = (Number(pkg.price_per_guest) || 0) * guestCount;
-  }
-  const foodTotal =
-    !isSpecialOffer(pkg) && form.include_food
-      ? dishes.reduce((s, d) => s + (Number(d.price) || 0) * guestCount, 0)
-      : 0;
-  const estimatedTotal =
-    form.total_price !== "" && form.total_price !== undefined
-      ? Number(form.total_price) || 0
-      : pkgTotal + foodTotal;
-
-  const menuCount  = dishes.length;
-  const equipCount = selectedInventory.reduce((s, e) => s + (e.quantity || 0), 0);
-
-  return (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-slate-100 px-5 py-4">
-        <h3 className="text-[13px] font-bold text-slate-900">Booking Summary</h3>
-      </div>
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5 text-sm">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-            Customer
-          </p>
-          <p className="font-semibold text-slate-800 leading-snug">{customerName}</p>
-          {form.contact_email && (
-            <p className="text-xs text-slate-400 truncate mt-0.5">{form.contact_email}</p>
-          )}
-        </div>
-
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-            Booking Type
-          </p>
-          <p className="font-medium text-slate-700">
-            {form.package_type === "existing" ? "Existing Package" : "Customize Booking"}
-          </p>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {form.service_type === "food_event"
-              ? "Food & Event Setup"
-              : form.service_type === "food_only"
-              ? "Food Only"
-              : "Event Setup Only"}
-          </p>
-        </div>
-
-        {pkg && (
-          <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 space-y-2">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              Package
-            </p>
-            <p className="font-semibold text-slate-800 text-[13px] leading-snug">{pkg.name}</p>
-            <p className="text-xs text-slate-500">
-              {isSpecialOffer(pkg)
-                ? `Combo · ${offerGuestCount(pkg)} guests · ${formatCurrency(offerPricePerPax(pkg))}/pax`
-                : pkg.package_type}
-            </p>
-            {menuCount > 0 && (
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">Menu Items</span>
-                <span className="font-semibold text-slate-700">{menuCount} selected</span>
-              </div>
-            )}
-            {equipCount > 0 && (
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">Equipment</span>
-                <span className="font-semibold text-slate-700">{equipCount} units</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {(form.event_type || form.event_date) && (
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-              Event
-            </p>
-            {form.event_type && (
-              <p className="font-semibold text-slate-800">{form.event_type}</p>
-            )}
-            {form.event_date && (
-              <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                <CalendarDays size={11} />
-                {new Date(form.event_date + "T00:00:00").toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-                {form.start_time ? ` · ${form.start_time}` : ""}
-              </p>
-            )}
-            {form.guest_count && (
-              <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                <Users size={11} />
-                {form.guest_count} guests
-              </p>
-            )}
-          </div>
-        )}
-
-        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-          <div className="px-3 py-2 border-b border-slate-100">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              Pricing
-            </p>
-          </div>
-          <div className="px-3 py-2.5 space-y-1.5">
-            <div className="flex justify-between text-xs text-slate-500">
-              <span>Package Price</span>
-              <span className="tabular-nums">{formatCurrency(pkgTotal)}</span>
-            </div>
-            {foodTotal > 0 && (
-              <div className="flex justify-between text-xs text-slate-500">
-                <span>Additional Services</span>
-                <span className="tabular-nums">{formatCurrency(foodTotal)}</span>
-              </div>
-            )}
-          </div>
-          <div className="px-3 py-2 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
-            <span className="text-sm font-bold text-slate-800">Total</span>
-            <span className="text-sm font-bold text-blue-700 tabular-nums">
-              {formatCurrency(estimatedTotal)}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Stage 1: Booking Setup ───────────────────────────────────────────────────
-function StageBookingSetup({ form, setForm, customers, packages, errors }) {
-  const [search, setSearch]     = useState("");
-  const [showDrop, setShowDrop] = useState(false);
-  const inputRef = useRef(null);
-  const dropRef  = useRef(null);
+function StageBookingSetup({ form, setForm, packages, errors }) {
+  const [pkgTab, setPkgTab] = useState("all");
+  const [pkgSearch, setPkgSearch] = useState("");
 
-  const selectedCustomer = customers.find((c) => c._id === form.customer_id);
+  const regularPackages = useMemo(() => {
+    return packages.filter((p) => !isSpecialOffer(p));
+  }, [packages]);
 
-  const filteredCustomers = useMemo(() => {
-    const q = search.toLowerCase();
-    return customers
-      .filter(
-        (c) =>
-          (c.full_name || "").toLowerCase().includes(q) ||
-          (c.email || "").toLowerCase().includes(q)
-      )
-      .slice(0, 20);
-  }, [customers, search]);
+  const comboPackages = useMemo(() => {
+    return packages.filter((p) => isSpecialOffer(p));
+  }, [packages]);
 
   const filteredPackages = useMemo(() => {
-    if (form.service_type === "food_only")
-      return packages.filter((p) => p.package_type === "Food Only" || isSpecialOffer(p));
-    if (form.service_type === "event_only")
-      return packages.filter((p) => p.package_type === "Event Setup Only");
-    return packages.filter((p) => p.package_type !== "Food Only");
-  }, [packages, form.service_type]);
+    let list = packages;
+    if (pkgTab === "regular") list = regularPackages;
+    else if (pkgTab === "combo") list = comboPackages;
 
-  useEffect(() => {
-    function handler(e) {
-      if (
-        dropRef.current &&
-        !dropRef.current.contains(e.target) &&
-        !inputRef.current?.contains(e.target)
-      ) {
-        setShowDrop(false);
-      }
+    if (pkgSearch.trim()) {
+      const q = pkgSearch.toLowerCase();
+      list = list.filter(
+        (p) =>
+          (p.name || "").toLowerCase().includes(q) ||
+          (p.description || "").toLowerCase().includes(q) ||
+          (p.package_type || "").toLowerCase().includes(q) ||
+          (p.event_type || "").toLowerCase().includes(q)
+      );
     }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+    return list;
+  }, [packages, pkgTab, pkgSearch, regularPackages, comboPackages]);
 
-  const pickCustomer = (c) => {
+  const handleSelectPackage = (pkg) => {
+    const pkgEquip = Array.isArray(pkg.setup_equipment)
+      ? pkg.setup_equipment.map((eq) => ({
+          inventory_id: eq.inventory_id?._id || eq.inventory_id,
+          name: eq.name || eq.item_name || "Equipment Item",
+          quantity: Number(eq.quantity || 1),
+        }))
+      : [];
+    const isCombo = isSpecialOffer(pkg);
+    const comboPax = isCombo ? offerGuestCount(pkg) : 0;
+
+    let serviceType = "food_event";
+    let includeFood = true;
+    if (pkg.package_type === "Food Only") {
+      serviceType = "food_only";
+      includeFood = true;
+    } else if (pkg.package_type === "Event Setup Only") {
+      serviceType = "event_only";
+      includeFood = false;
+    }
+
     setForm((prev) => ({
       ...prev,
-      customer_id:        c._id,
-      contact_first_name: prev.contact_first_name || (c.full_name || "").split(" ")[0] || "",
-      contact_last_name:
-        prev.contact_last_name || (c.full_name || "").split(" ").slice(1).join(" ") || "",
-      contact_email: prev.contact_email || c.email || "",
-      contact_phone: prev.contact_phone || c.phone || "",
+      package_id: pkg._id,
+      service_type: serviceType,
+      include_food: includeFood,
+      ...(comboPax > 0 ? { guest_count: String(comboPax) } : {}),
+      inventory_items: isCombo
+        ? []
+        : pkgEquip.length > 0
+        ? pkgEquip
+        : prev.inventory_items,
     }));
-    setSearch("");
-    setShowDrop(false);
+  };
+
+  const handleSelectServiceType = (val) => {
+    setForm((prev) => ({
+      ...prev,
+      service_type: val,
+      include_food: val !== "event_only",
+      package_id: "",
+    }));
   };
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
+      {/* ── Section: Booking Type ── */}
       <div>
-        <h2 className="text-[15px] font-bold text-slate-900">Booking Setup</h2>
-        <p className="mt-0.5 text-sm text-slate-500">Choose the details for this booking.</p>
+        <p className={LABEL_CLS}>Booking Type</p>
+        <p className="text-xs text-slate-500 mb-3.5">
+          First, choose whether you are selecting an existing predefined package or creating a customized booking.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+          {/* Card 1: Existing Package */}
+          <button
+            type="button"
+            onClick={() => {
+              setForm((prev) => ({
+                ...prev,
+                package_type: "existing",
+              }));
+            }}
+            className={cn(
+              "group relative flex flex-col items-start p-5 sm:p-6 rounded-2xl border-2 text-left transition-all duration-200 cursor-pointer",
+              form.package_type === "existing"
+                ? "border-blue-600 bg-blue-50/50 shadow-sm ring-4 ring-blue-600/10"
+                : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5"
+            )}
+          >
+            <div className="flex w-full items-start justify-between">
+              <div
+                className={cn(
+                  "flex h-12 w-12 items-center justify-center rounded-xl transition-colors",
+                  form.package_type === "existing"
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 group-hover:bg-blue-50 group-hover:text-blue-600"
+                )}
+              >
+                <Package size={24} />
+              </div>
+              <div
+                className={cn(
+                  "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all",
+                  form.package_type === "existing"
+                    ? "border-blue-600 bg-blue-600 text-white shadow-xs"
+                    : "border-slate-300 bg-white group-hover:border-blue-400"
+                )}
+              >
+                {form.package_type === "existing" && <Check size={12} strokeWidth={3} />}
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <span className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                Existing Package
+              </span>
+              <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                Select from predefined catering packages, full event setups, or special offer combo packs with fixed pricing.
+              </p>
+            </div>
+          </button>
+
+          {/* Card 2: Customize Booking */}
+          <button
+            type="button"
+            onClick={() => {
+              setForm((prev) => ({
+                ...prev,
+                package_type: "custom",
+                package_id: "",
+                service_type: prev.service_type || "food_event",
+                include_food: prev.service_type !== "event_only",
+              }));
+            }}
+            className={cn(
+              "group relative flex flex-col items-start p-5 sm:p-6 rounded-2xl border-2 text-left transition-all duration-200 cursor-pointer",
+              form.package_type === "custom"
+                ? "border-blue-600 bg-blue-50/50 shadow-sm ring-4 ring-blue-600/10"
+                : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5"
+            )}
+          >
+            <div className="flex w-full items-start justify-between">
+              <div
+                className={cn(
+                  "flex h-12 w-12 items-center justify-center rounded-xl transition-colors",
+                  form.package_type === "custom"
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 group-hover:bg-blue-50 group-hover:text-blue-600"
+                )}
+              >
+                <Sliders size={24} />
+              </div>
+              <div
+                className={cn(
+                  "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all",
+                  form.package_type === "custom"
+                    ? "border-blue-600 bg-blue-600 text-white shadow-xs"
+                    : "border-slate-300 bg-white group-hover:border-blue-400"
+                )}
+              >
+                {form.package_type === "custom" && <Check size={12} strokeWidth={3} />}
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <span className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                Customize Booking
+              </span>
+              <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                Manually configure the service type, tailor menu courses, select individual equipment pieces, and configure pricing.
+              </p>
+            </div>
+          </button>
+        </div>
       </div>
 
-      {/* Customer search */}
-      <div>
-        <p className={LABEL_CLS}>Customer</p>
-        <div className="relative">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Search existing customer..."
-            className={cn(INPUT_CLS, "pl-9 pr-32", errors.customer_id && "border-red-300 bg-red-50/40")}
-            value={selectedCustomer ? (selectedCustomer.full_name || selectedCustomer.email) : search}
-            onChange={(e) => {
-              if (selectedCustomer) setForm((p) => ({ ...p, customer_id: "" }));
-              setSearch(e.target.value);
-              setShowDrop(true);
-            }}
-            onFocus={() => setShowDrop(true)}
-          />
-          {selectedCustomer ? (
-            <button
-              type="button"
-              onClick={() => { setForm((p) => ({ ...p, customer_id: "" })); setSearch(""); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-            >
-              <X size={14} />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowDrop(false)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-blue-700 transition"
-            >
-              <Plus size={11} />New Customer
-            </button>
-          )}
-          {showDrop && !selectedCustomer && (
-            <div
-              ref={dropRef}
-              className="absolute top-full left-0 right-0 z-50 mt-1 max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl"
-            >
-              {filteredCustomers.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-slate-400">No customers found.</p>
-              ) : (
-                filteredCustomers.map((c) => (
+      {/* ── Option A: Existing Packages Selection (shown ONLY when Existing Package is active) ── */}
+      {form.package_type === "existing" && (
+        <div className="pt-4 border-t border-slate-100 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p className={LABEL_CLS}>Existing Packages</p>
+              <p className="text-xs text-slate-500">
+                Choose a predefined package or special offer combo pack from your system.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Category tabs */}
+              <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-1 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setPkgTab("all")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 transition-colors cursor-pointer",
+                    pkgTab === "all" ? "bg-white text-blue-600 shadow-2xs font-bold" : "text-slate-500 hover:text-slate-800"
+                  )}
+                >
+                  All ({packages.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPkgTab("regular")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 transition-colors cursor-pointer",
+                    pkgTab === "regular" ? "bg-white text-blue-600 shadow-2xs font-bold" : "text-slate-500 hover:text-slate-800"
+                  )}
+                >
+                  Regular Packages ({regularPackages.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPkgTab("combo")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 transition-colors cursor-pointer",
+                    pkgTab === "combo" ? "bg-white text-blue-600 shadow-2xs font-bold" : "text-slate-500 hover:text-slate-800"
+                  )}
+                >
+                  Combo Packs ({comboPackages.length})
+                </button>
+              </div>
+
+              {/* Search packages */}
+              <div className="relative min-w-[200px]">
+                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search packages..."
+                  value={pkgSearch}
+                  onChange={(e) => setPkgSearch(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white pl-8 pr-7 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                />
+                {pkgSearch && (
                   <button
-                    key={c._id}
                     type="button"
-                    onClick={() => pickCustomer(c)}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-blue-50 transition-colors"
+                    onClick={() => setPkgSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
-                      {(c.full_name || c.email || "?")[0].toUpperCase()}
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {errors.package_id && (
+            <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3.5 py-2 text-xs font-medium text-red-700">
+              <AlertCircle size={14} className="shrink-0" />
+              <span>{errors.package_id}</span>
+            </div>
+          )}
+
+          {filteredPackages.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center bg-slate-50/50">
+              <Package size={32} className="mx-auto text-slate-300 mb-2" />
+              <p className="text-sm font-semibold text-slate-700">No packages found</p>
+              <p className="text-xs text-slate-400 mt-1">Try adjusting your search query or tab filter.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[460px] overflow-y-auto pr-1">
+              {filteredPackages.map((pkg) => {
+                const isSelected = form.package_id === pkg._id;
+                const isCombo = isSpecialOffer(pkg);
+                const pax = isCombo ? offerGuestCount(pkg) : 0;
+                const pricePax = isCombo ? offerPricePerPax(pkg) : 0;
+
+                return (
+                  <button
+                    key={pkg._id}
+                    type="button"
+                    onClick={() => handleSelectPackage(pkg)}
+                    className={cn(
+                      "group relative flex flex-col rounded-2xl border-2 p-3.5 text-left transition-all duration-150 cursor-pointer overflow-hidden",
+                      isSelected
+                        ? "border-blue-600 bg-blue-50/40 ring-4 ring-blue-600/10 shadow-sm"
+                        : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5"
+                    )}
+                  >
+                    <div className="flex gap-3">
+                      <div className="h-16 w-16 shrink-0 rounded-xl overflow-hidden bg-slate-100 border border-slate-100 flex items-center justify-center">
+                        {pkg.image_url ? (
+                          <img src={pkg.image_url} alt={pkg.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                        ) : (
+                          <Package size={22} className="text-slate-300" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-1">
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider",
+                              isCombo
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-blue-100 text-blue-800"
+                            )}
+                          >
+                            {isCombo ? (
+                              <>
+                                <Sparkles size={10} /> Combo Pack
+                              </>
+                            ) : (
+                              pkg.package_type || "Regular"
+                            )}
+                          </span>
+
+                          <div
+                            className={cn(
+                              "flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border transition-all",
+                              isSelected
+                                ? "border-blue-600 bg-blue-600 text-white"
+                                : "border-slate-300 bg-white group-hover:border-blue-400"
+                            )}
+                          >
+                            {isSelected && <Check size={11} strokeWidth={3} />}
+                          </div>
+                        </div>
+
+                        <p className="mt-1 font-bold text-sm text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1">
+                          {pkg.name}
+                        </p>
+                        {pkg.description && (
+                          <p className="text-[11.5px] text-slate-500 line-clamp-1 mt-0.5">
+                            {pkg.description}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-semibold text-sm text-slate-800 truncate">{c.full_name || "—"}</p>
-                      <p className="text-xs text-slate-400 truncate">{c.email}</p>
+
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                      {isCombo ? (
+                        <>
+                          <span className="font-bold text-blue-700">
+                            {formatCurrency(pricePax)} <span className="text-[11px] font-normal text-slate-500">/ pax</span>
+                          </span>
+                          <span className="text-[11.5px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                            {pax} guests
+                          </span>
+                        </>
+                      ) : pkg.package_type === "Event Setup Only" ? (
+                        <>
+                          <span className="font-bold text-blue-700">
+                            {formatCurrency(pkg.setup_price || 0)} <span className="text-[11px] font-normal text-slate-500">setup</span>
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            Event Setup
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-bold text-blue-700">
+                            {formatCurrency(pkg.price_per_guest || 0)} <span className="text-[11px] font-normal text-slate-500">/ guest</span>
+                          </span>
+                          {(pkg.guest_min || pkg.guest_max) && (
+                            <span className="text-[11px] text-slate-500">
+                              {pkg.guest_min || 0}–{pkg.guest_max || 0} pax
+                            </span>
+                          )}
+                        </>
+                      )}
                     </div>
                   </button>
-                ))
-              )}
+                );
+              })}
             </div>
           )}
         </div>
-        {errors.customer_id && (
-          <p className="mt-1 flex items-center gap-1 text-[11.5px] font-medium text-red-600">
-            <AlertCircle size={11} />{errors.customer_id}
-          </p>
-        )}
-      </div>
+      )}
 
-      {/* Booking Type */}
-      <div>
-        <p className={LABEL_CLS}>Booking Type</p>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { value: "existing", label: "Existing Package",  description: "Select from predefined packages." },
-            { value: "custom",   label: "Customize Booking", description: "Manually configure services and equipment." },
-          ].map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() =>
-                setForm((p) => ({
-                  ...p,
-                  package_type: opt.value,
-                  package_id: opt.value === "custom" ? "" : p.package_id,
-                }))
-              }
-              className={cn(
-                "rounded-xl border-2 px-4 py-4 text-left transition-all",
-                form.package_type === opt.value
-                  ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/20"
-                  : "border-slate-200 bg-white hover:border-blue-300"
-              )}
-            >
-              <p className="font-semibold text-[13px] text-slate-800">{opt.label}</p>
-              <p className="mt-0.5 text-xs text-slate-500">{opt.description}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Service Type */}
-      <div>
-        <p className={LABEL_CLS}>Service Type</p>
-        <div className="grid grid-cols-3 gap-3">
-          {SERVICE_TYPE_OPTIONS.map((opt) => {
-            const Icon = opt.icon;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() =>
-                  setForm((p) => ({
-                    ...p,
-                    service_type: opt.value,
-                    include_food: opt.value !== "event_only",
-                  }))
-                }
-                className={cn(
-                  "rounded-xl border-2 px-3 py-4 text-left transition-all",
-                  form.service_type === opt.value
-                    ? "border-blue-500 bg-blue-50/60"
-                    : "border-slate-200 bg-white hover:border-blue-300"
-                )}
-              >
-                <Icon size={18} className={form.service_type === opt.value ? "text-blue-600" : "text-slate-400"} />
-                <p className="mt-2 font-semibold text-[13px] text-slate-800">{opt.label}</p>
-                <p className="mt-0.5 text-xs text-slate-500 leading-snug">{opt.description}</p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Package grid */}
-      {form.package_type === "existing" && (
-        <Field label="Package" required error={errors.package_id}>
-          <div className="mt-2 grid grid-cols-2 gap-3">
-            {filteredPackages.map((pkg) => (
-              <button
-                key={pkg._id}
-                type="button"
-                onClick={() => {
-                  const pkgEquip = Array.isArray(pkg.setup_equipment)
-                    ? pkg.setup_equipment.map((eq) => ({
-                        inventory_id: eq.inventory_id?._id || eq.inventory_id,
-                        name:         eq.name || eq.item_name || "Equipment Item",
-                        quantity:     Number(eq.quantity || 1),
-                      }))
-                    : [];
-                  const isCombo  = isSpecialOffer(pkg);
-                  const comboPax = isCombo ? offerGuestCount(pkg) : 0;
-                  setForm((prev) => ({
-                    ...prev,
-                    package_id:      pkg._id,
-                    ...(comboPax > 0 ? { guest_count: String(comboPax) } : {}),
-                    inventory_items: isCombo
-                      ? []
-                      : pkgEquip.length > 0
-                      ? pkgEquip
-                      : prev.inventory_items,
-                  }));
-                }}
-                className={cn(
-                  "flex items-start gap-3 rounded-xl border-2 p-3 text-left transition-all",
-                  form.package_id === pkg._id
-                    ? "border-blue-500 bg-blue-50/60"
-                    : "border-slate-200 bg-white hover:border-blue-300"
-                )}
-              >
-                <div className="h-10 w-10 shrink-0 rounded-lg overflow-hidden bg-slate-100">
-                  {pkg.image_url ? (
-                    <img src={pkg.image_url} alt={pkg.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center">
-                      <Package size={16} className="text-slate-300" />
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-[13px] text-slate-800 leading-snug">{pkg.name}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {isSpecialOffer(pkg)
-                      ? `Combo · ${offerGuestCount(pkg)} guests · ${formatCurrency(offerPricePerPax(pkg))}/pax`
-                      : pkg.package_type}
-                  </p>
-                </div>
-                {form.package_id === pkg._id && (
-                  <CheckCircle2 size={16} className="shrink-0 text-blue-600" />
-                )}
-              </button>
-            ))}
-            {filteredPackages.length === 0 && (
-              <p className="col-span-2 py-3 text-sm text-slate-400">
-                No packages available for this service type.
-              </p>
-            )}
+      {/* ── Option B: Customize Booking Services (shown ONLY when Customize Booking is active) ── */}
+      {form.package_type === "custom" && (
+        <div className="pt-4 border-t border-slate-100 space-y-3.5">
+          <div>
+            <p className={LABEL_CLS}>Service Type</p>
+            <p className="text-xs text-slate-500">
+              Select the service combination to customize. You can select specific food dishes and equipment in the next step.
+            </p>
           </div>
-        </Field>
+
+          {errors.service_type && (
+            <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3.5 py-2 text-xs font-medium text-red-700">
+              <AlertCircle size={14} className="shrink-0" />
+              <span>{errors.service_type}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {SERVICE_TYPE_OPTIONS.map((opt) => {
+              const Icon = opt.icon;
+              const isSelected = form.service_type === opt.value;
+
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleSelectServiceType(opt.value)}
+                  className={cn(
+                    "group relative flex flex-col items-start p-5 rounded-2xl border-2 text-left transition-all duration-200 cursor-pointer",
+                    isSelected
+                      ? "border-blue-600 bg-blue-50/50 shadow-sm ring-4 ring-blue-600/10"
+                      : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5"
+                  )}
+                >
+                  <div className="flex w-full items-start justify-between">
+                    <div
+                      className={cn(
+                        "flex h-11 w-11 items-center justify-center rounded-xl transition-colors",
+                        isSelected
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "bg-slate-100 text-slate-600 group-hover:bg-blue-50 group-hover:text-blue-600"
+                      )}
+                    >
+                      <Icon size={22} />
+                    </div>
+                    <div
+                      className={cn(
+                        "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all",
+                        isSelected
+                          ? "border-blue-600 bg-blue-600 text-white shadow-xs"
+                          : "border-slate-300 bg-white group-hover:border-blue-400"
+                      )}
+                    >
+                      {isSelected && <Check size={12} strokeWidth={3} />}
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <span className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                      {opt.label}
+                    </span>
+                    <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                      {opt.description}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1110,7 +1111,7 @@ function StageEventAndServices({
 
 // ─── Stage 3: Review & Payment ────────────────────────────────────────────────
 function StageReviewAndPayment({
-  form, setForm, packages, menuItems, selectedMenuIds, selectedInventory, onEdit, errors,
+  form, setForm, customers, packages, menuItems, selectedMenuIds, selectedInventory, onEdit, errors,
 }) {
   const pkg    = packages.find((p) => p._id === form.package_id);
   const dishes = menuItems.filter((m) => selectedMenuIds.includes(m._id));
@@ -1143,7 +1144,7 @@ function StageReviewAndPayment({
         <button
           type="button"
           onClick={onEditClick}
-          className="text-[11px] font-semibold text-blue-600 hover:underline"
+          className="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer"
         >
           Edit
         </button>
@@ -1157,32 +1158,17 @@ function StageReviewAndPayment({
       <div>
         <h2 className="text-[15px] font-bold text-slate-900">Review & Payment</h2>
         <p className="mt-0.5 text-sm text-slate-500">
-          Review the booking details and complete the payment.
+          Review the booking details and complete the customer contact and payment info.
         </p>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <SummaryCard icon={User} title="Customer Info" onEditClick={() => onEdit(0)}>
-          <p className="font-semibold text-sm text-slate-800">
-            {[form.contact_first_name, form.contact_last_name].filter(Boolean).join(" ") || "—"}
-          </p>
-          {form.contact_email && (
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-              <Mail size={11} className="shrink-0" />{form.contact_email}
-            </p>
-          )}
-          {form.contact_phone && (
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-              <Phone size={11} className="shrink-0" />{form.contact_phone}
-            </p>
-          )}
-        </SummaryCard>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <SummaryCard icon={CalendarDays} title="Event Details" onEditClick={() => onEdit(1)}>
           <p className="font-semibold text-sm text-slate-800">{form.event_type || "—"}</p>
           {form.event_date && (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-500 flex items-center gap-1.5">
+              <CalendarDays size={12} />
               {new Date(form.event_date + "T00:00:00").toLocaleDateString("en-US", {
                 month: "short",
                 day: "numeric",
@@ -1192,16 +1178,26 @@ function StageReviewAndPayment({
             </p>
           )}
           {form.guest_count && (
-            <p className="mt-0.5 text-xs text-slate-500">{form.guest_count} guests</p>
+            <p className="mt-0.5 text-xs text-slate-500 flex items-center gap-1.5">
+              <Users size={12} />
+              {form.guest_count} guests
+            </p>
           )}
         </SummaryCard>
 
-        <SummaryCard icon={Package} title="Package & Services" onEditClick={() => onEdit(1)}>
+        <SummaryCard icon={Package} title="Package & Services" onEditClick={() => onEdit(0)}>
           <p className="font-semibold text-sm text-slate-800">
             {pkg?.name || (form.package_type === "custom" ? "Custom Setup" : "—")}
           </p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {form.service_type === "food_event"
+              ? "Food & Event Setup"
+              : form.service_type === "food_only"
+              ? "Food Only"
+              : "Event Setup Only"}
+          </p>
           {dishes.length > 0 && (
-            <p className="mt-1 text-xs text-slate-500">{dishes.length} menu items</p>
+            <p className="mt-0.5 text-xs text-slate-500">{dishes.length} menu items</p>
           )}
           {totalEquipment > 0 && (
             <p className="mt-0.5 text-xs text-slate-500">{totalEquipment} equipment units</p>
@@ -1211,9 +1207,38 @@ function StageReviewAndPayment({
 
       {/* Contact info */}
       <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">
-          Contact Information
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            Customer Contact Information
+          </p>
+          {customers?.length > 0 && (
+            <select
+              className="text-xs text-blue-700 bg-blue-50/80 border border-blue-200/80 rounded-lg px-2.5 py-1 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+              defaultValue=""
+              onChange={(e) => {
+                const cust = customers.find((c) => c._id === e.target.value);
+                if (cust) {
+                  setForm((p) => ({
+                    ...p,
+                    customer_id: cust._id,
+                    contact_first_name: (cust.full_name || "").split(" ")[0] || cust.first_name || p.contact_first_name,
+                    contact_last_name: (cust.full_name || "").split(" ").slice(1).join(" ") || cust.last_name || p.contact_last_name,
+                    contact_email: cust.email || p.contact_email,
+                    contact_phone: cust.phone || p.contact_phone,
+                  }));
+                }
+                e.target.value = "";
+              }}
+            >
+              <option value="" disabled>Autofill from existing customer (optional)...</option>
+              {customers.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.full_name || c.email} {c.email ? `(${c.email})` : ""}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <Field label="First Name" required error={errors.contact_first_name}>
             <input
@@ -1453,9 +1478,10 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     (upToStage) => {
       const errs = {};
       if (upToStage >= 0) {
-        if (!form.customer_id) errs.customer_id = "Please select a customer.";
         if (form.package_type === "existing" && !form.package_id)
-          errs.package_id = "Please select a package.";
+          errs.package_id = "Please select a package to proceed.";
+        if (form.package_type === "custom" && !form.service_type)
+          errs.service_type = "Please select a service type.";
       }
       if (upToStage >= 1) {
         if (!form.event_type)   errs.event_type   = "Event type is required.";
@@ -1536,8 +1562,17 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       const cleanPhone = (val) => (val ? String(val).replace(/\s+/g, "") : undefined);
       const cleanZip = form.zip_code && /^\d{4}$/.test(form.zip_code.trim()) ? form.zip_code.trim() : undefined;
 
+      // Auto-match existing customer by email if customer_id not yet explicitly set
+      let customerId = form.customer_id;
+      if (!customerId && form.contact_email && customers?.length > 0) {
+        const found = customers.find(
+          (c) => (c.email || "").toLowerCase() === form.contact_email.trim().toLowerCase()
+        );
+        if (found) customerId = found._id;
+      }
+
       const payload = {
-        customer_id:  form.customer_id,
+        customer_id:  customerId || undefined,
         package_id:
           form.package_type === "existing" && form.package_id
             ? form.package_id
@@ -1596,36 +1631,35 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       style={{ animation: "wibm-fade 0.15s ease" }}
     >
       <div
-        className="relative flex h-[96dvh] w-[96vw] max-w-[1360px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10"
+        className="relative flex h-[94dvh] w-[95vw] max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10"
         style={{ animation: "wibm-up 0.18s ease" }}
       >
         {/* Header */}
-        <div className="flex shrink-0 items-center gap-4 border-b border-slate-200 bg-white px-6 py-4">
-          <div className="shrink-0">
-            <h1 className="text-[14px] font-bold leading-none text-slate-900">Add New Booking</h1>
-            <p className="mt-0.5 text-[12px] text-slate-500">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-6 py-4 sm:px-8">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+              Add New Booking
+            </h1>
+            <p className="mt-1 text-xs sm:text-sm text-slate-500 font-normal">
               Create a new reservation for an existing or walk-in customer
             </p>
-          </div>
-          <div className="flex-1 min-w-0 flex justify-center">
-            <StageBar stage={stage} />
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
         {/* Body */}
         <div className="flex min-h-0 flex-1">
-          {/* Main content */}
-          <div ref={contentRef} className="flex-1 min-w-0 overflow-y-auto px-7 py-7">
+          {/* Main content - uses full usable width */}
+          <div ref={contentRef} className="flex-1 min-w-0 overflow-y-auto px-6 py-6 sm:px-8 sm:py-8">
             {loadingCatalogs ? (
-              <div className="flex h-full items-center justify-center">
+              <div className="flex h-64 items-center justify-center">
                 <Loader2 size={32} className="animate-spin text-blue-500" />
               </div>
             ) : (
@@ -1634,7 +1668,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                   <StageBookingSetup
                     form={form}
                     setForm={setForm}
-                    customers={customers}
                     packages={packages}
                     errors={stageErrors}
                   />
@@ -1657,6 +1690,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                   <StageReviewAndPayment
                     form={form}
                     setForm={setForm}
+                    customers={customers}
                     packages={packages}
                     menuItems={menuItems}
                     selectedMenuIds={selectedMenuIds}
@@ -1668,25 +1702,14 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
               </>
             )}
           </div>
-
-          {/* Summary sidebar — xl+ only */}
-          <div className="hidden xl:flex w-72 shrink-0 flex-col border-l border-slate-200 bg-slate-50/60">
-            <BookingSummary
-              form={form}
-              packages={packages}
-              menuItems={menuItems}
-              selectedMenuIds={selectedMenuIds}
-              selectedInventory={selectedInventory}
-            />
-          </div>
         </div>
 
         {/* Footer */}
-        <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-6 py-4 sm:px-8">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 cursor-pointer"
           >
             Cancel
           </button>
@@ -1695,7 +1718,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
               <button
                 type="button"
                 onClick={handleBack}
-                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 cursor-pointer"
               >
                 <ChevronLeft size={15} /> Back
               </button>
@@ -1704,7 +1727,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
               <button
                 type="button"
                 onClick={handleNext}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-blue-700 cursor-pointer"
               >
                 Continue <ChevronRight size={15} />
               </button>
@@ -1713,7 +1736,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                 type="button"
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-blue-700 disabled:opacity-60 cursor-pointer"
               >
                 {submitting ? (
                   <>

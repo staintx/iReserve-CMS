@@ -179,7 +179,7 @@ const getOperationalAlerts = (row) => {
   }
 
   // 5. Incomplete venue information
-  if (!row.venue || row.venue === "TBA" || row.venueFull === "Venue TBA") {
+  if (!row.venue || row.venue === "TBA" || row.venue === "Venue TBA" || row.venueFull === "Venue TBA") {
     alerts.push({
       key: "missing_venue",
       label: "Incomplete venue details",
@@ -396,8 +396,17 @@ export default function AdminInquiries() {
         eventDateFormatted: b.event_date ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA",
         eventTimeFormatted: b.start_time || "TBA",
         rawDate: b.event_date ? new Date(b.event_date) : null,
-        venue: b.venue_type || b.street || "TBA",
-        venueFull: [b.venue_type, b.street, b.barangay, b.municipality, b.province].filter(Boolean).join(", ") || "Venue TBA",
+        venue: [b.street, b.barangay, b.municipality].filter(Boolean).join(", ")
+          || [b.barangay, b.municipality].filter(Boolean).join(", ")
+          || b.municipality
+          || b.street
+          || b.venue_address
+          || "Venue TBA",
+        venueFull: [b.street, b.barangay, b.municipality, b.province].filter(Boolean).join(", ")
+          ? [b.street, b.barangay, b.municipality, b.province].filter(Boolean).join(", ") + (b.zip_code ? ` (${b.zip_code})` : "")
+          : b.venue_address || "Venue TBA",
+        venueType: b.venue_type || "",
+        landmark: b.landmark || "",
         status: b.status || "Pending Review",
         rawStatus: b.status || "Pending Review",
         archived: Boolean(b.archived),
@@ -944,7 +953,7 @@ export default function AdminInquiries() {
                                 <div className="text-xs text-muted-foreground tabular-nums truncate">
                                   {r.eventDateFormatted} · {r.guests} pax{r.eventSpaceSize ? ` · ${r.eventSpaceSize}` : ""}
                                 </div>
-                                <div className="text-[11px] text-muted-foreground truncate max-w-[140px] flex items-center gap-1">
+                                <div className="text-[11px] text-muted-foreground truncate max-w-[140px] flex items-center gap-1" title={r.venueFull !== "Venue TBA" ? r.venueFull : undefined}>
                                   <MapPin size={11} className="shrink-0 text-muted-foreground" />
                                   <span className="truncate">{r.venue}</span>
                                 </div>
@@ -1105,7 +1114,7 @@ export default function AdminInquiries() {
                           <Calendar size={11} className="shrink-0 text-muted-foreground/70" />
                           <span>{r.eventDateFormatted} · {r.eventTimeFormatted}</span>
                         </div>
-                        <div className="flex items-center gap-1 text-[10px]">
+                        <div className="flex items-center gap-1 text-[10px]" title={r.venueFull !== "Venue TBA" ? r.venueFull : undefined}>
                           <MapPin size={11} className="shrink-0 text-muted-foreground/70" />
                           <span className="truncate">{r.venue}</span>
                         </div>
@@ -1284,6 +1293,12 @@ export default function AdminInquiries() {
                       <span className="text-[10px] text-muted-foreground block font-medium">Service</span>
                       <span className="font-semibold text-foreground">{selectedInquiry.service || selectedInquiry.booking}</span>
                     </div>
+                    {selectedInquiry.venueType && (
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block font-medium">Venue Type</span>
+                        <span className="font-semibold text-foreground">{selectedInquiry.venueType}</span>
+                      </div>
+                    )}
                     {selectedInquiry.eventSpaceSize && (
                       <div>
                         <span className="text-[10px] text-muted-foreground block font-medium">Event Space Size</span>
@@ -1305,6 +1320,11 @@ export default function AdminInquiries() {
                         <MapPin size={11} className="text-primary" /> Venue Address
                       </span>
                       <span className="font-medium text-foreground leading-snug block mt-0.5">{selectedInquiry.venueFull}</span>
+                      {selectedInquiry.landmark && (
+                        <span className="text-[11px] text-muted-foreground block mt-0.5">
+                          <span className="font-medium">Landmark:</span> {selectedInquiry.landmark}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

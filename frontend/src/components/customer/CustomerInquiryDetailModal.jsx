@@ -62,7 +62,7 @@ export default function CustomerInquiryDetailModal({
 
   const fullAddress = [data?.street, data?.barangay, data?.municipality, data?.province, data?.zip_code]
     .filter(Boolean)
-    .join(", ") || data?.venue_type || "Location to be confirmed";
+    .join(", ") || data?.venue_address || "Location to be confirmed";
 
   const isQuotationReady = data?.status === "Quotation Sent";
   const isEditable = ["Pending Review", "Under Review"].includes(data?.status);

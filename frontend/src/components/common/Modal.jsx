@@ -36,7 +36,17 @@ import { cn } from "@/lib/utils";
  * action of a long form: on a phone the alternative is scrolling to the
  * bottom of a list of selects to find the Save button.
  */
-export default function Modal({ title, description, children, footer, onClose, className = "", bodyClassName = "" }) {
+export default function Modal({
+  title,
+  description,
+  icon: Icon,
+  badge,
+  children,
+  footer,
+  onClose,
+  className = "",
+  bodyClassName = "",
+}) {
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
@@ -44,7 +54,7 @@ export default function Modal({ title, description, children, footer, onClose, c
            built-in one would be a second X on top of it. */
         hideClose={!title}
         className={cn(
-          "flex flex-col gap-0 overflow-hidden p-0 max-h-[90dvh]",
+          "admin-shell admin-layout flex flex-col gap-0 overflow-hidden p-0 max-h-[90dvh] bg-card text-foreground font-sans border border-border/80 shadow-2xl rounded-2xl",
           // Below `sm` the dialog becomes a bottom sheet. Only `max-sm:`
           // rules are used so every existing desktop width a call site
           // passes (`max-w-2xl`, `max-w-3xl`, …) still applies untouched.
@@ -66,13 +76,25 @@ export default function Modal({ title, description, children, footer, onClose, c
             their own heading inside the body, and an empty bordered header
             above them was a stray rule and 40px of nothing. */}
         {title && (
-          <DialogHeader className="shrink-0 text-left px-4 sm:px-5 pt-2 sm:pt-5 pb-2.5 pr-11 sm:pr-12 border-b border-border/50">
-            <DialogTitle className="font-sans text-[15px] sm:text-lg font-bold tracking-tight text-slate-900 !font-sans !text-slate-900 leading-snug">
-              {title}
-            </DialogTitle>
-            {description && (
-              <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
-            )}
+          <DialogHeader className="shrink-0 text-left px-4 sm:px-6 pt-3.5 sm:pt-5 pb-3 sm:pb-4 pr-11 sm:pr-12 border-b border-border/70 bg-card">
+            <div className="flex items-start gap-3">
+              {Icon && (
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                  <Icon size={18} className="text-primary" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <DialogTitle className="font-sans text-base sm:text-lg font-bold tracking-tight text-foreground leading-snug">
+                    {title}
+                  </DialogTitle>
+                  {badge}
+                </div>
+                {description && (
+                  <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{description}</p>
+                )}
+              </div>
+            </div>
           </DialogHeader>
         )}
 

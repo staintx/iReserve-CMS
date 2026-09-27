@@ -34,10 +34,17 @@ import {
   UserCheck,
   Utensils,
   Layers,
-  Sparkles,
+  ClipboardList,
   PackageCheck,
-  DollarSign
+  DollarSign,
+  ChefHat,
+  UtensilsCrossed,
+  Wrench,
+  HelpCircle,
+  Building2,
+  CalendarDays
 } from "lucide-react";
+import { formatEventDate, initialsOf } from "../../utils/format";
 
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
 
@@ -54,13 +61,11 @@ const isPastDate = (dateVal) => {
  * Native `<select>` is deliberate for crew pickers. On a phone it opens the
  * platform's own wheel or list — searchable, one-handed, and already
  * familiar — where a custom listbox would reimplement all of that worse
- * inside a sheet that is itself already scrolling. What it needed was a
- * real touch target: these were 2px-padded rows about 30px tall.
+ * inside a sheet that is itself already scrolling.
  */
 const CREW_SELECT =
-  "w-full min-h-[44px] sm:min-h-0 rounded-lg border border-border bg-card px-2.5 py-2 " +
-  "text-xs font-medium text-foreground outline-none transition-shadow " +
-  "focus:ring-2 focus:ring-primary/40";
+  "w-full h-10 rounded-lg border border-border bg-card px-3 text-xs font-medium text-foreground outline-none transition-all " +
+  "hover:border-border/90 focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-2xs";
 
 /** One crew slot: a picker and, when the slot is removable, its remove button. */
 function CrewRow({ value, placeholder, options, onChange, onRemove, removeLabel }) {
@@ -80,9 +85,9 @@ function CrewRow({ value, placeholder, options, onChange, onRemove, removeLabel 
           type="button"
           onClick={onRemove}
           aria-label={removeLabel}
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive cursor-pointer sm:h-9 sm:w-9"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 cursor-pointer"
         >
-          <Trash2 size={15} />
+          <Trash2 size={14} />
         </button>
       )}
     </div>
@@ -90,23 +95,22 @@ function CrewRow({ value, placeholder, options, onChange, onRemove, removeLabel 
 }
 
 /**
- * A role's group of slots. "Add" was an 11px underlined text link — the
- * smallest possible target for the control this form is built around — so
- * it is now a bordered button on its own line under the slots, where it
- * reads as "one more of these" rather than competing with the group label.
+ * A role's group of slots with icon, hint, clean dashed add buttons, and card framing.
  */
-function CrewGroup({ label, addLabel, onAdd, secondaryAddLabel, onSecondaryAdd, children }) {
+function CrewGroup({ label, icon: Icon, hint, addLabel, onAdd, secondaryAddLabel, onSecondaryAdd, children }) {
   return (
-    <fieldset className="space-y-2 rounded-lg border border-border/80 bg-muted/20 p-2.5 sm:p-3">
-      <legend className="px-1 text-xs font-bold uppercase tracking-wider text-foreground">
-        {label}
+    <fieldset className="space-y-2.5 rounded-xl border border-border/80 bg-muted/20 p-3 sm:p-3.5">
+      <legend className="px-1 text-[11px] font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+        {Icon && <Icon size={13} className="text-primary shrink-0" />}
+        <span>{label}</span>
+        {hint && <span className="text-[10px] font-normal text-muted-foreground ml-1">({hint})</span>}
       </legend>
       <div className="space-y-2">{children}</div>
-      <div className="flex flex-col gap-2 pt-0.5 sm:flex-row">
+      <div className="flex flex-col gap-2 pt-1 sm:flex-row">
         <button
           type="button"
           onClick={onAdd}
-          className="flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-md border border-dashed border-border bg-card text-[12px] font-bold text-primary transition-colors hover:border-primary/50 hover:bg-primary/5 cursor-pointer"
+          className="flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-card text-xs font-semibold text-primary transition-all hover:border-primary/50 hover:bg-primary/5 cursor-pointer shadow-2xs"
         >
           <Plus size={13} /> {addLabel}
         </button>
@@ -114,7 +118,7 @@ function CrewGroup({ label, addLabel, onAdd, secondaryAddLabel, onSecondaryAdd, 
           <button
             type="button"
             onClick={onSecondaryAdd}
-            className="flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-md border border-dashed border-border bg-card text-[12px] font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground cursor-pointer"
+            className="flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-card text-xs font-semibold text-muted-foreground transition-all hover:border-primary/50 hover:text-foreground hover:bg-muted/40 cursor-pointer shadow-2xs"
           >
             <Plus size={13} /> {secondaryAddLabel}
           </button>
@@ -709,7 +713,7 @@ export default function ManagerBookings() {
                   ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                   : "TBA";
                 const locationStr =
-                  [b.venue_type, b.barangay, b.municipality].filter(Boolean).join(", ") || "Venue TBA";
+                  [b.street, b.barangay, b.municipality].filter(Boolean).join(", ") || [b.barangay, b.municipality].filter(Boolean).join(", ") || "Venue TBA";
 
                 const crew = hasStaff
                   ? {
@@ -847,62 +851,85 @@ export default function ManagerBookings() {
             that dispatched it. The action now lives in the sheet's pinned
             footer, where it is visible from the first select onward and
             reports how many people are currently selected. */}
+        {/* Staff Assignment Modal */}
         {assignTarget && (
           <Modal
             title={`Assign Staff Team — ${assignTarget.event_type || "Event"}`}
+            icon={UserPlus}
+            badge={
+              <span className="font-mono text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-md">
+                {assignTarget.reference || assignTarget._id?.slice(-6).toUpperCase()}
+              </span>
+            }
+            description="Select and dispatch kitchen, service, setup, and support crew members for this event."
             onClose={() => setAssignTarget(null)}
             className="sm:max-w-2xl"
             footer={
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[11.5px] font-medium text-muted-foreground tabular-nums">
+                <span className="text-xs font-medium text-muted-foreground tabular-nums">
                   {selectedCrewCount === 0
-                    ? "No one selected yet"
-                    : `${selectedCrewCount} assigned`}
+                    ? "No staff selected yet"
+                    : `${selectedCrewCount} crew ${selectedCrewCount === 1 ? "member" : "members"} selected`}
                 </span>
                 <div className="flex items-center gap-2">
-                  <Btn variant="secondary" onClick={() => setAssignTarget(null)} disabled={submittingAssign}>
+                  <Btn variant="secondary" size="sm" onClick={() => setAssignTarget(null)} disabled={submittingAssign}>
                     Cancel
                   </Btn>
                   <Btn
                     variant="primary"
+                    size="sm"
                     onClick={submitAssignment}
                     disabled={submittingAssign}
-                    className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                    className="flex items-center gap-1.5 font-bold"
                   >
-                    {submittingAssign
-                      ? "Saving…"
-                      : isPastDate(assignTarget.event_date)
-                        ? "Save Records"
-                        : "Dispatch Team"}
+                    <UserCheck size={14} />
+                    <span>
+                      {submittingAssign
+                        ? "Saving…"
+                        : isPastDate(assignTarget.event_date)
+                          ? "Save Records"
+                          : "Dispatch Team"}
+                    </span>
                   </Btn>
                 </div>
               </div>
             }
           >
-            <div className="space-y-3.5 text-xs sm:text-sm">
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-border/80 bg-muted/40 p-3 text-xs">
-                <div className="min-w-0">
-                  <div className="truncate font-bold text-foreground">
-                    {assignTarget.customer_id?.full_name || "Customer"}
+            <div className="space-y-4 text-xs sm:text-sm">
+              {/* Event Context Pill */}
+              <div className="p-3 bg-muted/40 border border-border/80 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shrink-0">
+                    {initialsOf(assignTarget.customer_id?.full_name || `${assignTarget.contact_first_name || ""} ${assignTarget.contact_last_name || ""}` || "Customer")}
                   </div>
-                  <div className="text-muted-foreground">
-                    Target date:{" "}
-                    <strong className="text-foreground">
-                      {assignTarget.event_date ? new Date(assignTarget.event_date).toLocaleDateString() : "TBD"}
-                    </strong>
+                  <div className="min-w-0">
+                    <div className="font-bold text-foreground truncate">
+                      {assignTarget.customer_id?.full_name || `${assignTarget.contact_first_name || ""} ${assignTarget.contact_last_name || ""}`.trim() || "Customer"}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                      <span className="flex items-center gap-1">
+                        <Calendar size={12} className="text-primary" />
+                        {assignTarget.event_date ? new Date(assignTarget.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBD"}
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <Clock size={12} className="text-primary" />
+                        {assignTarget.start_time || "Time TBA"}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <span className="shrink-0 rounded border border-primary/20 bg-primary/10 px-2 py-1 font-mono text-[11px] font-bold text-primary">
-                  {assignTarget.start_time || "Time TBA"}
+                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-card border border-border px-2.5 py-1 rounded-md">
+                  {assignTarget.event_type || "Event"}
                 </span>
               </div>
 
               {isPastDate(assignTarget.event_date) && (
-                <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50/90 p-3 text-xs text-amber-900 shadow-2xs dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                <div className="flex items-start gap-2.5 rounded-xl border border-amber-300/80 bg-amber-50/80 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-200 shadow-2xs">
                   <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
                   <div className="space-y-0.5">
                     <div className="font-bold">Past event — retroactive staff logging</div>
-                    <div className="text-[11.5px] leading-relaxed">
+                    <div className="text-[11.5px] text-amber-800 dark:text-amber-300 leading-relaxed">
                       This event took place on{" "}
                       <strong>
                         {new Date(assignTarget.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
@@ -914,9 +941,12 @@ export default function ManagerBookings() {
               )}
 
               {/* Head Cook */}
-              <div className="space-y-1.5">
-                <label htmlFor="assign-head-cook" className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-foreground">
-                  <span>Head Cook / Chef</span>
+              <div className="space-y-1.5 p-3 sm:p-3.5 rounded-xl border border-border/80 bg-muted/20">
+                <label htmlFor="assign-head-cook" className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <ChefHat size={13} className="text-primary" />
+                    Head Cook / Executive Chef
+                  </span>
                   <span className="text-[10px] font-normal text-muted-foreground">Kitchen lead</span>
                 </label>
                 <select
@@ -932,7 +962,9 @@ export default function ManagerBookings() {
 
               <CrewGroup
                 label="Servers / Waitstaff"
-                addLabel="Add server"
+                icon={UtensilsCrossed}
+                hint="Floor & banquet dining service"
+                addLabel="Add server slot"
                 onAdd={() => addAssignmentSlot("servers")}
               >
                 {assignment.servers.map((val, idx) => (
@@ -950,7 +982,9 @@ export default function ManagerBookings() {
 
               <CrewGroup
                 label="Setup & Logistics Crew"
-                addLabel="Add crew"
+                icon={Wrench}
+                hint="Physical staging & gear transport"
+                addLabel="Add setup crew slot"
                 onAdd={() => addAssignmentSlot("setupCrew")}
               >
                 {assignment.setupCrew.map((val, idx) => (
@@ -968,7 +1002,9 @@ export default function ManagerBookings() {
 
               <CrewGroup
                 label="Extra Support / Assistants"
-                addLabel="Add assistant"
+                icon={Users}
+                hint="Dishwashing, runners & on-call crew"
+                addLabel="Add assistant slot"
                 onAdd={() => addAssignmentSlot("assistants")}
                 secondaryAddLabel="Add on-call / external"
                 onSecondaryAdd={addExtraAssistant}
@@ -988,13 +1024,13 @@ export default function ManagerBookings() {
                 {assignment.extraAssistants.map((extra, idx) => (
                   <div
                     key={`extra-${idx}`}
-                    className="space-y-2 rounded-md border border-dashed border-border bg-card p-2"
+                    className="space-y-2 rounded-xl border border-dashed border-border bg-card p-2.5 shadow-2xs"
                   >
                     <input
                       placeholder="External assistant name"
                       value={extra.name}
                       onChange={(e) => updateExtraAssistant(idx, "name", e.target.value)}
-                      className="h-11 w-full rounded-lg border border-border bg-card px-2.5 text-xs text-foreground sm:h-auto sm:py-2"
+                      className="h-10 w-full rounded-lg border border-border bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
                     />
                     <div className="flex items-center gap-2">
                       <input
@@ -1003,15 +1039,15 @@ export default function ManagerBookings() {
                         placeholder="Contact phone number"
                         value={extra.phone}
                         onChange={(e) => updateExtraAssistant(idx, "phone", e.target.value)}
-                        className="h-11 flex-1 rounded-lg border border-border bg-card px-2.5 text-xs text-foreground sm:h-auto sm:py-2"
+                        className="h-10 flex-1 rounded-lg border border-border bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
                       />
                       <button
                         type="button"
                         onClick={() => removeExtraAssistant(idx)}
                         aria-label={`Remove external assistant ${idx + 1}`}
-                        className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive cursor-pointer sm:h-9 sm:w-9"
+                        className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 cursor-pointer"
                       >
-                        <Trash2 size={15} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </div>
@@ -1025,6 +1061,9 @@ export default function ManagerBookings() {
         {detail && (
           <Modal 
             title={`Event Specifications — ${detail.event_type || "Event"}`} 
+            icon={ClipboardList}
+            badge={<Badge status={detail.status || "confirmed"} />}
+            description="Full operational details, client contact, catering menu specifications, and dispatched crew."
             onClose={() => setDetail(null)} 
             className="sm:max-w-3xl"
             footer={
@@ -1038,12 +1077,14 @@ export default function ManagerBookings() {
                       setDetail(null);
                       setCompleteTarget(target);
                     }}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5"
                   >
                     <CheckCircle2 size={14} /> Mark as Completed
                   </Btn>
                 ) : (
-                  <span className="text-[11.5px] font-semibold text-emerald-700">Event completed</span>
+                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 size={13} /> Event completed
+                  </span>
                 )}
                 <Btn variant="secondary" size="sm" onClick={() => setDetail(null)}>Close</Btn>
               </div>
@@ -1051,81 +1092,109 @@ export default function ManagerBookings() {
           >
             <div className="space-y-4 text-xs sm:text-sm">
               {/* Header Status & Reference Bar */}
-              <div className="p-3 bg-muted/40 border border-border/80 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-foreground">
-                    REF: <span className="font-mono text-primary font-bold">{detail.reference || detail._id?.slice(-6).toUpperCase()}</span>
+              <div className="p-3.5 bg-muted/40 border border-border/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <span className="font-mono text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-md">
+                    REF: {detail.reference || detail._id?.slice(-6).toUpperCase()}
                   </span>
-                  <span className="text-muted-foreground">•</span>
                   <Badge status={detail.status || "confirmed"} />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <span className="text-[11px] text-muted-foreground font-semibold">
-                    Payment: <strong className="text-foreground uppercase">{detail.payment_status?.replace(/_/g, " ") || "Deposit Paid"}</strong>
+                    Payment: <strong className="text-foreground uppercase font-semibold">{detail.payment_status?.replace(/_/g, " ") || "Deposit Paid"}</strong>
                   </span>
                   <span className="text-muted-foreground">•</span>
-                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                  <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                     {formatMoney(detail.total_price || detail.total_cost)}
                   </span>
                 </div>
               </div>
 
               {/* Client & Contact Information */}
-              <div className="p-3.5 bg-card border border-border/80 rounded-lg space-y-2 shadow-2xs">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Client Information</h4>
+              <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-3 shadow-2xs">
+                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  <Users size={14} className="text-primary" />
+                  <span>Client Information</span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                  <div>
-                    <span className="text-muted-foreground block text-[11px]">Client Name:</span>
-                    <div className="font-bold text-foreground">{detail.contact_first_name} {detail.contact_last_name}</div>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shrink-0">
+                      {initialsOf(`${detail.contact_first_name || ""} ${detail.contact_last_name || ""}`.trim() || "Client")}
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-muted-foreground block text-[10.5px]">Client Name</span>
+                      <div className="font-bold text-foreground truncate">{detail.contact_first_name} {detail.contact_last_name}</div>
+                    </div>
                   </div>
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">Contact Phone:</span>
-                    <div className="font-bold text-foreground">{detail.contact_phone || "—"}</div>
+                    <span className="text-muted-foreground block text-[10.5px]">Contact Phone</span>
+                    {detail.contact_phone ? (
+                      <a href={`tel:${detail.contact_phone}`} className="font-bold text-foreground hover:text-primary transition-colors flex items-center gap-1 mt-0.5">
+                        <Phone size={11} className="text-primary shrink-0" />
+                        <span>{detail.contact_phone}</span>
+                      </a>
+                    ) : (
+                      <div className="font-bold text-foreground mt-0.5">—</div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-muted-foreground block text-[10.5px]">Email Address</span>
+                    {detail.contact_email ? (
+                      <a href={`mailto:${detail.contact_email}`} className="font-bold text-foreground hover:text-primary transition-colors truncate flex items-center gap-1 mt-0.5">
+                        <Mail size={11} className="text-primary shrink-0" />
+                        <span className="truncate">{detail.contact_email}</span>
+                      </a>
+                    ) : (
+                      <div className="font-bold text-foreground mt-0.5">—</div>
+                    )}
                   </div>
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">Email Address:</span>
-                    <div className="font-bold text-foreground truncate">{detail.contact_email || "—"}</div>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[11px]">Preferred Contact:</span>
-                    <div className="font-bold text-foreground">{detail.contact_method || "Email"}</div>
+                    <span className="text-muted-foreground block text-[10.5px]">Preferred Contact</span>
+                    <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-muted text-[11px] font-semibold text-foreground border border-border/60">
+                      {detail.contact_method || "Email"}
+                    </span>
                   </div>
                 </div>
               </div>
 
               {/* Event Schedule & Location */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-3 bg-card border border-border/80 rounded-lg space-y-1 shadow-2xs">
-                  <div className="text-[10.5px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
+                  <div className="text-[10.5px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
                     <Calendar size={13} className="text-primary" /> Date &amp; Time
                   </div>
                   <div className="text-sm font-bold text-foreground">
                     {detail.event_date ? new Date(detail.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA"}
                   </div>
-                  <div className="text-xs text-muted-foreground">{detail.start_time || "Time TBA"} ({detail.duration_hours || 4} hrs)</div>
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock size={12} className="text-primary" />
+                    <span>{detail.start_time || "Time TBA"} ({detail.duration_hours || 4} hrs)</span>
+                  </div>
                 </div>
 
-                <div className="p-3 bg-card border border-border/80 rounded-lg space-y-1 shadow-2xs">
-                  <div className="text-[10.5px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
+                  <div className="text-[10.5px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
                     <Users size={13} className="text-primary" /> Guests &amp; Package
                   </div>
                   <div className="text-sm font-bold text-foreground">{detail.guest_count || 0} Guests</div>
-                  <div className="text-xs text-muted-foreground truncate">{detail.package_id?.name || detail.package_name_snapshot || "Custom Catering Package"}</div>
+                  <div className="text-xs text-muted-foreground truncate" title={detail.package_id?.name || detail.package_name_snapshot}>
+                    {detail.package_id?.name || detail.package_name_snapshot || "Custom Catering Package"}
+                  </div>
                 </div>
 
-                <div className="p-3 bg-card border border-border/80 rounded-lg space-y-1 shadow-2xs">
-                  <div className="text-[10.5px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
+                  <div className="text-[10.5px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
                     <MapPin size={13} className="text-primary" /> Venue Location
                   </div>
                   <div className="text-sm font-bold text-foreground">{detail.venue_type || "Venue"}</div>
-                  <div className="text-xs text-muted-foreground truncate">
+                  <div className="text-xs text-muted-foreground truncate" title={[detail.street, detail.barangay, detail.municipality].filter(Boolean).join(", ")}>
                     {[detail.street, detail.barangay, detail.municipality].filter(Boolean).join(", ") || "Location TBA"}
                   </div>
                 </div>
               </div>
 
               {/* Menu & Selected Dishes */}
-              <div className="space-y-2 p-3.5 bg-card border border-border/80 rounded-lg shadow-2xs">
+              <div className="space-y-2.5 p-3.5 bg-card border border-border/80 rounded-xl shadow-2xs">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                     <Utensils size={14} className="text-primary" /> Catering Menu &amp; Selected Dishes
@@ -1140,15 +1209,15 @@ export default function ManagerBookings() {
                     Package menu items will follow standard catering specifications or chef recommendations.
                   </p>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                     {detail.menu_items.map((item, idx) => (
-                      <div key={idx} className="p-2.5 bg-muted/30 border border-border/80 rounded-lg flex items-start justify-between gap-2">
+                      <div key={idx} className="p-2.5 bg-muted/20 border border-border/80 rounded-xl flex items-start justify-between gap-2 shadow-2xs">
                         <div>
                           <div className="font-bold text-foreground text-xs">{item.name}</div>
-                          {item.note && <div className="text-[11px] text-muted-foreground">{item.note}</div>}
+                          {item.note && <div className="text-[11px] text-muted-foreground mt-0.5">{item.note}</div>}
                         </div>
                         {item.category && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-card border border-border/80 text-muted-foreground shrink-0">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-card border border-border/80 text-muted-foreground shrink-0">
                             {item.category}
                           </span>
                         )}
@@ -1160,26 +1229,26 @@ export default function ManagerBookings() {
 
               {/* Add-ons & Service Items */}
               {((detail.service_items && detail.service_items.length > 0) || (detail.additional_charges && detail.additional_charges.length > 0)) && (
-                <div className="space-y-2 p-3.5 bg-card border border-border/80 rounded-lg shadow-2xs">
+                <div className="space-y-2.5 p-3.5 bg-card border border-border/80 rounded-xl shadow-2xs">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                     <Layers size={14} className="text-primary" /> Add-on Services &amp; Event Styling
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                     {(detail.service_items || []).map((srv, idx) => (
-                      <div key={`srv-${idx}`} className="p-2.5 bg-muted/30 border border-border/80 rounded-lg flex items-center justify-between text-xs">
+                      <div key={`srv-${idx}`} className="p-2.5 bg-muted/20 border border-border/80 rounded-xl flex items-center justify-between text-xs shadow-2xs">
                         <div>
                           <div className="font-bold text-foreground">{srv.name}</div>
                           {srv.note && <div className="text-[11px] text-muted-foreground">{srv.note}</div>}
                         </div>
                         {srv.quantity > 1 && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
                             Qty: {srv.quantity}
                           </span>
                         )}
                       </div>
                     ))}
                     {(detail.additional_charges || []).map((chg, idx) => (
-                      <div key={`chg-${idx}`} className="p-2.5 bg-muted/30 border border-border/80 rounded-lg flex items-center justify-between text-xs">
+                      <div key={`chg-${idx}`} className="p-2.5 bg-muted/20 border border-border/80 rounded-xl flex items-center justify-between text-xs shadow-2xs">
                         <div>
                           <div className="font-bold text-foreground">{chg.label}</div>
                           {chg.reason && <div className="text-[11px] text-muted-foreground">{chg.reason}</div>}
@@ -1195,7 +1264,7 @@ export default function ManagerBookings() {
 
               {/* Dispatched Equipment & Verification */}
               {mergedEquipmentList.length > 0 && (
-                <div className="space-y-3 p-3.5 bg-card border border-border/80 rounded-lg shadow-2xs">
+                <div className="space-y-3 p-3.5 bg-card border border-border/80 rounded-xl shadow-2xs">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/60">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                       <PackageCheck size={14} className="text-primary" /> Dispatched Equipment &amp; Staff Count Verification
@@ -1209,12 +1278,12 @@ export default function ManagerBookings() {
                     {mergedEquipmentList.map((eq, idx) => (
                       <div 
                         key={idx} 
-                        className={`p-2.5 rounded-lg border flex flex-col justify-between gap-2 text-xs transition-colors shadow-2xs ${
+                        className={`p-2.5 rounded-xl border flex flex-col justify-between gap-2 text-xs transition-colors shadow-2xs ${
                           eq.missing > 0 
                             ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800" 
                             : eq.damaged > 0 
                               ? "bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800" 
-                              : "bg-muted/30 border-border/80"
+                              : "bg-muted/20 border-border/80"
                         }`}
                       >
                         <div>
@@ -1222,7 +1291,7 @@ export default function ManagerBookings() {
                             <span className="font-bold text-foreground truncate" title={eq.name}>
                               {eq.name}
                             </span>
-                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-card border border-border/80 text-foreground shrink-0">
+                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md bg-card border border-border/80 text-foreground shrink-0">
                               {eq.booked} units
                             </span>
                           </div>
@@ -1262,22 +1331,22 @@ export default function ManagerBookings() {
                         <div className="pt-1.5 border-t border-border/60 flex items-center justify-between flex-wrap gap-1.5">
                           <div>
                             {eq.missing > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-800">
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.5 rounded-md border border-rose-200 dark:border-rose-800">
                                 <AlertTriangle size={11} className="text-rose-600 dark:text-rose-400" />
                                 Missing
                               </span>
                             ) : eq.damaged > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 px-1.5 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
                                 <AlertTriangle size={11} className="text-amber-600 dark:text-amber-400" />
                                 Damaged
                               </span>
                             ) : eq.hasVerified ? (
-                              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-1.5 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
                                 <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
                                 Returned Complete
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded border border-border">
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded-md border border-border">
                                 <Clock size={11} />
                                 Pending Count
                               </span>
@@ -1293,7 +1362,7 @@ export default function ManagerBookings() {
                                 staffName: eq.verifiedBy,
                                 verifiedAt: eq.verifiedAt
                               })}
-                              className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 transition-colors"
+                              className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20 transition-colors"
                               title="View staff notes for this item"
                             >
                               <FileText size={11} />
@@ -1310,11 +1379,8 @@ export default function ManagerBookings() {
                   </div>
 
                   {/* Manager Confirmation Checkbox & Additional Notes */}
-                  <div className="p-3 bg-muted/20 border border-border/80 rounded-lg space-y-2.5 mt-2">
+                  <div className="p-3 bg-muted/20 border border-border/80 rounded-xl space-y-2.5 mt-2">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      {/* The whole row is the target: a 16px checkbox on a
-                          phone is a coin toss, and this one commits the
-                          manager's sign-off on the equipment count. */}
                       <label
                         htmlFor="managerEquipmentConfirm"
                         className="flex min-h-[44px] flex-1 cursor-pointer select-none items-center gap-3 rounded-md py-1 sm:min-h-0"
@@ -1332,7 +1398,7 @@ export default function ManagerBookings() {
                       </label>
 
                       {detail.equipment_manager_verified?.confirmed && (
-                        <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 shrink-0">
+                        <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 shrink-0">
                           <CheckCircle2 size={11} />
                           Confirmed by {detail.equipment_manager_verified.confirmed_by?.full_name || "Manager"}{" "}
                           {detail.equipment_manager_verified.confirmed_at ? `on ${new Date(detail.equipment_manager_verified.confirmed_at).toLocaleDateString()}` : ""}
@@ -1349,7 +1415,7 @@ export default function ManagerBookings() {
                         placeholder="Add manager verification remarks, supplier loss claims, or missing equipment follow-ups..."
                         value={managerEquipmentNotes}
                         onChange={(e) => setManagerEquipmentNotes(e.target.value)}
-                        className="w-full p-2 text-xs rounded-md border border-border bg-card text-foreground focus:ring-1 focus:ring-primary resize-y"
+                        className="w-full p-2 text-xs rounded-lg border border-border bg-card text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y outline-none"
                       />
                     </div>
 
@@ -1371,11 +1437,11 @@ export default function ManagerBookings() {
 
               {/* Dietary Requirements & Special Requests */}
               {(detail.dietary_restrictions || detail.allergies || detail.special_requests || detail.notes) && (
-                <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-lg space-y-1.5 text-xs shadow-2xs">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                    <AlertCircle size={14} className="text-amber-600" /> Dietary Restrictions &amp; Client Requests
+                <div className="p-3.5 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 rounded-xl space-y-1.5 text-xs shadow-2xs">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                    <AlertCircle size={14} className="text-amber-600 dark:text-amber-400" /> Dietary Restrictions &amp; Client Requests
                   </h4>
-                  <div className="space-y-1 text-amber-950">
+                  <div className="space-y-1 text-amber-950 dark:text-amber-100">
                     {detail.dietary_restrictions && (
                       <div><strong>Dietary Needs:</strong> {detail.dietary_restrictions}</div>
                     )}
@@ -1393,7 +1459,7 @@ export default function ManagerBookings() {
               )}
 
               {/* Staff Team */}
-              <div className="space-y-2 p-3.5 bg-card border border-border/80 rounded-lg shadow-2xs">
+              <div className="space-y-3 p-3.5 bg-card border border-border/80 rounded-xl shadow-2xs">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                     <Users size={14} className="text-primary" /> Assigned Staff Team
@@ -1405,36 +1471,50 @@ export default function ManagerBookings() {
                       setDetail(null);
                       openAssign(target);
                     }}
-                    className="flex min-h-[38px] items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-bold text-primary transition-colors hover:bg-primary/5 cursor-pointer sm:min-h-0 sm:border-0 sm:bg-transparent sm:px-0 sm:hover:underline"
+                    className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-bold text-primary transition-all hover:bg-primary/5 hover:border-primary/40 cursor-pointer shadow-2xs"
                   >
                     <UserCheck size={13} /> Edit team
                   </button>
                 </div>
 
                 {(!detail.staff_assignments || detail.staff_assignments.length === 0) ? (
-                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center justify-between gap-2">
-                    <span>No staff assigned yet. Click Edit Assignments to dispatch your team.</span>
-                    <button
-                      type="button"
+                  <div className="p-4 rounded-xl border border-dashed border-primary/30 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0">
+                        <Users size={15} />
+                      </div>
+                      <div>
+                        <div className="font-bold text-foreground">No staff team assigned yet</div>
+                        <div className="text-[11px] text-muted-foreground">Dispatch crew members to coordinate this booking.</div>
+                      </div>
+                    </div>
+                    <Btn
+                      variant="primary"
+                      size="sm"
                       onClick={() => {
                         const target = detail;
                         setDetail(null);
                         openAssign(target);
                       }}
-                      className="min-h-[40px] shrink-0 rounded-md bg-amber-600 px-3 text-xs font-bold text-white transition-colors hover:bg-amber-700 cursor-pointer sm:min-h-0 sm:py-1"
+                      className="flex items-center gap-1.5 shrink-0 font-bold"
                     >
-                      Assign Now
-                    </button>
+                      <UserPlus size={14} /> Assign Crew Now
+                    </Btn>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                     {detail.staff_assignments.map((assignment, idx) => (
-                      <div key={idx} className="p-2 bg-muted/30 border border-border/80 rounded-lg flex items-center justify-between text-xs">
-                        <div>
-                          <div className="font-bold text-foreground">{assignment.name || assignment.user_id?.full_name || "Staff Member"}</div>
-                          <div className="text-[11px] text-muted-foreground">{assignment.role || "Staff"}</div>
+                      <div key={idx} className="p-2.5 bg-muted/20 border border-border/80 rounded-xl flex items-center justify-between text-xs shadow-2xs">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shrink-0">
+                            {initialsOf(assignment.name || assignment.user_id?.full_name || "Staff")}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-foreground truncate">{assignment.name || assignment.user_id?.full_name || "Staff Member"}</div>
+                            <div className="text-[11px] text-muted-foreground truncate">{assignment.role || "Staff"}</div>
+                          </div>
                         </div>
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 shrink-0">
                           Assigned
                         </span>
                       </div>
@@ -1444,28 +1524,28 @@ export default function ManagerBookings() {
               </div>
 
               {/* Event Notes */}
-              <div className="space-y-2 pt-2 border-t border-border/60">
+              <div className="space-y-2.5 pt-2 border-t border-border/60">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <FileText size={14} className="text-primary" /> Coordinator Operations Briefing Notes
                 </h4>
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   <textarea
                     rows={2}
                     placeholder="Log an event briefing note or update..."
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    className="w-full p-2 text-xs rounded-md border border-border bg-card text-foreground focus:ring-1 focus:ring-primary"
+                    className="w-full p-2.5 text-xs rounded-xl border border-border bg-card text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none shadow-2xs resize-y"
                   />
                   <div className="flex justify-end">
-                    <Btn variant="primary" size="xs" onClick={submitNote} disabled={!note.trim()}>
+                    <Btn variant="primary" size="xs" onClick={submitNote} disabled={!note.trim()} className="font-semibold">
                       Add Note
                     </Btn>
                   </div>
 
                   {(detail.event_manager_notes || []).map((entry, idx) => (
-                    <div key={idx} className="p-2.5 bg-muted/30 border border-border/80 rounded-lg text-xs">
-                      <div className="text-[10px] text-muted-foreground">{new Date(entry.created_at).toLocaleString()}</div>
-                      <div className="mt-0.5 text-foreground">{entry.note}</div>
+                    <div key={idx} className="p-3 bg-muted/20 border border-border/80 rounded-xl text-xs space-y-1 shadow-2xs">
+                      <div className="text-[10.5px] font-medium text-muted-foreground">{new Date(entry.created_at).toLocaleString()}</div>
+                      <div className="text-foreground leading-relaxed">{entry.note}</div>
                     </div>
                   ))}
                 </div>
@@ -1479,6 +1559,7 @@ export default function ManagerBookings() {
         {staffNoteModal && (
           <Modal
             title={`Staff Item Notes — ${staffNoteModal.itemName}`}
+            icon={FileText}
             onClose={() => setStaffNoteModal(null)}
             className="sm:max-w-md"
             footer={
@@ -1488,14 +1569,14 @@ export default function ManagerBookings() {
             }
           >
             <div className="space-y-3 text-xs sm:text-sm">
-              <div className="p-3 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg space-y-1.5 shadow-2xs">
-                <div className="flex items-center justify-between text-[11px] font-bold text-amber-900 dark:text-amber-200 pb-1.5 border-b border-amber-200/60 dark:border-amber-800/60">
+              <div className="p-3.5 bg-muted/30 border border-border/80 rounded-xl space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between text-[11px] font-bold text-foreground pb-2 border-b border-border/60">
                   <span>Logged by: {staffNoteModal.staffName || "Staff Member"}</span>
                   {staffNoteModal.verifiedAt && (
-                    <span>{new Date(staffNoteModal.verifiedAt).toLocaleString()}</span>
+                    <span className="text-muted-foreground font-normal">{new Date(staffNoteModal.verifiedAt).toLocaleString()}</span>
                   )}
                 </div>
-                <p className="text-xs text-amber-950 dark:text-amber-100 whitespace-pre-wrap leading-relaxed">
+                <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">
                   {staffNoteModal.notes}
                 </p>
               </div>

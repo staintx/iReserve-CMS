@@ -396,7 +396,7 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
     snapshot?.barangay,
     snapshot?.municipality,
     snapshot?.province,
-  ].filter(Boolean).join(", ") || snapshot?.venue_type || null;
+  ].filter(Boolean).join(", ") || snapshot?.venue_address || null;
   const eventType = snapshot?.event_type || quotation.event_type || null;
   const guestCount = quotation.guest_count || snapshot?.guest_count || 0;
   const hasEventDetails = Boolean(eventDateFormatted || guestCount > 0 || venueAddress || eventType);

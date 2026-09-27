@@ -254,8 +254,10 @@ export default function AdminReservations() {
         const depositAmount = Number(b.deposit_amount || (total * 0.5));
         const paidAmount = isFullyPaid ? total : depositPaidBool ? depositAmount : 0;
         const remainingBalance = Math.max(0, total - paidAmount);
-
-        const venueFull = [b.venue_type, b.street, b.barangay, b.municipality, b.province].filter(Boolean).join(", ") || "Venue TBA";
+        const addressParts = [b.street, b.barangay, b.municipality, b.province].filter(Boolean);
+        const venueFull = addressParts.join(", ")
+          ? addressParts.join(", ") + (b.zip_code ? ` (${b.zip_code})` : "")
+          : b.venue_address || "Venue TBA";
 
         return {
           _id: b._id,
@@ -269,8 +271,15 @@ export default function AdminReservations() {
           dateFormatted: b.event_date ? formatDateClean(b.event_date) : "TBA",
           startTime: b.start_time || "TBA",
           rawDate: b.event_date ? new Date(b.event_date) : null,
-          venue: b.venue_type || b.municipality || "TBA",
+          venue: [b.street, b.barangay, b.municipality].filter(Boolean).join(", ")
+            || [b.barangay, b.municipality].filter(Boolean).join(", ")
+            || b.municipality
+            || b.street
+            || b.venue_address
+            || "TBA",
           venueFull,
+          venueType: b.venue_type || "",
+          landmark: b.landmark || "",
           status: mappedStatus,
           rawStatus: b.status,
           paymentStatus: b.payment_status || "unpaid",
@@ -1092,6 +1101,12 @@ export default function AdminReservations() {
                             <span className="text-[10px] text-muted-foreground block font-medium">Coordinator</span>
                             <span className="font-semibold text-foreground">{selectedBooking.coordinator}</span>
                           </div>
+                          {selectedBooking.venueType && (
+                            <div>
+                              <span className="text-[10px] text-muted-foreground block font-medium">Venue Type</span>
+                              <span className="font-semibold text-foreground">{selectedBooking.venueType}</span>
+                            </div>
+                          )}
                           <div className="col-span-2 pt-1.5 border-t border-border/50 flex items-center justify-between">
                             <div>
                               <span className="text-[10px] text-muted-foreground block font-medium flex items-center gap-1">
@@ -1117,6 +1132,11 @@ export default function AdminReservations() {
                               <MapPin size={11} className="text-primary" /> Venue Address
                             </span>
                             <span className="font-medium text-foreground leading-snug block mt-0.5">{selectedBooking.venueFull}</span>
+                            {selectedBooking.landmark && (
+                              <span className="text-[11px] text-muted-foreground block mt-0.5">
+                                <span className="font-medium">Landmark:</span> {selectedBooking.landmark}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>

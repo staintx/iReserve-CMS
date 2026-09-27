@@ -709,7 +709,7 @@ export default function ManagerBookings() {
                   ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                   : "TBA";
                 const locationStr =
-                  [b.venue_type, b.barangay, b.municipality].filter(Boolean).join(", ") || "Venue TBA";
+                  [b.street, b.barangay, b.municipality].filter(Boolean).join(", ") || [b.barangay, b.municipality].filter(Boolean).join(", ") || "Venue TBA";
 
                 const crew = hasStaff
                   ? {

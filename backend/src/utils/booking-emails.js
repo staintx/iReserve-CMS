@@ -40,9 +40,14 @@ const sendBookingConfirmationEmail = async ({ booking, customerEmail }) => {
         <label>Guest Count</label>
         <span>${booking.guest_count || "TBD"}</span>
       </div>
+      ${booking.venue_type ? `
       <div class="info-item">
-        <label>Venue</label>
-        <span>${booking.venue_type || "TBD"}</span>
+        <label>Venue Type</label>
+        <span>${booking.venue_type}</span>
+      </div>` : ""}
+      <div class="info-item">
+        <label>Venue Address</label>
+        <span>${[booking.street, booking.barangay, booking.municipality, booking.province].filter(Boolean).join(", ") || booking.venue_address || "TBD"}</span>
       </div>
     </div>
 

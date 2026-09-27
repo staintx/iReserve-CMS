@@ -151,7 +151,11 @@ export default function AdminOcular() {
         email: b.customer_id?.email || b.contact_email || "",
         phone: b.contact_phone || b.customer_id?.phone || "",
         eventType: b.event_type || "Catering Event",
-        venue: [b.venue_type, b.municipality, b.province].filter(Boolean).join(", ") || "Venue TBA",
+        venue: [b.street, b.barangay, b.municipality, b.province].filter(Boolean).join(", ")
+          || [b.municipality, b.province].filter(Boolean).join(", ")
+          || b.venue_address
+          || "Venue TBA",
+        venueType: b.venue_type || "",
         coordinator: b.event_manager_id?.full_name || "Unassigned",
         date: formatEventDate(o.scheduled_date, { fallback: "TBA" }),
         rawDate: o.scheduled_date || null,

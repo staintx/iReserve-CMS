@@ -662,7 +662,7 @@ export default function StaffEventDetails() {
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] uppercase font-bold text-muted-foreground">Venue Location</span>
                       {(() => {
-                        const locQuery = [booking.street, booking.barangay, booking.municipality, booking.venue_type].filter(Boolean).join(", ");
+                        const locQuery = [booking.street, booking.barangay, booking.municipality, booking.province].filter(Boolean).join(", ");
                         return locQuery ? (
                           <a
                             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locQuery)}`}

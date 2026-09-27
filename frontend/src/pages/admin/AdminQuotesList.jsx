@@ -295,7 +295,10 @@ export default function AdminQuotesList() {
         || "—";
 
       // Venue full
-      const venueFull = [inq.venue_type, inq.street, inq.barangay, inq.municipality, inq.province].filter(Boolean).join(", ") || inq.venue_type || "Venue TBA";
+      const addressParts = [inq.street, inq.barangay, inq.municipality, inq.province].filter(Boolean);
+      const venueFull = addressParts.join(", ")
+        ? addressParts.join(", ") + (inq.zip_code ? ` (${inq.zip_code})` : "")
+        : inq.venue_address || "Venue TBA";
 
       const updatedTime = latest.updatedAt || latest.createdAt || inq.updatedAt || inq.createdAt;
 
@@ -314,8 +317,15 @@ export default function AdminQuotesList() {
         email: customerEmail,
         eventDate: inq.event_date,
         eventTime: inq.start_time || "TBA",
-        venue: inq.venue_type || inq.street || "TBA",
+        venue: [inq.street, inq.barangay, inq.municipality].filter(Boolean).join(", ")
+          || [inq.barangay, inq.municipality].filter(Boolean).join(", ")
+          || inq.municipality
+          || inq.street
+          || inq.venue_address
+          || "TBA",
         venueFull,
+        venueType: inq.venue_type || "",
+        landmark: inq.landmark || "",
         guestCount: latest.guest_count || inq.guest_count || 0,
         status: latest.status || "Draft",
         expirationDate: latest.expiration_date,
@@ -1093,10 +1103,16 @@ export default function AdminQuotesList() {
                       <span className="font-semibold text-foreground">{selectedQuotation.eventType}</span>
                       <span className="text-[11px] text-muted-foreground block">{selectedQuotation.guestCount} guests (pax)</span>
                     </div>
-                    <div className={selectedQuotation.eventSpace ? "col-span-1" : "col-span-2"}>
+                    <div className={selectedQuotation.eventSpace || selectedQuotation.venueType ? "col-span-1" : "col-span-2"}>
                       <span className="text-[10px] text-muted-foreground block font-medium">Catering Package</span>
                       <span className="font-semibold text-foreground">{selectedQuotation.packageName}</span>
                     </div>
+                    {selectedQuotation.venueType && (
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block font-medium">Venue Type</span>
+                        <span className="font-semibold text-foreground">{selectedQuotation.venueType}</span>
+                      </div>
+                    )}
                     {selectedQuotation.eventSpace && (
                       <div>
                         <span className="text-[10px] text-muted-foreground block font-medium">Event Space Size</span>
@@ -1111,6 +1127,11 @@ export default function AdminQuotesList() {
                         <MapPin size={11} className="text-primary" /> Venue Address
                       </span>
                       <span className="font-medium text-foreground leading-snug block mt-0.5">{selectedQuotation.venueFull}</span>
+                      {selectedQuotation.landmark && (
+                        <span className="text-[11px] text-muted-foreground block mt-0.5">
+                          <span className="font-medium">Landmark:</span> {selectedQuotation.landmark}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

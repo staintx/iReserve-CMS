@@ -1,7 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
+import { listConversations } from "../../api/messages";
+import { getSocket } from "../../api/socket";
 import { 
   PanelLeftClose,
   PanelLeftOpen,
@@ -35,6 +37,39 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+
+  const loadUnreadMessages = useCallback(async () => {
+    try {
+      const conversations = await listConversations();
+      if (Array.isArray(conversations)) {
+        const count = conversations.reduce((acc, conv) => {
+          const unread = conv?.unread_admin_count || 0;
+          return acc + (unread > 0 ? 1 : 0);
+        }, 0);
+        setUnreadMessagesCount(count);
+      }
+    } catch {
+      // silent
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    loadUnreadMessages();
+  }, [isAdmin, loadUnreadMessages, location.pathname]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const socket = getSocket();
+    const handleNewMessage = () => {
+      loadUnreadMessages();
+    };
+    socket.on("message:new", handleNewMessage);
+    return () => {
+      socket.off("message:new", handleNewMessage);
+    };
+  }, [isAdmin, loadUnreadMessages]);
 
   // Route ownership for each dropdown — single source of truth for both
   // "which category is the current page in" and "which sub-link is active".
@@ -264,8 +299,18 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
               <NavLink to="/admin/messages" className={linkClass} title={isCollapsed ? "Messages" : undefined}>
                 {({ isActive }) => (
                   <>
-                    <MessageSquare className={iconClass(isActive)} />
-                    {!isCollapsed && <span>Messages</span>}
+                    <div className="relative flex items-center justify-center">
+                      <MessageSquare className={iconClass(isActive)} />
+                      {unreadMessagesCount > 0 && isCollapsed && (
+                        <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2 items-center justify-center rounded-full bg-[#4C81E0] ring-2 ring-card" />
+                      )}
+                    </div>
+                    {!isCollapsed && <span className="flex-1 text-left">Messages</span>}
+                    {!isCollapsed && unreadMessagesCount > 0 && (
+                      <span className="ml-auto shrink-0 inline-flex items-center justify-center min-w-[18px] h-4.5 px-1.5 bg-[#4C81E0] text-white text-[10px] font-semibold rounded-full">
+                        {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
+                      </span>
+                    )}
                   </>
                 )}
               </NavLink>

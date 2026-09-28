@@ -7,6 +7,25 @@ const Notification = require("../models/Notification");
 const asyncHandler = require("../utils/asyncHandler");
 const { canAccessConversation } = require("../utils/chatAccess");
 const { createNotification, notifyAdmins } = require("../utils/notify");
+const uploadToCloudinary = require("../utils/cloudinaryUpload");
+
+const validateImageBuffer = (buffer) => {
+  if (!buffer || buffer.length < 12) return false;
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "image/jpeg";
+  // PNG: 89 50 4E 47
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return "image/png";
+  // GIF: 47 49 46 38
+  if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38) return "image/gif";
+  // WEBP: RIFF .... WEBP
+  if (
+    buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+    buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50
+  ) return "image/webp";
+  // PDF: %PDF
+  if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) return "application/pdf";
+  return false;
+};
 
 const ensureBookingConversations = async (bookings) => {
   const tasks = bookings
@@ -347,4 +366,34 @@ exports.createConversation = asyncHandler(async (req, res) => {
 
   return res.status(400).json({ message: "Invalid conversation payload" });
 });
+
+exports.uploadAttachment = asyncHandler(async (req, res) => {
+  const conversation = await Conversation.findById(req.params.id);
+  if (!conversation) return res.status(404).json({ message: "Conversation not found" });
+  if (!(await canAccessConversation(req.user, conversation))) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  if (!req.file || !req.file.buffer) {
+    return res.status(400).json({ message: "No file provided" });
+  }
+
+  const detectedMime = validateImageBuffer(req.file.buffer);
+  if (!detectedMime) {
+    return res.status(400).json({ message: "Invalid file content. Allowed formats: JPG, PNG, GIF, WEBP, PDF." });
+  }
+
+  const result = await uploadToCloudinary(req.file.buffer, "messages/attachments");
+  if (!result || !result.secure_url) {
+    return res.status(500).json({ message: "Failed to upload file to cloud storage" });
+  }
+
+  res.status(201).json({
+    url: result.secure_url,
+    fileName: req.file.originalname || "attachment",
+    fileType: detectedMime.startsWith("image/") ? "image" : "file",
+    size: req.file.size
+  });
+});
+
 

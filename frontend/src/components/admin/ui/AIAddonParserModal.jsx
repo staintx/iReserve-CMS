@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   X,
   UploadCloud,
@@ -14,15 +14,26 @@ import {
   Info,
   File as FileIcon,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
+const normalizeIdentifier = (name) => {
+  if (!name || typeof name !== "string") return "";
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+};
+
 export default function AIAddonParserModal({
   isOpen,
   onClose,
   onBulkSuccess,
+  existingAddons = [],
 }) {
   const { notify } = useToast();
   const fileInputRef = useRef(null);
@@ -41,6 +52,17 @@ export default function AIAddonParserModal({
   const [extractedAddons, setExtractedAddons] = useState([]);
   const [selectedIndices, setSelectedIndices] = useState(new Set());
   const [isBulkImporting, setIsBulkImporting] = useState(false);
+
+  // Handle escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && isOpen && !loading && !isBulkImporting) {
+        handleClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, loading, isBulkImporting]);
 
   const parsingSteps = [
     "Uploading document...",
@@ -245,6 +267,17 @@ export default function AIAddonParserModal({
     });
   };
 
+  const isDuplicate = (addonName) => {
+    if (!addonName) return false;
+    const targetIdent = normalizeIdentifier(addonName);
+    const targetLower = addonName.trim().toLowerCase();
+    return existingAddons.some((a) => {
+      const aIdent = a.identifier || normalizeIdentifier(a.name);
+      const aLower = (a.name || "").trim().toLowerCase();
+      return (targetIdent && aIdent && targetIdent === aIdent) || (aLower && aLower === targetLower);
+    });
+  };
+
   const handleBulkImport = async () => {
     const toImport = extractedAddons.filter((_, i) => selectedIndices.has(i));
     if (toImport.length === 0) {
@@ -255,10 +288,21 @@ export default function AIAddonParserModal({
     setIsBulkImporting(true);
     try {
       const res = await AdminAPI.createBulkAddons(toImport);
-      notify(
-        res.data?.message || `Successfully created ${toImport.length} add-ons!`,
-        "success"
-      );
+      const totalImported = res.data?.totalImported ?? toImport.length;
+      const totalSkipped = res.data?.totalSkipped ?? 0;
+
+      if (totalSkipped > 0) {
+        notify(
+          `Imported ${totalImported} add-ons! (${totalSkipped} duplicate add-ons already in catalog were skipped)`,
+          "info"
+        );
+      } else {
+        notify(
+          res.data?.message || `Successfully created ${totalImported} add-ons!`,
+          "success"
+        );
+      }
+
       if (onBulkSuccess) onBulkSuccess();
       handleClose();
     } catch (err) {
@@ -584,6 +628,7 @@ export default function AIAddonParserModal({
             <div className="p-6 overflow-y-auto max-h-[58vh] space-y-3">
               {extractedAddons.map((addon, idx) => {
                 const isSelected = selectedIndices.has(idx);
+                const duplicate = isDuplicate(addon.name);
 
                 return (
                   <div
@@ -630,6 +675,13 @@ export default function AIAddonParserModal({
                             placeholder="Add-on description / features..."
                             className="w-full text-xs text-slate-600 bg-slate-50/50 hover:bg-slate-50 border border-slate-200/60 rounded-lg px-2.5 py-1.5 focus:bg-white focus:border-indigo-500 outline-none transition-all"
                           />
+
+                          {duplicate && (
+                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80">
+                              <AlertTriangle size={12} className="text-amber-600 shrink-0" />
+                              <span>Already exists in catalog (will be skipped during bulk import)</span>
+                            </div>
+                          )}
                         </div>
                       </div>
 

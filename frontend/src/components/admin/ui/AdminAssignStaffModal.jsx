@@ -289,6 +289,20 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
         });
       });
 
+    const chosenIds = [
+      assignment.headCook,
+      ...assignment.servers,
+      ...assignment.setupCrew,
+      ...assignment.assistants
+    ].filter(Boolean);
+
+    const duplicateId = chosenIds.find((id, idx) => chosenIds.indexOf(id) !== idx);
+    if (duplicateId) {
+      const dupName = staffMap[duplicateId]?.full_name || "A crew member";
+      notify(`${dupName} cannot be assigned to multiple roles on the same event.`, "error");
+      return;
+    }
+
     if (staffAssignments.length === 0) {
       notify("Please select or enter at least one crew member.", "error");
       return;

@@ -80,17 +80,19 @@ export default function StaffDashboard() {
   };
   const [savingAvailability, setSavingAvailability] = useState(false);
 
-  const loadBookings = () => {
+  const [shiftTab, setShiftTab] = useState("active"); // "active" | "completed"
+
+  const loadBookings = (tab = shiftTab) => {
     setLoading(true);
-    StaffAPI.getBookings("active")
+    StaffAPI.getBookings(tab)
       .then((res) => setBookings(Array.isArray(res.data) ? res.data : []))
       .catch(() => notify("Failed to load assigned events.", "error"))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    loadBookings();
-  }, []);
+    loadBookings(shiftTab);
+  }, [shiftTab]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -246,13 +248,33 @@ export default function StaffDashboard() {
             explain itself. Phase, venue and lead are ordered the way a crew
             member reads them on the way to a job: when, where, who to call. */}
         <section className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
-              <ClipboardList className="text-primary" size={16} />
-              Assigned Event List
-            </h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border rounded-md shadow-2xs w-fit">
+              <button
+                type="button"
+                onClick={() => setShiftTab("active")}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  shiftTab === "active"
+                    ? "bg-card text-foreground shadow-2xs border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Upcoming Shifts
+              </button>
+              <button
+                type="button"
+                onClick={() => setShiftTab("completed")}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  shiftTab === "completed"
+                    ? "bg-card text-foreground shadow-2xs border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Shift History (Completed)
+              </button>
+            </div>
             <span className="text-xs font-semibold text-muted-foreground tabular-nums">
-              {bookings.length} shift{bookings.length === 1 ? "" : "s"}
+              {bookings.length} {shiftTab === "active" ? "active" : "completed"} shift{bookings.length === 1 ? "" : "s"}
             </span>
           </div>
 
@@ -263,17 +285,22 @@ export default function StaffDashboard() {
           ) : bookings.length === 0 ? (
             <AdminCard className="!p-8 sm:!p-10 text-center space-y-2.5">
               <CalendarIcon size={28} className="mx-auto text-muted-foreground" />
-              <h3 className="text-sm font-bold text-foreground">No active event assignments</h3>
+              <h3 className="text-sm font-bold text-foreground">
+                {shiftTab === "active" ? "No active event assignments" : "No completed shifts yet"}
+              </h3>
               <p className="mx-auto max-w-md text-xs leading-relaxed text-muted-foreground">
-                Your Event Manager has not assigned you to a catering event yet. Once you are added
-                to a booking team it will appear here.
+                {shiftTab === "active"
+                  ? "Your Event Manager has not assigned you to an upcoming catering event yet. Once you are added to a booking crew it will appear here."
+                  : "Completed events and shifts you have worked will be archived here in your duty history."}
               </p>
-              <div className="pt-1">
-                <Btn variant="secondary" size="sm" onClick={() => setShowCalendar(true)}>
-                  <CalendarDays size={14} className="text-primary" />
-                  Set my availability
-                </Btn>
-              </div>
+              {shiftTab === "active" && (
+                <div className="pt-1">
+                  <Btn variant="secondary" size="sm" onClick={() => setShowCalendar(true)}>
+                    <CalendarDays size={14} className="text-primary" />
+                    Set my availability
+                  </Btn>
+                </div>
+              )}
             </AdminCard>
           ) : (
             <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2 sm:gap-4">

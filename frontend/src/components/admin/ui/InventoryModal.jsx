@@ -4,6 +4,10 @@ import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
+const INVENTORY_CATEGORIES = [
+  "Event Setup & Furniture",
+  "Dining & Service Inventory",
+];
 
 // Canonical identifier normalizer for duplicate checks
 const normalizeIdentifier = (name) => {
@@ -23,10 +27,11 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
 
   const [formData, setFormData] = useState({
     item_name: "",
+    category: "Event Setup & Furniture",
     quantity: "",
     low_stock_threshold: "",
     available: true,
-    reason: ""
+    reason: "",
   });
 
   useEffect(() => {
@@ -43,18 +48,23 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
     if (item) {
       setFormData({
         item_name: item.item_name || "",
+        category: item.category || "Event Setup & Furniture",
         quantity: item.quantity !== undefined ? item.quantity : "",
-        low_stock_threshold: item.low_stock_threshold !== undefined && item.low_stock_threshold !== null ? item.low_stock_threshold : "",
+        low_stock_threshold:
+          item.low_stock_threshold !== undefined && item.low_stock_threshold !== null
+            ? item.low_stock_threshold
+            : "",
         available: item.available !== false,
-        reason: ""
+        reason: "",
       });
     } else {
       setFormData({
         item_name: "",
+        category: "Event Setup & Furniture",
         quantity: "",
         low_stock_threshold: "",
         available: true,
-        reason: ""
+        reason: "",
       });
     }
   }, [item]);
@@ -106,7 +116,11 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
       return;
     }
 
-    if (formData.low_stock_threshold === "" || formData.low_stock_threshold === null || formData.low_stock_threshold === undefined) {
+    if (
+      formData.low_stock_threshold === "" ||
+      formData.low_stock_threshold === null ||
+      formData.low_stock_threshold === undefined
+    ) {
       notify("Low Stock Threshold is required", "error");
       return;
     }
@@ -128,10 +142,11 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
     try {
       const payload = {
         item_name: formData.item_name.trim(),
+        category: formData.category || "Event Setup & Furniture",
         quantity: Number(formData.quantity),
         low_stock_threshold: thresholdNum,
         available: Boolean(formData.available),
-        reason: formData.reason?.trim() || undefined
+        reason: formData.reason?.trim() || undefined,
       };
 
       if (item && item._id) {
@@ -154,11 +169,13 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs">
       <div className="bg-white w-full max-w-md h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-foreground text-lg">{item ? "Edit Inventory Item" : "Add Inventory Item"}</h2>
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors"
+          <h2 className="font-bold text-foreground text-lg">
+            {item ? "Edit Inventory Item" : "Add Inventory Item"}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors cursor-pointer"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -172,20 +189,20 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
               <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
                 Item Name <span className="text-red-500">*</span>
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
                 className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none transition-all text-foreground ${
-                  isDuplicate 
-                    ? "border-amber-400 bg-amber-50/20 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500" 
+                  isDuplicate
+                    ? "border-amber-400 bg-amber-50/20 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
                     : "border-gray-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
                 }`}
-                placeholder="e.g. Round Table" 
-                value={formData.item_name} 
-                onChange={e => setFormData({ ...formData, item_name: e.target.value })} 
+                placeholder="e.g. Round Table, Food Warmer"
+                value={formData.item_name}
+                onChange={(e) => setFormData({ ...formData, item_name: e.target.value })}
               />
 
-              {/* Clear duplicate alert banner */}
+              {/* Duplicate alert banner */}
               {isDuplicate && (
                 <div className="mt-2 flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs animate-in fade-in duration-150">
                   <AlertCircle size={15} className="text-amber-600 shrink-0 mt-0.5" />
@@ -201,20 +218,40 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
               )}
             </div>
 
+            {/* Category */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                Inventory Category <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-foreground bg-white cursor-pointer"
+              >
+                {INVENTORY_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Classifies whether this item is event setup furniture or dining service equipment.
+              </p>
+            </div>
 
             {/* Total Quantity */}
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
                 Total Quantity <span className="text-red-500">*</span>
               </label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 min="0"
                 required
-                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-foreground" 
-                placeholder="0" 
-                value={formData.quantity} 
-                onChange={e => setFormData({ ...formData, quantity: e.target.value })} 
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-foreground"
+                placeholder="0"
+                value={formData.quantity}
+                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
               />
               <p className="text-[11px] text-muted-foreground mt-1">Total physical inventory units owned.</p>
             </div>
@@ -224,15 +261,15 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
               <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
                 Low Stock Threshold <span className="text-red-500">*</span>
               </label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 min="1"
                 step="1"
                 required
-                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-foreground" 
-                placeholder="e.g. 50" 
-                value={formData.low_stock_threshold} 
-                onChange={e => setFormData({ ...formData, low_stock_threshold: e.target.value })} 
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-foreground"
+                placeholder="e.g. 50"
+                value={formData.low_stock_threshold}
+                onChange={(e) => setFormData({ ...formData, low_stock_threshold: e.target.value })}
               />
               <p className="text-[11px] text-muted-foreground mt-1">
                 Notify admin when stock on hand reaches this quantity or below.
@@ -250,7 +287,7 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
                   className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 resize-none transition-all text-foreground"
                   placeholder="e.g. Restocked units, repaired, damaged items retired..."
                   value={formData.reason}
-                  onChange={e => setFormData({ ...formData, reason: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
                 />
               </div>
             )}
@@ -262,8 +299,8 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
                   Item Status
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {formData.available 
-                    ? "Available for event bookings" 
+                  {formData.available
+                    ? "Available for event bookings"
                     : "Unavailable / Disabled for bookings"}
                 </span>
               </div>
@@ -293,18 +330,24 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
           </div>
 
           <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
-            <Btn variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Btn>
-            <Btn 
-              variant={isDuplicate ? "secondary" : "primary"} 
-              type="submit" 
+            <Btn variant="secondary" type="button" onClick={onClose} disabled={loading}>
+              Cancel
+            </Btn>
+            <Btn
+              variant={isDuplicate ? "secondary" : "primary"}
+              type="submit"
               disabled={loading || isDuplicate}
               className={isDuplicate ? "opacity-60 cursor-not-allowed" : ""}
             >
-              {loading 
-                ? (item ? "Saving..." : "Adding...") 
-                : isDuplicate 
-                  ? "Already Added" 
-                  : (item ? "Save Item" : "Add Item")}
+              {loading
+                ? item
+                  ? "Saving..."
+                  : "Adding..."
+                : isDuplicate
+                ? "Already Added"
+                : item
+                ? "Save Item"
+                : "Add Item"}
             </Btn>
           </div>
         </form>

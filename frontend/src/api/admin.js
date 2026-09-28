@@ -94,6 +94,7 @@ export const AdminAPI = {
 
   // Addons
   getAddons: () => api.get("/addons"),
+  getAddonUsage: (id) => api.get(`/addons/${id}/usage`),
   createAddon: (data) => api.post("/addons", data),
   createBulkAddons: (addons) => api.post("/addons/bulk", { addons }, { timeout: 60000 }),
   parseAddonWithAI: (formData) =>

@@ -11,6 +11,7 @@ const AddonSchema = new mongoose.Schema({
     enum: ["fixed", "quantity"],
     default: "fixed",
   },
+  identifier: { type: String },
   available: { type: Boolean, default: true }
 }, { timestamps: true });
 

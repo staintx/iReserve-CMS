@@ -30,3 +30,13 @@ export const createConversation = async (payload) => {
   const { data } = await api.post("/messages/conversations", payload);
   return data;
 };
+
+export const uploadMessageAttachment = async (conversationId, file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const { data } = await api.post(`/messages/conversations/${conversationId}/attachments`, formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  });
+  return data;
+};
+

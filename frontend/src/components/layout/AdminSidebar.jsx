@@ -16,7 +16,8 @@ import {
   Building2, 
   TerminalSquare,
   MessageSquare,
-  LogOut
+  LogOut,
+  ArrowLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ConfirmDialog from "../common/ConfirmDialog";
@@ -149,7 +150,7 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
             <div className="flex items-center justify-between gap-2">
               <div 
                 className="flex items-center gap-2.5 overflow-hidden cursor-pointer min-w-0" 
-                onClick={() => navigate("/admin/dashboard")}
+                onClick={() => navigate(isAdmin ? "/admin/dashboard" : "/manager/dashboard")}
               >
                 <img 
                   src={logo} 
@@ -157,8 +158,12 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
                   className="w-8 h-8 rounded-full object-cover border border-border shadow-2xs shrink-0" 
                 />
                 <div className="min-w-0">
-                  <div className="font-bold text-sm text-foreground leading-none tracking-tight truncate">Admin Portal</div>
-                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-0.5 truncate">Management</div>
+                  <div className="font-bold text-sm text-foreground leading-none tracking-tight truncate">
+                    {isAdmin ? "Admin Portal" : "Manager Access"}
+                  </div>
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-0.5 truncate">
+                    {isAdmin ? "Management" : "Catering Admin View"}
+                  </div>
                 </div>
               </div>
               <button
@@ -177,8 +182,8 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
                 src={logo} 
                 alt="Caezelle's logo" 
                 className="w-7.5 h-7.5 rounded-full object-cover border border-border shadow-2xs cursor-pointer hover:scale-105 transition-transform" 
-                onClick={() => navigate("/admin/dashboard")}
-                title="Caezelle's Admin"
+                onClick={() => navigate(isAdmin ? "/admin/dashboard" : "/manager/dashboard")}
+                title={isAdmin ? "Caezelle's Admin" : "Manager Portal"}
               />
               <button
                 type="button"
@@ -197,157 +202,173 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
           {/* Notifications item */}
           <NotificationBell isSidebarItem isCollapsed={isCollapsed} onCloseSidebar={() => setMobileOpen && setMobileOpen(false)} />
 
-          <div className={sectionLabelClass}>Menu</div>
+          {/* If user is manager, offer quick return to Manager Portal */}
+          {!isAdmin && (
+            <button
+              type="button"
+              onClick={() => navigate("/manager/dashboard")}
+              className={cn(
+                "group relative flex items-center gap-2 rounded-lg text-xs font-semibold px-2.5 py-2 mb-1.5 transition-colors cursor-pointer",
+                "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20",
+                isCollapsed ? "h-8.5 w-8.5 mx-auto justify-center px-0" : "w-full"
+              )}
+              title="Return to Manager Portal"
+            >
+              <ArrowLeft className="w-4 h-4 shrink-0" />
+              {!isCollapsed && <span className="truncate">Return to Manager Portal</span>}
+            </button>
+          )}
 
-          <NavLink to="/admin/dashboard" className={linkClass} title={isCollapsed ? "Dashboard" : undefined}>
-            {({ isActive }) => (
-              <>
-                <LayoutDashboard className={iconClass(isActive)} />
-                {!isCollapsed && <span>Dashboard</span>}
-              </>
-            )}
-          </NavLink>
+          {isAdmin && (
+            <>
+              <div className={sectionLabelClass}>Menu</div>
 
-        
-        {isManager && (
+              <NavLink to="/admin/dashboard" className={linkClass} title={isCollapsed ? "Dashboard" : undefined}>
+                {({ isActive }) => (
+                  <>
+                    <LayoutDashboard className={iconClass(isActive)} />
+                    {!isCollapsed && <span>Dashboard</span>}
+                  </>
+                )}
+              </NavLink>
+
+              <div>
+                <button onClick={() => toggleDropdown("finance")} className={dropdownBtnClass("finance")} title={isCollapsed ? "Finance" : undefined} aria-expanded={isDropdownOpen("finance")}>
+                  <CreditCard className={iconClass(activeDropdownKey === "finance")} />
+                  {!isCollapsed && (
+                    <>
+                      <span className="flex-1 text-left">Finance</span>
+                      <div className={cn("transition-transform", isDropdownOpen("finance") ? "rotate-180" : "")}>
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </div>
+                    </>
+                  )}
+                </button>
+                {isDropdownOpen("finance") && !isCollapsed && (
+                  <div className={subNavWrapClass}>
+                    <NavLink to="/admin/payments" className={subLinkClass}>Payments</NavLink>
+                    <NavLink to="/admin/refunds" className={subLinkClass}>Refunds</NavLink>
+                  </div>
+                )}
+              </div>
+
+              <NavLink to="/admin/customers" className={linkClass} title={isCollapsed ? "Customers" : undefined}>
+                {({ isActive }) => (
+                  <>
+                    <Users className={iconClass(isActive)} />
+                    {!isCollapsed && <span>Customers</span>}
+                  </>
+                )}
+              </NavLink>
+
+              <NavLink to="/admin/messages" className={linkClass} title={isCollapsed ? "Messages" : undefined}>
+                {({ isActive }) => (
+                  <>
+                    <MessageSquare className={iconClass(isActive)} />
+                    {!isCollapsed && <span>Messages</span>}
+                  </>
+                )}
+              </NavLink>
+            </>
+          )}
+
+          <div className={sectionLabelClass}>Bookings</div>
           <div>
-            <button onClick={() => toggleDropdown("finance")} className={dropdownBtnClass("finance")} title={isCollapsed ? "Finance" : undefined} aria-expanded={isDropdownOpen("finance")}>
-              <CreditCard className={iconClass(activeDropdownKey === "finance")} />
+            <button onClick={() => toggleDropdown("bookings")} className={dropdownBtnClass("bookings")} title={isCollapsed ? "Bookings" : undefined} aria-expanded={isDropdownOpen("bookings")}>
+              <Calendar className={iconClass(activeDropdownKey === "bookings")} />
               {!isCollapsed && (
                 <>
-                  <span className="flex-1 text-left">Finance</span>
-                  <div className={cn("transition-transform", isDropdownOpen("finance") ? "rotate-180" : "")}>
+                  <span className="flex-1 text-left">Bookings</span>
+                  <div className={cn("transition-transform", isDropdownOpen("bookings") ? "rotate-180" : "")}>
                     <ChevronDown className="w-3.5 h-3.5" />
                   </div>
                 </>
               )}
             </button>
-            {isDropdownOpen("finance") && !isCollapsed && (
+            {isDropdownOpen("bookings") && !isCollapsed && (
               <div className={subNavWrapClass}>
-                <NavLink to="/admin/payments" className={subLinkClass}>Payments</NavLink>
-                <NavLink to="/admin/refunds" className={subLinkClass}>Refunds</NavLink>
+                {isAdmin && (
+                  <NavLink to="/admin/bookings/inquiries" className={subLinkClass}>Inquiries</NavLink>
+                )}
+                <NavLink to="/admin/quotes" className={subLinkClass}>Quotations</NavLink>
+                <NavLink to="/admin/bookings/reservations" className={subLinkClass}>Reservations</NavLink>
+                {isAdmin && (
+                  <NavLink to="/admin/bookings/ocular" className={subLinkClass}>Ocular Visits</NavLink>
+                )}
+                {isAdmin && (
+                  <NavLink to="/admin/bookings/history" className={subLinkClass}>Event History</NavLink>
+                )}
               </div>
             )}
           </div>
-        )}
-        
-        <NavLink to="/admin/customers" className={linkClass} title={isCollapsed ? "Customers" : undefined}>
-          {({ isActive }) => (
-            <>
-              <Users className={iconClass(isActive)} />
-              {!isCollapsed && <span>Customers</span>}
-            </>
-          )}
-        </NavLink>
 
-        <NavLink to="/admin/messages" className={linkClass} title={isCollapsed ? "Messages" : undefined}>
-          {({ isActive }) => (
-            <>
-              <MessageSquare className={iconClass(isActive)} />
-              {!isCollapsed && <span>Messages</span>}
-            </>
-          )}
-        </NavLink>
-
-        <div className={sectionLabelClass}>Bookings</div>
-        <div>
-          <button onClick={() => toggleDropdown("bookings")} className={dropdownBtnClass("bookings")} title={isCollapsed ? "Bookings" : undefined} aria-expanded={isDropdownOpen("bookings")}>
-            <Calendar className={iconClass(activeDropdownKey === "bookings")} />
-            {!isCollapsed && (
-              <>
-                <span className="flex-1 text-left">Bookings</span>
-                <div className={cn("transition-transform", isDropdownOpen("bookings") ? "rotate-180" : "")}>
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </div>
-              </>
-            )}
-          </button>
-          {isDropdownOpen("bookings") && !isCollapsed && (
-            <div className={subNavWrapClass}>
-              <NavLink to="/admin/bookings/inquiries" className={subLinkClass}>Inquiries</NavLink>
-              <NavLink to="/admin/quotes" className={subLinkClass}>Quotations</NavLink>
-              <NavLink to="/admin/bookings/reservations" className={subLinkClass}>Reservations</NavLink>
-              {isAdmin && (
-                <NavLink to="/admin/bookings/ocular" className={subLinkClass}>Ocular Visits</NavLink>
+          <div className={sectionLabelClass}>Service Management</div>
+          <div>
+            <button onClick={() => toggleDropdown("service")} className={dropdownBtnClass("service")} title={isCollapsed ? "Service Management" : undefined} aria-expanded={isDropdownOpen("service")}>
+              <UtensilsCrossed className={iconClass(activeDropdownKey === "service")} />
+              {!isCollapsed && (
+                <>
+                  <span className="flex-1 text-left">Service Management</span>
+                  <div className={cn("transition-transform", isDropdownOpen("service") ? "rotate-180" : "")}>
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </div>
+                </>
               )}
-              <NavLink to="/admin/bookings/history" className={subLinkClass}>Event History</NavLink>
-            </div>
-          )}
-        </div>
-
-        {/* Calendar is merged into the Dashboard; standalone page removed. */}
-
-        {isAdmin && (
-          <>
-            <div className={sectionLabelClass}>Service Management</div>
-            <div>
-              <button onClick={() => toggleDropdown("service")} className={dropdownBtnClass("service")} title={isCollapsed ? "Service Management" : undefined} aria-expanded={isDropdownOpen("service")}>
-                <UtensilsCrossed className={iconClass(activeDropdownKey === "service")} />
-                {!isCollapsed && (
+            </button>
+            {isDropdownOpen("service") && !isCollapsed && (
+              <div className={subNavWrapClass}>
+                <NavLink to="/admin/packages" className={subLinkClass}>Packages</NavLink>
+                <NavLink to="/admin/menu" className={subLinkClass}>Food Menu</NavLink>
+                <NavLink to="/admin/gallery" className={subLinkClass}>Gallery</NavLink>
+                {isAdmin && (
                   <>
-                    <span className="flex-1 text-left">Service Management</span>
-                    <div className={cn("transition-transform", isDropdownOpen("service") ? "rotate-180" : "")}>
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </div>
+                    <NavLink to="/admin/addons" className={subLinkClass}>Addons</NavLink>
+                    <NavLink to="/admin/inventory" className={subLinkClass}>Inventory</NavLink>
                   </>
                 )}
-              </button>
-              {isDropdownOpen("service") && !isCollapsed && (
-                <div className={subNavWrapClass}>
-                  <NavLink to="/admin/packages" className={subLinkClass}>Packages</NavLink>
-                  <NavLink to="/admin/menu" className={subLinkClass}>Food Menu</NavLink>
-                  <NavLink to="/admin/gallery" className={subLinkClass}>Gallery</NavLink>
-                  <NavLink to="/admin/addons" className={subLinkClass}>Addons</NavLink>
-                  <NavLink to="/admin/inventory" className={subLinkClass}>Inventory</NavLink>
-                </div>
-              )}
-            </div>
-          </>
-        )}
+              </div>
+            )}
+          </div>
 
-        {isAdmin && (
-          <NavLink to="/admin/staff" className={linkClass} title={isCollapsed ? "Staff & Managers" : undefined}>
-            {({ isActive }) => (
-              <>
-                <UserCheck className={iconClass(isActive)} />
-                {!isCollapsed && <span>Staff &amp; Managers</span>}
-              </>
-            )}
-          </NavLink>
-        )}
+          {isAdmin && (
+            <>
+              <NavLink to="/admin/staff" className={linkClass} title={isCollapsed ? "Staff & Managers" : undefined}>
+                {({ isActive }) => (
+                  <>
+                    <UserCheck className={iconClass(isActive)} />
+                    {!isCollapsed && <span>Staff &amp; Managers</span>}
+                  </>
+                )}
+              </NavLink>
 
-        <div className={sectionLabelClass}>System</div>
-        {isManager && (
-          <NavLink to="/admin/analytics" className={linkClass} title={isCollapsed ? "Analytics" : undefined}>
-            {({ isActive }) => (
-              <>
-                <LineChart className={iconClass(isActive)} />
-                {!isCollapsed && <span>Analytics</span>}
-              </>
-            )}
-          </NavLink>
-        )}
-        {isAdmin && (
-          <NavLink to="/admin/business-info" className={linkClass} title={isCollapsed ? "Business Info" : undefined}>
-            {({ isActive }) => (
-              <>
-                <Building2 className={iconClass(isActive)} />
-                {!isCollapsed && <span>Business Info</span>}
-              </>
-            )}
-          </NavLink>
-        )}
-        {isAdmin && (
-          <NavLink to="/admin/logs" className={linkClass} title={isCollapsed ? "Audit Logs" : undefined}>
-            {({ isActive }) => (
-              <>
-                <TerminalSquare className={iconClass(isActive)} />
-                {!isCollapsed && <span>Audit Logs</span>}
-              </>
-            )}
-          </NavLink>
-        )}
-      </nav>
+              <div className={sectionLabelClass}>System</div>
+              <NavLink to="/admin/analytics" className={linkClass} title={isCollapsed ? "Analytics" : undefined}>
+                {({ isActive }) => (
+                  <>
+                    <LineChart className={iconClass(isActive)} />
+                    {!isCollapsed && <span>Analytics</span>}
+                  </>
+                )}
+              </NavLink>
+              <NavLink to="/admin/business-info" className={linkClass} title={isCollapsed ? "Business Info" : undefined}>
+                {({ isActive }) => (
+                  <>
+                    <Building2 className={iconClass(isActive)} />
+                    {!isCollapsed && <span>Business Info</span>}
+                  </>
+                )}
+              </NavLink>
+              <NavLink to="/admin/logs" className={linkClass} title={isCollapsed ? "Audit Logs" : undefined}>
+                {({ isActive }) => (
+                  <>
+                    <TerminalSquare className={iconClass(isActive)} />
+                    {!isCollapsed && <span>Audit Logs</span>}
+                  </>
+                )}
+              </NavLink>
+            </>
+          )}
+        </nav>
 
       <div className="p-2.5 border-t border-border/60">
         {!isCollapsed ? (
@@ -370,7 +391,7 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
               </div>
               <div className="text-[10px] text-muted-foreground capitalize flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                <span className="truncate">{role === "admin" ? "System Admin" : role}</span>
+                <span className="truncate">{role === "admin" ? "System Admin" : role === "manager" ? "Event Manager" : role}</span>
               </div>
             </div>
             <button

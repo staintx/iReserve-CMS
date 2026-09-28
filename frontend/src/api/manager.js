@@ -10,7 +10,7 @@ export const ManagerAPI = {
   addNote: (id, data) => api.put(`/manager/bookings/${id}/notes`, data),
   updateEquipment: (id, data) => api.put(`/manager/bookings/${id}/equipment`, data),
   verifyEquipment: (id, data) => api.put(`/manager/bookings/${id}/verify-equipment`, data),
-  markCompleted: (id) => api.put(`/manager/bookings/${id}/complete`),
+  markCompleted: (id, data) => api.put(`/manager/bookings/${id}/complete`, data),
   getStaff: (params) => api.get("/manager/staff", { params }),
   getStaffCalendar: (id, month) => api.get(`/manager/staff/${id}/calendar`, { params: { month } })
 };

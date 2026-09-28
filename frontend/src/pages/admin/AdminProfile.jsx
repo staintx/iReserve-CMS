@@ -610,7 +610,9 @@ export default function AdminProfile() {
                     <Layers className="w-5 h-5" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg font-bold">Administrator Privileges</CardTitle>
+                    <CardTitle className="text-lg font-bold">
+                      {user?.role === "manager" ? "Event Manager Privileges" : "Administrator Privileges"}
+                    </CardTitle>
                     <CardDescription>
                       Overview of your active system permissions and role capabilities across iReserve CMS.
                     </CardDescription>
@@ -619,38 +621,72 @@ export default function AdminProfile() {
               </CardHeader>
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {[
-                    {
-                      title: "Bookings & Reservations",
-                      desc: "Create, modify, accept revisions, assign staff, schedule oculars, and cancel events.",
-                      active: true
-                    },
-                    {
-                      title: "Financials & Payments",
-                      desc: "Verify incoming customer payments, issue official receipts, and approve refunds.",
-                      active: true
-                    },
-                    {
-                      title: "Catalog & Pricing",
-                      desc: "Manage packages, catering menu items, add-ons, and run AI-assisted PDF extractions.",
-                      active: true
-                    },
-                    {
-                      title: "Inventory & Equipment",
-                      desc: "Track physical stock, assign items to bookings, verify equipment returns, and inspect logs.",
-                      active: true
-                    },
-                    {
-                      title: "Staff & Team Management",
-                      desc: "Invite managers, staff members, configure roles, and inspect shift schedules.",
-                      active: true
-                    },
-                    {
-                      title: "Audit & System Logs",
-                      desc: "Access full immutable audit trail of system activities, logins, and status transitions.",
-                      active: true
-                    }
-                  ].map((perm, idx) => (
+                  {(user?.role === "manager"
+                    ? [
+                        {
+                          title: "Event Coordination & Schedule",
+                          desc: "Oversee assigned catering events, track turnover milestones, and monitor run sheets.",
+                          active: true
+                        },
+                        {
+                          title: "Staff & Crew Dispatching",
+                          desc: "Assign chefs, servers, and setup crews based on real-time availability and conflict checks.",
+                          active: true
+                        },
+                        {
+                          title: "Equipment & Logistics Tracking",
+                          desc: "Verify dispatched equipment checklists, record returned inventory, and log missing/damaged items.",
+                          active: true
+                        },
+                        {
+                          title: "Client & On-Site Handover",
+                          desc: "Access client contact details, coordinate venue logistics, and confirm final cash balance settlements.",
+                          active: true
+                        },
+                        {
+                          title: "Incident & Field Reporting",
+                          desc: "Review on-the-ground field reports, log coordinator briefing notes, and mark completed jobs.",
+                          active: true
+                        },
+                        {
+                          title: "Catalog & Menu Reference",
+                          desc: "Inspect catering packages, dish specifications, and gallery setups for operational reference.",
+                          active: true
+                        }
+                      ]
+                    : [
+                        {
+                          title: "Bookings & Reservations",
+                          desc: "Create, modify, accept revisions, assign staff, schedule oculars, and cancel events.",
+                          active: true
+                        },
+                        {
+                          title: "Financials & Payments",
+                          desc: "Verify incoming customer payments, issue official receipts, and approve refunds.",
+                          active: true
+                        },
+                        {
+                          title: "Catalog & Pricing",
+                          desc: "Manage packages, catering menu items, add-ons, and run AI-assisted PDF extractions.",
+                          active: true
+                        },
+                        {
+                          title: "Inventory & Equipment",
+                          desc: "Track physical stock, assign items to bookings, verify equipment returns, and inspect logs.",
+                          active: true
+                        },
+                        {
+                          title: "Staff & Team Management",
+                          desc: "Invite managers, staff members, configure roles, and inspect shift schedules.",
+                          active: true
+                        },
+                        {
+                          title: "Audit & System Logs",
+                          desc: "Access full immutable audit trail of system activities, logins, and status transitions.",
+                          active: true
+                        }
+                      ]
+                  ).map((perm, idx) => (
                     <div key={idx} className="p-4 rounded-xl border border-border bg-muted/10 space-y-2">
                       <div className="flex items-center justify-between">
                         <h4 className="text-sm font-bold text-foreground">{perm.title}</h4>

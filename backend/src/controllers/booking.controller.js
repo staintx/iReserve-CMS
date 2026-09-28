@@ -269,11 +269,12 @@ const filterAvailableStaff = async (
   dayEnd.setHours(23, 59, 59, 999);
 
   const query = {
-    status: { $in: ["pending deposit", "confirmed", "preparing", "ongoing"] },
+    status: { $in: ["pending deposit", "confirmed", "Confirmed", "preparing", "ongoing", "Ready for Event"] },
     event_date: { $gte: dayStart, $lte: dayEnd },
     $or: [
       { event_manager_id: { $in: staffIds } },
       { staff_ids: { $in: staffIds } },
+      { "staff_assignments.user_id": { $in: staffIds } },
     ],
   };
   if (excludeBookingId) query._id = { $ne: excludeBookingId };
@@ -285,18 +286,24 @@ const filterAvailableStaff = async (
   const bookedStaff = new Set();
 
   conflictingBookings.forEach((b) => {
-    if (!newRange) {
+    const addAllAssigned = () => {
       if (b.event_manager_id) bookedStaff.add(b.event_manager_id.toString());
-      if (b.staff_ids)
-        b.staff_ids.forEach((id) => bookedStaff.add(id.toString()));
+      if (b.staff_ids) b.staff_ids.forEach((id) => bookedStaff.add(id.toString()));
+      if (Array.isArray(b.staff_assignments)) {
+        b.staff_assignments.forEach((sa) => {
+          if (sa.user_id) bookedStaff.add(sa.user_id.toString());
+        });
+      }
+    };
+
+    if (!newRange) {
+      addAllAssigned();
       return;
     }
 
     const existingRange = getTimeRange(b.start_time, b.duration_hours);
     if (!existingRange) {
-      if (b.event_manager_id) bookedStaff.add(b.event_manager_id.toString());
-      if (b.staff_ids)
-        b.staff_ids.forEach((id) => bookedStaff.add(id.toString()));
+      addAllAssigned();
       return;
     }
 
@@ -307,9 +314,7 @@ const filterAvailableStaff = async (
       newRange.endMinutes > existingStart;
 
     if (isOverlap) {
-      if (b.event_manager_id) bookedStaff.add(b.event_manager_id.toString());
-      if (b.staff_ids)
-        b.staff_ids.forEach((id) => bookedStaff.add(id.toString()));
+      addAllAssigned();
     }
   });
 
@@ -620,7 +625,11 @@ exports.create = asyncHandler(async (req, res) => {
       req.body.event_manager_id &&
       !availableStaffSet.has(req.body.event_manager_id.toString())
     ) {
-      req.body.event_manager_id = undefined;
+      if (!req.body.override_staff_conflict) {
+        return res.status(409).json({
+          message: "The selected Event Manager has a scheduling conflict with another event on this date/time."
+        });
+      }
     }
     if (Array.isArray(req.body.staff_ids)) {
       req.body.staff_ids = req.body.staff_ids.filter((id) =>
@@ -850,7 +859,11 @@ exports.update = asyncHandler(async (req, res) => {
       req.body.event_manager_id &&
       !availableStaffSet.has(req.body.event_manager_id.toString())
     ) {
-      req.body.event_manager_id = undefined; // Drop it
+      if (!req.body.override_staff_conflict) {
+        return res.status(409).json({
+          message: "The selected Event Manager has a scheduling conflict with another event on this date/time."
+        });
+      }
     }
     if (Array.isArray(req.body.staff_ids)) {
       req.body.staff_ids = req.body.staff_ids.filter((id) =>

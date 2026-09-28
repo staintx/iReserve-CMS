@@ -1548,7 +1548,20 @@ export default function AdminBookingDetails() {
           {/* ============================================================ */}
           {/* TAB 2: INQUIRY & QUOTATION LINEAGE (Direct Client Solution!) */}
           {/* ============================================================ */}
-          {activeTab === "inquiry_quote" && (
+          {activeTab === "inquiry_quote" && (() => {
+            const customScope = Array.isArray(booking?.custom_setup_scope) && booking.custom_setup_scope.length > 0
+              ? booking.custom_setup_scope
+              : Array.isArray(sourceInquiry?.custom_setup_scope) && sourceInquiry.custom_setup_scope.length > 0
+              ? sourceInquiry.custom_setup_scope
+              : [];
+            const customNotes = booking?.custom_setup_notes || sourceInquiry?.custom_setup_notes || "";
+            const inspirationImages = Array.isArray(booking?.inspiration_images) && booking.inspiration_images.length > 0
+              ? booking.inspiration_images
+              : Array.isArray(sourceInquiry?.inspiration_images) && sourceInquiry.inspiration_images.length > 0
+              ? sourceInquiry.inspiration_images
+              : [];
+
+            return (
             <div className="p-4 sm:p-5 space-y-4">
               
               {/* Original Customer Request */}
@@ -1619,6 +1632,39 @@ export default function AdminBookingDetails() {
                       </div>
                     </div>
 
+                    {(customScope.length > 0 || customNotes) && (
+                      <div className="p-3 bg-purple-50/50 border border-purple-200/80 rounded-lg space-y-2.5">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
+                          <Sparkles size={13} className="text-purple-600" />
+                          <span>Bespoke Custom Setup Brief &amp; Scope</span>
+                        </div>
+                        {customScope.length > 0 && (
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-purple-700 block">Requested Scope:</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {customScope.map((scope, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white text-purple-900 border border-purple-200 text-[11px] font-medium shadow-2xs"
+                                >
+                                  <Check size={10} className="text-purple-600" />
+                                  <span>{scope}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {customNotes && (
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] uppercase font-bold text-purple-700 block">Styling Vision Notes:</span>
+                            <p className="text-xs text-slate-800 bg-white p-2.5 rounded border border-purple-100 leading-relaxed">
+                              {customNotes}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {sourceInquiry.special_requests && (
                       <div className="p-3 bg-card border border-border/60 rounded-lg">
                         <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">
@@ -1631,13 +1677,13 @@ export default function AdminBookingDetails() {
                     )}
 
                     {/* Inspiration Pegs & Moodboard */}
-                    {Array.isArray(sourceInquiry.inspiration_images) && sourceInquiry.inspiration_images.length > 0 && (
+                    {inspirationImages.length > 0 && (
                       <div className="space-y-1.5 pt-1">
                         <span className="text-[10px] uppercase font-bold text-muted-foreground block flex items-center gap-1">
-                          <Sparkles size={11} className="text-primary" /> Customer Inspiration Pegs ({sourceInquiry.inspiration_images.length})
+                          <Sparkles size={11} className="text-primary" /> Customer Inspiration Pegs ({inspirationImages.length})
                         </span>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                          {sourceInquiry.inspiration_images.map((imgUrl, i) => (
+                          {inspirationImages.map((imgUrl, i) => (
                             <a
                               key={i}
                               href={imgUrl}
@@ -1748,7 +1794,8 @@ export default function AdminBookingDetails() {
               </div>
 
             </div>
-          )}
+            );
+          })()}
 
           {/* ============================================================ */}
           {/* TAB 3: STAFF & EQUIPMENT                                     */}

@@ -40,7 +40,8 @@ import {
   Plus,
   X,
   Boxes,
-  PackageCheck
+  PackageCheck,
+  Image as ImageIcon
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import Btn from "../../components/admin/ui/Btn";
@@ -1353,6 +1354,122 @@ export default function AdminBookingDetails() {
                   </div>
                 </div>
               </div>
+
+              {/* Bespoke Custom Styling Concept Card (When Applicable) */}
+              {(booking.is_custom_setup ||
+                booking.inspiration_images?.length > 0 ||
+                booking.custom_setup_scope?.length > 0 ||
+                booking.custom_setup_notes) && (
+                <div className="bg-gradient-to-br from-blue-50/60 to-indigo-50/30 border border-blue-200/80 rounded-xl p-4 space-y-3.5 shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-blue-200/60 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={14} className="text-blue-600" />
+                      <h3 className="font-bold text-xs text-blue-950 uppercase tracking-wider">
+                        Bespoke Styling Concept &amp; Specifications
+                      </h3>
+                    </div>
+                    <span className="px-2 py-0.5 rounded font-mono bg-blue-100 text-blue-800 text-[10px] font-bold border border-blue-200">
+                      Design From Scratch
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-blue-700/80 block">Styling Theme</span>
+                      <strong className="text-slate-900">{booking.event_theme || "Custom Event Styling"}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-blue-700/80 block">Color Palette</span>
+                      {Array.isArray(booking.event_palette) && booking.event_palette.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {booking.event_palette.map((col, idx) => (
+                            <span key={idx} className="px-1.5 py-0.2 rounded bg-white text-slate-800 text-[10.5px] font-medium border border-blue-200/60 shadow-2xs">
+                              {col}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-500 font-normal">Standard Palette</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-blue-700/80 block">Target Budget</span>
+                      <span className="font-bold font-mono text-blue-900 bg-white px-2 py-0.5 rounded border border-blue-200 inline-block text-[11px] mt-0.5">
+                        {booking.budget_range || "Agreed upon quotation"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Setup Scope Badges */}
+                  {Array.isArray(booking.custom_setup_scope) && booking.custom_setup_scope.length > 0 && (
+                    <div className="pt-2 border-t border-blue-200/50 space-y-1.5">
+                      <span className="text-[10px] uppercase font-bold text-blue-800 tracking-wider block">
+                        Requested Scope Elements ({booking.custom_setup_scope.length})
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {booking.custom_setup_scope.map((scope, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-50 text-blue-950 border border-blue-200 text-xs font-semibold shadow-2xs"
+                          >
+                            <Check size={12} className="text-blue-600 shrink-0" />
+                            {scope}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stylist Notes */}
+                  {booking.custom_setup_notes && (
+                    <div className="pt-2 border-t border-blue-200/50 space-y-1">
+                      <span className="text-[10px] uppercase font-bold text-blue-800 tracking-wider block">
+                        Stylist Vision &amp; Execution Notes
+                      </span>
+                      <p className="bg-white/90 p-3 rounded-lg border border-blue-200/70 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-normal">
+                        {booking.custom_setup_notes}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Inspiration Pegs Gallery */}
+                  {Array.isArray(booking.inspiration_images) && booking.inspiration_images.length > 0 && (
+                    <div className="pt-2.5 border-t border-blue-200/50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10.5px] font-bold text-blue-950 uppercase tracking-wider flex items-center gap-1.5">
+                          <ImageIcon size={13} className="text-blue-600" /> Customer Inspiration Moodboard Pegs ({booking.inspiration_images.length})
+                        </span>
+                        <span className="text-[10px] text-blue-700/80">Click photo to view full size</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
+                        {booking.inspiration_images.map((imgUrl, idx) => (
+                          <a
+                            key={idx}
+                            href={imgUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group relative aspect-square rounded-lg overflow-hidden border border-blue-200 bg-white block hover:ring-2 hover:ring-blue-500 shadow-2xs transition-all cursor-pointer"
+                            title="Open full resolution image in new tab"
+                          >
+                            <img
+                              src={imgUrl}
+                              alt={`Inspiration ${idx + 1}`}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-medium gap-1">
+                              <ExternalLink size={12} />
+                              <span>View</span>
+                            </div>
+                            <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1 py-0.2 rounded font-mono font-bold">
+                              #{idx + 1}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Itemized Menu & Service Breakdown */}
               <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">

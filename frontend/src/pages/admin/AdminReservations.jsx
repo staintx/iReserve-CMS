@@ -34,7 +34,10 @@ import {
   MoreHorizontal,
   Archive,
   Download,
-  UserCheck
+  UserCheck,
+  MessageSquare,
+  ExternalLink,
+  Image as ImageIcon
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
@@ -305,6 +308,23 @@ export default function AdminReservations() {
           depositAmount,
           paidAmount,
           remainingBalance,
+          isCustomSetup: Boolean(
+            b.is_custom_setup ||
+            (Array.isArray(b.custom_setup_scope) && b.custom_setup_scope.length > 0) ||
+            (Array.isArray(b.inspiration_images) && b.inspiration_images.length > 0) ||
+            b.custom_setup_notes
+          ),
+          customSetupScope: Array.isArray(b.custom_setup_scope) ? b.custom_setup_scope : [],
+          inspirationImages: Array.isArray(b.inspiration_images) ? b.inspiration_images : [],
+          customSetupNotes: b.custom_setup_notes || "",
+          eventTheme: b.event_theme || "",
+          eventPalette: Array.isArray(b.event_palette)
+            ? b.event_palette
+            : typeof b.event_palette === "string" && b.event_palette.trim()
+            ? b.event_palette.split(",").map((s) => s.trim()).filter(Boolean)
+            : [],
+          budgetRange: b.budget_range || "",
+          ocularVisit: b.ocular_visit || null,
           createdAt: b.createdAt,
           updatedAt: b.updatedAt || b.createdAt,
           updatedRelative: getRelativeTime(b.updatedAt || b.createdAt),
@@ -776,7 +796,15 @@ export default function AdminReservations() {
                             <td className="py-2.5 px-3">
                               <div className="space-y-0.5">
                                 <p className="font-medium text-foreground text-xs truncate max-w-[140px]">{r.eventType}</p>
-                                <p className="text-[11px] text-muted-foreground truncate max-w-[140px]">{r.pkg}</p>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {r.isCustomSetup ? (
+                                    <span className="px-1.5 py-0.2 rounded font-mono bg-blue-100 text-blue-800 text-[9.5px] font-bold inline-flex items-center gap-1 border border-blue-200">
+                                      <Sparkles size={9} /> Custom Setup
+                                    </span>
+                                  ) : (
+                                    <p className="text-[11px] text-muted-foreground truncate max-w-[140px]">{r.pkg}</p>
+                                  )}
+                                </div>
                               </div>
                             </td>
 
@@ -797,6 +825,26 @@ export default function AdminReservations() {
                             <td className="py-2.5 px-3 whitespace-nowrap">
                               <div className="space-y-1">
                                 <Badge status={r.status} />
+                                {r.ocularVisit && (r.ocularVisit.status === "scheduled" || r.ocularVisit.outcome || r.ocularVisit.status === "requested") && (
+                                  <span className={`inline-flex items-center gap-1 text-[9.5px] font-semibold px-1.5 py-0.2 rounded border ${
+                                    r.ocularVisit.outcome === "proceed"
+                                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                      : r.ocularVisit.outcome === "revise"
+                                      ? "bg-purple-50 text-purple-800 border-purple-200"
+                                      : r.ocularVisit.status === "scheduled"
+                                      ? "bg-blue-50 text-blue-800 border-blue-200"
+                                      : "bg-amber-50 text-amber-800 border-amber-200"
+                                  }`}>
+                                    <Eye size={10} />
+                                    {r.ocularVisit.outcome === "proceed"
+                                      ? "Ocular Passed"
+                                      : r.ocularVisit.outcome === "revise"
+                                      ? "Ocular Revision"
+                                      : r.ocularVisit.status === "scheduled"
+                                      ? "Ocular Set"
+                                      : "Ocular Requested"}
+                                  </span>
+                                )}
                                 {r.staffCount > 0 ? (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                                     <UserCheck size={10} /> {r.staffCount} Staff
@@ -1141,6 +1189,105 @@ export default function AdminReservations() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Bespoke Custom Setup Concept Card (When Applicable) */}
+                      {selectedBooking.isCustomSetup && (
+                        <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/40 border border-blue-200/80 rounded-xl p-3.5 space-y-3">
+                          <div className="flex items-center justify-between gap-2 border-b border-blue-200/60 pb-2">
+                            <h5 className="font-bold text-[10px] uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+                              <Sparkles size={12} className="text-blue-600" /> Bespoke Styling Concept &amp; Pegs
+                            </h5>
+                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[9px] font-bold">
+                              Design from Scratch
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            {selectedBooking.eventTheme && (
+                              <div>
+                                <span className="text-[10px] text-blue-700/80 font-medium block">Theme &amp; Motif</span>
+                                <span className="font-semibold text-slate-900">{selectedBooking.eventTheme}</span>
+                              </div>
+                            )}
+                            {Array.isArray(selectedBooking.eventPalette) && selectedBooking.eventPalette.length > 0 && (
+                              <div>
+                                <span className="text-[10px] text-blue-700/80 font-medium block">Color Palette</span>
+                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                  {selectedBooking.eventPalette.map((col, idx) => (
+                                    <span key={idx} className="px-1.5 py-0.2 rounded bg-white text-slate-800 text-[10px] font-medium border border-blue-200/60 shadow-2xs">
+                                      {col}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Setup Scope Elements */}
+                          {Array.isArray(selectedBooking.customSetupScope) && selectedBooking.customSetupScope.length > 0 && (
+                            <div className="pt-1.5 border-t border-blue-200/50 space-y-1">
+                              <span className="text-[10px] text-blue-700/80 font-bold uppercase tracking-wider block">
+                                Requested Scope Elements ({selectedBooking.customSetupScope.length})
+                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                {selectedBooking.customSetupScope.map((scope, idx) => (
+                                  <span key={idx} className="px-2 py-0.5 rounded-md bg-white text-blue-900 border border-blue-200 text-[11px] font-medium shadow-2xs">
+                                    ✓ {scope}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Stylist Notes */}
+                          {selectedBooking.customSetupNotes && (
+                            <div className="pt-1.5 border-t border-blue-200/50 space-y-1">
+                              <span className="text-[10px] text-blue-700/80 font-bold uppercase tracking-wider block">
+                                Stylist Vision Notes
+                              </span>
+                              <p className="text-xs text-slate-800 bg-white/90 p-2.5 rounded-lg border border-blue-200/70 whitespace-pre-wrap leading-relaxed">
+                                {selectedBooking.customSetupNotes}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Inspiration Moodboard Photos */}
+                          {Array.isArray(selectedBooking.inspirationImages) && selectedBooking.inspirationImages.length > 0 && (
+                            <div className="pt-2 border-t border-blue-200/50 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-blue-900 font-bold uppercase tracking-wider flex items-center gap-1">
+                                  <ImageIcon size={11} /> Customer Inspiration Pegs ({selectedBooking.inspirationImages.length})
+                                </span>
+                                <span className="text-[9.5px] text-blue-600">Click photo to open</span>
+                              </div>
+                              <div className="grid grid-cols-4 gap-1.5">
+                                {selectedBooking.inspirationImages.map((imgUrl, idx) => (
+                                  <a
+                                    key={idx}
+                                    href={imgUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group relative aspect-square rounded-md overflow-hidden border border-blue-200 bg-white hover:ring-2 hover:ring-blue-500 shadow-2xs transition-all block cursor-pointer"
+                                    title="Open full resolution image in new tab"
+                                  >
+                                    <img
+                                      src={imgUrl}
+                                      alt={`Inspiration ${idx + 1}`}
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-medium gap-0.5">
+                                      <ExternalLink size={10} />
+                                    </div>
+                                    <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-[8px] px-1 rounded font-bold">
+                                      #{idx + 1}
+                                    </span>
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 

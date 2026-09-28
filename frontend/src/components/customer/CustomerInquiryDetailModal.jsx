@@ -8,6 +8,7 @@ import {
   Clock, 
   MapPin, 
   UtensilsCrossed, 
+  Utensils,
   Sparkles, 
   User, 
   CreditCard, 
@@ -16,6 +17,9 @@ import {
   MessageSquare, 
   AlertCircle,
   Package,
+  Check,
+  Image as ImageIcon,
+  ExternalLink,
   X
 } from "lucide-react";
 import { formatCurrency, formatShortDate, formatEventDateTime } from "../../utils/format";
@@ -246,21 +250,121 @@ export default function CustomerInquiryDetailModal({
               {/* TAB 2: Package & Inclusions */}
               {activeTab === "menu" && (
                 <div className="space-y-4">
-                  <div className="p-4 bg-white border border-slate-200 rounded-md shadow-2xs space-y-2">
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                      <Package className="w-3.5 h-3.5 text-[#2C4B8A]" /> Selected Package
-                    </h4>
-                    <div>
-                      <span className="font-bold text-sm text-slate-900 block">
-                        {data?.package_id?.name || "Customized Catering Package"}
-                      </span>
-                      {data?.package_id?.description && (
-                        <p className="text-slate-600 text-xs mt-1 leading-relaxed">
-                          {data.package_id.description}
-                        </p>
+                  {data?.is_custom_setup || (!data?.package_id && (data?.custom_setup_scope?.length || data?.inspiration_images?.length || data?.custom_setup_notes || data?.budget_range)) ? (
+                    <div className="p-4 bg-white border border-blue-200 rounded-md shadow-2xs space-y-3.5">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Bespoke Custom Setup Brief
+                        </h4>
+                        <span className="px-2 py-0.5 rounded font-mono bg-blue-100 text-blue-800 text-[10px] font-bold border border-blue-200">
+                          100% Custom
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <span className="text-[10.5px] text-slate-400 block font-medium">Styling Theme</span>
+                          <span className="font-semibold text-slate-900 block mt-0.5">
+                            {data?.event_theme || "Custom Event Styling"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10.5px] text-slate-400 block font-medium">Target Budget</span>
+                          <span className="font-bold font-mono text-blue-900 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded inline-block mt-0.5">
+                            {data?.budget_range || "On Official Quotation"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Setup Scope Elements */}
+                      {Array.isArray(data?.custom_setup_scope) && data.custom_setup_scope.length > 0 && (
+                        <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                          <span className="text-[10.5px] text-slate-400 font-bold uppercase tracking-wider block">
+                            Requested Scope Elements ({data.custom_setup_scope.length})
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {data.custom_setup_scope.map((scope, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-900 border border-blue-200 text-xs font-medium"
+                              >
+                                <Check size={12} className="text-blue-600 shrink-0" />
+                                {scope}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Stylist Notes */}
+                      {data?.custom_setup_notes && (
+                        <div className="pt-2 border-t border-slate-100 space-y-1">
+                          <span className="text-[10.5px] text-slate-400 font-bold uppercase tracking-wider block">
+                            Stylist Vision &amp; Notes
+                          </span>
+                          <p className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap">
+                            {data.custom_setup_notes}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Inspiration Photos */}
+                      {Array.isArray(data?.inspiration_images) && data.inspiration_images.length > 0 && (
+                        <div className="pt-2 border-t border-slate-100 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10.5px] text-slate-700 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                              <ImageIcon size={13} className="text-blue-600" /> Uploaded Inspiration Moodboard Pegs ({data.inspiration_images.length})
+                            </span>
+                            <span className="text-[10px] text-slate-400">Click photo to view full size</span>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {data.inspiration_images.map((imgUrl, idx) => (
+                              <a
+                                key={idx}
+                                href={imgUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group relative aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-50 block hover:ring-2 hover:ring-blue-500 shadow-2xs transition-all cursor-pointer"
+                                title="Open full resolution image in new tab"
+                              >
+                                <img
+                                  src={imgUrl}
+                                  alt={`Inspiration ${idx + 1}`}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-medium gap-1">
+                                  <ExternalLink size={12} />
+                                  <span>View</span>
+                                </div>
+                                <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1 py-0.2 rounded font-mono font-bold">
+                                  #{idx + 1}
+                                </span>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
-                  </div>
+                  ) : (
+                    <div className="p-4 bg-white border border-slate-200 rounded-md shadow-2xs space-y-2">
+                      <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        {serviceType === "Food Only" ? (
+                          <Utensils className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Package className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                        )}
+                        <span>{serviceType === "Food Only" ? "Food Catering Service" : "Selected Package"}</span>
+                      </h4>
+                      <div>
+                        <span className="font-bold text-sm text-slate-900 block">
+                          {data?.package_id?.name || (serviceType === "Food Only" ? "Custom Food Catering Selections" : "Customized Catering Package")}
+                        </span>
+                        <p className="text-slate-600 text-xs mt-1 leading-relaxed">
+                          {data?.package_id?.description || (serviceType === "Food Only" ? "Food catering service with drop-off/delivery logistics. Venue setup and styling are excluded." : "Standard catering selections tailored for your event.")}
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Selected Menu Items */}
                   {Array.isArray(data?.menu_items) && data.menu_items.length > 0 ? (

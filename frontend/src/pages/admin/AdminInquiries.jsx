@@ -5,7 +5,7 @@ import {
   FileText, Send, Archive, ArchiveRestore, AlertCircle,
   Sparkles, RefreshCw, ArrowUpRight, ChevronLeft, Check, Info,
   AlertTriangle, Tag, Package, Sliders, CheckCircle2, ExternalLink,
-  User, History, Ruler
+  User, History, Ruler, Image as ImageIcon
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
@@ -426,7 +426,12 @@ export default function AdminInquiries() {
         convertedBookingId: b.converted_booking_id || null,
         paymentStatus: b.payment_status || "unpaid",
         celebrantName: b.celebrant_name || "",
+        eventTheme: b.event_theme || "",
         eventPalette: b.event_palette || [],
+        isCustomSetup: Boolean(b.is_custom_setup || (!b.package_id && (b.custom_setup_scope?.length || b.inspiration_images?.length || b.custom_setup_notes))),
+        inspirationImages: Array.isArray(b.inspiration_images) ? b.inspiration_images : [],
+        customSetupScope: Array.isArray(b.custom_setup_scope) ? b.custom_setup_scope : [],
+        customSetupNotes: b.custom_setup_notes || "",
         eventSpaceSize: eventSpaceLabel(b, b.package_id) || (b.scaffold_width && b.scaffold_length ? `${b.scaffold_width}×${b.scaffold_length}` : ""),
       };
     });
@@ -1315,6 +1320,26 @@ export default function AdminInquiries() {
                           : "Custom / TBD"}
                       </span>
                     </div>
+                    {/* Event Theme & Palette for standard inquiries */}
+                    {(selectedInquiry.eventTheme || (Array.isArray(selectedInquiry.eventPalette) && selectedInquiry.eventPalette.length > 0)) && (
+                      <div className="col-span-2 pt-1 border-t border-border/40">
+                        <span className="text-[10px] text-muted-foreground block font-medium">Styling Theme &amp; Palette</span>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                          {selectedInquiry.eventTheme && (
+                            <span className="font-semibold text-foreground text-xs">{selectedInquiry.eventTheme}</span>
+                          )}
+                          {Array.isArray(selectedInquiry.eventPalette) && selectedInquiry.eventPalette.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {selectedInquiry.eventPalette.map((col, idx) => (
+                                <span key={idx} className="px-1.5 py-0.2 rounded bg-muted/60 text-foreground text-[10px] font-medium border border-border/50">
+                                  {col}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     <div className="col-span-2 pt-1.5 border-t border-border/50">
                       <span className="text-[10px] text-muted-foreground block font-medium flex items-center gap-1">
                         <MapPin size={11} className="text-primary" /> Venue Address
@@ -1328,6 +1353,107 @@ export default function AdminInquiries() {
                     </div>
                   </div>
                 </div>
+
+                {/* Bespoke Custom Setup Brief & Inspiration Photos (When Applicable) */}
+                {(selectedInquiry.isCustomSetup ||
+                  selectedInquiry.inspirationImages?.length > 0 ||
+                  selectedInquiry.customSetupScope?.length > 0 ||
+                  selectedInquiry.customSetupNotes) && (
+                  <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/40 border border-blue-200/80 rounded-xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between gap-2 border-b border-blue-200/60 pb-2">
+                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+                        <Sparkles size={12} className="text-blue-600" /> Custom Setup &amp; Moodboard Brief
+                      </h5>
+                      <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[9px] font-bold">
+                        Design from Scratch
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {selectedInquiry.eventTheme && (
+                        <div>
+                          <span className="text-[10px] text-blue-700/80 font-medium block">Theme &amp; Motif</span>
+                          <span className="font-semibold text-slate-900">{selectedInquiry.eventTheme}</span>
+                        </div>
+                      )}
+                      {Array.isArray(selectedInquiry.eventPalette) && selectedInquiry.eventPalette.length > 0 && (
+                        <div>
+                          <span className="text-[10px] text-blue-700/80 font-medium block">Color Palette</span>
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {selectedInquiry.eventPalette.map((col, idx) => (
+                              <span key={idx} className="px-1.5 py-0.2 rounded bg-white text-slate-800 text-[10px] font-medium border border-blue-200/60 shadow-2xs">
+                                {col}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {selectedInquiry.budgetRange && selectedInquiry.budgetRange !== "N/A" && (
+                        <div className="col-span-2">
+                          <span className="text-[10px] text-blue-700/80 font-medium block">Target Budget</span>
+                          <span className="font-bold text-blue-950 font-mono text-xs">{selectedInquiry.budgetRange}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Setup Scope Elements */}
+                    {Array.isArray(selectedInquiry.customSetupScope) && selectedInquiry.customSetupScope.length > 0 && (
+                      <div className="pt-1.5 border-t border-blue-200/50 space-y-1">
+                        <span className="text-[10px] text-blue-700/80 font-bold uppercase tracking-wider block">
+                          Scope Elements ({selectedInquiry.customSetupScope.length})
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedInquiry.customSetupScope.map((scope, idx) => (
+                            <span key={idx} className="px-2 py-0.5 rounded-md bg-white text-blue-900 border border-blue-200 text-[11px] font-medium shadow-2xs">
+                              ✓ {scope}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Stylist Notes */}
+                    {selectedInquiry.customSetupNotes && (
+                      <div className="pt-1.5 border-t border-blue-200/50 space-y-1">
+                        <span className="text-[10px] text-blue-700/80 font-bold uppercase tracking-wider block">
+                          Stylist Vision Notes
+                        </span>
+                        <p className="text-xs text-slate-800 bg-white/90 p-2.5 rounded-lg border border-blue-200/70 whitespace-pre-wrap leading-relaxed">
+                          {selectedInquiry.customSetupNotes}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Inspiration Moodboard Photos */}
+                    {Array.isArray(selectedInquiry.inspirationImages) && selectedInquiry.inspirationImages.length > 0 && (
+                      <div className="pt-2 border-t border-blue-200/50 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-blue-900 font-bold uppercase tracking-wider flex items-center gap-1">
+                            <ImageIcon size={11} /> Inspiration Pegs ({selectedInquiry.inspirationImages.length})
+                          </span>
+                          <span className="text-[9.5px] text-blue-600">Click to open</span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {selectedInquiry.inspirationImages.map((imgUrl, idx) => (
+                            <a
+                              key={idx}
+                              href={imgUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group relative aspect-square rounded-md overflow-hidden border border-blue-200/80 bg-white block shadow-2xs hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer"
+                              title="Open full resolution image"
+                            >
+                              <img src={imgUrl} alt={`Peg ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                              <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-[8px] px-1 rounded font-bold">
+                                #{idx + 1}
+                              </span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Special Preferences & Requirements */}
                 {(selectedInquiry.celebrantName || selectedInquiry.dietaryRestrictions || selectedInquiry.allergies || selectedInquiry.specialRequests) && (

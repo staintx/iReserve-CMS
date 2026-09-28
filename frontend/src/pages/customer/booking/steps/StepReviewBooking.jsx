@@ -264,6 +264,9 @@ export default function StepReviewBooking({
                   {form.budget_range && (
                     <Row label="Target Budget" value={form.budget_range} />
                   )}
+                  {form.custom_setup_notes && (
+                    <Row label="Styling Vision & Notes" value={form.custom_setup_notes} wide />
+                  )}
                   {Array.isArray(form.inspiration_images) &&
                     form.inspiration_images.length > 0 && (
                       <div className="col-span-full pt-1">

@@ -57,6 +57,8 @@ import {
   ChevronRight,
   Eye,
   Copy,
+  Sparkles,
+  Image as ImageIcon,
 } from "lucide-react";
 
 // Curated mapping for theme color palettes
@@ -229,6 +231,17 @@ export default function CustomerInquiryDetails() {
 
   const hasPackage = Boolean(resolvedPackage?.name || inquiry?.package_name_snapshot || inquiry?.package_id);
   const isSpecialOffer = inquiry?.booking_type === "special" || resolvedPackage?.offer_type === "special";
+  const isFoodOnly = inquiry?.service_type === "Food Only" || inquiry?.service_type === "Food";
+  const hasCustomSetupDetails = Boolean(
+    (Array.isArray(inquiry?.custom_setup_scope) && inquiry.custom_setup_scope.length > 0) ||
+    (Array.isArray(inquiry?.inspiration_images) && inquiry.inspiration_images.length > 0) ||
+    inquiry?.custom_setup_notes
+  );
+  const isCustomSetup = Boolean(
+    inquiry?.is_custom_setup ||
+    (!hasPackage && !isSpecialOffer && !isFoodOnly) ||
+    hasCustomSetupDetails
+  );
 
   // Resolve menu items
   const resolvedMenuItems = useMemo(() => {
@@ -1008,23 +1021,47 @@ export default function CustomerInquiryDetails() {
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                   <div className="space-y-0.5">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-[#4C81E0]">
-                      Menu &amp; Selections
+                      {isCustomSetup ? "Bespoke Styling & Setup" : "Menu & Selections"}
                     </span>
-                    <h2 className="text-base font-bold text-slate-900">Package &amp; Selections</h2>
+                    <h2 className="text-base font-bold text-slate-900">
+                      {isCustomSetup ? "Custom Setup & Styling Brief" : "Package & Selections"}
+                    </h2>
                   </div>
-                  <span className="text-xs font-medium px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/80">
-                    {isSpecialOffer ? "Special Offer Combo" : hasPackage ? "Catering Package" : "Custom Food Selection"}
+                  <span className={cn(
+                    "text-xs font-medium px-2.5 py-0.5 rounded border",
+                    isCustomSetup 
+                      ? "bg-purple-50 text-purple-800 border-purple-200/80 font-semibold"
+                      : isFoodOnly
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200/80 font-semibold"
+                      : "bg-slate-100 text-slate-700 border-slate-200/80"
+                  )}>
+                    {isSpecialOffer ? "Special Offer Combo" : isCustomSetup ? "100% Bespoke Custom Setup" : isFoodOnly ? "Food Catering Service" : hasPackage ? "Catering Package" : "Custom Food Selection"}
                   </span>
                 </div>
 
-                {/* Package Identity & Counts */}
+                {/* Package / Custom Setup Identity & Counts */}
                 <div className="space-y-3">
                   <div>
-                    <div className="font-bold text-base text-slate-900">
-                      {resolvedPackage?.name || inquiry.package_name_snapshot || "Custom Menu Selections"}
+                    <div className="font-bold text-base text-slate-900 flex items-center gap-2">
+                      {isCustomSetup ? (
+                        <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
+                      ) : isFoodOnly ? (
+                        <Utensils className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : null}
+                      <span>
+                        {isCustomSetup
+                          ? (inquiry.event_theme ? `${inquiry.event_theme} (Bespoke Setup)` : "100% Bespoke Custom Event Setup")
+                          : isFoodOnly
+                          ? "Food Catering Service (Drop-Off / Delivery)"
+                          : (resolvedPackage?.name || inquiry.package_name_snapshot || "Custom Menu Selections")}
+                      </span>
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                      {resolvedPackage?.description || "Curated catering selections tailored for your event."}
+                      {isCustomSetup
+                        ? "Personalized event design concept and styling scope tailored specifically from your custom vision."
+                        : isFoodOnly
+                        ? "Curated food catering with professional drop-off preparation. Venue setup and staging are excluded."
+                        : (resolvedPackage?.description || "Curated catering selections tailored for your event.")}
                     </p>
                   </div>
 
@@ -1043,6 +1080,33 @@ export default function CustomerInquiryDetails() {
                         <span className="inline-flex items-center gap-1.5">
                           <Layers className="w-3.5 h-3.5 text-[#4C81E0]" />
                           <span><strong className="text-slate-900 font-semibold">{totalPackageInclusionsCount}</strong> setup inclusions</span>
+                        </span>
+                      </>
+                    )}
+
+                    {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                        <span><strong className="text-slate-900 font-semibold">{inquiry.custom_setup_scope.length}</strong> styling scope items</span>
+                      </span>
+                    )}
+
+                    {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
+                      <>
+                        <span className="text-slate-300 hidden sm:inline">•</span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <ImageIcon className="w-3.5 h-3.5 text-[#4C81E0]" />
+                          <span><strong className="text-slate-900 font-semibold">{inquiry.inspiration_images.length}</strong> inspiration moodboard photos</span>
+                        </span>
+                      </>
+                    )}
+
+                    {inquiry.budget_range && (
+                      <>
+                        <span className="text-slate-300 hidden sm:inline">•</span>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="text-slate-500">Target Budget:</span>
+                          <strong className="text-emerald-700 font-semibold">{inquiry.budget_range}</strong>
                         </span>
                       </>
                     )}
@@ -1067,6 +1131,79 @@ export default function CustomerInquiryDetails() {
                       </>
                     )}
                   </div>
+
+                  {/* Bespoke Custom Setup Details Card on Main Canvas */}
+                  {isCustomSetup && (
+                    <div className="rounded-xl border border-purple-100 bg-purple-50/20 p-4 space-y-3.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900 flex items-center gap-1.5 uppercase tracking-wide text-[11px]">
+                          <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                          Custom Setup Specifications
+                        </span>
+                        {inquiry.budget_range && (
+                          <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold">
+                            Budget: {inquiry.budget_range}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Setup Scope Badges */}
+                      {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
+                        <div className="space-y-1.5">
+                          <span className="text-slate-500 font-medium block text-[11px]">Requested Scope Elements:</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {inquiry.custom_setup_scope.map((item, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-purple-200 text-purple-900 text-xs font-medium shadow-2xs"
+                              >
+                                <Check className="w-3 h-3 text-purple-600" />
+                                <span>{item}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Styling Notes */}
+                      {inquiry.custom_setup_notes && (
+                        <div className="space-y-1">
+                          <span className="text-slate-500 font-medium block text-[11px]">Custom Vision &amp; Notes:</span>
+                          <p className="text-slate-800 bg-white p-3 rounded-lg border border-slate-200/80 leading-relaxed">
+                            {inquiry.custom_setup_notes}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Uploaded Inspiration Photos Preview */}
+                      {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
+                        <div className="space-y-1.5 pt-1">
+                          <span className="text-slate-700 font-semibold block text-xs flex items-center gap-1.5">
+                            <ImageIcon className="w-3.5 h-3.5 text-purple-600" />
+                            Uploaded Inspiration Moodboard ({inquiry.inspiration_images.length})
+                          </span>
+                          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
+                            {inquiry.inspiration_images.map((imgUrl, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => setSelectedPhoto(imgUrl)}
+                                className="aspect-video rounded-lg overflow-hidden border border-slate-200 bg-white shadow-2xs relative group cursor-pointer hover:ring-2 hover:ring-[#4C81E0] transition-all"
+                              >
+                                <img
+                                  src={imgUrl}
+                                  alt={`Inspiration Peg ${idx + 1}`}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold">
+                                  View
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Declared dietary or allergy alert if present */}
@@ -1457,24 +1594,54 @@ export default function CustomerInquiryDetails() {
             )}
 
             {/* 5. CUSTOM STYLING & INSPIRATION PHOTOS */}
-            {(inquiry.custom_setup_notes || (Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0)) && (
+            {(inquiry.custom_setup_notes ||
+              inquiry.budget_range ||
+              (Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0) ||
+              (Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0)) && (
               <div className="space-y-3 pt-2 border-t border-slate-100">
                 <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
-                  <Info className="w-4 h-4 text-[#4C81E0]" />
+                  <Sparkles className="w-4 h-4 text-[#4C81E0]" />
                   <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider font-sans">
                     Custom Styling &amp; Inspiration
                   </h4>
                 </div>
 
+                {inquiry.budget_range && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-slate-500 font-medium">Target Budget:</span>
+                    <strong className="text-emerald-700 font-semibold">{inquiry.budget_range}</strong>
+                  </div>
+                )}
+
+                {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-semibold text-slate-700 block">Requested Scope Elements ({inquiry.custom_setup_scope.length})</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {inquiry.custom_setup_scope.map((item, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-purple-50 border border-purple-200 text-purple-900 text-xs font-medium shadow-2xs"
+                        >
+                          <Check className="w-3 h-3 text-purple-600" />
+                          <span>{item}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {inquiry.custom_setup_notes && (
-                  <p className="text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200/80">
-                    {inquiry.custom_setup_notes}
-                  </p>
+                  <div className="space-y-1">
+                    <span className="text-xs font-semibold text-slate-700 block">Styling Notes &amp; Vision</span>
+                    <p className="text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200/80 leading-relaxed">
+                      {inquiry.custom_setup_notes}
+                    </p>
+                  </div>
                 )}
 
                 {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
                   <div className="space-y-2">
-                    <span className="text-xs font-semibold text-slate-600">Uploaded Inspiration Photos</span>
+                    <span className="text-xs font-semibold text-slate-600">Uploaded Inspiration Photos ({inquiry.inspiration_images.length})</span>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {inquiry.inspiration_images.map((imgUrl, idx) => (
                         <div

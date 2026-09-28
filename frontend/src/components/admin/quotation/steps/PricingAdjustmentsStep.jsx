@@ -22,6 +22,8 @@ import {
   X,
   RefreshCw,
   CheckCircle2,
+  Image as ImageIcon,
+  ExternalLink,
 } from "lucide-react";
 import { formatCurrency } from "../../../../utils/format";
 import {
@@ -166,6 +168,11 @@ export default function PricingAdjustmentsStep({
   });
 
   const isSpecial = Boolean(isSpecialOffer || offerContext);
+  const isCustomSetup = Boolean(
+    inquiry?.is_custom_setup ||
+    (!packageRecord && !inquiry?.package_id && !isFoodOnly) ||
+    (Array.isArray(inquiry?.custom_setup_scope) && inquiry.custom_setup_scope.length > 0)
+  );
   const activeMenuItems = menuItems.filter((m) => !m.removed);
   const activeAddOns = addOns.filter((a) => !a.removed);
 
@@ -222,20 +229,105 @@ export default function PricingAdjustmentsStep({
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
           <div>
             <div className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5 font-sans">
-              <Package size={14} className="text-primary" /> Package Price
+              <Package size={14} className="text-primary" /> Package / Setup Price
             </div>
             <p className="text-[11px] text-slate-500">
-              The base package rate covering the event setup and core service.
+              The base rate covering the event setup, custom styling, and core service.
             </p>
           </div>
           <span className="text-xs font-semibold text-primary">{packageName}</span>
         </div>
 
+        {/* Customer Custom Styling Brief & Inspiration Photos Reference */}
+        {(inquiry?.is_custom_setup || (!packageRecord && (inquiry?.custom_setup_scope?.length > 0 || inquiry?.inspiration_images?.length > 0 || inquiry?.custom_setup_notes || inquiry?.event_theme))) && (
+          <div className="p-3.5 rounded-lg bg-blue-50/60 border border-blue-200/80 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Sparkles size={13} className="text-blue-600" />
+                <span className="text-[11px] font-bold text-blue-950 uppercase tracking-wider">
+                  Customer Styling Vision Reference
+                </span>
+              </div>
+              <span className="text-[10px] font-bold font-mono text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs">
+                Budget: {inquiry.budget_range || "On Quotation"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              {inquiry.event_theme && (
+                <div>
+                  <span className="text-[10px] text-blue-700 font-medium block">Theme &amp; Motif</span>
+                  <span className="font-semibold text-slate-900">{inquiry.event_theme}</span>
+                </div>
+              )}
+              {Array.isArray(inquiry.event_palette) && inquiry.event_palette.length > 0 && (
+                <div>
+                  <span className="text-[10px] text-blue-700 font-medium block">Color Palette</span>
+                  <span className="text-slate-800 font-medium">{inquiry.event_palette.join(", ")}</span>
+                </div>
+              )}
+            </div>
+
+            {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
+              <div className="space-y-1">
+                <span className="text-[10px] text-blue-700 font-medium block">Requested Scope</span>
+                <div className="flex flex-wrap gap-1">
+                  {inquiry.custom_setup_scope.map((s, idx) => (
+                    <span key={idx} className="px-2 py-0.5 rounded bg-white text-blue-900 text-[10.5px] font-medium border border-blue-200 shadow-2xs">
+                      ✓ {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {inquiry.custom_setup_notes && (
+              <div className="space-y-0.5">
+                <span className="text-[10px] text-blue-700 font-medium block">Vision Notes</span>
+                <p className="text-xs text-slate-800 bg-white/90 p-2 rounded border border-blue-200/70 leading-relaxed whitespace-pre-wrap">
+                  {inquiry.custom_setup_notes}
+                </p>
+              </div>
+            )}
+
+            {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
+              <div className="space-y-1.5 pt-1 border-t border-blue-200/60">
+                <span className="text-[10px] text-blue-900 font-bold uppercase tracking-wider block">
+                  Uploaded Inspiration Pegs ({inquiry.inspiration_images.length})
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {inquiry.inspiration_images.map((imgUrl, idx) => (
+                    <a
+                      key={idx}
+                      href={imgUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group relative h-14 w-14 rounded-md overflow-hidden border border-blue-200 bg-white shadow-2xs hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer block"
+                      title="Open full image"
+                    >
+                      <img src={imgUrl} alt={`Peg ${idx + 1}`} className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
+                      <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-[8px] px-1 rounded font-bold">
+                        #{idx + 1}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 items-start">
           {/* Base Starting Price */}
           <div>
             <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-              {isSpecial ? "Special Offer Fixed Total (₱) *" : "Package Base Price (₱) *"}
+              {isSpecial
+                ? "Special Offer Fixed Total (₱) *"
+                : isCustomSetup
+                ? "Custom Setup Base Rate (₱) *"
+                : isFoodOnly
+                ? "Food Catering Base Rate (₱) *"
+                : "Package Base Price (₱) *"}
             </label>
             <MoneyInput
               id="qb-starting-price"
@@ -247,6 +339,10 @@ export default function PricingAdjustmentsStep({
             <span className="text-[10px] text-slate-500 mt-1 block">
               {offerContext
                 ? `Combo rate: ${formatCurrency(offerContext.perPax)} / guest × ${offerContext.guests} guests = ${formatCurrency(offerContext.basePrice)}`
+                : isCustomSetup
+                ? "Starting base rate for this custom styling concept"
+                : isFoodOnly
+                ? "Starting base price for food catering service"
                 : "Starting price for this package"}
             </span>
           </div>

@@ -458,6 +458,14 @@ export default function AdminQuoteDetails() {
   const groupedInclusions = groupInclusions(rawInclusions);
   const totalInclusionsCount = rawInclusions.length;
 
+  const totalDishesCount = isOffer
+    ? (Array.isArray(quote.offer_food_snapshot) && quote.offer_food_snapshot.length > 0
+        ? quote.offer_food_snapshot.length
+        : offerCourses.reduce((sum, c) => sum + (c.items?.length || 0), 0))
+    : Array.isArray(quote.selected_menu)
+      ? quote.selected_menu.length
+      : 0;
+
   const eventSpace = quote
     ? (
         eventSpaceLabel(quote, quote.package_id) ||
@@ -840,9 +848,9 @@ export default function AdminQuoteDetails() {
                     />
 
                     <DataField icon={Calendar} label="Theme">
-                      {quote.event_theme ? (
+                      {quote.event_theme || (Array.isArray(quote.event_palette) && quote.event_palette.length > 0) ? (
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="font-semibold text-slate-800">{quote.event_theme}</span>
+                          {quote.event_theme && <span className="font-semibold text-slate-800">{quote.event_theme}</span>}
                           {(Array.isArray(quote.event_palette) ? quote.event_palette : []).map((colour) => (
                             <span key={colour} className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.2 text-[10px] font-normal text-slate-600">
                               {colour}
@@ -905,16 +913,36 @@ export default function AdminQuoteDetails() {
               </div>
             </SectionContainer>
 
-            {/* 2. Package & Inclusions */}
+            {/* 2. Package & Inclusions / Food Catering / Custom Setup */}
             <SectionContainer
-              title="Package &amp; Inclusions"
-              icon={PackageIcon}
+              title={
+                isFoodOnly && !quote.is_custom_setup
+                  ? "Food Catering Service"
+                  : quote.is_custom_setup || (!quote.package_id && !quote.had_package_selection)
+                  ? "Setup Concept & Specifications"
+                  : "Package & Inclusions"
+              }
+              icon={
+                isFoodOnly && !quote.is_custom_setup
+                  ? Utensils
+                  : quote.is_custom_setup || (!quote.package_id && !quote.had_package_selection)
+                  ? Sparkles
+                  : PackageIcon
+              }
               badge={
-                quote.package_id && totalInclusionsCount > 0 && (
+                isFoodOnly && !quote.is_custom_setup ? (
+                  <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10.5px] font-mono font-bold text-emerald-800 border border-emerald-200/80 flex items-center gap-1">
+                    <Utensils size={11} /> Food Catering Only (No Setup)
+                  </span>
+                ) : quote.is_custom_setup || (!quote.package_id && !quote.had_package_selection) ? (
+                  <span className="rounded bg-primary/10 px-2 py-0.5 text-[10.5px] font-mono font-bold text-primary border border-primary/20 flex items-center gap-1">
+                    <Sparkles size={11} /> 100% Bespoke Custom Setup
+                  </span>
+                ) : quote.package_id && totalInclusionsCount > 0 ? (
                   <span className="rounded bg-slate-100 px-2 py-0.5 text-[10.5px] font-mono font-semibold text-slate-600 border border-slate-200/60">
                     {totalInclusionsCount} items
                   </span>
-                )
+                ) : null
               }
             >
               {quote.package_id && typeof quote.package_id === "object" ? (
@@ -1046,13 +1074,235 @@ export default function AdminQuoteDetails() {
                   <AlertTriangle className="text-amber-600 shrink-0" size={16} />
                   <span>The selected package is no longer active in the catalog.</span>
                 </div>
-              ) : (
-                <div className="p-3.5 bg-slate-50/70 border border-slate-200/70 rounded-md flex items-center gap-2.5 text-slate-600 text-xs">
-                  <PackageIcon className="text-slate-400 shrink-0" size={16} />
-                  <div>
-                    <span className="font-bold text-slate-800">Custom Request</span>
-                    <span className="text-slate-500 ml-1">— No package selected.</span>
+              ) : isFoodOnly && !quote.is_custom_setup ? (
+                /* FOOD CATERING ONLY SUMMARY */
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50/50 p-4 rounded-lg border border-emerald-100/80">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-12 h-12 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
+                        <Utensils size={22} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-tight truncate">
+                            Food Catering Service (Drop-Off / Delivery)
+                          </h3>
+                          <span className="px-2 py-0.5 rounded font-mono bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-200 shrink-0">
+                            Food Only
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-1 leading-snug">
+                          Catering service with food preparation &amp; drop-off. On-site venue staging and styling are excluded.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-left sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-emerald-100 shrink-0">
+                      <span className="text-[9.5px] uppercase tracking-wider text-slate-500 font-semibold block">
+                        Service Mode
+                      </span>
+                      <span className="text-xs sm:text-sm font-bold font-mono text-slate-900 bg-white px-2.5 py-1 rounded-md border border-slate-200/80 inline-block mt-0.5">
+                        {quote.delivery_method ? `${quote.delivery_method.toUpperCase()}` : "DROP-OFF"}
+                      </span>
+                    </div>
                   </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3.5 bg-slate-50/70 rounded-lg border border-slate-200/70 text-xs">
+                    <div>
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                        Delivery Method
+                      </span>
+                      <span className="font-semibold text-slate-800 capitalize">
+                        {quote.delivery_method === "pickup" ? "Customer Commissary Pickup" : "Drop-off Catering Delivery"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                        Expected Guests
+                      </span>
+                      <span className="font-semibold text-slate-800">
+                        {quote.guest_count ? `${quote.guest_count} guests` : "Guest count TBD"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                        Selected Dishes
+                      </span>
+                      <span className="font-semibold text-slate-800">
+                        {totalDishesCount > 0 ? `${totalDishesCount} dishes requested` : "Dishes to be finalized"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {quote.delivery_instructions && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Delivery Logistics &amp; Instructions
+                      </span>
+                      <div className="bg-slate-50/90 p-3 rounded-lg border border-slate-200/80 text-xs text-slate-800 leading-relaxed">
+                        {quote.delivery_instructions}
+                      </div>
+                    </div>
+                  )}
+
+                  {quote.dietary_notes && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Dietary Requirements &amp; Special Requests
+                      </span>
+                      <div className="bg-slate-50/90 p-3 rounded-lg border border-slate-200/80 text-xs text-slate-800 leading-relaxed">
+                        {quote.dietary_notes}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* BESPOKE CUSTOM SETUP / DESIGN FROM SCRATCH SPECIFICATIONS */
+                <div className="space-y-4">
+                  {/* Top Custom Concept Banner */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-slate-50/70 p-4 rounded-lg border border-blue-100/80">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-12 h-12 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
+                        <Sparkles size={22} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-tight truncate">
+                            {quote.event_theme ? `Custom ${quote.event_theme} Setup` : "100% Bespoke Custom Event Setup"}
+                          </h3>
+                          <span className="px-2 py-0.5 rounded font-mono bg-blue-100 text-blue-800 text-[10px] font-bold border border-blue-200 shrink-0">
+                            Design From Scratch
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-1 leading-snug">
+                          Full custom styling requested by customer. Design &amp; decor elements to be priced on official quotation.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-left sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-blue-100 shrink-0">
+                      <span className="text-[9.5px] uppercase tracking-wider text-slate-500 font-semibold block">
+                        Target Budget
+                      </span>
+                      <span className="text-xs sm:text-sm font-bold font-mono text-slate-900 bg-white px-2.5 py-1 rounded-md border border-slate-200/80 inline-block mt-0.5">
+                        {quote.budget_range || "Flexible / On Quotation"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Styling Direction Specs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3.5 bg-slate-50/70 rounded-lg border border-slate-200/70">
+                    <div>
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                        Theme &amp; Motif
+                      </span>
+                      <span className="text-xs font-semibold text-slate-800">
+                        {quote.event_theme || <span className="text-slate-400 italic font-normal">Not specified</span>}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                        Color Palette
+                      </span>
+                      {Array.isArray(quote.event_palette) && quote.event_palette.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 mt-0.5">
+                          {quote.event_palette.map((color, idx) => (
+                            <span
+                              key={idx}
+                              className="px-2 py-0.5 rounded bg-white text-slate-800 text-[11px] font-medium border border-slate-200 shadow-2xs"
+                            >
+                              {color}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic font-normal">Not specified</span>
+                      )}
+                    </div>
+
+                    <div>
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                        Setup Mode
+                      </span>
+                      <span className="text-xs font-semibold text-slate-800">
+                        {quote.service_type || "Custom Event Setup"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Requested Setup Scope Elements */}
+                  {Array.isArray(quote.custom_setup_scope) && quote.custom_setup_scope.length > 0 && (
+                    <div className="space-y-2 pt-1">
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Requested Setup Scope ({quote.custom_setup_scope.length})
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {quote.custom_setup_scope.map((scope, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50/80 text-blue-900 border border-blue-200 text-xs font-semibold shadow-2xs"
+                          >
+                            <Check size={13} className="text-blue-600 shrink-0" />
+                            {scope}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Custom Setup Vision & Stylist Notes */}
+                  {quote.custom_setup_notes && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Custom Setup Vision &amp; Notes
+                      </span>
+                      <div className="bg-slate-50/90 p-3.5 rounded-lg border border-slate-200/80 text-xs text-slate-800 whitespace-pre-wrap leading-relaxed font-normal">
+                        {quote.custom_setup_notes}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Inspiration Pegs & Moodboard Gallery */}
+                  {Array.isArray(quote.inspiration_images) && quote.inspiration_images.length > 0 ? (
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                          <ImageIcon size={13} className="text-primary" /> Customer Inspiration Moodboard Pegs ({quote.inspiration_images.length})
+                        </span>
+                        <span className="text-[10.5px] text-slate-400">Click photo to view full resolution</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                        {quote.inspiration_images.map((imgUrl, i) => (
+                          <a
+                            key={i}
+                            href={imgUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group relative aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-100 block shadow-2xs hover:ring-2 hover:ring-primary transition-all cursor-pointer"
+                            title="Open full resolution image in new tab"
+                          >
+                            <img
+                              src={imgUrl}
+                              alt={`Inspiration peg ${i + 1}`}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1 text-[11px] font-medium">
+                              <ExternalLink size={14} />
+                              <span>View Peg</span>
+                            </div>
+                            <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">
+                              #{i + 1}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-xs text-slate-500 text-center">
+                      No moodboard inspiration photos were uploaded with this custom request.
+                    </div>
+                  )}
                 </div>
               )}
             </SectionContainer>
@@ -1257,8 +1507,8 @@ export default function AdminQuoteDetails() {
               </div>
             </SectionContainer>
 
-            {/* 5. Inspiration Pegs & Custom Setup (when present) */}
-            {((Array.isArray(quote.inspiration_images) && quote.inspiration_images.length > 0) ||
+            {/* 5. Inspiration Pegs & Custom Setup (when attached to a package request) */}
+            {Boolean(quote.package_id) && ((Array.isArray(quote.inspiration_images) && quote.inspiration_images.length > 0) ||
               (Array.isArray(quote.custom_setup_scope) && quote.custom_setup_scope.length > 0) ||
               quote.custom_setup_notes) && (
                 <SectionContainer title="Inspiration & Custom Setup" icon={Sparkles}>

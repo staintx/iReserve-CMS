@@ -19,6 +19,8 @@ import {
   FileText,
   Palette,
   Check,
+  Image as ImageIcon,
+  ExternalLink,
 } from "lucide-react";
 import { formatShortDate } from "../../../../utils/format";
 import { EVENT_TYPES, OTHER_EVENT_TYPE } from "../../../../lib/eventTypes";
@@ -238,39 +240,201 @@ export default function CustomerRequestStep({
             </div>
           </div>
 
-          {/* Section 2: Selected Package & Inclusions */}
-          <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <Package size={13} className="text-primary" /> Selected Package
-              </span>
-              <span className="text-xs font-semibold text-primary">
-                {packageName || "Custom Package"}
-              </span>
-            </div>
-
-            <div className="text-xs text-slate-600">
-              <p className="leading-relaxed">
-                {packageRecord?.description || "Package selected by the customer in their booking inquiry."}
-              </p>
-
-              {Array.isArray(packageRecord?.inclusions) && packageRecord.inclusions.length > 0 && (
-                <div className="mt-2.5 pt-2.5 border-t border-slate-100">
-                  <span className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
-                    Standard Inclusions ({packageRecord.inclusions.length})
+          {/* Section 2: Selected Package, Food Catering Only, or Bespoke Custom Setup Brief */}
+          {inquiry?.is_custom_setup || (!packageRecord && !inquiry?.package_id && !isFoodOnly) ? (
+            <div className="bg-white rounded-lg border border-blue-200 p-4 space-y-3.5 shadow-2xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={14} className="text-blue-600" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800">
+                    Bespoke Custom Setup &amp; Styling Brief
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11.5px] text-slate-700">
-                    {packageRecord.inclusions.map((inc, i) => (
-                      <div key={i} className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
-                        <span className="truncate">{typeof inc === "string" ? inc : inc?.name || ""}</span>
-                      </div>
+                </div>
+                <span className="px-2 py-0.5 rounded font-mono bg-blue-100 text-blue-800 text-[10px] font-bold border border-blue-200">
+                  Design From Scratch
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Theme &amp; Motif
+                  </span>
+                  <span className="font-semibold text-slate-900 block">
+                    {inquiry?.event_theme || <span className="text-slate-400 italic font-normal">Not specified</span>}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Target Budget
+                  </span>
+                  <span className="font-bold font-mono text-blue-900 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded inline-block text-[11px]">
+                    {inquiry?.budget_range || "On Quotation"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Setup Scope Elements */}
+              {Array.isArray(inquiry?.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
+                <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                  <span className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Requested Setup Scope Elements ({inquiry.custom_setup_scope.length})
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {inquiry.custom_setup_scope.map((scope, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-900 border border-blue-200 text-xs font-medium shadow-2xs"
+                      >
+                        <Check size={12} className="text-blue-600 shrink-0" />
+                        {scope}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Setup Notes */}
+              {inquiry?.custom_setup_notes && (
+                <div className="pt-2 border-t border-slate-100 space-y-1">
+                  <span className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Stylist Vision &amp; Notes
+                  </span>
+                  <p className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap">
+                    {inquiry.custom_setup_notes}
+                  </p>
+                </div>
+              )}
+
+              {/* Inspiration Photos */}
+              {Array.isArray(inquiry?.inspiration_images) && inquiry.inspiration_images.length > 0 && (
+                <div className="pt-2.5 border-t border-slate-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10.5px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <ImageIcon size={13} className="text-blue-600" /> Customer Inspiration Moodboard Pegs ({inquiry.inspiration_images.length})
+                    </span>
+                    <span className="text-[10px] text-slate-400">Click photo to view full size</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
+                    {inquiry.inspiration_images.map((imgUrl, idx) => (
+                      <a
+                        key={idx}
+                        href={imgUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group relative aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-50 block hover:ring-2 hover:ring-blue-500 shadow-2xs transition-all cursor-pointer"
+                        title="Open full resolution image in new tab"
+                      >
+                        <img
+                          src={imgUrl}
+                          alt={`Inspiration ${idx + 1}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-medium gap-1">
+                          <ExternalLink size={12} />
+                          <span>View</span>
+                        </div>
+                        <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1 py-0.2 rounded font-mono font-bold">
+                          #{idx + 1}
+                        </span>
+                      </a>
                     ))}
                   </div>
                 </div>
               )}
             </div>
-          </div>
+          ) : isFoodOnly && !inquiry?.is_custom_setup ? (
+            /* Dedicated Food-Only Catering Summary Card */
+            <div className="bg-white rounded-lg border border-emerald-200 p-4 space-y-3.5 shadow-2xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <div className="flex items-center gap-2">
+                  <Utensils size={14} className="text-emerald-600" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800">
+                    Food Catering Service (Drop-Off / Delivery)
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded font-mono bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-200">
+                  Food Only · No Setup
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Delivery / Pickup Logistics
+                  </span>
+                  <span className="font-semibold text-slate-900 capitalize block">
+                    {details.delivery_method === "pickup" ? "Customer Pickup at Commissary" : "Drop-off Catering Delivery"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Estimated Guests
+                  </span>
+                  <span className="font-bold text-slate-900 block">
+                    {details.guest_count || inquiry?.guest_count || 0} guests
+                  </span>
+                </div>
+              </div>
+
+              {details.delivery_instructions && (
+                <div className="pt-2 border-t border-slate-100 space-y-1">
+                  <span className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Delivery Instructions
+                  </span>
+                  <p className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs text-slate-800 leading-relaxed">
+                    {details.delivery_instructions}
+                  </p>
+                </div>
+              )}
+
+              {details.dietary_notes && (
+                <div className="pt-2 border-t border-slate-100 space-y-1">
+                  <span className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Dietary Requirements &amp; Special Requests
+                  </span>
+                  <p className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs text-slate-800 leading-relaxed">
+                    {details.dietary_notes}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <Package size={13} className="text-primary" /> Selected Package
+                </span>
+                <span className="text-xs font-semibold text-primary">
+                  {packageName || "Custom Package"}
+                </span>
+              </div>
+
+              <div className="text-xs text-slate-600">
+                <p className="leading-relaxed">
+                  {packageRecord?.description || "Package selected by the customer in their booking inquiry."}
+                </p>
+
+                {Array.isArray(packageRecord?.inclusions) && packageRecord.inclusions.length > 0 && (
+                  <div className="mt-2.5 pt-2.5 border-t border-slate-100">
+                    <span className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                      Standard Inclusions ({packageRecord.inclusions.length})
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11.5px] text-slate-700">
+                      {packageRecord.inclusions.map((inc, i) => (
+                        <div key={i} className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                          <span className="truncate">{typeof inc === "string" ? inc : inc?.name || ""}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Section 3: Customer Selected Menu Dishes */}
           {(cateringIncluded || (customerSelection?.dishes && customerSelection.dishes.length > 0)) ? (

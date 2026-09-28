@@ -43,6 +43,12 @@ const BookingSchema = new mongoose.Schema(
     },
     celebrant_name: { type: String, default: "" },
     event_theme: String,
+    event_palette: [String],
+    budget_range: String,
+    is_custom_setup: { type: Boolean, default: false },
+    custom_setup_scope: [String],
+    inspiration_images: [String],
+    custom_setup_notes: String,
 
     event_date: { type: Date, required: [true, "Event date is required"] },
     start_time: { type: String, required: [true, "Start time is required"] },

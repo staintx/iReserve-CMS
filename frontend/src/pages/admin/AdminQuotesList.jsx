@@ -44,6 +44,7 @@ import {
   Tag,
   Sliders,
   Ruler,
+  Image as ImageIcon
 } from "lucide-react";
 import { eventSpaceLabel } from "../../lib/packageDisplay";
 
@@ -173,6 +174,7 @@ export default function AdminQuotesList() {
   const [sortBy, setSortBy] = useState("newest"); // 'newest' | 'oldest' | 'recently_updated' | 'event_date' | 'total_amount'
   const [dateRangeFilter, setDateRangeFilter] = useState("all");
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
+  const [archetypeFilter, setArchetypeFilter] = useState("all"); // 'all' | 'package' | 'bespoke' | 'food_only'
   const [activeTab, setActiveTab] = useState("all");
   const [expandedRows, setExpandedRows] = useState({});
 
@@ -336,6 +338,24 @@ export default function AdminQuotesList() {
         depositAmount: latest.deposit_amount || 0,
         packagePrice: latest.package_price || 0,
         packageName: latest.package_name || "Custom Package",
+        isCustomSetup: Boolean(
+          inq.is_custom_setup ||
+          (Array.isArray(inq.custom_setup_scope) && inq.custom_setup_scope.length > 0) ||
+          (Array.isArray(inq.inspiration_images) && inq.inspiration_images.length > 0) ||
+          inq.custom_setup_notes
+        ),
+        customSetupScope: Array.isArray(inq.custom_setup_scope) ? inq.custom_setup_scope : [],
+        inspirationImages: Array.isArray(inq.inspiration_images) ? inq.inspiration_images : [],
+        customSetupNotes: inq.custom_setup_notes || "",
+        eventTheme: inq.event_theme || "",
+        eventPalette: Array.isArray(inq.event_palette)
+          ? inq.event_palette
+          : typeof inq.event_palette === "string" && inq.event_palette.trim()
+          ? inq.event_palette.split(",").map((s) => s.trim()).filter(Boolean)
+          : [],
+        budgetRange: inq.budget_range || "",
+        serviceType: inq.service_type || "Full Service",
+        isFoodOnly: inq.service_type === "Food Only" || inq.service_type === "Food",
         eventSpace: latest.event_snapshot?.event_space_label || eventSpaceLabel(inq, inq.package_id) || (inq.scaffold_width && inq.scaffold_length ? `${inq.scaffold_width}×${inq.scaffold_length}` : ""),
         menuItems: Array.isArray(latest.menu_items) ? latest.menu_items : [],
         addOns: Array.isArray(latest.add_ons) ? latest.add_ons : [],
@@ -417,6 +437,11 @@ export default function AdminQuotesList() {
       // Event Type filter
       if (eventTypeFilter !== "all" && q.eventType !== eventTypeFilter) return false;
 
+      // Service Archetype filter
+      if (archetypeFilter === "package" && (q.isCustomSetup || q.isFoodOnly)) return false;
+      if (archetypeFilter === "bespoke" && !q.isCustomSetup) return false;
+      if (archetypeFilter === "food_only" && !q.isFoodOnly) return false;
+
       // Date Range filter
       if (dateRangeFilter === "next_7" || dateRangeFilter === "next_30") {
         if (!q.eventDate) return false;
@@ -468,7 +493,7 @@ export default function AdminQuotesList() {
     });
 
     return items;
-  }, [groupedQuotations, activeTab, eventTypeFilter, dateRangeFilter, search, sortBy]);
+  }, [groupedQuotations, activeTab, eventTypeFilter, archetypeFilter, dateRangeFilter, search, sortBy]);
 
   // Pagination calculation
   const totalItems = filteredQuotations.length;
@@ -536,6 +561,7 @@ export default function AdminQuotesList() {
     setSortBy("newest");
     setDateRangeFilter("all");
     setEventTypeFilter("all");
+    setArchetypeFilter("all");
     setActiveTab("all");
     setCurrentPage(1);
   };
@@ -686,7 +712,7 @@ export default function AdminQuotesList() {
                 </div>
 
                 {/* Clear Filters Button */}
-                {(search || dateRangeFilter !== "all" || eventTypeFilter !== "all" || activeTab !== "all" || sortBy !== "newest") && (
+                {(search || dateRangeFilter !== "all" || eventTypeFilter !== "all" || archetypeFilter !== "all" || activeTab !== "all" || sortBy !== "newest") && (
                   <button
                     onClick={clearFilters}
                     className="text-xs font-semibold text-primary hover:underline h-8 flex items-center cursor-pointer"
@@ -697,32 +723,66 @@ export default function AdminQuotesList() {
               </div>
             </div>
 
-            {/* Status Tabs Bar */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-border/40">
-              {[
-                { id: "all", label: `All (${metrics.totalQuotations})` },
-                { id: "draft", label: `Draft (${metrics.draftCount})` },
-                { id: "sent", label: `Sent (${metrics.sentCount})` },
-                { id: "revision", label: `Revision Requested (${metrics.revisionCount})` },
-                { id: "accepted", label: `Accepted (${metrics.acceptedCount})` },
-                { id: "converted", label: `Converted (${metrics.convertedCount})` },
-                { id: "expired", label: `Expired (${metrics.expiredCount})` },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                    setCurrentPage(1);
-                  }}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
-                    activeTab === tab.id
-                      ? "bg-primary text-white shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            {/* Status Tabs & Archetype Row */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-border/40">
+                {[
+                  { id: "all", label: `All (${metrics.totalQuotations})` },
+                  { id: "draft", label: `Draft (${metrics.draftCount})` },
+                  { id: "sent", label: `Sent (${metrics.sentCount})` },
+                  { id: "revision", label: `Revision Requested (${metrics.revisionCount})` },
+                  { id: "accepted", label: `Accepted (${metrics.acceptedCount})` },
+                  { id: "converted", label: `Converted (${metrics.convertedCount})` },
+                  { id: "expired", label: `Expired (${metrics.expiredCount})` },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setCurrentPage(1);
+                    }}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
+                      activeTab === tab.id
+                        ? "bg-primary text-white shadow-2xs"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Service Type / Archetype Filter Chips */}
+              <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground shrink-0">Format:</span>
+                {[
+                  { id: "all", label: "All Formats" },
+                  { id: "package", label: "Standard Packages" },
+                  { id: "bespoke", label: "Bespoke Styling", icon: Sparkles },
+                  { id: "food_only", label: "Food Only", icon: Utensils },
+                ].map((arch) => {
+                  const Icon = arch.icon;
+                  const active = archetypeFilter === arch.id;
+                  return (
+                    <button
+                      key={arch.id}
+                      type="button"
+                      onClick={() => {
+                        setArchetypeFilter(arch.id);
+                        setCurrentPage(1);
+                      }}
+                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors cursor-pointer inline-flex items-center gap-1 whitespace-nowrap ${
+                        active
+                          ? "bg-slate-900 text-white shadow-2xs dark:bg-slate-100 dark:text-slate-900"
+                          : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50"
+                      }`}
+                    >
+                      {Icon && <Icon size={11} />}
+                      <span>{arch.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Main Table Container */}
@@ -822,6 +882,21 @@ export default function AdminQuotesList() {
                                   <span className="text-[11px] text-muted-foreground block tabular-nums">
                                     {formatDateClean(item.eventDate)} • {item.guestCount} guests
                                   </span>
+                                  <div className="flex items-center gap-1 pt-0.5">
+                                    {item.isCustomSetup ? (
+                                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/80">
+                                        <Sparkles size={9} /> Bespoke
+                                      </span>
+                                    ) : item.isFoodOnly ? (
+                                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80">
+                                        <Utensils size={9} /> Food Only
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground truncate max-w-[130px] block">
+                                        {item.packageName}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
 
@@ -1135,6 +1210,111 @@ export default function AdminQuotesList() {
                     </div>
                   </div>
                 </div>
+
+                {/* Bespoke Custom Setup Concept Card (When Applicable) */}
+                {selectedQuotation.isCustomSetup && (
+                  <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/40 border border-blue-200/80 rounded-xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between gap-2 border-b border-blue-200/60 pb-2">
+                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+                        <Sparkles size={12} className="text-blue-600" /> Bespoke Styling Concept &amp; Pegs
+                      </h5>
+                      <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[9px] font-bold">
+                        Design from Scratch
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {selectedQuotation.eventTheme && (
+                        <div>
+                          <span className="text-[10px] text-blue-700/80 font-medium block">Theme &amp; Motif</span>
+                          <span className="font-semibold text-slate-900">{selectedQuotation.eventTheme}</span>
+                        </div>
+                      )}
+                      {Array.isArray(selectedQuotation.eventPalette) && selectedQuotation.eventPalette.length > 0 && (
+                        <div>
+                          <span className="text-[10px] text-blue-700/80 font-medium block">Color Palette</span>
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {selectedQuotation.eventPalette.map((col, idx) => (
+                              <span key={idx} className="px-1.5 py-0.2 rounded bg-white text-slate-800 text-[10px] font-medium border border-blue-200/60 shadow-2xs">
+                                {col}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {selectedQuotation.budgetRange && (
+                        <div>
+                          <span className="text-[10px] text-blue-700/80 font-medium block">Target Budget</span>
+                          <span className="font-semibold text-slate-900">{selectedQuotation.budgetRange}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Setup Scope Elements */}
+                    {Array.isArray(selectedQuotation.customSetupScope) && selectedQuotation.customSetupScope.length > 0 && (
+                      <div className="pt-1.5 border-t border-blue-200/50 space-y-1">
+                        <span className="text-[10px] text-blue-700/80 font-bold uppercase tracking-wider block">
+                          Requested Scope Elements ({selectedQuotation.customSetupScope.length})
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedQuotation.customSetupScope.map((scope, idx) => (
+                            <span key={idx} className="px-2 py-0.5 rounded-md bg-white text-blue-900 border border-blue-200 text-[11px] font-medium shadow-2xs">
+                              ✓ {scope}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Stylist Notes */}
+                    {selectedQuotation.customSetupNotes && (
+                      <div className="pt-1.5 border-t border-blue-200/50 space-y-1">
+                        <span className="text-[10px] text-blue-700/80 font-bold uppercase tracking-wider block">
+                          Stylist Vision Notes
+                        </span>
+                        <p className="text-xs text-slate-800 bg-white/90 p-2.5 rounded-lg border border-blue-200/70 whitespace-pre-wrap leading-relaxed">
+                          {selectedQuotation.customSetupNotes}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Inspiration Moodboard Photos */}
+                    {Array.isArray(selectedQuotation.inspirationImages) && selectedQuotation.inspirationImages.length > 0 && (
+                      <div className="pt-2 border-t border-blue-200/50 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-blue-900 font-bold uppercase tracking-wider flex items-center gap-1">
+                            <ImageIcon size={11} /> Customer Inspiration Pegs ({selectedQuotation.inspirationImages.length})
+                          </span>
+                          <span className="text-[9.5px] text-blue-600">Click photo to open</span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {selectedQuotation.inspirationImages.map((imgUrl, idx) => (
+                            <a
+                              key={idx}
+                              href={imgUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group relative aspect-square rounded-md overflow-hidden border border-blue-200 bg-white hover:ring-2 hover:ring-blue-500 shadow-2xs transition-all block cursor-pointer"
+                              title="Open full resolution image in new tab"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Inspiration ${idx + 1}`}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-medium gap-0.5">
+                                <ExternalLink size={10} />
+                              </div>
+                              <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-[8px] px-1 rounded font-bold">
+                                #{idx + 1}
+                              </span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Quotation Line Items & Financial Breakdown */}
                 <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2">

@@ -42,6 +42,7 @@ import {
   X,
   Boxes,
   PackageCheck,
+  ClipboardList,
   Image as ImageIcon
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
@@ -2370,6 +2371,44 @@ export default function AdminBookingDetails() {
                       </div>
                     )}
                   </div>
+
+                  {/* Field Staff Incident & Shift Reports */}
+                  {Array.isArray(booking.staff_reports) && booking.staff_reports.length > 0 && (
+                    <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                            <ClipboardList size={13} className="text-primary" /> Crew Field Incident &amp; Shift Reports
+                          </h3>
+                          <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                            {booking.staff_reports.length} {booking.staff_reports.length === 1 ? "Report" : "Reports"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                        {booking.staff_reports.map((rep, idx) => (
+                          <div key={idx} className="p-3 bg-card border border-border/60 rounded-lg text-xs space-y-1.5 shadow-2xs">
+                            <div className="flex items-center justify-between text-[11px] pb-1 border-b border-border/50">
+                              <div className="flex items-center gap-1.5 font-bold text-foreground">
+                                <span>{rep.staff_id?.full_name || rep.staff_name || "Crew Member"}</span>
+                                <span className="text-[10px] font-normal text-muted-foreground px-1.5 py-0.2 bg-muted rounded border border-border/60">
+                                  {rep.role || "Staff"}
+                                </span>
+                              </div>
+                              {rep.created_at && (
+                                <span className="text-[10.5px] text-muted-foreground">
+                                  {new Date(rep.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">
+                              {rep.note}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Equipment Turnover & Return Verification */}
                   <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3.5">

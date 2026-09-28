@@ -5,12 +5,13 @@ import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
 export const STAFF_POSITIONS = [
-  "Stylish",
-  "Head buffet",
-  "Server",
   "Head Cook",
-  "Assistant",
-  "Dishwashers"
+  "Server",
+  "Setup Crew",
+  "Buffet Lead",
+  "Event Stylist",
+  "Kitchen Assistant",
+  "Dishwasher"
 ];
 
 export default function StaffModal({ staff, defaultRole = "staff", onClose, onSave }) {

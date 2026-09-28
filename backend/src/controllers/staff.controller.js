@@ -91,7 +91,27 @@ exports.updateStaff = asyncHandler(async (req, res) => {
 });
 
 exports.removeStaff = asyncHandler(async (req, res) => {
-  await User.findByIdAndDelete(req.params.id);
+  const staffId = req.params.id;
+
+  const activeBooking = await Booking.findOne({
+    $or: [
+      { event_manager_id: staffId },
+      { "staff_assignments.user_id": staffId },
+      { staff_ids: staffId }
+    ],
+    status: { $nin: ["Cancelled", "cancelled", "refunded", "Completed", "completed"] }
+  }).select("reference event_type event_date");
+
+  if (activeBooking) {
+    const eventDateStr = activeBooking.event_date
+      ? new Date(activeBooking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+      : "an upcoming event";
+    return res.status(400).json({
+      message: `Cannot delete account: This member is assigned to an active or upcoming event (${activeBooking.event_type || "Booking"} on ${eventDateStr}). Please reassign the event first or set the account status to Inactive.`
+    });
+  }
+
+  await User.findByIdAndDelete(staffId);
   res.json({ message: "Deleted" });
 });
 

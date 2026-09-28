@@ -45,7 +45,8 @@ import {
   CalendarDays,
   CreditCard,
   Receipt,
-  ShieldCheck
+  ShieldCheck,
+  Printer
 } from "lucide-react";
 import { formatEventDate, initialsOf } from "../../utils/format";
 import { recordTitle } from "../../components/customer/portal/statusMeta";
@@ -72,27 +73,41 @@ const CREW_SELECT =
   "hover:border-border/90 focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-2xs";
 
 /** One crew slot: a picker and, when the slot is removable, its remove button. */
-function CrewRow({ value, placeholder, options, onChange, onRemove, removeLabel }) {
+function CrewRow({ value, placeholder, options, onChange, onRemove, removeLabel, staffInfo }) {
+  const isConflict = Boolean(
+    staffInfo &&
+    staffInfo.availability_status &&
+    staffInfo.availability_status !== "Available"
+  );
+
   return (
-    <div className="flex items-center gap-2">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={placeholder}
-        className={CREW_SELECT + " flex-1 min-w-0"}
-      >
-        <option value="">{placeholder}</option>
-        {options}
-      </select>
-      {onRemove && (
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={removeLabel}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 cursor-pointer"
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={placeholder}
+          className={`${CREW_SELECT} flex-1 min-w-0 ${isConflict ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/30" : ""}`}
         >
-          <Trash2 size={14} />
-        </button>
+          <option value="">{placeholder}</option>
+          {options}
+        </select>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={removeLabel}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 cursor-pointer"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+      </div>
+      {isConflict && (
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300">
+          <AlertTriangle size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
+          <span>Notice: {staffInfo.full_name} is marked as <strong>{staffInfo.availability_status}</strong> on this date.</span>
+        </div>
       )}
     </div>
   );
@@ -147,6 +162,7 @@ export default function ManagerBookings() {
   const [detail, setDetail] = useState(null);
   const [assignTarget, setAssignTarget] = useState(null);
   const [completeTarget, setCompleteTarget] = useState(null);
+  const [collectCashOnComplete, setCollectCashOnComplete] = useState(false);
   const [submittingComplete, setSubmittingComplete] = useState(false);
   const [assignment, setAssignment] = useState({
     headCook: "",
@@ -476,6 +492,20 @@ export default function ManagerBookings() {
         });
       });
 
+    const chosenIds = [
+      assignment.headCook,
+      ...assignment.servers,
+      ...assignment.setupCrew,
+      ...assignment.assistants
+    ].filter(Boolean);
+
+    const duplicateId = chosenIds.find((id, idx) => chosenIds.indexOf(id) !== idx);
+    if (duplicateId) {
+      const dupName = staffMap[duplicateId]?.full_name || "A crew member";
+      notify(`${dupName} cannot be assigned to multiple roles on the same event.`, "error");
+      return;
+    }
+
     if (staffAssignments.length === 0) {
       notify("Please assign at least one staff member.", "error");
       return;
@@ -494,11 +524,23 @@ export default function ManagerBookings() {
       .finally(() => setSubmittingAssign(false));
   };
 
-  const handleMarkCompleted = (bookingId) => {
+  const openCompleteModal = (target) => {
+    setCompleteTarget(target);
+    const rem = Number(target.remaining_balance ?? 0);
+    const isCashPref = target.balance_payment_preference === "in_person";
+    setCollectCashOnComplete(rem > 0 && isCashPref);
+  };
+
+  const handleMarkCompleted = (bookingId, collectedCash = false) => {
     setSubmittingComplete(true);
-    ManagerAPI.markCompleted(bookingId)
+    ManagerAPI.markCompleted(bookingId, { collected_cash_balance: collectedCash })
       .then(() => {
-        notify("Event marked as completed successfully!", "success");
+        notify(
+          collectedCash
+            ? "Event marked completed and cash balance payment confirmed!"
+            : "Event marked as completed successfully!",
+          "success"
+        );
         setCompleteTarget(null);
         setDetail(null);
         loadBookings();
@@ -620,7 +662,7 @@ export default function ManagerBookings() {
               <Btn
                 variant="primary"
                 size="xs"
-                onClick={() => setCompleteTarget(b)}
+                onClick={() => openCompleteModal(b)}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1 cursor-pointer"
                 title="Mark this event as concluded and completed"
               >
@@ -831,7 +873,7 @@ export default function ManagerBookings() {
                         {!isCompleted && isPast ? (
                           <button
                             type="button"
-                            onClick={() => setCompleteTarget(b)}
+                            onClick={() => openCompleteModal(b)}
                             className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-[13px] font-bold text-white shadow-2xs transition-colors hover:bg-emerald-700 cursor-pointer portal-press"
                           >
                             <CheckCircle2 size={15} />
@@ -997,11 +1039,17 @@ export default function ManagerBookings() {
                   id="assign-head-cook"
                   value={assignment.headCook}
                   onChange={(e) => setAssignment({ ...assignment, headCook: e.target.value })}
-                  className={CREW_SELECT}
+                  className={`${CREW_SELECT} ${staffMap[assignment.headCook]?.availability_status && staffMap[assignment.headCook]?.availability_status !== "Available" ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/30" : ""}`}
                 >
                   <option value="">Select head cook…</option>
                   {staffOptions}
                 </select>
+                {staffMap[assignment.headCook]?.availability_status && staffMap[assignment.headCook]?.availability_status !== "Available" && (
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300">
+                    <AlertTriangle size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                    <span>Notice: {staffMap[assignment.headCook]?.full_name} is marked as <strong>{staffMap[assignment.headCook]?.availability_status}</strong> on this date.</span>
+                  </div>
+                )}
               </div>
 
               <CrewGroup
@@ -1017,6 +1065,7 @@ export default function ManagerBookings() {
                     value={val}
                     placeholder={`Select server #${idx + 1}…`}
                     options={staffOptions}
+                    staffInfo={staffMap[val]}
                     onChange={(next) => updateAssignment("servers", idx, next)}
                     onRemove={assignment.servers.length > 1 ? () => removeAssignmentSlot("servers", idx) : null}
                     removeLabel={`Remove server ${idx + 1}`}
@@ -1037,6 +1086,7 @@ export default function ManagerBookings() {
                     value={val}
                     placeholder={`Select setup crew #${idx + 1}…`}
                     options={staffOptions}
+                    staffInfo={staffMap[val]}
                     onChange={(next) => updateAssignment("setupCrew", idx, next)}
                     onRemove={assignment.setupCrew.length > 1 ? () => removeAssignmentSlot("setupCrew", idx) : null}
                     removeLabel={`Remove setup crew ${idx + 1}`}
@@ -1059,6 +1109,7 @@ export default function ManagerBookings() {
                     value={val}
                     placeholder={`Select assistant #${idx + 1}…`}
                     options={staffOptions}
+                    staffInfo={staffMap[val]}
                     onChange={(next) => updateAssignment("assistants", idx, next)}
                     onRemove={() => removeAssignmentSlot("assistants", idx)}
                     removeLabel={`Remove assistant ${idx + 1}`}
@@ -1119,7 +1170,7 @@ export default function ManagerBookings() {
                       onClick={() => {
                         const target = detail;
                         closeDetails();
-                        setCompleteTarget(target);
+                        openCompleteModal(target);
                       }}
                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5"
                     >
@@ -1130,6 +1181,9 @@ export default function ManagerBookings() {
                       <CheckCircle2 size={13} /> Event completed
                     </span>
                   )}
+                  <Btn variant="secondary" size="sm" onClick={() => window.print()} className="flex items-center gap-1.5 cursor-pointer">
+                    <Printer size={13} /> Print BEO Run Sheet
+                  </Btn>
                   <Btn variant="secondary" size="sm" onClick={closeDetails}>Close</Btn>
                 </div>
               }
@@ -1762,6 +1816,47 @@ export default function ManagerBookings() {
                 )}
               </div>
 
+              {/* Field Staff Incident & Operational Reports */}
+              <div className="space-y-2.5 p-3.5 bg-card border border-border/80 rounded-xl shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <ClipboardList size={14} className="text-primary" /> Crew Field Incident &amp; Shift Reports
+                  </h4>
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    {(detail.staff_reports || []).length} {(detail.staff_reports || []).length === 1 ? "Report" : "Reports"} Logged
+                  </span>
+                </div>
+
+                {(!detail.staff_reports || detail.staff_reports.length === 0) ? (
+                  <p className="text-xs text-muted-foreground italic py-2">
+                    No field incident reports or operational notes have been submitted by the crew for this event.
+                  </p>
+                ) : (
+                  <div className="space-y-2 pt-1">
+                    {detail.staff_reports.map((rep, idx) => (
+                      <div key={idx} className="p-3 bg-muted/20 border border-border/80 rounded-xl text-xs space-y-1.5 shadow-2xs">
+                        <div className="flex items-center justify-between text-[11px] pb-1 border-b border-border/60">
+                          <div className="flex items-center gap-1.5 font-bold text-foreground">
+                            <span>{rep.staff_id?.full_name || rep.staff_name || "Crew Member"}</span>
+                            <span className="text-[10px] font-normal text-muted-foreground px-1.5 py-0.2 bg-muted rounded border border-border/60">
+                              {rep.role || "Staff"}
+                            </span>
+                          </div>
+                          {rep.created_at && (
+                            <span className="text-[10.5px] text-muted-foreground">
+                              {new Date(rep.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">
+                          {rep.note}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Event Notes */}
               <div className="space-y-2.5 pt-2 border-t border-border/60">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -1823,17 +1918,80 @@ export default function ManagerBookings() {
           </Modal>
         )}
 
-        {/* Mark Completed Confirmation Dialog */}
+        {/* Mark Completed Confirmation Modal with Cash Settlement */}
         {completeTarget && (
-          <ConfirmDialog
+          <Modal
             title="Complete Catering Event"
-            message={`Are you sure you want to mark booking ${completeTarget.reference || completeTarget._id?.slice(-6).toUpperCase()} (${completeTarget.event_type || "Event"}) as Completed? This will transition the booking to Completed status.`}
-            confirmText={submittingComplete ? "Completing..." : "Mark Completed"}
-            cancelText="Cancel"
-            tone="confirm"
-            onConfirm={() => handleMarkCompleted(completeTarget._id)}
-            onCancel={() => setCompleteTarget(null)}
-          />
+            icon={CheckCircle2}
+            onClose={() => setCompleteTarget(null)}
+            className="sm:max-w-md"
+            footer={
+              <div className="flex items-center justify-end gap-2">
+                <Btn variant="secondary" size="sm" onClick={() => setCompleteTarget(null)} disabled={submittingComplete}>
+                  Cancel
+                </Btn>
+                <Btn
+                  variant="primary"
+                  size="sm"
+                  onClick={() => handleMarkCompleted(completeTarget._id, collectCashOnComplete)}
+                  disabled={submittingComplete}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <CheckCircle2 size={14} />
+                  <span>{submittingComplete ? "Completing..." : "Confirm & Complete"}</span>
+                </Btn>
+              </div>
+            }
+          >
+            <div className="space-y-3.5 text-xs sm:text-sm">
+              <div className="p-3 bg-muted/40 border border-border/80 rounded-xl space-y-1">
+                <div className="font-bold text-foreground">
+                  {completeTarget.reference || completeTarget._id?.slice(-6).toUpperCase()} — {completeTarget.event_type || "Event"}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Client: {completeTarget.customer_id?.full_name || `${completeTarget.contact_first_name || ""} ${completeTarget.contact_last_name || ""}`.trim() || "Customer"} · Date: {completeTarget.event_date ? new Date(completeTarget.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA"}
+                </div>
+              </div>
+
+              {Number(completeTarget.remaining_balance || 0) > 0 ? (
+                <div className="p-3.5 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <Receipt size={13} className="text-amber-600 dark:text-amber-400" /> Outstanding Balance Due
+                    </span>
+                    <span className="text-sm font-bold font-mono text-amber-900 dark:text-amber-200">
+                      {formatMoney(completeTarget.remaining_balance)}
+                    </span>
+                  </div>
+                  <p className="text-[11.5px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                    {completeTarget.balance_payment_preference === "in_person"
+                      ? "The client selected Cash on Event Day. Please confirm if this remaining balance was collected in cash."
+                      : "This booking has an uncollected balance. If received in cash on-site, check below to record and clear the balance."}
+                  </p>
+                  <label className="flex items-start gap-2.5 pt-1 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={collectCashOnComplete}
+                      onChange={(e) => setCollectCashOnComplete(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-border text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-foreground">
+                      Confirm collected cash payment of {formatMoney(completeTarget.remaining_balance)}
+                    </span>
+                  </label>
+                </div>
+              ) : (
+                <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                  <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>All contracted fees for this event are fully settled.</span>
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Completing this event closes out the schedule, verifies turnover status, and marks the catering engagement as concluded.
+              </p>
+            </div>
+          </Modal>
         )}
       </div>
     </ManagerLayout>

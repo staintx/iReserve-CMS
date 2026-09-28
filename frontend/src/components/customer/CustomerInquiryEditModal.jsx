@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   CalendarDays,
   MapPin,
@@ -27,6 +27,8 @@ import {
   Clock,
   FileText,
   HeartHandshake,
+  Upload,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
 import { Button } from "../ui/button";
@@ -331,13 +333,33 @@ function formFromInquiry(inquiry) {
         }))
       : [],
     selected_scaffold_option_id: inquiry?.selected_scaffold_option_id || "",
+    is_custom_setup: Boolean(
+      inquiry?.is_custom_setup ||
+      (!inquiry?.package_id && inquiry?.booking_type === "custom") ||
+      (Array.isArray(inquiry?.custom_setup_scope) && inquiry.custom_setup_scope.length > 0) ||
+      (Array.isArray(inquiry?.inspiration_images) && inquiry.inspiration_images.length > 0)
+    ),
     custom_setup_scope: Array.isArray(inquiry?.custom_setup_scope)
-      ? inquiry.custom_setup_scope
+      ? [...inquiry.custom_setup_scope]
       : [],
     custom_setup_notes: inquiry?.custom_setup_notes || "",
     budget_range: inquiry?.budget_range || "",
+    inspiration_images: Array.isArray(inquiry?.inspiration_images)
+      ? [...inquiry.inspiration_images]
+      : [],
   };
 }
+
+export const STANDARD_CUSTOM_SCOPE_OPTIONS = [
+  "Stage & Backdrop Design",
+  "Ceiling Treatment & Drapes",
+  "Floral Arrangements & Centerpieces",
+  "Mood Lighting & Spotlights",
+  "VIP & Presidential Table Setup",
+  "Guest Table Styling & Linens",
+  "Entrance Arch & Photo Wall",
+  "Aisle & Pathway Décor",
+];
 
 export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClose, onSaved }) {
   const showModal = Boolean(open ?? isOpen);
@@ -348,6 +370,8 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [saving, setSaving] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Catalogues
   const [menuCatalog, setMenuCatalog] = useState([]);
@@ -358,6 +382,57 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
   const [activeCourseTab, setActiveCourseTab] = useState("all");
   const [addonCategoryFilter, setAddonCategoryFilter] = useState("all");
   const [addonSearchQuery, setAddonSearchQuery] = useState("");
+
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const currentImages = Array.isArray(form.inspiration_images) ? form.inspiration_images : [];
+    if (currentImages.length + files.length > 5) {
+      notify("You can upload a maximum of 5 inspiration photos.", "error");
+      return;
+    }
+
+    setUploadingImages(true);
+    try {
+      const formData = new FormData();
+      files.forEach((file) => formData.append("images", file));
+
+      const res = await CustomerAPI.uploadInspirationImages(formData);
+      if (res?.data?.urls && Array.isArray(res.data.urls)) {
+        setForm((prev) => ({
+          ...prev,
+          inspiration_images: [...(prev.inspiration_images || []), ...res.data.urls],
+        }));
+        notify("Inspiration photos uploaded successfully!", "success");
+      }
+    } catch (err) {
+      notify(err?.response?.data?.message || "Failed to upload inspiration photos.", "error");
+    } finally {
+      setUploadingImages(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const removeInspirationImage = (indexToRemove) => {
+    setForm((prev) => ({
+      ...prev,
+      inspiration_images: (prev.inspiration_images || []).filter((_, idx) => idx !== indexToRemove),
+    }));
+  };
+
+  const toggleCustomScope = (scopeItem) => {
+    setForm((prev) => {
+      const current = prev.custom_setup_scope || [];
+      const exists = current.includes(scopeItem);
+      return {
+        ...prev,
+        custom_setup_scope: exists
+          ? current.filter((item) => item !== scopeItem)
+          : [...current, scopeItem],
+      };
+    });
+  };
 
   useEffect(() => {
     if (showModal) {
@@ -814,10 +889,11 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
       payload.selected_scaffold_option_id = form.selected_scaffold_option_id || "";
     }
 
-    if (inquiry.is_custom_setup) {
+    if (form.is_custom_setup || inquiry.is_custom_setup || isCustomBooking) {
       payload.custom_setup_scope = form.custom_setup_scope || [];
       payload.custom_setup_notes = form.custom_setup_notes || "";
       payload.budget_range = form.budget_range || "";
+      payload.inspiration_images = form.inspiration_images || [];
     }
 
     try {
@@ -1142,53 +1218,162 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
                 )}
 
                 {/* Custom Setup Details if applicable */}
-                {inquiry.is_custom_setup && (
-                  <div className="rounded-xl border border-slate-200 p-4 bg-white space-y-4">
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900">Custom Setup Brief</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">Bespoke styling specifications provided with this request.</p>
+                {(form.is_custom_setup || inquiry.is_custom_setup || isCustomBooking) && (
+                  <div className="rounded-xl border border-purple-200 bg-purple-50/20 p-4.5 sm:p-5 space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-purple-100">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                          <Sparkles className="h-4 w-4 text-purple-600" />
+                          <span>Bespoke Custom Setup &amp; Styling Brief</span>
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Configure your requested styling scope, target budget, and design moodboard.
+                        </p>
+                      </div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200">
+                        Bespoke Request
+                      </span>
                     </div>
+
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <FormField label="Target budget" optional hint="Estimated guide for bespoke styling.">
+                      <FormField
+                        label="Target styling budget"
+                        optional
+                        hint="Estimated budget guide for our styling coordinators."
+                      >
                         <TInput
-                          placeholder="e.g. 50,000 - 80,000"
+                          placeholder="e.g. ₱50,000 – ₱80,000"
                           value={form.budget_range}
                           onChange={(val) => setForm((prev) => ({ ...prev, budget_range: val }))}
                         />
                       </FormField>
-                      {(inquiry.custom_setup_scope || []).length > 0 && (
-                        <FormField label="Setup scope">
-                          <p className="text-xs font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
-                            {inquiry.custom_setup_scope.join(", ")}
-                          </p>
-                        </FormField>
-                      )}
+
+                      <div className="sm:col-span-2 space-y-2">
+                        <label className="block text-xs font-bold text-slate-800">
+                          Requested Setup Scope Elements
+                        </label>
+                        <p className="text-xs text-slate-500 -mt-1">
+                          Select the styling and structural components you want included in your custom quotation.
+                        </p>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {STANDARD_CUSTOM_SCOPE_OPTIONS.map((item) => {
+                            const isChecked = (form.custom_setup_scope || []).includes(item);
+                            return (
+                              <button
+                                key={item}
+                                type="button"
+                                onClick={() => toggleCustomScope(item)}
+                                className={cn(
+                                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer select-none",
+                                  isChecked
+                                    ? "bg-purple-600 text-white shadow-2xs font-semibold ring-1 ring-purple-600"
+                                    : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300",
+                                )}
+                              >
+                                <Check
+                                  className={cn(
+                                    "w-3.5 h-3.5",
+                                    isChecked ? "text-white" : "text-transparent",
+                                  )}
+                                />
+                                <span>{item}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
-                    <FormField label="Stylist notes" optional hint="Specific design notes for our event stylists.">
+
+                    <FormField
+                      label="Stylist vision &amp; notes"
+                      optional
+                      hint="Specific design details, fairy lights, floral preferences, or themes for our event stylists."
+                    >
                       <TTextarea
-                        rows={2}
-                        placeholder="e.g. Prefer fairy lights, white drapery, and low floral centerpieces."
+                        rows={3}
+                        placeholder="e.g. Prefer fairy lights, warm ambient spotlights, white draping on the ceiling, and low rustic floral centerpieces."
                         value={form.custom_setup_notes}
                         onChange={(val) =>
                           setForm((prev) => ({ ...prev, custom_setup_notes: val }))
                         }
                       />
                     </FormField>
-                    {(inquiry.inspiration_images || []).length > 0 && (
-                      <div className="space-y-1.5">
-                        <span className="text-xs font-semibold text-slate-800 block">Uploaded Inspiration Photos</span>
-                        <div className="flex flex-wrap gap-2">
-                          {inquiry.inspiration_images.map((url, idx) => (
-                            <img
-                              key={idx}
-                              src={url}
-                              alt={`Inspiration ${idx + 1}`}
-                              className="h-14 w-14 rounded-lg border border-slate-200 object-cover"
-                            />
-                          ))}
+
+                    {/* Inspiration Moodboard Gallery & Upload */}
+                    <div className="space-y-2 pt-2 border-t border-purple-100/80">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-800">
+                            Inspiration Moodboard Photos ({(form.inspiration_images || []).length}/5)
+                          </label>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Upload photos or design pegs from Pinterest/Instagram that reflect your desired aesthetic.
+                          </p>
+                        </div>
+                        <div>
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            ref={fileInputRef}
+                            onChange={handleImageUpload}
+                            className="hidden"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={uploadingImages || (form.inspiration_images || []).length >= 5}
+                            onClick={() => fileInputRef.current?.click()}
+                            className="text-xs font-semibold text-[#4C81E0] hover:text-[#3b6ec6] border-blue-200 hover:border-blue-300 bg-white hover:bg-blue-50/50 cursor-pointer h-8 gap-1.5"
+                          >
+                            {uploadingImages ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Uploading...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>+ Upload Photos</span>
+                              </>
+                            )}
+                          </Button>
                         </div>
                       </div>
-                    )}
+
+                      {(form.inspiration_images || []).length > 0 ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
+                          {form.inspiration_images.map((url, idx) => (
+                            <div
+                              key={idx}
+                              className="relative group aspect-square rounded-xl overflow-hidden border border-slate-200 bg-white shadow-2xs"
+                            >
+                              <img
+                                src={url}
+                                alt={`Inspiration ${idx + 1}`}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeInspirationImage(idx)}
+                                title="Remove photo"
+                                aria-label="Remove photo"
+                                className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 hover:bg-red-600 text-white flex items-center justify-center transition-colors shadow-md cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-purple-200 bg-white p-4 text-center text-xs text-slate-400 space-y-1">
+                          <ImageIcon className="w-6 h-6 mx-auto text-purple-300 mb-1" />
+                          <p className="font-medium text-slate-600">No inspiration photos uploaded yet.</p>
+                          <p className="text-[11px] text-slate-400">Add up to 5 photos to help our stylists visualize your theme.</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 

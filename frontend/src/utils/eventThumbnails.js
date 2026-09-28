@@ -18,5 +18,10 @@ export const getEventThumbnail = (record) => {
   if (record.image_url) return record.image_url;
   if (record.cover_image) return record.cover_image;
 
+  // If bespoke setup with inspiration moodboard images
+  if (Array.isArray(record.inspiration_images) && record.inspiration_images.length > 0) {
+    return record.inspiration_images[0];
+  }
+
   return null;
 };

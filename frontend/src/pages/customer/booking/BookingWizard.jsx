@@ -1379,11 +1379,15 @@ export default function BookingWizard() {
       (form.event_type === OTHER_EVENT_TYPE
         ? String(form.event_type_other || "").trim()
         : String(form.event_type || "").trim()) ||
-      (isFoodOnly || (isOffer && form.delivery_method !== "setup")
+      (isOffer && form.delivery_method !== "setup"
         ? "Special Offer Catering"
         : isOffer
           ? "Special Offer Event"
-          : "Food Delivery");
+          : isFoodOnly
+            ? "Food Catering"
+            : form.is_custom_setup
+              ? "Custom Event Setup"
+              : "Food Delivery");
 
     // The catering answer, and the service type that follows from it. A setup
     // package starts as "Event Setup Only" because that is all it is until the

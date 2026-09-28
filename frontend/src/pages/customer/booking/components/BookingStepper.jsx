@@ -1,3 +1,4 @@
+import { useRef, useEffect } from "react";
 import { Check, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,8 @@ export default function BookingStepper({
   onStepClick,
   maxStepReached = currentStepIndex,
   isEditing = false,
+  showAiAssistant = true,
+  className,
 }) {
   const items = steps.length === 0 ? FALLBACK_STEPS : steps;
   const total = items.length;
@@ -28,9 +31,17 @@ export default function BookingStepper({
   const activeStep = items[current - 1];
   const nextStep = items[current];
   const progress = (current / total) * 100;
+  const listRef = useRef(null);
+
+  useEffect(() => {
+    const activeEl = listRef.current?.querySelector('[aria-current="step"]');
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
+  }, [current]);
 
   return (
-    <nav aria-label="Booking progress" className="w-full">
+    <nav aria-label="Booking progress" className={cn("w-full", className)}>
       {/* Compact progress bar + context — small screens */}
       <div className="md:hidden">
         <div className="mb-1.5 flex items-center justify-between gap-2 min-w-0">
@@ -43,23 +54,25 @@ export default function BookingStepper({
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              window.dispatchEvent(
-                new CustomEvent("open-zelle-chat", {
-                  detail: { tab: "zelle" },
-                }),
-              )
-            }
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#4C81E0]/15 text-[#2563EB] border border-[#4C81E0]/35 hover:bg-[#4C81E0]/25 hover:border-[#4C81E0]/60 active:scale-95 transition-all text-[11px] font-semibold shrink-0 cursor-pointer shadow-2xs"
-            aria-label="Ask Zelle AI Assistant"
-            title="Ask Zelle AI Assistant"
-          >
-            <Sparkles size={11} className="text-amber-500 shrink-0" />
-            <span className="hidden min-[375px]:inline">Ask Zelle</span>
-            <span className="min-[375px]:hidden">AI</span>
-          </button>
+          {showAiAssistant && (
+            <button
+              type="button"
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("open-zelle-chat", {
+                    detail: { tab: "zelle" },
+                  }),
+                )
+              }
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#4C81E0]/15 text-[#2563EB] border border-[#4C81E0]/35 hover:bg-[#4C81E0]/25 hover:border-[#4C81E0]/60 active:scale-95 transition-all text-[11px] font-semibold shrink-0 cursor-pointer shadow-2xs"
+              aria-label="Ask Zelle AI Assistant"
+              title="Ask Zelle AI Assistant"
+            >
+              <Sparkles size={11} className="text-amber-500 shrink-0" />
+              <span className="hidden min-[375px]:inline">Ask Zelle</span>
+              <span className="min-[375px]:hidden">AI</span>
+            </button>
+          )}
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
           <div
@@ -73,7 +86,7 @@ export default function BookingStepper({
       </div>
 
       {/* Full stepper — desktop */}
-      <ol className="hidden items-center gap-1 md:flex overflow-x-auto py-1">
+      <ol ref={listRef} className="hidden items-center gap-1 md:flex overflow-x-auto no-scrollbar py-1">
         {items.map((step, index) => {
           const isActive = index + 1 === current;
           const isCompleted = index + 1 < current;

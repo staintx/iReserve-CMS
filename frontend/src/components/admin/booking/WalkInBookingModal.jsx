@@ -1,100 +1,183 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  X, Search, Plus, ChevronRight, ChevronLeft, User, CalendarDays,
-  Utensils, Package, Box, CreditCard, CheckCircle2, AlertCircle,
-  Loader2, Check, Minus, Users, Phone, Mail, ShoppingCart, Sliders, Sparkles,
+  X,
+  Search,
+  Check,
+  ChevronRight,
+  ChevronLeft,
+  CalendarDays,
+  Utensils,
+  Package,
+  Box,
+  CreditCard,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Users,
+  Sparkles,
+  Sliders,
+  Pencil,
+  Clock,
+  MapPin,
+  Heart,
+  Phone,
+  Mail,
+  ShieldCheck,
+  ArrowRight,
+  Info,
+  Receipt,
+  Percent,
+  FileText,
+  Banknote,
+  ShieldAlert,
 } from "lucide-react";
 import { AdminAPI } from "../../../api/admin";
+import { CustomerAPI } from "../../../api/customer";
 import useToast from "../../../hooks/useToast";
-import { isSpecialOffer, offerGuestCount, offerPricePerPax } from "../../../lib/specialOffers";
+import {
+  isSpecialOffer,
+  offerGuestCount,
+  offerPricePerPax,
+  offerBaseFoodPrice,
+  offerFoodByCategory,
+  offerCourseRequirement,
+  offerInclusions,
+} from "../../../lib/specialOffers";
 import {
   SERVICE_TYPES,
-  VENUE_TYPES,
+  SERVICE_LABELS,
+  buildEstimate,
+  cateringRequested,
+  contactFieldError,
   OTHER_VENUE_TYPE,
+  resolveVenueType,
 } from "../../../pages/customer/booking/lib/bookingRules";
-import { EVENT_TYPES, OTHER_EVENT_TYPE } from "../../../lib/eventTypes";
+import { OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
 import {
   BATANGAS_PROVINCE,
   getBatangasBarangays,
   getBatangasMunicipalities,
 } from "../../../utils/batangas";
-import { formatCurrency } from "../../../utils/format";
+import { guestRange } from "../../../lib/packageDisplay";
+import { formatCurrency, formatEventDate } from "../../../utils/format";
 import { cn } from "@/lib/utils";
 
+// Step components from Customer flow
+import StepServiceType from "../../../pages/customer/booking/steps/StepServiceType";
+import StepDateTime from "../../../pages/customer/booking/steps/StepDateTime";
+import StepEventDetails from "../../../pages/customer/booking/steps/StepEventDetails";
+import StepDeliveryDetails from "../../../pages/customer/booking/steps/StepDeliveryDetails";
+import StepMenuSelection from "../../../pages/customer/booking/steps/StepMenuSelection";
+import StepDietaryNeeds from "../../../pages/customer/booking/steps/StepDietaryNeeds";
+import StepPackageSelection from "../../../pages/customer/booking/steps/StepPackageSelection";
+import StepPackageAddOns from "../../../pages/customer/booking/steps/StepPackageAddOns";
+import StepContactInfo from "../../../pages/customer/booking/steps/StepContactInfo";
+import BookingStepper from "../../../pages/customer/booking/components/BookingStepper";
+import WalkInQuotationStep from "./WalkInQuotationStep";
+
 // ─── Constants ────────────────────────────────────────────────────────────────
-const STAGES = ["Booking Setup", "Event & Services", "Review & Payment"];
-
-const SERVICE_TYPE_OPTIONS = [
-  { value: "food_only",  label: "Food Only",          description: "Menu & catering services without event setup or styling", icon: Utensils },
-  { value: "event_only", label: "Event Setup Only",   description: "Planning, setup & decor without food catering services", icon: Box },
-  { value: "food_event", label: "Food & Event Setup", description: "Complete catering & full event styling services together", icon: Sparkles },
-];
-
 const PAYMENT_METHODS = [
-  { value: "cash",     label: "Cash" },
-  { value: "gcash",    label: "GCash" },
-  { value: "bank",     label: "Bank Transfer" },
+  { value: "cash", label: "Cash" },
+  { value: "gcash", label: "GCash" },
+  { value: "bank", label: "Bank Transfer" },
   { value: "paymongo", label: "PayMongo" },
 ];
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
-const LABEL_CLS =
-  "block text-[11px] font-semibold uppercase tracking-[0.07em] text-slate-500 mb-1.5";
-const INPUT_CLS =
-  "w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 transition focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 disabled:bg-slate-50 disabled:text-slate-400";
+const SERVICE_TYPE_OPTIONS = [
+  {
+    value: SERVICE_TYPES.FOOD_ONLY,
+    label: "Food Only",
+    description: "Menu & catering services without event setup or styling",
+    icon: Utensils,
+  },
+  {
+    value: SERVICE_TYPES.SETUP_ONLY,
+    label: "Event Setup Only",
+    description: "Planning, setup & decor without food catering services",
+    icon: Box,
+  },
+  {
+    value: SERVICE_TYPES.FULL_SERVICE,
+    label: "Food & Event Setup",
+    description: "Complete catering & full event styling services together",
+    icon: Sparkles,
+  },
+];
 
-// ─── Shared mini-components ───────────────────────────────────────────────────
-function Field({ label, required, error, hint, children, className = "" }) {
-  return (
-    <div className={className}>
-      {label && (
-        <label className={LABEL_CLS}>
-          {label}
-          {required && <span className="ml-1 text-red-500">*</span>}
-        </label>
-      )}
-      {children}
-      {error && (
-        <p className="mt-1 flex items-center gap-1 text-[11.5px] font-medium text-red-600">
-          <AlertCircle size={11} className="shrink-0" />
-          {error}
-        </p>
-      )}
-      {hint && !error && (
-        <p className="mt-1 text-[11.5px] text-slate-400">{hint}</p>
-      )}
-    </div>
-  );
-}
+const parseNumber = (value) => {
+  const parsed = Number(String(value ?? "").replace(/[^0-9.]/g, ""));
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
 
-function Sel({ value, onChange, disabled, children, hasError, className = "" }) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-      className={cn(INPUT_CLS, hasError && "border-red-300 bg-red-50/40", className)}
-    >
-      {children}
-    </select>
-  );
-}
+const normalizePhone = (value) => String(value || "").replace(/\D/g, "").slice(0, 11);
 
-function QtyBtn({ onClick, icon: Icon, disabled }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"
-    >
-      <Icon size={13} />
-    </button>
-  );
-}
+const parseName = (fullName) => {
+  const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+};
 
+const EMPTY_FORM = {
+  customer_id: "",
+  package_type: "existing", // "existing" | "custom"
+  package_id: "",
+  service_type: SERVICE_TYPES.FULL_SERVICE,
+  include_food: true,
+  event_type: "",
+  event_type_other: "",
+  event_theme: "",
+  event_palette: [],
+  booking_for: "myself",
+  celebrant_name: "",
+  is_custom_setup: false,
+  custom_setup_scope: [],
+  inspiration_images: [],
+  custom_setup_notes: "",
+  budget_range: "",
+  event_date: "",
+  start_time: "12:00 PM",
+  duration_hours: "4",
+  guest_count: "50",
+  venue_type: "",
+  venue_type_other: "",
+  indoor_outdoor: "Indoor",
+  province: BATANGAS_PROVINCE,
+  municipality: "",
+  barangay: "",
+  street: "",
+  landmark: "",
+  zip_code: "",
+  delivery_method: "setup",
+  delivery_instructions: "",
+  pickup_location: "",
+  selected_menu: [],
+  offer_food_snapshot: [],
+  dietary_restrictions: "",
+  allergies: "",
+  special_requests: "",
+  additional_services: [],
+  selected_package_addons: [],
+  inventory_items: [],
+  selected_scaffold_option_id: "",
+  scaffold_width: undefined,
+  scaffold_length: undefined,
+  scaffold_base_area: undefined,
+  scaffold_price: undefined,
+  scaffold_guest_min: undefined,
+  scaffold_guest_max: undefined,
+  contact_first_name: "",
+  contact_last_name: "",
+  contact_email: "",
+  contact_phone: "",
+  contact_alt_phone: "",
+  contact_method: "email",
+  payment_method: "cash",
+  total_price: "",
+  balance_payment_preference: "in_person",
+};
 
-// ─── Stage 1: Booking Setup ───────────────────────────────────────────────────
+// ─── Step 0: Booking Setup ───────────────────────────────────────────────────
 function StageBookingSetup({ form, setForm, packages, errors }) {
   const [pkgTab, setPkgTab] = useState("all");
   const [pkgSearch, setPkgSearch] = useState("");
@@ -126,23 +209,16 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
   }, [packages, pkgTab, pkgSearch, regularPackages, comboPackages]);
 
   const handleSelectPackage = (pkg) => {
-    const pkgEquip = Array.isArray(pkg.setup_equipment)
-      ? pkg.setup_equipment.map((eq) => ({
-          inventory_id: eq.inventory_id?._id || eq.inventory_id,
-          name: eq.name || eq.item_name || "Equipment Item",
-          quantity: Number(eq.quantity || 1),
-        }))
-      : [];
     const isCombo = isSpecialOffer(pkg);
     const comboPax = isCombo ? offerGuestCount(pkg) : 0;
 
-    let serviceType = "food_event";
+    let serviceType = SERVICE_TYPES.FULL_SERVICE;
     let includeFood = true;
     if (pkg.package_type === "Food Only") {
-      serviceType = "food_only";
+      serviceType = SERVICE_TYPES.FOOD_ONLY;
       includeFood = true;
     } else if (pkg.package_type === "Event Setup Only") {
-      serviceType = "event_only";
+      serviceType = SERVICE_TYPES.SETUP_ONLY;
       includeFood = false;
     }
 
@@ -151,12 +227,9 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
       package_id: pkg._id,
       service_type: serviceType,
       include_food: includeFood,
+      is_custom_setup: false,
       ...(comboPax > 0 ? { guest_count: String(comboPax) } : {}),
-      inventory_items: isCombo
-        ? []
-        : pkgEquip.length > 0
-        ? pkgEquip
-        : prev.inventory_items,
+      delivery_method: isCombo ? prev.delivery_method || "setup" : "setup",
     }));
   };
 
@@ -164,8 +237,10 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
     setForm((prev) => ({
       ...prev,
       service_type: val,
-      include_food: val !== "event_only",
+      include_food: val !== SERVICE_TYPES.SETUP_ONLY,
       package_id: "",
+      is_custom_setup: true,
+      selected_menu: val === SERVICE_TYPES.SETUP_ONLY ? [] : prev.selected_menu,
     }));
   };
 
@@ -173,9 +248,11 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
     <div className="space-y-6">
       {/* ── Section: Booking Type ── */}
       <div>
-        <p className={LABEL_CLS}>Booking Type</p>
+        <p className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-slate-500 mb-1.5">
+          Booking Type
+        </p>
         <p className="text-xs text-slate-500 mb-3.5">
-          First, choose whether you are selecting an existing predefined package or creating a customized booking.
+          Choose whether you are selecting an existing predefined package or creating a customized booking for the walk-in customer.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
@@ -236,8 +313,9 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
                 ...prev,
                 package_type: "custom",
                 package_id: "",
-                service_type: prev.service_type || "food_event",
-                include_food: prev.service_type !== "event_only",
+                service_type: prev.service_type || SERVICE_TYPES.FULL_SERVICE,
+                include_food: prev.service_type !== SERVICE_TYPES.SETUP_ONLY,
+                is_custom_setup: true,
               }));
             }}
             className={cn(
@@ -287,7 +365,9 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
         <div className="pt-4 border-t border-slate-100 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <p className={LABEL_CLS}>Existing Packages</p>
+              <p className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-slate-500 mb-1">
+                Existing Packages
+              </p>
               <p className="text-xs text-slate-500">
                 Choose a predefined package or special offer combo pack from your system.
               </p>
@@ -301,7 +381,9 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
                   onClick={() => setPkgTab("all")}
                   className={cn(
                     "rounded-md px-2.5 py-1 transition-colors cursor-pointer",
-                    pkgTab === "all" ? "bg-white text-blue-600 shadow-2xs font-bold" : "text-slate-500 hover:text-slate-800"
+                    pkgTab === "all"
+                      ? "bg-white text-blue-600 shadow-2xs font-bold"
+                      : "text-slate-500 hover:text-slate-800"
                   )}
                 >
                   All ({packages.length})
@@ -311,7 +393,9 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
                   onClick={() => setPkgTab("regular")}
                   className={cn(
                     "rounded-md px-2.5 py-1 transition-colors cursor-pointer",
-                    pkgTab === "regular" ? "bg-white text-blue-600 shadow-2xs font-bold" : "text-slate-500 hover:text-slate-800"
+                    pkgTab === "regular"
+                      ? "bg-white text-blue-600 shadow-2xs font-bold"
+                      : "text-slate-500 hover:text-slate-800"
                   )}
                 >
                   Regular Packages ({regularPackages.length})
@@ -321,7 +405,9 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
                   onClick={() => setPkgTab("combo")}
                   className={cn(
                     "rounded-md px-2.5 py-1 transition-colors cursor-pointer",
-                    pkgTab === "combo" ? "bg-white text-blue-600 shadow-2xs font-bold" : "text-slate-500 hover:text-slate-800"
+                    pkgTab === "combo"
+                      ? "bg-white text-blue-600 shadow-2xs font-bold"
+                      : "text-slate-500 hover:text-slate-800"
                   )}
                 >
                   Combo Packs ({comboPackages.length})
@@ -330,7 +416,10 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
 
               {/* Search packages */}
               <div className="relative min-w-[200px]">
-                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search
+                  size={14}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
                 <input
                   type="text"
                   placeholder="Search packages..."
@@ -387,7 +476,11 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
                     <div className="flex gap-3">
                       <div className="h-16 w-16 shrink-0 rounded-xl overflow-hidden bg-slate-100 border border-slate-100 flex items-center justify-center">
                         {pkg.image_url ? (
-                          <img src={pkg.image_url} alt={pkg.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                          <img
+                            src={pkg.image_url}
+                            alt={pkg.name}
+                            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                          />
                         ) : (
                           <Package size={22} className="text-slate-300" />
                         )}
@@ -439,7 +532,8 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
                       {isCombo ? (
                         <>
                           <span className="font-bold text-blue-700">
-                            {formatCurrency(pricePax)} <span className="text-[11px] font-normal text-slate-500">/ pax</span>
+                            {formatCurrency(pricePax)}{" "}
+                            <span className="text-[11px] font-normal text-slate-500">/ pax</span>
                           </span>
                           <span className="text-[11.5px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
                             {pax} guests
@@ -448,16 +542,16 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
                       ) : pkg.package_type === "Event Setup Only" ? (
                         <>
                           <span className="font-bold text-blue-700">
-                            {formatCurrency(pkg.setup_price || 0)} <span className="text-[11px] font-normal text-slate-500">setup</span>
+                            {formatCurrency(pkg.setup_price || 0)}{" "}
+                            <span className="text-[11px] font-normal text-slate-500">setup</span>
                           </span>
-                          <span className="text-[11px] text-slate-500">
-                            Event Setup
-                          </span>
+                          <span className="text-[11px] text-slate-500">Event Setup</span>
                         </>
                       ) : (
                         <>
                           <span className="font-bold text-blue-700">
-                            {formatCurrency(pkg.price_per_guest || 0)} <span className="text-[11px] font-normal text-slate-500">/ guest</span>
+                            {formatCurrency(pkg.price_per_guest || 0)}{" "}
+                            <span className="text-[11px] font-normal text-slate-500">/ guest</span>
                           </span>
                           {(pkg.guest_min || pkg.guest_max) && (
                             <span className="text-[11px] text-slate-500">
@@ -479,9 +573,11 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
       {form.package_type === "custom" && (
         <div className="pt-4 border-t border-slate-100 space-y-3.5">
           <div>
-            <p className={LABEL_CLS}>Service Type</p>
+            <p className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-slate-500 mb-1">
+              Service Type
+            </p>
             <p className="text-xs text-slate-500">
-              Select the service combination to customize. You can select specific food dishes and equipment in the next step.
+              Select the service combination to customize. Next steps will guide you through date, theme, menu, and equipment.
             </p>
           </div>
 
@@ -550,894 +646,677 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
   );
 }
 
-// ─── Stage 2: Event & Services ────────────────────────────────────────────────
-function StageEventAndServices({
-  form, setForm, packages, menuItems, inventoryItems,
-  selectedMenuIds, setSelectedMenuIds, selectedInventory, setSelectedInventory, errors,
+// ─── Contact Info Wrapper with Customer Autofill ──────────────────────────────
+function WalkInContactStep({ form, setForm, customers, errors }) {
+  return (
+    <div className="space-y-4">
+      {/* Existing Customer Quick Selector */}
+      {customers?.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-blue-200 bg-blue-50/60 p-3.5 sm:px-4">
+          <div>
+            <p className="text-xs font-bold text-blue-900">Existing Customer Account</p>
+            <p className="text-[11.5px] text-blue-700/80">
+              Optional: Select an existing client to autofill contact details or link this walk-in booking.
+            </p>
+          </div>
+          <select
+            className="text-xs text-blue-800 bg-white border border-blue-300 rounded-lg px-3 py-1.5 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer min-w-[220px]"
+            defaultValue=""
+            onChange={(e) => {
+              const cust = customers.find((c) => c._id === e.target.value);
+              if (cust) {
+                const parts = String(cust.full_name || "").trim().split(/\s+/).filter(Boolean);
+                const firstName = cust.first_name || parts[0] || "";
+                const lastName = cust.last_name || parts.slice(1).join(" ") || "";
+                setForm((prev) => ({
+                  ...prev,
+                  customer_id: cust._id,
+                  contact_first_name: firstName || prev.contact_first_name,
+                  contact_last_name: lastName || prev.contact_last_name,
+                  contact_email: cust.email || prev.contact_email,
+                  contact_phone: normalizePhone(cust.phone || prev.contact_phone),
+                }));
+              }
+              e.target.value = "";
+            }}
+          >
+            <option value="" disabled>
+              Select existing customer...
+            </option>
+            {customers.map((c) => (
+              <option key={c._id} value={c._id}>
+                {c.full_name || c.email} {c.email ? `(${c.email})` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Customer Step Form */}
+      <StepContactInfo form={form} setForm={setForm} errors={errors} />
+    </div>
+  );
+}
+
+// ─── Default Quotation Item Generator ─────────────────────────────────────────
+function generateDefaultQuotationItems(form, packageDetails, isOffer) {
+  const items = [];
+  const guestCount = parseNumber(form.guest_count) || 1;
+
+  // 1. Package / Combo line
+  if (form.package_type === "existing" && packageDetails) {
+    if (isOffer) {
+      const comboPax = offerGuestCount(packageDetails) || guestCount;
+      const basePrice =
+        offerBaseFoodPrice(packageDetails, guestCount) ||
+        offerPricePerPax(packageDetails) * guestCount ||
+        Number(packageDetails.price || 0);
+      items.push({
+        key: `pkg-${packageDetails._id}`,
+        package_id: packageDetails._id,
+        name: `${packageDetails.name} (Combo Package)`,
+        description: `Fixed combo meal catering package for ${comboPax} pax`,
+        category: "Package",
+        quantity: 1,
+        unit: "Package",
+        unitPrice: basePrice,
+        isDefault: true,
+      });
+    } else if (packageDetails.package_type === "Event Setup Only") {
+      const setupPrice = Number(form.scaffold_price || packageDetails.setup_price || 0);
+      items.push({
+        key: `pkg-${packageDetails._id}`,
+        package_id: packageDetails._id,
+        name: packageDetails.name,
+        description:
+          form.scaffold_width && form.scaffold_length
+            ? `${form.scaffold_width}×${form.scaffold_length} ft setup`
+            : "Event Setup & Styling Package",
+        category: "Package",
+        quantity: 1,
+        unit: "Setup",
+        unitPrice: setupPrice,
+        isDefault: true,
+      });
+    } else if (packageDetails.price_per_guest) {
+      items.push({
+        key: `pkg-${packageDetails._id}`,
+        package_id: packageDetails._id,
+        name: packageDetails.name,
+        description: `Catering Package for ${guestCount} guests`,
+        category: "Package",
+        quantity: guestCount,
+        unit: "Pax",
+        unitPrice: Number(packageDetails.price_per_guest || 0),
+        isDefault: true,
+      });
+    } else if (packageDetails.setup_price) {
+      items.push({
+        key: `pkg-${packageDetails._id}`,
+        package_id: packageDetails._id,
+        name: packageDetails.name,
+        description: "Package Base Setup",
+        category: "Package",
+        quantity: 1,
+        unit: "Setup",
+        unitPrice: Number(packageDetails.setup_price || 0),
+        isDefault: true,
+      });
+    }
+  } else if (form.package_type === "custom") {
+    if (
+      packageDetails &&
+      (form.service_type === SERVICE_TYPES.SETUP_ONLY ||
+        form.service_type === SERVICE_TYPES.FULL_SERVICE)
+    ) {
+      items.push({
+        key: `pkg-${packageDetails._id}`,
+        package_id: packageDetails._id,
+        name: packageDetails.name,
+        description:
+          form.scaffold_width && form.scaffold_length
+            ? `${form.scaffold_width}×${form.scaffold_length} ft setup`
+            : "Custom Setup Package",
+        category: "Package",
+        quantity: 1,
+        unit: "Setup",
+        unitPrice: Number(form.scaffold_price || packageDetails.setup_price || 0),
+        isDefault: true,
+      });
+    } else if (form.is_custom_setup) {
+      items.push({
+        key: "pkg-custom-styling",
+        name: "Custom Setup & Styling Theme",
+        description: form.event_theme
+          ? `Theme: ${form.event_theme}`
+          : "Custom Styling & Floral Setup",
+        category: "Package",
+        quantity: 1,
+        unit: "Lot",
+        unitPrice: 0,
+        isDefault: true,
+      });
+    }
+  }
+
+  // 2. Menu Items (Dishes)
+  if (!isOffer && form.include_food !== false && Array.isArray(form.selected_menu)) {
+    const isPerGuestPackage = Boolean(
+      form.package_type === "existing" &&
+        packageDetails?.price_per_guest &&
+        packageDetails?.package_type !== "Food Only"
+    );
+
+    form.selected_menu.forEach((dish) => {
+      const dishId = dish._id || dish.name;
+      const defaultPrice = isPerGuestPackage ? 0 : Number(dish.price || 0);
+      items.push({
+        key: `dish-${dishId}`,
+        dish_id: dish._id,
+        name: dish.name,
+        description: isPerGuestPackage
+          ? `${dish.category || "Menu Item"} (Included in Package)`
+          : dish.category || "Catering Dish",
+        category: "Menu",
+        quantity: guestCount,
+        unit: dish.unit || "Pax",
+        unitPrice: defaultPrice,
+        isDefault: true,
+      });
+    });
+  }
+
+  // 3. Add-on Services
+  if (Array.isArray(form.selected_package_addons)) {
+    form.selected_package_addons.forEach((addon) => {
+      const addonId = addon._id || addon.name;
+      items.push({
+        key: `addon-${addonId}`,
+        addon_id: addon._id,
+        name: addon.name,
+        description: addon.category || "Add-on Service",
+        category: "Add-on",
+        quantity: Number(addon.quantity || 1),
+        unit: addon.unit || "Set",
+        unitPrice: Number(addon.price || 0),
+        isDefault: true,
+      });
+    });
+  }
+
+  // 4. Equipment & Inventory Items
+  if (Array.isArray(form.inventory_items)) {
+    form.inventory_items.forEach((inv) => {
+      const invId = inv.inventory_id || inv.name;
+      items.push({
+        key: `inv-${invId}`,
+        inventory_id: inv.inventory_id,
+        name: inv.name,
+        description: "Equipment / Setup Inclusions",
+        category: "Equipment",
+        quantity: Number(inv.quantity || 1),
+        unit: "pcs",
+        unitPrice: Number(inv.price || 0),
+        isDefault: true,
+      });
+    });
+  }
+
+  return items;
+}
+
+// ─── Step: Review & Final Confirmation (Read-only Summary) ───────────────────
+function WalkInReviewAndQuotation({
+  form,
+  packageDetails,
+  estimate,
+  quotationItems = [],
+  quotationSubtotal = 0,
+  quotationDiscount = 0,
+  quotationGrandTotal = 0,
+  depositAmount = 0,
+  depositPercentage = 20,
+  remainingBalance = 0,
+  paymentMethod = "cash",
+  depositPaidImmediately = true,
+  balancePreference = "in_person",
+  quotationNotes = "",
+  onEditStep,
+  editTargets,
 }) {
-  const [tab,        setTab]        = useState("event");
-  const [menuSearch, setMenuSearch] = useState("");
-  const [menuCat,    setMenuCat]    = useState("All");
-  const [equipSearch,setEquipSearch]= useState("");
-  const [equipCat,   setEquipCat]   = useState("All");
+  const isOffer = isSpecialOffer(packageDetails);
+  const guestCount = parseNumber(form.guest_count) || 0;
+  const dishes = form.selected_menu || [];
+  const addOns = form.selected_package_addons || [];
 
-  const selectedPkg    = packages.find((p) => p._id === form.package_id);
-  const isCombo        = selectedPkg && isSpecialOffer(selectedPkg);
-  const municipalities = getBatangasMunicipalities();
-  const barangays      = getBatangasBarangays(form.municipality);
-
-  const menuCats = useMemo(() => {
-    const cats = new Set(menuItems.map((m) => m.category).filter(Boolean));
-    return ["All", ...Array.from(cats).sort()];
-  }, [menuItems]);
-
-  const filteredMenu = useMemo(() => {
-    let items = menuItems;
-    if (menuCat !== "All") items = items.filter((m) => m.category === menuCat);
-    if (menuSearch) {
-      const q = menuSearch.toLowerCase();
-      items = items.filter((m) => (m.name || "").toLowerCase().includes(q));
-    }
-    return items;
-  }, [menuItems, menuCat, menuSearch]);
-
-  const groupedMenu = useMemo(() => {
-    const g = {};
-    filteredMenu.forEach((item) => {
-      const cat = item.category || "Other";
-      if (!g[cat]) g[cat] = [];
-      g[cat].push(item);
-    });
-    return g;
-  }, [filteredMenu]);
-
-  const equipCats = useMemo(() => {
-    const cats = new Set(inventoryItems.map((inv) => inv.category).filter(Boolean));
-    return ["All", ...Array.from(cats).sort()];
-  }, [inventoryItems]);
-
-  const filteredEquip = useMemo(() => {
-    let items = inventoryItems;
-    if (equipCat !== "All") items = items.filter((i) => i.category === equipCat);
-    if (equipSearch) {
-      const q = equipSearch.toLowerCase();
-      items = items.filter((i) => (i.item_name || "").toLowerCase().includes(q));
-    }
-    return items;
-  }, [inventoryItems, equipCat, equipSearch]);
-
-  const getInvQty = (id) => selectedInventory.find((s) => s.inventory_id === id)?.quantity || 0;
-  const setInvQty = (id, name, qty) => {
-    setSelectedInventory((prev) => {
-      const idx = prev.findIndex((s) => s.inventory_id === id);
-      if (qty <= 0) return idx > -1 ? prev.filter((_, i) => i !== idx) : prev;
-      if (idx > -1) {
-        const next = [...prev];
-        next[idx] = { ...next[idx], quantity: qty };
-        return next;
-      }
-      return [...prev, { inventory_id: id, name, quantity: qty }];
-    });
+  const paymentMethodObj = PAYMENT_METHODS.find((pm) => pm.value === paymentMethod) || {
+    label: paymentMethod || "Cash",
   };
 
-  const tabBtn = (key, label, Icon) => (
-    <button
-      type="button"
-      onClick={() => setTab(key)}
-      className={cn(
-        "flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[13px] font-semibold transition-colors",
-        tab === key
-          ? "bg-blue-600 text-white shadow-sm"
-          : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-      )}
-    >
-      <Icon size={14} />{label}
-    </button>
-  );
+  const balancePrefLabel =
+    balancePreference === "in_person"
+      ? "In Person / On Event Day"
+      : balancePreference === "online"
+      ? "Online (GCash / Bank Transfer / PayMongo)"
+      : "Not Selected";
 
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-[15px] font-bold text-slate-900">Event & Services</h2>
-        <p className="mt-0.5 text-sm text-slate-500">
-          Provide the event details and select menu items and equipment.
-        </p>
-      </div>
-
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
-        {tabBtn("event", "Event & Venue", CalendarDays)}
-        {form.include_food && !isCombo && tabBtn("menu", "Menu", Utensils)}
-        {tabBtn("equipment", "Equipment & Services", Box)}
-      </div>
-
-      {/* ── Event & Venue ── */}
-      {tab === "event" && (
-        <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-          <div className="col-span-2">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
-              Event Details
-            </p>
-          </div>
-
-          <Field label="Event Theme or Colors">
-            <input
-              type="text"
-              placeholder="e.g. Blue & White"
-              className={INPUT_CLS}
-              value={form.event_theme}
-              onChange={(e) => setForm((p) => ({ ...p, event_theme: e.target.value }))}
-            />
-          </Field>
-
-          <Field label="Event Type" required error={errors.event_type}>
-            <Sel
-              value={EVENT_TYPES.includes(form.event_type) ? form.event_type : form.event_type ? OTHER_EVENT_TYPE : ""}
-              onChange={(v) => setForm((p) => ({ ...p, event_type: v === OTHER_EVENT_TYPE ? "" : v }))}
-              hasError={!!errors.event_type}
-            >
-              <option value="">Select event type</option>
-              {EVENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </Sel>
-            {!EVENT_TYPES.includes(form.event_type) && form.event_type !== "" && (
-              <input
-                type="text"
-                className={cn(INPUT_CLS, "mt-2")}
-                placeholder="Describe the event type"
-                value={form.event_type}
-                onChange={(e) => setForm((p) => ({ ...p, event_type: e.target.value }))}
-              />
-            )}
-          </Field>
-
-          <Field label="Event Date" required error={errors.event_date}>
-            <input
-              type="date"
-              className={cn(INPUT_CLS, errors.event_date && "border-red-300")}
-              value={form.event_date}
-              min={new Date().toISOString().split("T")[0]}
-              onChange={(e) => setForm((p) => ({ ...p, event_date: e.target.value }))}
-            />
-          </Field>
-
-          <Field label="Start Time" required error={errors.start_time}>
-            <input
-              type="time"
-              className={cn(INPUT_CLS, errors.start_time && "border-red-300")}
-              value={form.start_time}
-              onChange={(e) => setForm((p) => ({ ...p, start_time: e.target.value }))}
-            />
-          </Field>
-
-          <Field label="Estimated Guest Count" required error={errors.guest_count}>
-            <input
-              type="number"
-              min="1"
-              className={cn(INPUT_CLS, errors.guest_count && "border-red-300")}
-              placeholder="e.g. 50"
-              value={form.guest_count}
-              onChange={(e) => setForm((p) => ({ ...p, guest_count: e.target.value }))}
-              disabled={!!isCombo}
-            />
-            {isCombo && (
-              <p className="mt-1 text-[11.5px] font-medium text-blue-600">
-                Fixed at {offerGuestCount(selectedPkg)} guests for this combo.
-              </p>
-            )}
-          </Field>
-
-          <Field label="Event Duration (hours)">
-            <input
-              type="number"
-              min="1"
-              className={INPUT_CLS}
-              placeholder="e.g. 4"
-              value={form.duration_hours}
-              onChange={(e) => setForm((p) => ({ ...p, duration_hours: e.target.value }))}
-            />
-          </Field>
-
-          <div className="col-span-2 pt-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
-              Venue Information
-            </p>
-          </div>
-
-          <Field label="Venue Type">
-            <Sel
-              value={VENUE_TYPES.includes(form.venue_type) ? form.venue_type : form.venue_type ? OTHER_VENUE_TYPE : ""}
-              onChange={(v) => setForm((p) => ({ ...p, venue_type: v === OTHER_VENUE_TYPE ? "" : v }))}
-            >
-              <option value="">Select venue type</option>
-              {VENUE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </Sel>
-            {!VENUE_TYPES.includes(form.venue_type) && form.venue_type && (
-              <input
-                type="text"
-                className={cn(INPUT_CLS, "mt-2")}
-                placeholder="Describe venue type"
-                value={form.venue_type}
-                onChange={(e) => setForm((p) => ({ ...p, venue_type: e.target.value }))}
-              />
-            )}
-          </Field>
-
-          <Field label="Indoor or Outdoor">
-            <Sel value={form.indoor_outdoor || ""} onChange={(v) => setForm((p) => ({ ...p, indoor_outdoor: v }))}>
-              <option value="">Select option</option>
-              <option value="Indoor">Indoor</option>
-              <option value="Outdoor">Outdoor</option>
-              <option value="Both">Both</option>
-            </Sel>
-          </Field>
-
-          <Field label="Province">
-            <input
-              type="text"
-              className={INPUT_CLS}
-              value={form.province || BATANGAS_PROVINCE}
-              onChange={(e) => setForm((p) => ({ ...p, province: e.target.value }))}
-            />
-          </Field>
-
-          <Field label="Municipality" required error={errors.municipality}>
-            <Sel
-              value={form.municipality || ""}
-              onChange={(v) => setForm((p) => ({ ...p, municipality: v, barangay: "" }))}
-              hasError={!!errors.municipality}
-            >
-              <option value="">Select municipality</option>
-              {municipalities.map((m) => <option key={m} value={m}>{m}</option>)}
-            </Sel>
-          </Field>
-
-          <Field label="Barangay" required error={errors.barangay}>
-            <Sel
-              value={form.barangay || ""}
-              onChange={(v) => setForm((p) => ({ ...p, barangay: v }))}
-              disabled={!form.municipality}
-              hasError={!!errors.barangay}
-            >
-              <option value="">Select barangay</option>
-              {barangays.map((b) => <option key={b} value={b}>{b}</option>)}
-            </Sel>
-          </Field>
-
-          <Field label="Street Name">
-            <input
-              type="text"
-              className={INPUT_CLS}
-              placeholder="e.g. Name St."
-              value={form.street || ""}
-              onChange={(e) => setForm((p) => ({ ...p, street: e.target.value }))}
-            />
-          </Field>
-
-          <Field label="Landmark">
-            <input
-              type="text"
-              className={INPUT_CLS}
-              placeholder="e.g. Near the church"
-              value={form.landmark || ""}
-              onChange={(e) => setForm((p) => ({ ...p, landmark: e.target.value }))}
-            />
-          </Field>
-
-          <Field label="ZIP Code">
-            <input
-              type="text"
-              className={INPUT_CLS}
-              placeholder="e.g. 4200"
-              value={form.zip_code || ""}
-              onChange={(e) => setForm((p) => ({ ...p, zip_code: e.target.value }))}
-            />
-          </Field>
-
-          <div className="col-span-2 pt-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
-              Venue Contact
-            </p>
-          </div>
-
-          <Field label="Contact Name">
-            <input
-              type="text"
-              className={INPUT_CLS}
-              placeholder="e.g. Juan Dela Cruz"
-              value={form.venue_contact_name || ""}
-              onChange={(e) => setForm((p) => ({ ...p, venue_contact_name: e.target.value }))}
-            />
-          </Field>
-
-          <Field label="Contact Number">
-            <input
-              type="text"
-              className={INPUT_CLS}
-              placeholder="e.g. 0917 123 4567"
-              value={form.venue_contact_phone || ""}
-              onChange={(e) => setForm((p) => ({ ...p, venue_contact_phone: e.target.value }))}
-            />
-          </Field>
-
-          <div className="col-span-2 flex justify-end pt-2">
-            {form.include_food && !isCombo ? (
-              <button
-                type="button"
-                onClick={() => setTab("menu")}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
-              >
-                Continue to Menu <ChevronRight size={15} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setTab("equipment")}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
-              >
-                Continue to Equipment <ChevronRight size={15} />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Menu tab ── */}
-      {tab === "menu" && form.include_food && !isCombo && (
-        <div>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="relative flex-1">
-              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                className={cn(INPUT_CLS, "pl-9")}
-                placeholder="Search menu items..."
-                value={menuSearch}
-                onChange={(e) => setMenuSearch(e.target.value)}
-              />
-            </div>
-            <Sel value={menuCat} onChange={setMenuCat} className="w-44 shrink-0">
-              {menuCats.map((c) => <option key={c} value={c}>{c}</option>)}
-            </Sel>
-          </div>
-          <div className="grid grid-cols-2 gap-5">
-            <div className="space-y-4">
-              {Object.entries(groupedMenu).map(([cat, items]) => (
-                <div key={cat}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs font-bold text-slate-600">{cat}</p>
-                    <span className="text-[11px] text-slate-400">{items.length}</span>
-                  </div>
-                  <div className="space-y-1">
-                    {items.map((item) => {
-                      const sel = selectedMenuIds.includes(item._id);
-                      return (
-                        <button
-                          key={item._id}
-                          type="button"
-                          onClick={() =>
-                            setSelectedMenuIds((prev) =>
-                              prev.includes(item._id)
-                                ? prev.filter((id) => id !== item._id)
-                                : [...prev, item._id]
-                            )
-                          }
-                          className={cn(
-                            "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition-all",
-                            sel
-                              ? "border-blue-300 bg-blue-50"
-                              : "border-slate-200 bg-white hover:border-slate-300"
-                          )}
-                        >
-                          <span className="text-[13px] font-medium text-slate-700 truncate">{item.name}</span>
-                          <span className="ml-2 shrink-0 text-xs tabular-nums text-slate-500">
-                            {formatCurrency(item.price)} / pc
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-              {Object.keys(groupedMenu).length === 0 && (
-                <p className="py-6 text-center text-sm text-slate-400">No menu items found.</p>
-              )}
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-bold text-slate-600">Selected Items ({selectedMenuIds.length})</p>
-                {selectedMenuIds.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMenuIds([])}
-                    className="text-[11px] font-semibold text-red-600 hover:underline"
-                  >
-                    Clear all
-                  </button>
-                )}
-              </div>
-              <div className="min-h-[200px] rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1.5">
-                {selectedMenuIds.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-slate-400">Select items from the left</p>
-                ) : (
-                  menuItems
-                    .filter((m) => selectedMenuIds.includes(m._id))
-                    .map((item) => (
-                      <div
-                        key={item._id}
-                        className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2"
-                      >
-                        <span className="text-[13px] font-medium text-slate-700 truncate">{item.name}</span>
-                        <div className="ml-2 flex shrink-0 items-center gap-2">
-                          <span className="text-xs tabular-nums text-slate-400">
-                            {formatCurrency(item.price)} / pc
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSelectedMenuIds((prev) => prev.filter((id) => id !== item._id))
-                            }
-                            className="text-slate-400 hover:text-red-500 transition"
-                          >
-                            <X size={13} />
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-between pt-4">
-            <button
-              type="button"
-              onClick={() => setTab("event")}
-              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
-            >
-              <ChevronLeft size={15} /> Back to Event
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab("equipment")}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
-            >
-              Continue to Equipment <ChevronRight size={15} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Equipment & Services ── */}
-      {tab === "equipment" && (
-        <div>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="relative flex-1">
-              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                className={cn(INPUT_CLS, "pl-9")}
-                placeholder="Search equipment or services..."
-                value={equipSearch}
-                onChange={(e) => setEquipSearch(e.target.value)}
-              />
-            </div>
-            <Sel value={equipCat} onChange={setEquipCat} className="w-44 shrink-0">
-              {equipCats.map((c) => <option key={c} value={c}>{c}</option>)}
-            </Sel>
-          </div>
-          {!form.event_date && (
-            <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-              <AlertCircle size={15} className="shrink-0" />
-              Select an event date first to see accurate availability.
-            </div>
-          )}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="pb-2.5 text-left font-semibold text-slate-600">Item</th>
-                  <th className="pb-2.5 text-center font-semibold text-slate-600">Available</th>
-                  <th className="pb-2.5 text-center font-semibold text-slate-600">Qty</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredEquip.map((inv) => {
-                  const available = inv.available_quantity ?? inv.quantity ?? 0;
-                  const qty = getInvQty(inv._id);
-                  return (
-                    <tr key={inv._id} className="transition hover:bg-slate-50/60">
-                      <td className="py-2.5 pr-4">
-                        <p className="font-medium text-slate-800">{inv.item_name}</p>
-                        {inv.category && (
-                          <p className="text-xs text-slate-400">{inv.category}</p>
-                        )}
-                      </td>
-                      <td className="py-2.5 text-center">
-                        <span
-                          className={cn(
-                            "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                            available > 10
-                              ? "bg-emerald-50 text-emerald-700"
-                              : available > 0
-                              ? "bg-amber-50 text-amber-700"
-                              : "bg-slate-100 text-slate-400"
-                          )}
-                        >
-                          {available}
-                        </span>
-                      </td>
-                      <td className="py-2.5">
-                        <div className="flex items-center justify-center gap-2">
-                          <QtyBtn
-                            icon={Minus}
-                            disabled={qty <= 0}
-                            onClick={() => setInvQty(inv._id, inv.item_name, qty - 1)}
-                          />
-                          <span className="w-8 text-center text-sm font-semibold tabular-nums text-slate-800">
-                            {qty}
-                          </span>
-                          <QtyBtn
-                            icon={Plus}
-                            disabled={qty >= available}
-                            onClick={() => {
-                              if (qty >= available) return;
-                              setInvQty(inv._id, inv.item_name, qty + 1);
-                            }}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {filteredEquip.length === 0 && (
-              <p className="py-6 text-center text-sm text-slate-400">No equipment items found.</p>
-            )}
-          </div>
-          <div className="flex pt-4">
-            <button
-              type="button"
-              onClick={() => setTab(form.include_food && !isCombo ? "menu" : "event")}
-              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
-            >
-              <ChevronLeft size={15} /> Back
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Stage 3: Review & Payment ────────────────────────────────────────────────
-function StageReviewAndPayment({
-  form, setForm, customers, packages, menuItems, selectedMenuIds, selectedInventory, onEdit, errors,
-}) {
-  const pkg    = packages.find((p) => p._id === form.package_id);
-  const dishes = menuItems.filter((m) => selectedMenuIds.includes(m._id));
-  const guestCount = Number(form.guest_count) || 0;
-
-  let pkgTotal = 0;
-  if (pkg) {
-    if (isSpecialOffer(pkg)) pkgTotal = offerGuestCount(pkg) * (offerPricePerPax(pkg) || 0);
-    else if (pkg.package_type === "Event Setup Only") pkgTotal = Number(pkg.setup_price) || 0;
-    else pkgTotal = (Number(pkg.price_per_guest) || 0) * guestCount;
-  }
-  const foodTotal =
-    !isSpecialOffer(pkg) && form.include_food
-      ? dishes.reduce((s, d) => s + (Number(d.price) || 0) * guestCount, 0)
-      : 0;
-  const computedTotal = pkgTotal + foodTotal;
-  const finalTotal =
-    form.total_price !== "" && form.total_price !== undefined
-      ? Number(form.total_price) || 0
-      : computedTotal;
-  const totalEquipment = selectedInventory.reduce((s, e) => s + (e.quantity || 0), 0);
+  const getCategoryBadge = (category) => {
+    switch (category) {
+      case "Package":
+        return "bg-blue-50 text-blue-700 border-blue-200";
+      case "Menu":
+        return "bg-emerald-50 text-emerald-700 border-emerald-200";
+      case "Add-on":
+        return "bg-purple-50 text-purple-700 border-purple-200";
+      case "Equipment":
+        return "bg-amber-50 text-amber-700 border-amber-200";
+      default:
+        return "bg-slate-100 text-slate-700 border-slate-200";
+    }
+  };
 
   const SummaryCard = ({ icon: Icon, title, onEditClick, children }) => (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+      <div className="mb-2.5 flex items-center justify-between border-b border-slate-100 pb-2">
         <div className="flex items-center gap-2">
-          <Icon size={14} className="text-slate-400" />
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{title}</p>
+          <Icon size={14} className="text-blue-600" />
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-700">{title}</p>
         </div>
-        <button
-          type="button"
-          onClick={onEditClick}
-          className="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer"
-        >
-          Edit
-        </button>
+        {onEditClick && (
+          <button
+            type="button"
+            onClick={onEditClick}
+            className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+          >
+            <Pencil size={11} /> Edit
+          </button>
+        )}
       </div>
-      {children}
+      <div className="space-y-1 text-xs text-slate-600">{children}</div>
     </div>
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div>
-        <h2 className="text-[15px] font-bold text-slate-900">Review & Payment</h2>
-        <p className="mt-0.5 text-sm text-slate-500">
-          Review the booking details and complete the customer contact and payment info.
+        <h2 className="text-base sm:text-lg font-bold text-slate-900">
+          Review &amp; Final Confirmation
+        </h2>
+        <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+          Review client details, event schedule, and the priced quotation breakdown before confirming and creating the reservation.
         </p>
       </div>
 
-      {/* Summary cards */}
+      {/* Summary Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <SummaryCard icon={CalendarDays} title="Event Details" onEditClick={() => onEdit(1)}>
-          <p className="font-semibold text-sm text-slate-800">{form.event_type || "—"}</p>
-          {form.event_date && (
-            <p className="mt-1 text-xs text-slate-500 flex items-center gap-1.5">
-              <CalendarDays size={12} />
-              {new Date(form.event_date + "T00:00:00").toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}
-              {form.start_time ? ` · ${form.start_time}` : ""}
-            </p>
-          )}
-          {form.guest_count && (
-            <p className="mt-0.5 text-xs text-slate-500 flex items-center gap-1.5">
-              <Users size={12} />
-              {form.guest_count} guests
-            </p>
-          )}
-        </SummaryCard>
-
-        <SummaryCard icon={Package} title="Package & Services" onEditClick={() => onEdit(0)}>
+        {/* Customer Information */}
+        <SummaryCard
+          icon={Users}
+          title="Client Information"
+          onEditClick={() => onEditStep(editTargets?.contact)}
+        >
           <p className="font-semibold text-sm text-slate-800">
-            {pkg?.name || (form.package_type === "custom" ? "Custom Setup" : "—")}
+            {form.contact_first_name} {form.contact_last_name}
           </p>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {form.service_type === "food_event"
-              ? "Food & Event Setup"
-              : form.service_type === "food_only"
-              ? "Food Only"
-              : "Event Setup Only"}
-          </p>
-          {dishes.length > 0 && (
-            <p className="mt-0.5 text-xs text-slate-500">{dishes.length} menu items</p>
+          <p className="text-slate-500">{form.contact_email}</p>
+          <p className="text-slate-500">{form.contact_phone}</p>
+          {form.contact_alt_phone && (
+            <p className="text-slate-400">Alt: {form.contact_alt_phone}</p>
           )}
-          {totalEquipment > 0 && (
-            <p className="mt-0.5 text-xs text-slate-500">{totalEquipment} equipment units</p>
+          <p className="text-slate-400 capitalize">Method: {form.contact_method}</p>
+        </SummaryCard>
+
+        {/* Event Details */}
+        <SummaryCard
+          icon={CalendarDays}
+          title="Event & Schedule"
+          onEditClick={() => onEditStep(editTargets?.schedule)}
+        >
+          <p className="font-semibold text-sm text-slate-800">
+            {form.event_type || "Event"}
+            {form.celebrant_name ? ` (Honoree: ${form.celebrant_name})` : ""}
+          </p>
+          <p className="text-slate-500">
+            {form.event_date ? formatEventDate(form.event_date) : "—"} · {form.start_time} (
+            {form.duration_hours} hrs)
+          </p>
+          <p className="font-medium text-slate-700">{guestCount} Guests</p>
+          {form.event_theme && (
+            <p className="text-slate-500">Theme: {form.event_theme}</p>
+          )}
+          {form.delivery_method === "pickup" ? (
+            <p className="text-slate-500">Fulfillment: Pickup</p>
+          ) : (
+            <p className="text-slate-500 line-clamp-1">
+              Venue: {[form.street, form.barangay, form.municipality, form.province]
+                .filter(Boolean)
+                .join(", ") || "—"}
+            </p>
+          )}
+        </SummaryCard>
+
+        {/* Package & Setup */}
+        <SummaryCard
+          icon={Package}
+          title="Package & Service"
+          onEditClick={() => onEditStep(editTargets?.packageSetup)}
+        >
+          <p className="font-semibold text-sm text-slate-800">
+            {packageDetails?.name ||
+              (form.is_custom_setup ? "Custom Setup Design" : "Custom Service")}
+          </p>
+          <p className="text-slate-500">
+            {SERVICE_LABELS[form.service_type] || form.service_type}
+          </p>
+          {form.scaffold_width && form.scaffold_length && (
+            <p className="text-slate-500">
+              Setup Size: {form.scaffold_width}×{form.scaffold_length} ft
+            </p>
+          )}
+        </SummaryCard>
+
+        {/* Food & Add-ons */}
+        <SummaryCard
+          icon={Utensils}
+          title="Menu & Add-ons"
+          onEditClick={() => onEditStep(editTargets?.food || editTargets?.extras)}
+        >
+          {isOffer ? (
+            <p className="font-semibold text-slate-800">Combo Special Offer Menu</p>
+          ) : form.include_food !== false ? (
+            <p className="font-semibold text-slate-800">
+              {dishes.length} Catering Dishes Selected
+            </p>
+          ) : (
+            <p className="text-slate-400 italic">No food included</p>
+          )}
+          {addOns.length > 0 && (
+            <p className="text-slate-500">{addOns.length} Add-on Services</p>
+          )}
+          {form.dietary_restrictions && (
+            <p className="text-amber-700 line-clamp-1">
+              Dietary: {form.dietary_restrictions}
+            </p>
+          )}
+          {form.allergies && (
+            <p className="text-red-700 line-clamp-1">Allergies: {form.allergies}</p>
           )}
         </SummaryCard>
       </div>
 
-      {/* Contact info */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            Customer Contact Information
-          </p>
-          {customers?.length > 0 && (
-            <select
-              className="text-xs text-blue-700 bg-blue-50/80 border border-blue-200/80 rounded-lg px-2.5 py-1 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
-              defaultValue=""
-              onChange={(e) => {
-                const cust = customers.find((c) => c._id === e.target.value);
-                if (cust) {
-                  setForm((p) => ({
-                    ...p,
-                    customer_id: cust._id,
-                    contact_first_name: (cust.full_name || "").split(" ")[0] || cust.first_name || p.contact_first_name,
-                    contact_last_name: (cust.full_name || "").split(" ").slice(1).join(" ") || cust.last_name || p.contact_last_name,
-                    contact_email: cust.email || p.contact_email,
-                    contact_phone: cust.phone || p.contact_phone,
-                  }));
-                }
-                e.target.value = "";
-              }}
-            >
-              <option value="" disabled>Autofill from existing customer (optional)...</option>
-              {customers.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.full_name || c.email} {c.email ? `(${c.email})` : ""}
-                </option>
-              ))}
-            </select>
-          )}
+      {/* ── Read-Only Itemized Quotation Table ── */}
+      <div className="rounded-2xl border-2 border-blue-200 bg-white shadow-xs overflow-hidden">
+        <div className="border-b border-blue-200 bg-blue-50/50 px-5 py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Receipt size={16} className="text-blue-600" />
+            <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-800">
+              Finalized Quotation Breakdown ({quotationItems.length} lines)
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => onEditStep(editTargets?.quotation || "Quotation")}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1 text-xs font-semibold text-blue-700 shadow-2xs hover:bg-blue-50 transition cursor-pointer"
+          >
+            <Pencil size={12} /> Edit Quotation &amp; Prices
+          </button>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="First Name" required error={errors.contact_first_name}>
-            <input
-              type="text"
-              className={cn(INPUT_CLS, errors.contact_first_name && "border-red-300")}
-              value={form.contact_first_name}
-              onChange={(e) => setForm((p) => ({ ...p, contact_first_name: e.target.value }))}
-            />
-          </Field>
-          <Field label="Last Name" required error={errors.contact_last_name}>
-            <input
-              type="text"
-              className={cn(INPUT_CLS, errors.contact_last_name && "border-red-300")}
-              value={form.contact_last_name}
-              onChange={(e) => setForm((p) => ({ ...p, contact_last_name: e.target.value }))}
-            />
-          </Field>
-          <Field label="Email Address" required error={errors.contact_email}>
-            <input
-              type="email"
-              className={cn(INPUT_CLS, errors.contact_email && "border-red-300")}
-              value={form.contact_email}
-              onChange={(e) => setForm((p) => ({ ...p, contact_email: e.target.value }))}
-            />
-          </Field>
-          <Field label="Phone Number" required error={errors.contact_phone}>
-            <input
-              type="text"
-              className={cn(INPUT_CLS, errors.contact_phone && "border-red-300")}
-              value={form.contact_phone}
-              onChange={(e) => setForm((p) => ({ ...p, contact_phone: e.target.value }))}
-            />
-          </Field>
-          <Field label="Alternate Phone">
-            <input
-              type="text"
-              className={INPUT_CLS}
-              value={form.contact_alt_phone || ""}
-              onChange={(e) => setForm((p) => ({ ...p, contact_alt_phone: e.target.value }))}
-            />
-          </Field>
-          <Field label="Preferred Contact Method">
-            <Sel
-              value={form.contact_method || "email"}
-              onChange={(v) => setForm((p) => ({ ...p, contact_method: v }))}
-            >
-              <option value="email">Email</option>
-              <option value="phone">Phone</option>
-              <option value="sms">SMS</option>
-            </Sel>
-          </Field>
+
+        {quotationItems.length === 0 ? (
+          <div className="p-6 text-center text-xs text-slate-500">
+            No items in quotation. Please click &ldquo;Edit Quotation &amp; Prices&rdquo; to add items.
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {/* Desktop Table Header */}
+            <div className="hidden sm:grid sm:grid-cols-12 gap-3 px-5 py-2.5 bg-slate-50/60 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="col-span-6">Item / Service</div>
+              <div className="col-span-2 text-center">Qty &amp; Unit</div>
+              <div className="col-span-2 text-right">Unit Price</div>
+              <div className="col-span-2 text-right">Subtotal</div>
+            </div>
+
+            {/* Rows */}
+            {quotationItems.map((item, idx) => {
+              const qty = Number(item.quantity) || 0;
+              const price = Number(item.unitPrice) || 0;
+              const lineTotal = qty * price;
+
+              return (
+                <div
+                  key={item.key || `row-${idx}`}
+                  className="px-5 py-3 flex flex-col sm:grid sm:grid-cols-12 gap-2 sm:gap-3 items-start sm:items-center hover:bg-slate-50/50 transition-colors text-xs"
+                >
+                  <div className="sm:col-span-6 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold border shrink-0",
+                          getCategoryBadge(item.category)
+                        )}
+                      >
+                        {item.category || "Item"}
+                      </span>
+                      <span className="font-semibold text-slate-900 truncate">
+                        {item.name}
+                      </span>
+                    </div>
+                    {item.description && (
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {item.description}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="sm:col-span-2 text-left sm:text-center text-slate-700 font-medium">
+                    <span className="sm:hidden text-slate-400">Qty: </span>
+                    {qty} {item.unit || "unit"}
+                  </div>
+
+                  <div className="sm:col-span-2 text-left sm:text-right text-slate-600 font-mono">
+                    <span className="sm:hidden text-slate-400">Unit: </span>
+                    {formatCurrency(price)}
+                  </div>
+
+                  <div className="sm:col-span-2 text-left sm:text-right font-bold text-slate-900 tabular-nums">
+                    <span className="sm:hidden text-slate-400 font-normal">Subtotal: </span>
+                    {formatCurrency(lineTotal)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Totals Summary Footer */}
+        <div className="bg-slate-50/90 border-t border-slate-200 px-5 py-3 space-y-1.5 text-xs">
+          <div className="flex justify-between items-center text-slate-600">
+            <span>Quotation Subtotal:</span>
+            <span className="font-semibold text-slate-900 tabular-nums">
+              {formatCurrency(quotationSubtotal)}
+            </span>
+          </div>
+
+          {quotationDiscount > 0 && (
+            <div className="flex justify-between items-center text-emerald-700">
+              <span>Discount Applied:</span>
+              <span className="font-semibold tabular-nums">
+                -{formatCurrency(quotationDiscount)}
+              </span>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center text-sm font-bold text-slate-900 pt-2 border-t border-slate-200">
+            <span>Total Booking Amount:</span>
+            <span className="text-base text-blue-700 font-extrabold tabular-nums">
+              {formatCurrency(quotationGrandTotal)}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Payment */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">
-          Payment Method
-        </p>
-        <div className="grid grid-cols-4 gap-3 mb-5">
-          {PAYMENT_METHODS.map((pm) => (
-            <button
-              key={pm.value}
-              type="button"
-              onClick={() => setForm((p) => ({ ...p, payment_method: pm.value }))}
-              className={cn(
-                "rounded-xl border-2 px-3 py-3.5 text-center transition-all",
-                form.payment_method === pm.value
-                  ? "border-blue-500 bg-blue-50 text-blue-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-blue-300"
-              )}
-            >
-              <CreditCard
-                size={18}
-                className={cn(
-                  "mx-auto mb-1.5",
-                  form.payment_method === pm.value ? "text-blue-600" : "text-slate-400"
-                )}
-              />
-              <p className="text-[13px] font-semibold">{pm.label}</p>
-            </button>
-          ))}
-        </div>
+      {/* ── Financial Highlights & Payment Confirmation ── */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 space-y-4">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+          Payment Terms &amp; Confirmation Status
+        </h3>
 
-        {/* Price breakdown */}
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-2 mb-4">
-          {pkg && (
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-600">Package Price</span>
-              <span className="font-semibold tabular-nums">{formatCurrency(pkgTotal)}</span>
-            </div>
-          )}
-          {foodTotal > 0 && (
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-600">
-                Food ({dishes.length} items × {guestCount} guests)
-              </span>
-              <span className="font-semibold tabular-nums">{formatCurrency(foodTotal)}</span>
-            </div>
-          )}
-          <div className="flex justify-between border-t border-slate-200 pt-2">
-            <span className="font-bold text-slate-800">Total</span>
-            <span className="text-base font-bold tabular-nums text-slate-900">
-              {formatCurrency(finalTotal)}
+        {/* 3 Metric Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Total Booking Price
             </span>
-          </div>
-        </div>
-
-        {/* Override */}
-        <Field label="Override Total Price" hint="Leave blank to use the computed total above.">
-          <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
-              ₱
-            </span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className={cn(INPUT_CLS, "pl-7 font-semibold")}
-              placeholder={computedTotal > 0 ? String(computedTotal) : "0.00"}
-              value={form.total_price}
-              onChange={(e) => setForm((p) => ({ ...p, total_price: e.target.value }))}
-              onKeyDown={(e) => ["e", "E", "-", "+"].includes(e.key) && e.preventDefault()}
-            />
-          </div>
-          {errors.total_price && (
-            <p className="mt-1 flex items-center gap-1 text-[11.5px] font-medium text-red-600">
-              <AlertCircle size={11} />{errors.total_price}
+            <p className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums mt-0.5">
+              {formatCurrency(quotationGrandTotal)}
             </p>
-          )}
-        </Field>
+          </div>
 
-        <Field label="Balance Payment Preference" className="mt-4">
-          <Sel
-            value={form.balance_payment_preference || "unselected"}
-            onChange={(v) => setForm((p) => ({ ...p, balance_payment_preference: v }))}
-          >
-            <option value="unselected">Not selected</option>
-            <option value="online">Online</option>
-            <option value="in_person">In Person</option>
-          </Sel>
-        </Field>
+          <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-3.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
+              Deposit Required ({depositPercentage}%)
+            </span>
+            <p className="text-lg sm:text-xl font-bold text-blue-800 tabular-nums mt-0.5">
+              {formatCurrency(depositAmount)}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Balance Remaining
+            </span>
+            <p className="text-lg sm:text-xl font-bold text-slate-700 tabular-nums mt-0.5">
+              {formatCurrency(remainingBalance)}
+            </p>
+          </div>
+        </div>
+
+        {/* Payment Details List */}
+        <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 text-xs">
+          <div className="p-3 flex items-center justify-between">
+            <span className="text-slate-500">Payment Method:</span>
+            <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+              <CreditCard size={14} className="text-blue-600" />
+              {paymentMethodObj.label}
+            </span>
+          </div>
+
+          <div className="p-3 flex items-center justify-between">
+            <span className="text-slate-500">Deposit Status:</span>
+            {depositPaidImmediately ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
+                <CheckCircle2 size={12} /> Immediate Deposit Collected
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
+                <Clock size={12} /> Pending Deposit Payment
+              </span>
+            )}
+          </div>
+
+          <div className="p-3 flex items-center justify-between">
+            <span className="text-slate-500">Balance Payment:</span>
+            <span className="font-medium text-slate-700">{balancePrefLabel}</span>
+          </div>
+
+          {quotationNotes && (
+            <div className="p-3">
+              <span className="text-slate-500 block mb-0.5">Quotation Remarks:</span>
+              <p className="text-slate-800 font-medium italic">{quotationNotes}</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Main modal ───────────────────────────────────────────────────────────────
-const EMPTY_FORM = {
-  customer_id: "", package_type: "existing", package_id: "",
-  service_type: "food_event", include_food: true,
-  event_type: "", event_theme: "", event_date: "", start_time: "12:00",
-  duration_hours: "4", guest_count: "",
-  venue_type: "", indoor_outdoor: "", province: BATANGAS_PROVINCE,
-  municipality: "", barangay: "", street: "", landmark: "", zip_code: "",
-  venue_contact_name: "", venue_contact_phone: "",
-  contact_first_name: "", contact_last_name: "",
-  contact_email: "", contact_phone: "", contact_alt_phone: "",
-  contact_method: "email", payment_method: "cash",
-  total_price: "", balance_payment_preference: "unselected",
-  inventory_items: [],
-};
-
+// ─── Main Modal Component ─────────────────────────────────────────────────────
 export default function WalkInBookingModal({ open, onClose, onCreated }) {
   const { notify } = useToast();
-  const [stage,      setStage]      = useState(0);
-  const [submitting, setSubmitting] = useState(false);
-  const [stageErrors, setStageErrors] = useState({});
   const contentRef = useRef(null);
 
-  const [packages,       setPackages]       = useState([]);
-  const [menuItems,      setMenuItems]      = useState([]);
-  const [customers,      setCustomers]      = useState([]);
+  // Flow State
+  const [step, setStep] = useState(0);
+  const [maxStepReached, setMaxStepReached] = useState(0);
+  const [isEditing, setIsEditing] = useState(false);
+  const [stepErrors, setStepErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [depositPaidImmediately, setDepositPaidImmediately] = useState(true);
+
+  // Walk-in Quotation & Payment State
+  const [quotationItems, setQuotationItems] = useState([]);
+  const [discount, setDiscount] = useState("");
+  const [depositPercent, setDepositPercent] = useState(20);
+  const [customDeposit, setCustomDeposit] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [balancePreference, setBalancePreference] = useState("in_person");
+  const [quotationNotes, setQuotationNotes] = useState("");
+
+  // Catalogs
+  const [packages, setPackages] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [addons, setAddons] = useState([]);
+  const [businessInfo, setBusinessInfo] = useState({});
+  const [packageDetails, setPackageDetails] = useState(null);
   const [inventoryItems, setInventoryItems] = useState([]);
-  const [loadingCatalogs,setLoadingCatalogs]= useState(false);
+  const [loadingCatalogs, setLoadingCatalogs] = useState(false);
 
-  const [form,              setForm]              = useState(EMPTY_FORM);
-  const [selectedMenuIds,   setSelectedMenuIds]   = useState([]);
-  const [selectedInventory, setSelectedInventory] = useState([]);
+  // Availability State
+  const [availability, setAvailability] = useState({ status: "idle", message: "" });
+  const [suggestedDates, setSuggestedDates] = useState([]);
+  const [availabilityNonce, setAvailabilityNonce] = useState(0);
 
-  // Load catalogs once on open
+  // Form State
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [menuNav, setMenuNav] = useState(null);
+
+  // Load catalogs on modal open
   useEffect(() => {
     if (!open) return;
     setLoadingCatalogs(true);
-    Promise.all([AdminAPI.getPackages(), AdminAPI.getMenu(), AdminAPI.getCustomers()])
-      .then(([pkgRes, menuRes, custRes]) => {
+    Promise.all([
+      AdminAPI.getPackages(),
+      AdminAPI.getMenu(),
+      AdminAPI.getCustomers(),
+      CustomerAPI.getAddons(),
+      CustomerAPI.getBusinessInfo(),
+    ])
+      .then(([pkgRes, menuRes, custRes, addRes, bizRes]) => {
         setPackages(Array.isArray(pkgRes.data) ? pkgRes.data : []);
         setMenuItems(
-          Array.isArray(menuRes.data)
-            ? menuRes.data.filter((m) => m.available !== false)
-            : []
+          (Array.isArray(menuRes.data) ? menuRes.data : []).filter(
+            (m) => m?.available !== false
+          )
         );
         setCustomers(Array.isArray(custRes.data) ? custRes.data : []);
+        setAddons(
+          (Array.isArray(addRes.data) ? addRes.data : []).filter(
+            (a) => a?.available !== false
+          )
+        );
+        setBusinessInfo(bizRes.data || {});
+        if (bizRes.data?.deposit_percentage) {
+          setDepositPercent(bizRes.data.deposit_percentage);
+        }
       })
-      .catch(() => notify("Failed to load booking data.", "error"))
+      .catch(() => notify("Failed to load catalog data.", "error"))
       .finally(() => setLoadingCatalogs(false));
   }, [open]);
 
-  // Reload inventory when event date changes
+  // Load packageDetails when package_id changes
+  useEffect(() => {
+    if (!form.package_id || form.package_id === "none") {
+      setPackageDetails(null);
+      return;
+    }
+    CustomerAPI.getPackageById(form.package_id)
+      .then((res) => setPackageDetails(res.data))
+      .catch(() => setPackageDetails(null));
+  }, [form.package_id]);
+
+  // Reload inventory availability when event date changes
   useEffect(() => {
     if (!open) return;
     AdminAPI.getInventoryAvailability(form.event_date || undefined)
@@ -1445,122 +1324,910 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       .catch(() => setInventoryItems([]));
   }, [open, form.event_date]);
 
-  // Sync selectedInventory from form.inventory_items when package changes
+  // Track maximum step reached for clickable stepper navigation
   useEffect(() => {
-    if (form.inventory_items && form.inventory_items.length > 0) {
-      setSelectedInventory(
-        form.inventory_items.map((item) => ({
-          inventory_id: item.inventory_id,
-          name:         item.name,
-          quantity:     item.quantity,
-        }))
-      );
-    }
-  }, [form.package_id]);
+    setMaxStepReached((prev) => Math.max(prev, step));
+  }, [step]);
 
-  // Reset on close
+  // Reset maxStepReached if flow configuration changes on Step 0
+  const prevFlowRef = useRef(`${form.package_type}:${form.service_type}`);
+  useEffect(() => {
+    const currentFlow = `${form.package_type}:${form.service_type}`;
+    if (prevFlowRef.current !== currentFlow) {
+      prevFlowRef.current = currentFlow;
+      if (step === 0) {
+        setMaxStepReached(0);
+      }
+    }
+  }, [form.package_type, form.service_type, step]);
+
+  // Reset when modal closes
   useEffect(() => {
     if (!open) {
-      setStage(0);
-      setStageErrors({});
+      setStep(0);
+      setMaxStepReached(0);
+      setIsEditing(false);
+      setStepErrors({});
       setForm(EMPTY_FORM);
-      setSelectedMenuIds([]);
-      setSelectedInventory([]);
+      setPackageDetails(null);
+      setDepositPaidImmediately(true);
+      setQuotationItems([]);
+      setDiscount("");
+      setDepositPercent(businessInfo?.deposit_percentage ?? 20);
+      setCustomDeposit("");
+      setPaymentMethod("cash");
+      setBalancePreference("in_person");
+      setQuotationNotes("");
     }
-  }, [open]);
+  }, [open, businessInfo?.deposit_percentage]);
 
-  // Scroll to top on stage change
+  // Scroll to top on step change
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-  }, [stage]);
+  }, [step]);
 
-  const validate = useCallback(
-    (upToStage) => {
-      const errs = {};
-      if (upToStage >= 0) {
-        if (form.package_type === "existing" && !form.package_id)
-          errs.package_id = "Please select a package to proceed.";
-        if (form.package_type === "custom" && !form.service_type)
-          errs.service_type = "Please select a service type.";
-      }
-      if (upToStage >= 1) {
-        if (!form.event_type)   errs.event_type   = "Event type is required.";
-        if (!form.event_date)   errs.event_date   = "Event date is required.";
-        if (!form.start_time)   errs.start_time   = "Start time is required.";
-        if (!form.guest_count || Number(form.guest_count) < 1)
-          errs.guest_count = "Guest count must be at least 1.";
-        if (!form.municipality) errs.municipality = "Municipality is required.";
-        if (!form.barangay)     errs.barangay     = "Barangay is required.";
-      }
-      if (upToStage >= 2) {
-        if (!form.contact_first_name) errs.contact_first_name = "First name is required.";
-        if (!form.contact_last_name)  errs.contact_last_name  = "Last name is required.";
-        if (!form.contact_email)      errs.contact_email      = "Email is required.";
-        if (!form.contact_phone) {
-          errs.contact_phone = "Phone is required.";
-        } else if (!/^09\d{9}$/.test(form.contact_phone.replace(/\s+/g, ""))) {
-          errs.contact_phone = "Phone must be in 09xxxxxxxxx format (11 digits).";
-        }
-        if (form.total_price !== "" && form.total_price !== undefined) {
-          const t = Number(form.total_price);
-          if (!Number.isFinite(t) || t < 0)
-            errs.total_price = "Total price must be a non-negative number.";
-        }
-      }
-      return errs;
-    },
-    [form]
+  // Special Offer flags
+  const isOffer = isSpecialOffer(packageDetails);
+  const offerPax = isOffer ? offerGuestCount(packageDetails) : 0;
+  const isCustomBooking = form.package_type === "custom";
+
+  const isFoodOnly =
+    (isCustomBooking && form.service_type === SERVICE_TYPES.FOOD_ONLY) ||
+    (isOffer && form.service_type === SERVICE_TYPES.FOOD_ONLY);
+  const isEventSetupOnly =
+    isCustomBooking && form.service_type === SERVICE_TYPES.SETUP_ONLY;
+  const isFoodAndEventSetup =
+    isCustomBooking && form.service_type === SERVICE_TYPES.FULL_SERVICE;
+
+  const deliveryMethod = isOffer
+    ? form.delivery_method || "setup"
+    : isFoodOnly
+    ? form.delivery_method
+    : "setup";
+
+  const requireAvailabilityCheck = isOffer
+    ? form.delivery_method === "setup"
+    : !isFoodOnly;
+
+  // Guest bounds calculation
+  const { guestMin, guestMax } = useMemo(() => {
+    const positive = (candidate) => {
+      const parsed = Number(candidate);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    };
+
+    if (isOffer) {
+      const pkgMin = positive(packageDetails?.guest_min) || 1;
+      const pkgMax =
+        positive(packageDetails?.guest_max) ||
+        positive(packageDetails?.guest_count) ||
+        null;
+      return { guestMin: pkgMin, guestMax: pkgMax };
+    }
+
+    const scaffoldMin = positive(form.scaffold_guest_min);
+    const scaffoldMax = positive(form.scaffold_guest_max);
+    const pkgExplicitMin = positive(packageDetails?.guest_min);
+    const pkgExplicitMax = positive(packageDetails?.guest_max);
+
+    if (scaffoldMin || scaffoldMax) {
+      return {
+        guestMin: scaffoldMin || pkgExplicitMin || 1,
+        guestMax: scaffoldMax || pkgExplicitMax || null,
+      };
+    }
+
+    const [rangeMin, rangeMax] = guestRange(packageDetails);
+    if (rangeMin || rangeMax) {
+      return {
+        guestMin: rangeMin || 1,
+        guestMax: rangeMax || null,
+      };
+    }
+
+    return { guestMin: 1, guestMax: null };
+  }, [
+    isOffer,
+    packageDetails,
+    form.scaffold_guest_min,
+    form.scaffold_guest_max,
+  ]);
+
+  // Setup capacity indicator
+  const setupCapacity = useMemo(() => {
+    if (
+      form.service_type !== SERVICE_TYPES.SETUP_ONLY &&
+      !form.selected_scaffold_option_id &&
+      !form.scaffold_width
+    )
+      return null;
+
+    let min = Number(form.scaffold_guest_min) || null;
+    let max = Number(form.scaffold_guest_max) || null;
+
+    if (!min && !max) return null;
+
+    const guests = parseNumber(form.guest_count) || 0;
+    const label =
+      min && max ? `${min} to ${max} guests` : max ? `up to ${max} guests` : `${min}+ guests`;
+
+    if (!guests) return { status: "info", message: `Setup recommended for ${label}.` };
+    if (max && guests > max)
+      return { status: "over", message: `Setup recommended for ${label}. Consider larger size.` };
+    if (min && guests < min)
+      return { status: "under", message: `Setup built for ${label}. Fits ${guests} guests.` };
+    return { status: "ok", message: `Setup comfortably fits ${label}.` };
+  }, [
+    form.service_type,
+    form.selected_scaffold_option_id,
+    form.scaffold_guest_min,
+    form.scaffold_guest_max,
+    form.scaffold_width,
+    form.guest_count,
+  ]);
+
+  const municipalities = useMemo(() => getBatangasMunicipalities(), []);
+  const barangays = useMemo(
+    () => getBatangasBarangays(form.municipality),
+    [form.municipality]
   );
 
+  // Sync scaffold options when packageDetails loads
+  useEffect(() => {
+    if (!packageDetails || isOffer) return;
+    const opts = packageDetails.scaffold_size_options;
+    if (!Array.isArray(opts) || opts.length === 0) return;
+
+    setForm((prev) => {
+      const currentMatched = opts.find(
+        (o) => String(o._id) === String(prev.selected_scaffold_option_id)
+      );
+      const chosen =
+        currentMatched ||
+        opts.find((o) => String(o._id) === String(packageDetails.default_scaffold_option_id)) ||
+        opts[0];
+
+      if (!chosen) return prev;
+
+      const min = Number(chosen.guest_min) || 1;
+      const max = chosen.guest_max ? Number(chosen.guest_max) : null;
+      let nextGuests = prev.guest_count;
+      const parsed = Number(prev.guest_count);
+      if (Number.isFinite(parsed)) {
+        if (parsed < min) nextGuests = String(min);
+        else if (max && parsed > max) nextGuests = String(max);
+      } else {
+        nextGuests = String(min);
+      }
+
+      const area =
+        chosen.area_ft2 ||
+        (chosen.width_ft && chosen.length_ft ? chosen.width_ft * chosen.length_ft : undefined);
+
+      return {
+        ...prev,
+        selected_scaffold_option_id: String(chosen._id),
+        scaffold_width: chosen.width_ft,
+        scaffold_length: chosen.length_ft,
+        scaffold_base_area: area,
+        scaffold_price: chosen.price,
+        scaffold_guest_min: chosen.guest_min,
+        scaffold_guest_max: chosen.guest_max,
+        guest_count: nextGuests,
+      };
+    });
+  }, [packageDetails, isOffer]);
+
+  // Sync combo pack rules
+  useEffect(() => {
+    if (!isOffer) return;
+    setForm((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      if (
+        prev.include_food !== true ||
+        prev.service_type !== SERVICE_TYPES.FOOD_ONLY
+      ) {
+        next.include_food = true;
+        next.service_type = SERVICE_TYPES.FOOD_ONLY;
+        changed = true;
+      }
+      if (offerPax > 0 && Number(prev.guest_count) !== offerPax) {
+        next.guest_count = String(offerPax);
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [isOffer, offerPax]);
+
+  // Seed menu from package
+  const seededPackageId = useRef(null);
+  useEffect(() => {
+    if (!packageDetails) return;
+    if (form.service_type !== SERVICE_TYPES.FULL_SERVICE) return;
+    if (!Array.isArray(packageDetails.menu_items)) return;
+    if (menuItems.length === 0) return;
+    if (seededPackageId.current === String(packageDetails._id)) return;
+
+    seededPackageId.current = String(packageDetails._id);
+    const packageMenuIds = packageDetails.menu_items.map((entry) =>
+      String(entry?._id || entry)
+    );
+    setForm((prev) => ({
+      ...prev,
+      selected_menu: menuItems.filter((item) =>
+        packageMenuIds.includes(String(item._id))
+      ),
+    }));
+  }, [packageDetails, form.service_type, menuItems]);
+
+  // Carry equipment from package
+  useEffect(() => {
+    if (!packageDetails || isOffer || form.service_type === SERVICE_TYPES.FOOD_ONLY) return;
+    const equipment = packageDetails.setup_equipment;
+    if (!Array.isArray(equipment) || equipment.length === 0) return;
+
+    setForm((prev) => ({
+      ...prev,
+      inventory_items: equipment.map((item) => ({
+        inventory_id: item.inventory_id?._id || item.inventory_id,
+        name: item.name || item.item_name || "Equipment item",
+        quantity: Number(item.quantity || 1),
+      })),
+    }));
+  }, [packageDetails, form.service_type, isOffer]);
+
+  // Availability checking
+  useEffect(() => {
+    if (!form.event_date || !form.start_time) {
+      setAvailability({ status: "idle", message: "" });
+      return undefined;
+    }
+
+    setAvailability({ status: "checking", message: "" });
+
+    const params = {
+      event_date: form.event_date,
+      start_time: form.start_time,
+      duration_hours: form.duration_hours,
+      venue_type: resolveVenueType({
+        venue_type: form.venue_type,
+        venue_type_other: form.venue_type_other,
+      }),
+      province: form.province,
+      municipality: form.municipality,
+      barangay: form.barangay,
+      street: form.street,
+      delivery_method: deliveryMethod,
+      service_type: form.service_type,
+    };
+
+    const timer = setTimeout(() => {
+      CustomerAPI.checkAvailability(params)
+        .then((res) => {
+          if (res.data?.available) {
+            setAvailability({ status: "available", message: "" });
+            setSuggestedDates([]);
+            return;
+          }
+          setAvailability({
+            status:
+              res.data?.blocked || res.data?.inventory_issue ? "blocked" : "unavailable",
+            message:
+              res.data?.reason ||
+              res.data?.inventory_issue ||
+              "We already have an event booked at this time.",
+          });
+        })
+        .catch(() => {
+          setAvailability({ status: "error", message: "" });
+          setSuggestedDates([]);
+        });
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [
+    form.event_date,
+    form.start_time,
+    form.duration_hours,
+    form.venue_type,
+    form.venue_type_other,
+    form.province,
+    form.municipality,
+    form.barangay,
+    form.street,
+    deliveryMethod,
+    form.service_type,
+    availabilityNonce,
+  ]);
+
+  const removeDish = useCallback((item) => {
+    setForm((prev) => ({
+      ...prev,
+      selected_menu: (prev.selected_menu || []).filter(
+        (chosen) => String(chosen._id || chosen) !== String(item._id || item)
+      ),
+    }));
+  }, []);
+
+  const clearAllDishes = useCallback(() => {
+    setForm((prev) => ({
+      ...prev,
+      selected_menu: [],
+    }));
+  }, []);
+
+  // ─── Quotation Line Items Synchronization ─────────────────────────────────
+  const handleResetQuotationToDefaults = useCallback(() => {
+    const defaults = generateDefaultQuotationItems(form, packageDetails, isOffer);
+    setQuotationItems(defaults);
+    setDiscount("");
+    notify("Quotation line items reset to default catalog rates.", "info");
+  }, [form, packageDetails, isOffer, notify]);
+
+  // Synchronize quotation items whenever selections change, preserving admin price/quantity edits
+  useEffect(() => {
+    if (!open) return;
+    setQuotationItems((prevItems) => {
+      const defaults = generateDefaultQuotationItems(form, packageDetails, isOffer);
+      if (prevItems.length === 0) {
+        return defaults;
+      }
+
+      const prevMap = new Map();
+      prevItems.forEach((item) => {
+        if (item.key) prevMap.set(item.key, item);
+      });
+
+      const nextItems = [];
+      defaults.forEach((def) => {
+        const existing = prevMap.get(def.key);
+        if (existing) {
+          nextItems.push({
+            ...def,
+            quantity: existing.quantity !== undefined ? existing.quantity : def.quantity,
+            unit: existing.unit || def.unit,
+            unitPrice: existing.unitPrice !== undefined ? existing.unitPrice : def.unitPrice,
+            description: existing.description || def.description,
+            name: existing.name || def.name,
+          });
+          prevMap.delete(def.key);
+        } else {
+          nextItems.push(def);
+        }
+      });
+
+      // Retain custom lines added by admin
+      prevItems.forEach((item) => {
+        if (item.isCustom) {
+          nextItems.push(item);
+        }
+      });
+
+      return nextItems;
+    });
+  }, [
+    open,
+    form.package_id,
+    form.package_type,
+    form.service_type,
+    form.is_custom_setup,
+    form.event_theme,
+    form.guest_count,
+    form.selected_menu,
+    form.selected_package_addons,
+    form.inventory_items,
+    form.scaffold_price,
+    form.scaffold_width,
+    form.scaffold_length,
+    packageDetails,
+    isOffer,
+  ]);
+
+  // ─── Dynamic Steps Array (Identical to Customer Booking Sequence) ───────────
+  const wizardSteps = useMemo(() => {
+    const steps = [];
+
+    // Step 0: Always Booking Setup (Package / Service type selection)
+    steps.push({
+      id: "BookingSetup",
+      label: form.package_type === "existing" ? "Package" : "Service",
+      title: form.package_type === "existing" ? "Select Package" : "Select Service Type",
+      key: "setup",
+    });
+
+    // Step 1: Date & Time
+    steps.push({
+      id: "DateTime",
+      label: "Date & time",
+      title: "Event Date & Time",
+      key: "datetime",
+    });
+
+    if (form.package_type === "existing") {
+      // Existing Package sequence
+      steps.push({
+        id: "EventDetails",
+        label: "Event details",
+        title: "Event & Venue Details",
+        key: "event",
+      });
+      steps.push({
+        id: "MenuSelection",
+        label: isOffer ? "Combo menu" : "Menu",
+        title: isOffer ? "Combo Food Menu" : "Catering Menu Selection",
+        key: "menu",
+      });
+      if (form.include_food !== false) {
+        steps.push({
+          id: "DietaryNeeds",
+          label: "Dietary needs",
+          title: "Allergies & Dietary Needs",
+          key: "dietary",
+        });
+      }
+      if (!isOffer) {
+        steps.push({
+          id: "PackageAddOns",
+          label: "Extras",
+          title: "Inclusions & Add-on Services",
+          key: "addons",
+        });
+      }
+    } else {
+      // Customize Booking sequence
+      if (isFoodOnly) {
+        steps.push({
+          id: "DeliveryDetails",
+          label: "Guests & delivery",
+          title: "Guests & Delivery Details",
+          key: "delivery",
+        });
+        steps.push({
+          id: "MenuSelection",
+          label: "Dishes",
+          title: "Menu & Dish Selection",
+          key: "menu",
+        });
+        steps.push({
+          id: "DietaryNeeds",
+          label: "Dietary needs",
+          title: "Allergies & Dietary Needs",
+          key: "dietary",
+        });
+      } else if (isEventSetupOnly) {
+        steps.push({
+          id: "PackageSelection",
+          label: "Package",
+          title: "Setup Package & Custom Theme",
+          key: "package",
+        });
+        steps.push({
+          id: "EventDetails",
+          label: "Event details",
+          title: "Event & Venue Details",
+          key: "event",
+        });
+        steps.push({
+          id: "PackageAddOns",
+          label: "Extras",
+          title: "Equipment & Add-ons",
+          key: "addons",
+        });
+      } else {
+        // Food and Event Setup
+        steps.push({
+          id: "PackageSelection",
+          label: "Package",
+          title: "Setup Package & Custom Theme",
+          key: "package",
+        });
+        steps.push({
+          id: "EventDetails",
+          label: "Event details",
+          title: "Event & Venue Details",
+          key: "event",
+        });
+        steps.push({
+          id: "MenuSelection",
+          label: "Menu",
+          title: "Catering Menu Selection",
+          key: "menu",
+        });
+        if (form.include_food !== false) {
+          steps.push({
+            id: "DietaryNeeds",
+            label: "Dietary needs",
+            title: "Allergies & Dietary Needs",
+            key: "dietary",
+          });
+        }
+        steps.push({
+          id: "PackageAddOns",
+          label: "Extras",
+          title: "Equipment & Add-ons",
+          key: "addons",
+        });
+      }
+    }
+
+    // Common Walk-in Client Info
+    steps.push({
+      id: "ContactInfo",
+      label: "Contact",
+      title: "Walk-in Client Information",
+      key: "contact",
+    });
+
+    // Quotation Step (Immediate price assignment for walk-in client)
+    steps.push({
+      id: "Quotation",
+      label: "Quotation",
+      title: "Quotation & Pricing",
+      key: "quotation",
+    });
+
+    // Review Step (Read-only final confirmation)
+    steps.push({
+      id: "ReviewAndQuotation",
+      label: "Review",
+      title: "Review & Confirmation",
+      key: "review",
+    });
+
+    return steps;
+  }, [
+    form.package_type,
+    form.service_type,
+    form.include_food,
+    isOffer,
+    isFoodOnly,
+    isEventSetupOnly,
+  ]);
+
+  const currentStepId = wizardSteps[step]?.id;
+
+  // Keep step index bounded
+  useEffect(() => {
+    if (step >= wizardSteps.length) {
+      setStep(Math.max(0, wizardSteps.length - 1));
+    }
+  }, [wizardSteps.length, step]);
+
+  // ─── Quotation Financial Totals ─────────────────────────────────────────────
+  const quotationSubtotal = useMemo(() => {
+    return quotationItems.reduce((sum, item) => {
+      const q = Number(item.quantity) || 0;
+      const p = Number(item.unitPrice) || 0;
+      return sum + q * p;
+    }, 0);
+  }, [quotationItems]);
+
+  const quotationDiscountNum = Number(discount) || 0;
+  const quotationGrandTotal = Math.max(0, quotationSubtotal - quotationDiscountNum);
+
+  const quotationDepositAmount = useMemo(() => {
+    if (customDeposit !== "" && customDeposit !== undefined) {
+      return Math.min(quotationGrandTotal, Math.max(0, Number(customDeposit) || 0));
+    }
+    const pct = Number(depositPercent || businessInfo?.deposit_percentage || 20);
+    return Math.round(quotationGrandTotal * (pct / 100));
+  }, [customDeposit, quotationGrandTotal, depositPercent, businessInfo?.deposit_percentage]);
+
+  const quotationRemainingBalance = Math.max(0, quotationGrandTotal - quotationDepositAmount);
+
+  // ─── Live Quotation & Estimate Calculation (Fallback) ───────────────────────
+  const estimate = useMemo(() => {
+    const est = buildEstimate({
+      form,
+      packageDetails,
+      businessInfo,
+      isCustomBooking: form.package_type === "custom",
+      standardPackagePrice: packageDetails?.setup_price || packageDetails?.price_per_guest || 0,
+      currentStepId,
+    });
+
+    const guestCount = Number(form.guest_count) || 0;
+    const dishes = form.selected_menu || [];
+
+    // Food price calculation
+    let foodTotal = 0;
+    if (!isOffer && form.include_food !== false && dishes.length > 0) {
+      foodTotal = dishes.reduce(
+        (sum, d) => sum + (Number(d.price) || 0) * (guestCount || 1),
+        0
+      );
+    }
+
+    // Package price calculation
+    let packageTotal = 0;
+    if (isOffer) {
+      packageTotal = offerBaseFoodPrice(packageDetails, guestCount);
+    } else if (packageDetails) {
+      if (packageDetails.package_type === "Event Setup Only") {
+        packageTotal = Number(form.scaffold_price || packageDetails.setup_price || 0);
+      } else if (packageDetails.price_per_guest) {
+        packageTotal = Number(packageDetails.price_per_guest || 0) * guestCount;
+      }
+    }
+
+    // Add-ons total
+    const addOnsTotal = (form.selected_package_addons || []).reduce(
+      (sum, a) => sum + (Number(a.price) || 0) * (Number(a.quantity) || 1),
+      0
+    );
+
+    const calculatedTotal = isOffer
+      ? packageTotal + addOnsTotal
+      : packageTotal + foodTotal + addOnsTotal;
+
+    const depositPercentage = businessInfo?.deposit_percentage ?? 20;
+
+    const finalTotal =
+      form.total_price !== "" && form.total_price !== undefined
+        ? Number(form.total_price) || 0
+        : calculatedTotal;
+
+    const depositAmount = Math.round((finalTotal * depositPercentage) / 100);
+    const remainingBalance = Math.max(0, finalTotal - depositAmount);
+
+    return {
+      ...est,
+      packageTotal,
+      foodTotal,
+      addOnsTotal,
+      calculatedTotal,
+      finalTotal,
+      depositPercentage,
+      depositAmount,
+      remainingBalance,
+    };
+  }, [form, packageDetails, businessInfo, currentStepId, isOffer]);
+
+  // Edit targets for Review step
+  const editTargets = useMemo(() => {
+    const ids = new Set(wizardSteps.map((entry) => entry.id));
+    const firstPresent = (...candidates) => candidates.find((id) => ids.has(id)) || null;
+
+    return {
+      service: firstPresent("BookingSetup"),
+      packageSetup: firstPresent("BookingSetup", "PackageSelection"),
+      schedule: firstPresent("DateTime"),
+      details: firstPresent("DeliveryDetails", "EventDetails"),
+      food: firstPresent("MenuSelection"),
+      dietary: firstPresent("DietaryNeeds"),
+      extras: firstPresent("PackageAddOns", "MenuSelection"),
+      contact: firstPresent("ContactInfo"),
+      quotation: firstPresent("Quotation"),
+    };
+  }, [wizardSteps]);
+
+  // ─── Step Validation ────────────────────────────────────────────────────────
+  const validateStep = (stepId) => {
+    const errs = {};
+    let msg = "";
+
+    switch (stepId) {
+      case "BookingSetup": {
+        if (form.package_type === "existing" && !form.package_id) {
+          errs.package_id = "Please select a predefined package or combo pack to proceed.";
+          msg = "Please select a package.";
+        }
+        if (form.package_type === "custom" && !form.service_type) {
+          errs.service_type = "Please choose a service type.";
+          msg = "Please choose a service type.";
+        }
+        break;
+      }
+
+      case "DateTime": {
+        if (!form.event_date) {
+          errs.event_date = "Please choose an event date.";
+          msg = "Choose an event date.";
+        } else if (!form.start_time) {
+          errs.start_time = "Please choose a start time.";
+          msg = "Choose a start time.";
+        } else if (availability.status === "blocked") {
+          errs.event_date = availability.message || "This slot is blocked.";
+          msg = availability.message || "This slot is blocked.";
+        }
+        break;
+      }
+
+      case "PackageSelection": {
+        if (!form.is_custom_setup && (!form.package_id || form.package_id === "none")) {
+          errs.package_id = "Choose a setup package or switch to custom design theme.";
+          msg = "Choose a setup package or switch to custom design.";
+        }
+        if (form.is_custom_setup && !String(form.event_theme || "").trim()) {
+          errs.event_theme = "Please enter your event theme or colors.";
+          msg = "Please enter your event theme.";
+        }
+        break;
+      }
+
+      case "EventDetails": {
+        const guests = parseNumber(form.guest_count) || 0;
+        if (!form.event_type) {
+          errs.event_type = "Please select or describe the event type.";
+          msg = "Event type is required.";
+        }
+        if (guests <= 0) {
+          errs.guest_count = "Guest count must be at least 1.";
+          msg = "Enter a valid guest count.";
+        }
+        if (form.delivery_method !== "pickup") {
+          if (!form.municipality) errs.municipality = "Municipality is required.";
+          if (!form.barangay) errs.barangay = "Barangay is required.";
+          if (!errs.municipality && !errs.barangay && !msg) {
+            // Address ok
+          } else {
+            msg = "Please provide the venue municipality and barangay.";
+          }
+        }
+        break;
+      }
+
+      case "DeliveryDetails": {
+        const guests = parseNumber(form.guest_count) || 0;
+        if (guests <= 0) {
+          errs.guest_count = "Enter guest count.";
+          msg = "Guest count must be at least 1.";
+        }
+        if (form.delivery_method === "delivery") {
+          if (!form.municipality) errs.municipality = "Delivery municipality is required.";
+          if (!form.barangay) errs.barangay = "Delivery barangay is required.";
+          if (!String(form.street || "").trim())
+            errs.street = "Street address is required for delivery.";
+          if (Object.keys(errs).length > 0) msg = "Complete delivery address.";
+        }
+        break;
+      }
+
+      case "MenuSelection": {
+        if (isOffer) {
+          const courses = offerFoodByCategory(packageDetails);
+          const snapshot = Array.isArray(form.offer_food_snapshot)
+            ? form.offer_food_snapshot
+            : [];
+          const missing = [];
+          courses.forEach((course) => {
+            const req = offerCourseRequirement(course.category);
+            const count = snapshot.filter(
+              (entry) => entry.menu_category === course.category
+            ).length;
+            if (course.items.length > 1 && count < req) {
+              missing.push(course.category);
+            }
+          });
+          if (missing.length > 0) {
+            msg = `Please select your dish for: ${missing.join(", ")}`;
+            errs.menu = msg;
+          }
+        }
+        break;
+      }
+
+      case "ContactInfo": {
+        if (!form.contact_first_name?.trim())
+          errs.contact_first_name = "First name is required.";
+        if (!form.contact_last_name?.trim())
+          errs.contact_last_name = "Last name is required.";
+        if (!form.contact_email?.trim())
+          errs.contact_email = "Email is required.";
+        if (!form.contact_phone?.trim()) {
+          errs.contact_phone = "Mobile phone is required.";
+        } else if (!/^09\d{9}$/.test(normalizePhone(form.contact_phone))) {
+          errs.contact_phone = "Phone must be in 09XXXXXXXXX format (11 digits).";
+        }
+        if (Object.keys(errs).length > 0) msg = "Please complete client contact details.";
+        break;
+      }
+
+      case "Quotation": {
+        if (!quotationItems || quotationItems.length === 0) {
+          errs.quotation = "At least one item is required in the quotation.";
+          msg = "Please add at least one line item to the quotation.";
+        } else {
+          const invalidItem = quotationItems.find(
+            (item) => Number(item.quantity) <= 0 || Number(item.unitPrice) < 0 || !item.name?.trim()
+          );
+          if (invalidItem) {
+            errs.quotation = "All items must have valid name, quantity, and non-negative price.";
+            msg = "Please verify all line item quantities and unit prices.";
+          }
+        }
+        break;
+      }
+
+      case "ReviewAndQuotation": {
+        break;
+      }
+
+      default:
+        break;
+    }
+
+    const valid = !msg && Object.keys(errs).length === 0;
+    return { valid, errors: errs, message: msg };
+  };
+
   const handleNext = () => {
-    const errs = validate(stage);
-    setStageErrors(errs);
-    if (Object.keys(errs).length > 0) return;
-    setStage((s) => Math.min(s + 1, STAGES.length - 1));
+    const { valid, errors: errs, message } = validateStep(currentStepId);
+    if (!valid) {
+      setStepErrors(errs);
+      if (message) notify(message, "warning");
+      return;
+    }
+    setStepErrors({});
+    if (isEditing) {
+      setIsEditing(false);
+      const reviewIdx = wizardSteps.findIndex((e) => e.id === "ReviewAndQuotation");
+      setStep(reviewIdx >= 0 ? reviewIdx : wizardSteps.length - 1);
+      return;
+    }
+    setStep((s) => Math.min(s + 1, wizardSteps.length - 1));
   };
 
   const handleBack = () => {
-    setStageErrors({});
-    setStage((s) => Math.max(s - 1, 0));
+    setStepErrors({});
+    if (isEditing) {
+      setIsEditing(false);
+      const reviewIdx = wizardSteps.findIndex((e) => e.id === "ReviewAndQuotation");
+      setStep(reviewIdx >= 0 ? reviewIdx : wizardSteps.length - 1);
+      return;
+    }
+    setStep((s) => Math.max(s - 1, 0));
   };
 
-  const handleEditStage = (s) => {
-    setStageErrors({});
-    setStage(s);
+  const handleJumpToStep = (targetId) => {
+    const idx = wizardSteps.findIndex((entry) => entry.id === targetId);
+    if (idx >= 0) {
+      setIsEditing(true);
+      setStepErrors({});
+      setStep(idx);
+    }
   };
 
-  const handleSubmit = async () => {
-    const errs = validate(2);
-    setStageErrors(errs);
-    if (Object.keys(errs).length > 0) return;
+  const handleStepClick = (targetIndex) => {
+    if (targetIndex === step) return;
+    if (targetIndex > step) {
+      const { valid, errors: errs, message } = validateStep(currentStepId);
+      if (!valid) {
+        setStepErrors(errs);
+        if (message) notify(message, "warning");
+        return;
+      }
+    }
+    setStepErrors({});
+    const reviewIdx = wizardSteps.findIndex((e) => e.id === "ReviewAndQuotation");
+    if (isEditing && targetIndex === reviewIdx) {
+      setIsEditing(false);
+    }
+    setStep(targetIndex);
+  };
+
+  // ─── Final Direct Submission ────────────────────────────────────────────────
+  const handleConfirmBooking = async () => {
+    const { valid, errors: errs, message } = validateStep("ReviewAndQuotation");
+    if (!valid) {
+      setStepErrors(errs);
+      if (message) notify(message, "warning");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const pkg     = packages.find((p) => p._id === form.package_id);
-      const isCombo = pkg && isSpecialOffer(pkg);
-
-      let serviceType = SERVICE_TYPES.FULL_SERVICE;
-      if (form.service_type === "food_only")  serviceType = SERVICE_TYPES.FOOD_ONLY;
-      if (form.service_type === "event_only") serviceType = SERVICE_TYPES.SETUP_ONLY;
-
-      // Compute total price if not manually overridden
-      let finalPrice = Number(form.total_price);
-      if (!Number.isFinite(finalPrice) || finalPrice <= 0) {
-        let pkgTotal = 0;
-        if (pkg) {
-          if (isSpecialOffer(pkg)) pkgTotal = offerGuestCount(pkg) * (offerPricePerPax(pkg) || 0);
-          else if (pkg.package_type === "Event Setup Only") pkgTotal = Number(pkg.setup_price) || 0;
-          else pkgTotal = (Number(pkg.price_per_guest) || 0) * Number(form.guest_count || 0);
-        }
-        const dishes = menuItems.filter((m) => selectedMenuIds.includes(m._id));
-        const foodTotal =
-          !isSpecialOffer(pkg) && form.include_food
-            ? dishes.reduce((s, d) => s + (Number(d.price) || 0) * Number(form.guest_count || 0), 0)
-            : 0;
-        finalPrice = pkgTotal + foodTotal;
-      }
+      const finalPrice = quotationGrandTotal;
+      const finalSubtotal = quotationSubtotal;
+      const finalDiscount = quotationDiscountNum;
+      const depositAmount = quotationDepositAmount;
 
       const cleanPhone = (val) => (val ? String(val).replace(/\s+/g, "") : undefined);
-      const cleanZip = form.zip_code && /^\d{4}$/.test(form.zip_code.trim()) ? form.zip_code.trim() : undefined;
+      const cleanZip =
+        form.zip_code && /^\d{4}$/.test(form.zip_code.trim())
+          ? form.zip_code.trim()
+          : undefined;
 
       // Auto-match existing customer by email if customer_id not yet explicitly set
       let customerId = form.customer_id;
@@ -1571,51 +2238,129 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         if (found) customerId = found._id;
       }
 
+      // Map priced items from quotation
+      const menuItemsQuotation = quotationItems
+        .filter((item) => item.category === "Menu")
+        .map((m) => ({
+          name: m.name,
+          category: m.description?.replace(" (Included in Package)", "") || "Catering Dish",
+          price: Number(m.unitPrice) || 0,
+          quantity: Number(m.quantity) || Number(form.guest_count) || 1,
+          unit: m.unit || "Pax",
+          pricing_type: m.unit?.toLowerCase() === "pax" ? "per_guest" : "quantity",
+        }));
+
+      const serviceItemsQuotation = quotationItems
+        .filter((item) => item.category === "Add-on" || item.category === "Custom")
+        .map((a) => ({
+          name: a.name,
+          quantity: Number(a.quantity || 1),
+          price: Number(a.unitPrice || 0),
+          note: a.description || "",
+          pricing_type: "quantity",
+        }));
+
+      const additionalChargesQuotation = quotationItems
+        .filter((item) => item.category === "Equipment")
+        .map((e) => ({
+          name: e.name,
+          amount: (Number(e.quantity) || 1) * (Number(e.unitPrice) || 0),
+          charge_type: "equipment",
+          inventory_id: e.inventory_id || undefined,
+        }));
+
+      const packageLine = quotationItems.find((item) => item.category === "Package");
+      const packagePrice = packageLine
+        ? (Number(packageLine.quantity) || 1) * (Number(packageLine.unitPrice) || 0)
+        : 0;
+
       const payload = {
-        customer_id:  customerId || undefined,
+        customer_id: customerId || undefined,
         package_id:
-          form.package_type === "existing" && form.package_id
+          form.package_type === "existing" && form.package_id && form.package_id !== "none"
             ? form.package_id
             : undefined,
-        service_type:  serviceType,
-        include_food:  form.include_food,
-        event_type:    form.event_type,
-        event_theme:   form.event_theme   || undefined,
-        event_date:    form.event_date,
-        start_time:    form.start_time,
+        service_type: form.service_type,
+        booking_type: isOffer ? "special" : form.package_id ? "regular" : "custom",
+        include_food: form.include_food !== false,
+        event_type:
+          form.event_type === OTHER_EVENT_TYPE ? form.event_type_other : form.event_type,
+        event_theme: form.event_theme || undefined,
+        event_palette: form.event_palette || [],
+        booking_for: form.booking_for || "myself",
+        celebrant_name: form.celebrant_name || undefined,
+        event_date: form.event_date,
+        start_time: form.start_time,
         duration_hours: Number(form.duration_hours) || 4,
-        guest_count:   Number(form.guest_count),
-        venue_type:    form.venue_type    || undefined,
+        guest_count: Number(form.guest_count),
+        venue_type: resolveVenueType({
+          venue_type: form.venue_type,
+          venue_type_other: form.venue_type_other,
+        }),
         indoor_outdoor: form.indoor_outdoor || undefined,
-        province:      form.province      || BATANGAS_PROVINCE,
-        municipality:  form.municipality  || undefined,
-        barangay:      form.barangay      || undefined,
-        street:        form.street        || undefined,
-        landmark:      form.landmark      || undefined,
-        zip_code:      cleanZip,
-        venue_contact_name: form.venue_contact_name || undefined,
-        venue_contact_phone: cleanPhone(form.venue_contact_phone),
+        province: form.province || BATANGAS_PROVINCE,
+        municipality: form.municipality || undefined,
+        barangay: form.barangay || undefined,
+        street: form.street || undefined,
+        landmark: form.landmark || undefined,
+        zip_code: cleanZip,
+        delivery_method: isOffer
+          ? form.delivery_method || "setup"
+          : isFoodOnly
+          ? form.delivery_method
+          : "setup",
+        pickup_location: form.pickup_location || undefined,
         contact_first_name: form.contact_first_name,
-        contact_last_name:  form.contact_last_name,
-        contact_email:      form.contact_email,
-        contact_phone:      cleanPhone(form.contact_phone) || form.contact_phone,
-        contact_alt_phone:  cleanPhone(form.contact_alt_phone),
-        contact_method:     form.contact_method,
-        payment_method:     form.payment_method,
-        total_price:        Number(finalPrice) || 0,
-        balance_payment_preference: form.balance_payment_preference || "unselected",
-        selected_menu:    form.include_food && !isCombo ? selectedMenuIds : [],
-        inventory_items:  selectedInventory.filter((s) => s.quantity > 0),
-        status:           "pending deposit",
+        contact_last_name: form.contact_last_name,
+        contact_email: form.contact_email,
+        contact_phone: cleanPhone(form.contact_phone) || form.contact_phone,
+        contact_alt_phone: cleanPhone(form.contact_alt_phone),
+        contact_method: form.contact_method || "email",
+        selected_menu: form.selected_menu?.map((m) => m._id || m) || [],
+        menu_items:
+          menuItemsQuotation.length > 0
+            ? menuItemsQuotation
+            : (form.selected_menu || []).map((m) => ({
+                name: m.name,
+                category: m.category,
+                price: m.price,
+                quantity: Number(form.guest_count) || 1,
+                unit: m.unit || "serving",
+              })),
+        offer_food_snapshot: form.offer_food_snapshot || [],
+        dietary_restrictions: form.dietary_restrictions || undefined,
+        allergies: form.allergies || undefined,
+        special_requests:
+          [form.special_requests, quotationNotes].filter(Boolean).join(" | ") || undefined,
+        service_items:
+          serviceItemsQuotation.length > 0
+            ? serviceItemsQuotation
+            : (form.selected_package_addons || []).map((a) => ({
+                name: a.name,
+                quantity: Number(a.quantity || 1),
+                price: Number(a.price || 0),
+              })),
+        additional_charges: additionalChargesQuotation,
+        package_price: packagePrice,
+        inventory_items: form.inventory_items || [],
+        total_price: Number(finalPrice) || 0,
+        subtotal: Number(finalSubtotal) || Number(finalPrice) || 0,
+        discount_amount: Number(finalDiscount) || 0,
+        deposit_amount: depositAmount,
+        payment_method: paymentMethod || form.payment_method || "cash",
+        balance_payment_preference:
+          balancePreference || form.balance_payment_preference || "in_person",
+        status: depositPaidImmediately ? "confirmed" : "pending deposit",
+        payment_status: depositPaidImmediately ? "deposit_paid" : "pending",
       };
 
       await AdminAPI.createBooking(payload);
-      notify("Booking created successfully.", "success");
+      notify("Walk-in booking created successfully!", "success");
       onCreated?.();
       onClose();
     } catch (err) {
       notify(
-        err.response?.data?.message || "Could not create the booking. Please try again.",
+        err.response?.data?.message || "Could not create the booking. Please check details.",
         "error"
       );
     } finally {
@@ -1624,6 +2369,10 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
   };
 
   if (!open) return null;
+
+  const currentStepObj = wizardSteps[step] || wizardSteps[0];
+  const isReviewStep = currentStepObj.id === "ReviewAndQuotation";
+  const progressPct = Math.round(((step + 1) / wizardSteps.length) * 100);
 
   return (
     <div
@@ -1634,78 +2383,299 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         className="relative flex h-[94dvh] w-[95vw] max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10"
         style={{ animation: "wibm-up 0.18s ease" }}
       >
-        {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-6 py-4 sm:px-8">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-              Add New Booking
-            </h1>
-            <p className="mt-1 text-xs sm:text-sm text-slate-500 font-normal">
-              Create a new reservation for an existing or walk-in customer
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
-          >
-            <X size={20} />
-          </button>
-        </div>
+        {/* ── Modal Header ── */}
+        <div className="shrink-0 border-b border-slate-200/80 bg-white px-6 pt-4 pb-3 sm:px-8">
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+                Add New Booking
+              </h1>
+              <p className="mt-0.5 text-xs sm:text-sm text-slate-500 font-normal">
+                Create a reservation for an existing or walk-in customer
+              </p>
+            </div>
 
-        {/* Body */}
-        <div className="flex min-h-0 flex-1">
-          {/* Main content - uses full usable width */}
-          <div ref={contentRef} className="flex-1 min-w-0 overflow-y-auto px-6 py-6 sm:px-8 sm:py-8">
-            {loadingCatalogs ? (
-              <div className="flex h-64 items-center justify-center">
-                <Loader2 size={32} className="animate-spin text-blue-500" />
-              </div>
-            ) : (
-              <>
-                {stage === 0 && (
-                  <StageBookingSetup
-                    form={form}
-                    setForm={setForm}
-                    packages={packages}
-                    errors={stageErrors}
-                  />
-                )}
-                {stage === 1 && (
-                  <StageEventAndServices
-                    form={form}
-                    setForm={setForm}
-                    packages={packages}
-                    menuItems={menuItems}
-                    inventoryItems={inventoryItems}
-                    selectedMenuIds={selectedMenuIds}
-                    setSelectedMenuIds={setSelectedMenuIds}
-                    selectedInventory={selectedInventory}
-                    setSelectedInventory={setSelectedInventory}
-                    errors={stageErrors}
-                  />
-                )}
-                {stage === 2 && (
-                  <StageReviewAndPayment
-                    form={form}
-                    setForm={setForm}
-                    customers={customers}
-                    packages={packages}
-                    menuItems={menuItems}
-                    selectedMenuIds={selectedMenuIds}
-                    selectedInventory={selectedInventory}
-                    onEdit={handleEditStage}
-                    errors={stageErrors}
-                  />
-                )}
-              </>
-            )}
+            <div className="flex items-center gap-3">
+              {/* Live Quotation preview pill */}
+              {(quotationGrandTotal > 0 || estimate.finalTotal > 0) && (
+                <div className="hidden md:flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/80 px-3 py-1 text-xs font-semibold text-blue-800 tabular-nums">
+                  <span>
+                    {formatCurrency(quotationGrandTotal > 0 ? quotationGrandTotal : estimate.finalTotal)}
+                  </span>
+                  <span className="text-blue-400">·</span>
+                  <span className="text-blue-600 font-normal">
+                    Dep:{" "}
+                    {formatCurrency(
+                      quotationGrandTotal > 0 ? quotationDepositAmount : estimate.depositAmount
+                    )}
+                  </span>
+                </div>
+              )}
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+
+          {/* ── Step-by-Step Progress Indicator ── */}
+          <div className="pt-2 border-t border-slate-100">
+            <BookingStepper
+              currentStepIndex={step + 1}
+              steps={wizardSteps}
+              onStepClick={handleStepClick}
+              isEditing={isEditing}
+              maxStepReached={
+                isEditing || step === wizardSteps.length - 1
+                  ? wizardSteps.length
+                  : Math.max(maxStepReached + 1, step + 1)
+              }
+              showAiAssistant={false}
+            />
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-6 py-4 sm:px-8">
+        {/* ── Modal Body Content ── */}
+        <div ref={contentRef} className="flex-1 min-w-0 overflow-y-auto px-6 py-6 sm:px-8 sm:py-7">
+          {loadingCatalogs ? (
+            <div className="flex h-72 flex-col items-center justify-center gap-3">
+              <Loader2 size={32} className="animate-spin text-blue-600" />
+              <p className="text-xs font-medium text-slate-500">Loading booking packages & menu...</p>
+            </div>
+          ) : (
+            <>
+              {/* Prominent Editing Mode Banner */}
+              {isEditing && (
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-blue-200/80 bg-blue-50/70 p-2.5 sm:px-3.5 text-[13px] shadow-2xs">
+                  <div className="flex items-center gap-2 text-blue-900 font-medium min-w-0">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[#4C81E0]">
+                      <Pencil size={11} />
+                    </span>
+                    <span className="truncate">
+                      Editing: <strong className="font-semibold text-slate-900">{currentStepObj?.label}</strong>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const { valid, errors: errs, message } = validateStep(currentStepId);
+                      if (!valid) {
+                        setStepErrors(errs);
+                        if (message) notify(message, "warning");
+                        return;
+                      }
+                      setIsEditing(false);
+                      const reviewIdx = wizardSteps.findIndex((e) => e.id === "ReviewAndQuotation");
+                      setStep(reviewIdx >= 0 ? reviewIdx : wizardSteps.length - 1);
+                    }}
+                    className="rounded-md bg-[#4C81E0] px-3 py-1 text-xs font-semibold text-white shadow-2xs hover:bg-[#3b6ecc] transition-colors cursor-pointer"
+                  >
+                    Return to Review
+                  </button>
+                </div>
+              )}
+
+              {/* Step 0: Booking Setup */}
+              {currentStepId === "BookingSetup" && (
+                <StageBookingSetup
+                  form={form}
+                  setForm={setForm}
+                  packages={packages}
+                  errors={stepErrors}
+                />
+              )}
+
+              {/* Step: Date & Time */}
+              {currentStepId === "DateTime" && (
+                <StepDateTime
+                  form={form}
+                  setForm={setForm}
+                  minDate={new Date().toISOString().split("T")[0]}
+                  availability={availability}
+                  suggestedDates={suggestedDates}
+                  requireAvailabilityCheck={requireAvailabilityCheck}
+                  onRetryAvailability={() => setAvailabilityNonce((n) => n + 1)}
+                  leadTimeDays={0}
+                />
+              )}
+
+              {/* Step: Event Details */}
+              {currentStepId === "EventDetails" && (
+                <StepEventDetails
+                  form={form}
+                  setForm={setForm}
+                  initialEventType={form.event_type}
+                  municipalities={municipalities}
+                  barangays={barangays}
+                  isCustomBooking={isCustomBooking}
+                  selectedPackageName={packageDetails?.name || ""}
+                  packageDetails={packageDetails}
+                  guestMin={guestMin}
+                  guestMax={guestMax}
+                  errors={stepErrors}
+                  setupCapacity={setupCapacity}
+                  offer={isOffer ? packageDetails : null}
+                  pickupAddress={
+                    businessInfo?.pickup_address ||
+                    businessInfo?.address ||
+                    businessInfo?.kitchen_address
+                  }
+                />
+              )}
+
+              {/* Step: Delivery Details (Food Only) */}
+              {currentStepId === "DeliveryDetails" && (
+                <StepDeliveryDetails
+                  form={form}
+                  setForm={setForm}
+                  municipalities={municipalities}
+                  barangays={barangays}
+                  pickupAddress={businessInfo?.pickup_address || businessInfo?.address}
+                  guestMin={guestMin}
+                  guestMax={guestMax}
+                  errors={stepErrors}
+                />
+              )}
+
+              {/* Step: Package Selection (Custom Setup Theme) */}
+              {currentStepId === "PackageSelection" && (
+                <StepPackageSelection
+                  form={form}
+                  setForm={setForm}
+                  packages={packages}
+                  packageDetails={packageDetails}
+                  selectedPackageId={form.package_id === "none" ? "" : form.package_id}
+                  estimate={estimate}
+                  errors={stepErrors}
+                  setupCapacity={setupCapacity}
+                  onSelectPackage={(packageId) => {
+                    if (form.package_id === packageId) {
+                      setForm((prev) => ({
+                        ...prev,
+                        package_id: "none",
+                        selected_scaffold_option_id: "",
+                        scaffold_width: undefined,
+                        scaffold_length: undefined,
+                        scaffold_base_area: undefined,
+                        scaffold_price: undefined,
+                        selected_package_addons: [],
+                      }));
+                      return;
+                    }
+                    const pkg = packages.find((entry) => entry._id === packageId) || packageDetails;
+                    if (!pkg) return;
+                    setForm((prev) => ({
+                      ...prev,
+                      package_id: pkg._id,
+                      selected_scaffold_option_id: pkg.scaffold_size_options?.[0]?._id || "",
+                      scaffold_width: pkg.scaffold_size_options?.[0]?.width_ft,
+                      scaffold_length: pkg.scaffold_size_options?.[0]?.length_ft,
+                      scaffold_base_area: pkg.scaffold_size_options?.[0]?.area_ft2,
+                      scaffold_price: pkg.scaffold_size_options?.[0]?.price,
+                    }));
+                  }}
+                />
+              )}
+
+              {/* Step: Menu Selection */}
+              {currentStepId === "MenuSelection" && (
+                <StepMenuSelection
+                  form={form}
+                  setForm={setForm}
+                  menuItems={menuItems}
+                  estimate={estimate}
+                  isFullService={form.service_type !== SERVICE_TYPES.FOOD_ONLY}
+                  offer={isOffer ? packageDetails : null}
+                  onRegisterMenuNav={setMenuNav}
+                  onRemoveDish={removeDish}
+                  onClearDishes={clearAllDishes}
+                />
+              )}
+
+              {/* Step: Dietary Needs */}
+              {currentStepId === "DietaryNeeds" && (
+                <StepDietaryNeeds form={form} setForm={setForm} />
+              )}
+
+              {/* Step: Package Add-ons */}
+              {currentStepId === "PackageAddOns" && (
+                <StepPackageAddOns
+                  form={form}
+                  setForm={setForm}
+                  packageDetails={packageDetails}
+                  addons={addons}
+                  estimate={estimate}
+                />
+              )}
+
+              {/* Step: Client Contact Information */}
+              {currentStepId === "ContactInfo" && (
+                <WalkInContactStep
+                  form={form}
+                  setForm={setForm}
+                  customers={customers}
+                  errors={stepErrors}
+                />
+              )}
+
+              {/* Step: Quotation & Pricing */}
+              {currentStepId === "Quotation" && (
+                <WalkInQuotationStep
+                  quotationItems={quotationItems}
+                  setQuotationItems={setQuotationItems}
+                  discount={discount}
+                  setDiscount={setDiscount}
+                  depositPercent={depositPercent}
+                  setDepositPercent={setDepositPercent}
+                  customDeposit={customDeposit}
+                  setCustomDeposit={setCustomDeposit}
+                  paymentMethod={paymentMethod}
+                  setPaymentMethod={setPaymentMethod}
+                  depositPaidImmediately={depositPaidImmediately}
+                  setDepositPaidImmediately={setDepositPaidImmediately}
+                  balancePreference={balancePreference}
+                  setBalancePreference={setBalancePreference}
+                  notes={quotationNotes}
+                  setNotes={setQuotationNotes}
+                  onResetToDefault={handleResetQuotationToDefaults}
+                  guestCount={parseNumber(form.guest_count) || 1}
+                  packageName={packageDetails?.name || ""}
+                />
+              )}
+
+              {/* Step: Review & Final Confirmation */}
+              {currentStepId === "ReviewAndQuotation" && (
+                <WalkInReviewAndQuotation
+                  form={form}
+                  packageDetails={packageDetails}
+                  estimate={estimate}
+                  quotationItems={quotationItems}
+                  quotationSubtotal={quotationSubtotal}
+                  quotationDiscount={quotationDiscountNum}
+                  quotationGrandTotal={quotationGrandTotal}
+                  depositAmount={quotationDepositAmount}
+                  depositPercentage={depositPercent}
+                  remainingBalance={quotationRemainingBalance}
+                  paymentMethod={paymentMethod}
+                  depositPaidImmediately={depositPaidImmediately}
+                  balancePreference={balancePreference}
+                  quotationNotes={quotationNotes}
+                  onEditStep={handleJumpToStep}
+                  editTargets={editTargets}
+                />
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ── Modal Footer ── */}
+        <div className="shrink-0 flex items-center justify-between border-t border-slate-200 bg-white px-6 py-4 sm:px-8">
           <button
             type="button"
             onClick={onClose}
@@ -1713,38 +2683,48 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
           >
             Cancel
           </button>
+
           <div className="flex items-center gap-3">
-            {stage > 0 && (
+            {step > 0 && (
               <button
                 type="button"
                 onClick={handleBack}
                 className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 cursor-pointer"
               >
-                <ChevronLeft size={15} /> Back
+                <ChevronLeft size={16} /> Back
               </button>
             )}
-            {stage < STAGES.length - 1 ? (
+
+            {!isReviewStep ? (
               <button
                 type="button"
                 onClick={handleNext}
                 className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-blue-700 cursor-pointer"
               >
-                Continue <ChevronRight size={15} />
+                {isEditing ? (
+                  <>
+                    Save &amp; Return to Review <ChevronRight size={16} />
+                  </>
+                ) : (
+                  <>
+                    Continue <ChevronRight size={16} />
+                  </>
+                )}
               </button>
             ) : (
               <button
                 type="button"
-                onClick={handleSubmit}
+                onClick={handleConfirmBooking}
                 disabled={submitting}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-blue-700 disabled:opacity-60 cursor-pointer"
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60 cursor-pointer"
               >
                 {submitting ? (
                   <>
-                    <Loader2 size={15} className="animate-spin" /> Creating...
+                    <Loader2 size={16} className="animate-spin" /> Creating Booking...
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 size={15} /> Create Booking
+                    <CheckCircle2 size={16} /> Confirm &amp; Create Booking
                   </>
                 )}
               </button>

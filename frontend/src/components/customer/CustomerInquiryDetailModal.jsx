@@ -9,7 +9,7 @@ import {
   MapPin, 
   UtensilsCrossed, 
   Utensils,
-  Sparkles, 
+  Palette, 
   User, 
   CreditCard, 
   CheckCircle2, 
@@ -254,7 +254,7 @@ export default function CustomerInquiryDetailModal({
                     <div className="p-4 bg-white border border-blue-200 rounded-md shadow-2xs space-y-3.5">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                         <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Bespoke Custom Setup Brief
+                          <Palette className="w-3.5 h-3.5 text-blue-600" /> Custom Setup &amp; Styling Brief
                         </h4>
                         <span className="px-2 py-0.5 rounded font-mono bg-blue-100 text-blue-800 text-[10px] font-bold border border-blue-200">
                           100% Custom

@@ -3,12 +3,13 @@ import {
   Search, Calendar, MapPin, Users, Mail, Phone, Clock, Eye, 
   ChevronRight, Plus, X, MoreHorizontal, LayoutList, LayoutGrid,
   FileText, Send, Archive, ArchiveRestore, AlertCircle,
-  Sparkles, RefreshCw, ArrowUpRight, ChevronLeft, Check, Info,
+  Palette, Sparkles, Utensils, RefreshCw, ArrowUpRight, ChevronLeft, Check, Info,
   AlertTriangle, Tag, Package, Sliders, CheckCircle2, ExternalLink,
   User, History, Ruler, Image as ImageIcon
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
+import FilterPill from "../../components/admin/table/FilterPill";
 import KPICard from "../../components/admin/ui/KPICard";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
@@ -320,6 +321,7 @@ export default function AdminInquiries() {
   // Filters & Search
   const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") || "all");
+  const [archetypeFilter, setArchetypeFilter] = useState("all"); // 'all' | 'package' | 'bespoke' | 'food_only'
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [dateRangeFilter, setDateRangeFilter] = useState("all");
   const [customDateRange, setCustomDateRange] = useState({ from: "", to: "" });
@@ -391,7 +393,7 @@ export default function AdminInquiries() {
         service: resolveServiceType(b),
         bookingType: identity.type, // 'special' | 'regular' | 'custom'
         bookingTypeLabel: identity.label, // 'Special Offer' | 'Regular Package' | 'Custom Request'
-        eventType: b.event_type || "Event",
+        eventType: b.event_type === "Other" && b.event_type_other ? b.event_type_other : (b.event_type || "Event"),
         guests: b.guest_count || 0,
         eventDateFormatted: b.event_date ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA",
         eventTimeFormatted: b.start_time || "TBA",
@@ -428,6 +430,7 @@ export default function AdminInquiries() {
         celebrantName: b.celebrant_name || "",
         eventTheme: b.event_theme || "",
         eventPalette: b.event_palette || [],
+        isFoodOnly: resolveServiceType(b) === "Food Only" || b.service_type === "Food Only",
         isCustomSetup: Boolean(b.is_custom_setup || (!b.package_id && (b.custom_setup_scope?.length || b.inspiration_images?.length || b.custom_setup_notes))),
         inspirationImages: Array.isArray(b.inspiration_images) ? b.inspiration_images : [],
         customSetupScope: Array.isArray(b.custom_setup_scope) ? b.custom_setup_scope : [],
@@ -440,8 +443,32 @@ export default function AdminInquiries() {
   // Unique event types for filter dropdown
   const availableEventTypes = useMemo(() => {
     const types = new Set(formattedBookings.map((b) => b.eventType).filter(Boolean));
-    return Array.from(types);
+    return Array.from(types).sort((a, b) => a.localeCompare(b));
   }, [formattedBookings]);
+
+  // Active filter tracking & global reset
+  const hasActiveFilters = Boolean(
+    search.trim() ||
+    statusFilter !== "all" ||
+    archetypeFilter !== "all" ||
+    eventTypeFilter !== "all" ||
+    dateRangeFilter !== "all" ||
+    customDateRange.from ||
+    customDateRange.to ||
+    sortBy !== "newest"
+  );
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+    setArchetypeFilter("all");
+    setEventTypeFilter("all");
+    setDateRangeFilter("all");
+    setCustomDateRange({ from: "", to: "" });
+    setShowDatePopover(false);
+    setSortBy("newest");
+    setPage(1);
+  };
 
   // Filter & Search Logic
   const filteredBookings = useMemo(() => {
@@ -465,6 +492,11 @@ export default function AdminInquiries() {
         // 'all' shows all unarchived inquiries
         if (r.archived) return false;
       }
+
+      // Service Archetype filter
+      if (archetypeFilter === "package" && (r.isCustomSetup || r.isFoodOnly)) return false;
+      if (archetypeFilter === "bespoke" && !r.isCustomSetup) return false;
+      if (archetypeFilter === "food_only" && !r.isFoodOnly) return false;
 
       // Event Type filter
       if (eventTypeFilter !== "all" && r.eventType !== eventTypeFilter) {
@@ -504,7 +536,7 @@ export default function AdminInquiries() {
 
       return true;
     });
-  }, [formattedBookings, statusFilter, eventTypeFilter, dateRangeFilter, customDateRange, search]);
+  }, [formattedBookings, statusFilter, archetypeFilter, eventTypeFilter, dateRangeFilter, customDateRange, search]);
 
   // Sort logic
   const sortedBookings = useMemo(() => {
@@ -538,7 +570,7 @@ export default function AdminInquiries() {
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, eventTypeFilter, dateRangeFilter, sortBy]);
+  }, [search, statusFilter, archetypeFilter, eventTypeFilter, dateRangeFilter, customDateRange, sortBy]);
 
   // KPI Calculations
   const totalInquiriesCount = formattedBookings.filter((r) => !r.archived).length;
@@ -582,16 +614,6 @@ export default function AdminInquiries() {
       notify("Failed to reject inquiry", "error");
     }
   };
-
-  const clearFilters = () => {
-    setSearch("");
-    setStatusFilter("all");
-    setEventTypeFilter("all");
-    setDateRangeFilter("all");
-    setCustomDateRange({ from: "", to: "" });
-    setShowDatePopover(false);
-  };
-
 
   // Close drawer on Escape key
   useEffect(() => {
@@ -696,135 +718,198 @@ export default function AdminInquiries() {
               />
             </div>
 
-            {/* Filter Controls Bar */}
-            <div className="bg-card border border-border/70 rounded-xl p-2.5 sm:p-3 shadow-2xs">
-              <div className="flex flex-wrap items-end gap-2.5 text-xs">
-                {/* Search Input Field */}
-                <div className="flex-1 min-w-[200px] flex flex-col gap-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Search Inquiries</label>
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" size={13} />
-                    <input
-                      type="text"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search customer, email, phone, event..."
-                      className="w-full pl-8 pr-7 py-1 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-8"
-                    />
-                    {search && (
-                      <button
-                        onClick={() => setSearch("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
-                      >
-                        <X size={12} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Inquiry Status Filter */}
-                <div className="flex flex-col gap-1 min-w-[140px] shrink-0">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Inquiry</label>
-                  <select
-                    value={statusFilter === "needs_quotation" ? "Needs Quotations" : statusFilter}
-                    onChange={(e) => {
-                      setStatusFilter(e.target.value);
-                      setPage(1);
-                    }}
-                    className="w-full bg-background border border-input rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer h-8"
+            {/* Single-Line Interactive Filter Bar */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-2 sm:p-2.5 shadow-2xs flex flex-wrap items-center gap-2 font-sans">
+              {/* Search Input Field */}
+              <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={13} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search customer, event, phone, venue..."
+                  className="w-full pl-8 pr-7 py-1 text-xs bg-white border border-slate-200 text-slate-800 placeholder:text-slate-400 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 h-8 transition-colors"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title="Clear search"
                   >
-                    <option value="all">All Inquiries</option>
-                    <option value="active">Active Inquiry</option>
-                    <option value="Needs Quotations">Needs Quotations</option>
-                    <option value="Quotation Sent">Quotation Sent</option>
-                    <option value="Converted to Booking">Converted Bookings</option>
-                    <option value="Cancelled">Cancelled Inquiry</option>
-                    <option value="Rejected">Rejected Inquiry</option>
-                    <option value="Archived">Archived</option>
-                  </select>
-                </div>
-
-                {/* Event Type Filter */}
-                <div className="flex flex-col gap-1 min-w-[140px] shrink-0">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Event Type</label>
-                  <select
-                    value={eventTypeFilter}
-                    onChange={(e) => {
-                      setEventTypeFilter(e.target.value);
-                      setPage(1);
-                    }}
-                    className="w-full bg-background border border-input rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer h-8"
-                  >
-                    <option value="all">All Event Types</option>
-                    {availableEventTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Date Range Filter */}
-                <div className="flex flex-col gap-1 min-w-[130px] shrink-0 relative">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date Range</label>
-                  <select
-                    value={dateRangeFilter}
-                    onChange={(e) => {
-                      setDateRangeFilter(e.target.value);
-                      setPage(1);
-                      if (e.target.value === "custom") setShowDatePopover(true);
-                      else setShowDatePopover(false);
-                    }}
-                    className="w-full bg-background border border-input rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer h-8"
-                  >
-                    <option value="all">All Dates</option>
-                    <option value="next_7">Next 7 Days</option>
-                    <option value="next_30">Next 30 Days</option>
-                    <option value="custom">Custom Range</option>
-                  </select>
-
-                  {showDatePopover && (
-                    <div className="absolute right-0 top-full mt-1.5 z-30 w-56 p-2.5 bg-popover border border-border rounded-xl shadow-lg space-y-2">
-                      <div className="flex justify-between items-center pb-1 border-b border-border">
-                        <span className="text-xs font-semibold">Custom Date Range</span>
-                        <button onClick={() => setShowDatePopover(false)} className="text-muted-foreground hover:text-foreground">
-                          <X size={12} />
-                        </button>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-semibold text-muted-foreground block mb-0.5">From</label>
-                        <input
-                          type="date"
-                          value={customDateRange.from}
-                          onChange={(e) => setCustomDateRange((prev) => ({ ...prev, from: e.target.value }))}
-                          className="w-full text-xs bg-background border border-input rounded-md px-2 py-1"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-semibold text-muted-foreground block mb-0.5">To</label>
-                        <input
-                          type="date"
-                          value={customDateRange.to}
-                          onChange={(e) => setCustomDateRange((prev) => ({ ...prev, to: e.target.value }))}
-                          className="w-full text-xs bg-background border border-input rounded-md px-2 py-1"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Clear Filters Action Button */}
-                {(search || statusFilter !== "all" || eventTypeFilter !== "all" || dateRangeFilter !== "all") && (
-                  <div className="flex flex-col gap-1 shrink-0 justify-end">
-                    <button
-                      onClick={clearFilters}
-                      className="h-8 px-3 rounded-lg border border-input bg-background hover:bg-muted text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <X size={13} /> Reset Filters
-                    </button>
-                  </div>
+                    <X size={12} />
+                  </button>
                 )}
               </div>
+
+              <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+              {/* Status Filter Pill with Live Pipeline Counts */}
+              <FilterPill
+                label="Status"
+                icon={Sliders}
+                value={statusFilter}
+                defaultValue="all"
+                onSelect={(val) => {
+                  setStatusFilter(val);
+                  setPage(1);
+                }}
+                options={[
+                  { value: "all", label: "All Inquiries", count: totalInquiriesCount },
+                  { value: "active", label: "Active Pipeline", count: activeCount, icon: Mail },
+                  { value: "Needs Quotations", label: "Needs Quotation", count: quotesNeededCount, icon: Sparkles },
+                  { value: "Quotation Sent", label: "Quotation Sent", count: quotationSentCount, icon: FileText },
+                  { value: "Converted to Booking", label: "Converted", count: convertedCount, icon: CheckCircle2 },
+                  { value: "Cancelled", label: "Cancelled", icon: AlertTriangle },
+                  { value: "Archived", label: "Archived", count: archivedCount, icon: Archive },
+                ]}
+              />
+
+              {/* Format / Archetype Filter Pill */}
+              <FilterPill
+                label="Format"
+                icon={Palette}
+                value={archetypeFilter}
+                defaultValue="all"
+                onSelect={(val) => {
+                  setArchetypeFilter(val);
+                  setPage(1);
+                }}
+                options={[
+                  { value: "all", label: "All Formats" },
+                  { value: "package", label: "Standard Packages", icon: Package },
+                  { value: "bespoke", label: "Custom Styling", icon: Palette },
+                  { value: "food_only", label: "Food Only", icon: Utensils },
+                ]}
+              />
+
+              {/* Event Type Filter Pill */}
+              {availableEventTypes.length > 0 && (
+                <FilterPill
+                  label="Event Type"
+                  icon={Tag}
+                  value={eventTypeFilter}
+                  defaultValue="all"
+                  onSelect={(val) => {
+                    setEventTypeFilter(val);
+                    setPage(1);
+                  }}
+                  options={[
+                    { value: "all", label: "All Event Types" },
+                    ...availableEventTypes.map((type) => ({ value: type, label: type })),
+                  ]}
+                />
+              )}
+
+              {/* Date Range Filter Pill */}
+              <FilterPill
+                label="Date Range"
+                icon={Calendar}
+                value={dateRangeFilter}
+                defaultValue="all"
+                customActive={dateRangeFilter !== "all"}
+                customLabel={
+                  dateRangeFilter === "next_7"
+                    ? "Next 7 Days"
+                    : dateRangeFilter === "next_30"
+                    ? "Next 30 Days"
+                    : dateRangeFilter === "custom" && customDateRange.from && customDateRange.to
+                    ? `${customDateRange.from} to ${customDateRange.to}`
+                    : "Custom Range"
+                }
+                onClear={() => {
+                  setDateRangeFilter("all");
+                  setCustomDateRange({ from: "", to: "" });
+                  setPage(1);
+                }}
+                renderCustomContent={(close) => (
+                  <div className="p-2 space-y-2 text-xs font-sans">
+                    <div className="space-y-1">
+                      {[
+                        { id: "all", label: "All Dates" },
+                        { id: "next_7", label: "Next 7 Days" },
+                        { id: "next_30", label: "Next 30 Days" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => {
+                            setDateRangeFilter(opt.id);
+                            setPage(1);
+                            close();
+                          }}
+                          className={`w-full px-2.5 py-1.5 rounded-lg text-left transition-colors cursor-pointer flex items-center justify-between ${
+                            dateRangeFilter === opt.id ? "bg-blue-50/90 text-blue-700 font-semibold" : "hover:bg-slate-50 text-slate-700 hover:text-slate-900"
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {dateRangeFilter === opt.id && <Check size={11} strokeWidth={2.5} className="text-blue-600" />}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Custom Date Range</span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div>
+                          <label className="text-[9.5px] text-slate-500 block mb-0.5 font-medium">From</label>
+                          <input
+                            type="date"
+                            value={customDateRange.from}
+                            onChange={(e) => {
+                              setCustomDateRange((prev) => ({ ...prev, from: e.target.value }));
+                              setDateRangeFilter("custom");
+                              setPage(1);
+                            }}
+                            className="w-full text-[11px] bg-white border border-slate-200 text-slate-800 rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9.5px] text-slate-500 block mb-0.5 font-medium">To</label>
+                          <input
+                            type="date"
+                            value={customDateRange.to}
+                            onChange={(e) => {
+                              setCustomDateRange((prev) => ({ ...prev, to: e.target.value }));
+                              setDateRangeFilter("custom");
+                              setPage(1);
+                            }}
+                            className="w-full text-[11px] bg-white border border-slate-200 text-slate-800 rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              />
+
+              {/* Sort By Filter Pill */}
+              <FilterPill
+                label="Sort"
+                icon={ArrowUpRight}
+                value={sortBy}
+                defaultValue="newest"
+                align="end"
+                className="sm:ml-auto"
+                onSelect={(val) => setSortBy(val)}
+                options={[
+                  { value: "newest", label: "Date Received (Newest)" },
+                  { value: "oldest", label: "Date Received (Oldest)" },
+                  { value: "event_date", label: "Event Date (Soonest)" },
+                  { value: "guests", label: "Guest Count (High-Low)" },
+                ]}
+              />
+
+              {/* Global Clear Filters */}
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                >
+                  <X size={12} />
+                  <span>Reset</span>
+                </button>
+              )}
             </div>
 
             {/* List Toolbar Header */}
@@ -833,46 +918,30 @@ export default function AdminInquiries() {
                 {totalItems} {totalItems === 1 ? "inquiry" : "inquiries"}
               </div>
 
-              <div className="flex items-center gap-2.5">
-                <div className="flex items-center gap-1 text-xs">
-                  <span className="text-muted-foreground">Sort by:</span>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="bg-background border border-input rounded-lg px-2 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-7"
-                  >
-                    <option value="newest">Date Received (Newest)</option>
-                    <option value="oldest">Date Received (Oldest)</option>
-                    <option value="event_date">Event Date (Soonest)</option>
-                    <option value="guests">Guest Count (High-Low)</option>
-                  </select>
-                </div>
-
-                {/* View Switcher Toggle */}
-                <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border/60">
-                  <button
-                    onClick={() => setViewMode("table")}
-                    className={`p-1 rounded-md transition-colors ${
-                      viewMode === "table"
-                        ? "bg-primary text-primary-foreground shadow-2xs"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}
-                    title="Table view"
-                  >
-                    <LayoutList size={13} />
-                  </button>
-                  <button
-                    onClick={() => setViewMode("grid")}
-                    className={`p-1 rounded-md transition-colors ${
-                      viewMode === "grid"
-                        ? "bg-primary text-primary-foreground shadow-2xs"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}
-                    title="Grid view"
-                  >
-                    <LayoutGrid size={13} />
-                  </button>
-                </div>
+              {/* View Switcher Toggle */}
+              <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border/60">
+                <button
+                  onClick={() => setViewMode("table")}
+                  className={`p-1 rounded-md transition-colors ${
+                    viewMode === "table"
+                      ? "bg-primary text-primary-foreground shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                  title="Table view"
+                >
+                  <LayoutList size={13} />
+                </button>
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={`p-1 rounded-md transition-colors ${
+                    viewMode === "grid"
+                      ? "bg-primary text-primary-foreground shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                  title="Grid view"
+                >
+                  <LayoutGrid size={13} />
+                </button>
               </div>
             </div>
 
@@ -1354,7 +1423,7 @@ export default function AdminInquiries() {
                   </div>
                 </div>
 
-                {/* Bespoke Custom Setup Brief & Inspiration Photos (When Applicable) */}
+                {/* Custom Setup Brief & Inspiration Photos (When Applicable) */}
                 {(selectedInquiry.isCustomSetup ||
                   selectedInquiry.inspirationImages?.length > 0 ||
                   selectedInquiry.customSetupScope?.length > 0 ||
@@ -1362,7 +1431,7 @@ export default function AdminInquiries() {
                   <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/40 border border-blue-200/80 rounded-xl p-3.5 space-y-3">
                     <div className="flex items-center justify-between gap-2 border-b border-blue-200/60 pb-2">
                       <h5 className="font-bold text-[10px] uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
-                        <Sparkles size={12} className="text-blue-600" /> Custom Setup &amp; Moodboard Brief
+                        <Palette size={12} className="text-blue-600" /> Custom Setup &amp; Moodboard Brief
                       </h5>
                       <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[9px] font-bold">
                         Design from Scratch

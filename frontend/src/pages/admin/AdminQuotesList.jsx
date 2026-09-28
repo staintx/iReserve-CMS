@@ -6,6 +6,7 @@ import ConvertBookingModal from "../../components/admin/quotation/ConvertBooking
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
+import FilterPill from "../../components/admin/table/FilterPill";
 import { 
   FileText, 
   Clock, 
@@ -33,6 +34,7 @@ import {
   ArrowUpRight,
   Edit3,
   RotateCcw,
+  Palette,
   Sparkles,
   Info,
   DollarSign,
@@ -44,6 +46,7 @@ import {
   Tag,
   Sliders,
   Ruler,
+  Image as ImageIcon
 } from "lucide-react";
 import { eventSpaceLabel } from "../../lib/packageDisplay";
 
@@ -173,6 +176,7 @@ export default function AdminQuotesList() {
   const [sortBy, setSortBy] = useState("newest"); // 'newest' | 'oldest' | 'recently_updated' | 'event_date' | 'total_amount'
   const [dateRangeFilter, setDateRangeFilter] = useState("all");
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
+  const [archetypeFilter, setArchetypeFilter] = useState("all"); // 'all' | 'package' | 'bespoke' | 'food_only'
   const [activeTab, setActiveTab] = useState("all");
   const [expandedRows, setExpandedRows] = useState({});
 
@@ -227,6 +231,26 @@ export default function AdminQuotesList() {
 
   const toggleExpand = (id) => {
     setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Active filter tracking & global reset
+  const hasActiveFilters = Boolean(
+    search.trim() ||
+    activeTab !== "all" ||
+    archetypeFilter !== "all" ||
+    eventTypeFilter !== "all" ||
+    dateRangeFilter !== "all" ||
+    sortBy !== "newest"
+  );
+
+  const clearFilters = () => {
+    setSearch("");
+    setActiveTab("all");
+    setArchetypeFilter("all");
+    setEventTypeFilter("all");
+    setDateRangeFilter("all");
+    setSortBy("newest");
+    setCurrentPage(1);
   };
 
   /** Check if quote is awaiting deposit */
@@ -309,7 +333,7 @@ export default function AdminQuotesList() {
         inquiryId: inq._id || latest.inquiry_id,
         quotationNumber: latest.quotation_number || `QTN-${latest._id.slice(-6).toUpperCase()}`,
         reference: inq.reference || `INQ-${(inq._id || "").slice(-6).toUpperCase()}`,
-        eventType: inq.event_type || "Event",
+        eventType: inq.event_type === "Other" && inq.event_type_other ? inq.event_type_other : (inq.event_type || "Event"),
         customerName,
         customerPhone,
         customerEmail,
@@ -336,6 +360,24 @@ export default function AdminQuotesList() {
         depositAmount: latest.deposit_amount || 0,
         packagePrice: latest.package_price || 0,
         packageName: latest.package_name || "Custom Package",
+        isCustomSetup: Boolean(
+          inq.is_custom_setup ||
+          (Array.isArray(inq.custom_setup_scope) && inq.custom_setup_scope.length > 0) ||
+          (Array.isArray(inq.inspiration_images) && inq.inspiration_images.length > 0) ||
+          inq.custom_setup_notes
+        ),
+        customSetupScope: Array.isArray(inq.custom_setup_scope) ? inq.custom_setup_scope : [],
+        inspirationImages: Array.isArray(inq.inspiration_images) ? inq.inspiration_images : [],
+        customSetupNotes: inq.custom_setup_notes || "",
+        eventTheme: inq.event_theme || "",
+        eventPalette: Array.isArray(inq.event_palette)
+          ? inq.event_palette
+          : typeof inq.event_palette === "string" && inq.event_palette.trim()
+          ? inq.event_palette.split(",").map((s) => s.trim()).filter(Boolean)
+          : [],
+        budgetRange: inq.budget_range || "",
+        serviceType: inq.service_type || "Full Service",
+        isFoodOnly: inq.service_type === "Food Only" || inq.service_type === "Food",
         eventSpace: latest.event_snapshot?.event_space_label || eventSpaceLabel(inq, inq.package_id) || (inq.scaffold_width && inq.scaffold_length ? `${inq.scaffold_width}×${inq.scaffold_length}` : ""),
         menuItems: Array.isArray(latest.menu_items) ? latest.menu_items : [],
         addOns: Array.isArray(latest.add_ons) ? latest.add_ons : [],
@@ -354,7 +396,7 @@ export default function AdminQuotesList() {
   // Unique Event Types for Dropdown Filter
   const availableEventTypes = useMemo(() => {
     const types = new Set(groupedQuotations.map(q => q.eventType).filter(Boolean));
-    return Array.from(types);
+    return Array.from(types).sort((a, b) => a.localeCompare(b));
   }, [groupedQuotations]);
 
   // Metrics KPI calculations (STRICTLY 4 CARDS & MUTUALLY EXCLUSIVE TABS)
@@ -417,6 +459,11 @@ export default function AdminQuotesList() {
       // Event Type filter
       if (eventTypeFilter !== "all" && q.eventType !== eventTypeFilter) return false;
 
+      // Service Archetype filter
+      if (archetypeFilter === "package" && (q.isCustomSetup || q.isFoodOnly)) return false;
+      if (archetypeFilter === "bespoke" && !q.isCustomSetup) return false;
+      if (archetypeFilter === "food_only" && !q.isFoodOnly) return false;
+
       // Date Range filter
       if (dateRangeFilter === "next_7" || dateRangeFilter === "next_30") {
         if (!q.eventDate) return false;
@@ -468,7 +515,7 @@ export default function AdminQuotesList() {
     });
 
     return items;
-  }, [groupedQuotations, activeTab, eventTypeFilter, dateRangeFilter, search, sortBy]);
+  }, [groupedQuotations, activeTab, eventTypeFilter, archetypeFilter, dateRangeFilter, search, sortBy]);
 
   // Pagination calculation
   const totalItems = filteredQuotations.length;
@@ -528,16 +575,6 @@ export default function AdminQuotesList() {
           </span>
         );
     }
-  };
-
-  /** Reset all search & filter dropdowns */
-  const clearFilters = () => {
-    setSearch("");
-    setSortBy("newest");
-    setDateRangeFilter("all");
-    setEventTypeFilter("all");
-    setActiveTab("all");
-    setCurrentPage(1);
   };
 
   // Close drawer on Escape key
@@ -604,125 +641,141 @@ export default function AdminQuotesList() {
               />
             </div>
 
-            {/* Stacked Label Filter Controls Bar (With Sort By Control) */}
-            <div className="bg-card border border-border/70 rounded-xl p-2.5 sm:p-3 shadow-2xs">
-              <div className="flex flex-wrap items-end gap-2.5 text-xs">
-                
-                {/* Search Input Field */}
-                <div className="flex-1 min-w-[180px] flex flex-col gap-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Search Quotations</label>
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" size={13} />
-                    <input
-                      type="text"
-                      value={search}
-                      onChange={(e) => {
-                        setSearch(e.target.value);
-                        setCurrentPage(1);
-                      }}
-                      placeholder="Search quotation no., customer, event, venue..."
-                      className="w-full pl-8 pr-7 py-1 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-8"
-                    />
-                    {search && (
-                      <button
-                        onClick={() => setSearch("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
-                      >
-                        <X size={12} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Sort By Dropdown (Replaces Status Dropdown) */}
-                <div className="flex flex-col gap-1 min-w-[130px] shrink-0">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Sort By</label>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full bg-background border border-input rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer h-8"
-                  >
-                    <option value="newest">Newest</option>
-                    <option value="oldest">Oldest</option>
-                    <option value="recently_updated">Recently Updated</option>
-                    <option value="event_date">Event Date</option>
-                    <option value="total_amount">Total Amount</option>
-                  </select>
-                </div>
-
-                {/* Event Type Dropdown */}
-                <div className="flex flex-col gap-1 min-w-[120px] shrink-0">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Event Type</label>
-                  <select
-                    value={eventTypeFilter}
-                    onChange={(e) => {
-                      setEventTypeFilter(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="w-full bg-background border border-input rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer h-8"
-                  >
-                    <option value="all">All Event Types</option>
-                    {availableEventTypes.map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Date Range Dropdown */}
-                <div className="flex flex-col gap-1 min-w-[110px] shrink-0">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date Range</label>
-                  <select
-                    value={dateRangeFilter}
-                    onChange={(e) => {
-                      setDateRangeFilter(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="w-full bg-background border border-input rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer h-8"
-                  >
-                    <option value="all">All Dates</option>
-                    <option value="next_7">Next 7 Days</option>
-                    <option value="next_30">Next 30 Days</option>
-                  </select>
-                </div>
-
-                {/* Clear Filters Button */}
-                {(search || dateRangeFilter !== "all" || eventTypeFilter !== "all" || activeTab !== "all" || sortBy !== "newest") && (
+            {/* Single-Line Interactive Filter Bar */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-2 sm:p-2.5 shadow-2xs flex flex-wrap items-center gap-2 font-sans">
+              {/* Search Input Field */}
+              <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={13} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder="Search quotation no., customer, venue..."
+                  className="w-full pl-8 pr-7 py-1 text-xs bg-white border border-slate-200 text-slate-800 placeholder:text-slate-400 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 h-8 transition-colors"
+                />
+                {search && (
                   <button
-                    onClick={clearFilters}
-                    className="text-xs font-semibold text-primary hover:underline h-8 flex items-center cursor-pointer"
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setCurrentPage(1);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title="Clear search"
                   >
-                    Reset
+                    <X size={12} />
                   </button>
                 )}
               </div>
-            </div>
 
-            {/* Status Tabs Bar */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-border/40">
-              {[
-                { id: "all", label: `All (${metrics.totalQuotations})` },
-                { id: "draft", label: `Draft (${metrics.draftCount})` },
-                { id: "sent", label: `Sent (${metrics.sentCount})` },
-                { id: "revision", label: `Revision Requested (${metrics.revisionCount})` },
-                { id: "accepted", label: `Accepted (${metrics.acceptedCount})` },
-                { id: "converted", label: `Converted (${metrics.convertedCount})` },
-                { id: "expired", label: `Expired (${metrics.expiredCount})` },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id);
+              <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+              {/* Status Filter Pill with Live Counts */}
+              <FilterPill
+                label="Status"
+                icon={Sliders}
+                value={activeTab}
+                defaultValue="all"
+                onSelect={(val) => {
+                  setActiveTab(val);
+                  setCurrentPage(1);
+                }}
+                options={[
+                  { value: "all", label: "All Statuses", count: metrics.totalQuotations },
+                  { value: "draft", label: "Draft", count: metrics.draftCount, icon: Edit3 },
+                  { value: "sent", label: "Sent", count: metrics.sentCount, icon: Send },
+                  { value: "revision", label: "Revision Requested", count: metrics.revisionCount, icon: RotateCcw },
+                  { value: "accepted", label: "Accepted", count: metrics.acceptedCount, icon: CheckCircle },
+                  { value: "converted", label: "Converted", count: metrics.convertedCount, icon: CheckCircle2 },
+                  { value: "expired", label: "Expired", count: metrics.expiredCount, icon: AlertTriangle },
+                ]}
+              />
+
+              {/* Format / Archetype Filter Pill */}
+              <FilterPill
+                label="Format"
+                icon={Palette}
+                value={archetypeFilter}
+                defaultValue="all"
+                onSelect={(val) => {
+                  setArchetypeFilter(val);
+                  setCurrentPage(1);
+                }}
+                options={[
+                  { value: "all", label: "All Formats" },
+                  { value: "package", label: "Standard Packages", icon: Package },
+                  { value: "bespoke", label: "Custom Styling", icon: Palette },
+                  { value: "food_only", label: "Food Only", icon: Utensils },
+                ]}
+              />
+
+              {/* Event Type Filter Pill */}
+              {availableEventTypes.length > 0 && (
+                <FilterPill
+                  label="Event Type"
+                  icon={Tag}
+                  value={eventTypeFilter}
+                  defaultValue="all"
+                  onSelect={(val) => {
+                    setEventTypeFilter(val);
                     setCurrentPage(1);
                   }}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
-                    activeTab === tab.id
-                      ? "bg-primary text-white shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
+                  options={[
+                    { value: "all", label: "All Event Types" },
+                    ...availableEventTypes.map((type) => ({ value: type, label: type })),
+                  ]}
+                />
+              )}
+
+              {/* Date Range Filter Pill */}
+              <FilterPill
+                label="Date Range"
+                icon={Calendar}
+                value={dateRangeFilter}
+                defaultValue="all"
+                onSelect={(val) => {
+                  setDateRangeFilter(val);
+                  setCurrentPage(1);
+                }}
+                options={[
+                  { value: "all", label: "All Dates" },
+                  { value: "next_7", label: "Next 7 Days" },
+                  { value: "next_30", label: "Next 30 Days" },
+                ]}
+              />
+
+              {/* Sort By Filter Pill */}
+              <FilterPill
+                label="Sort"
+                icon={ArrowUpRight}
+                value={sortBy}
+                defaultValue="newest"
+                align="end"
+                className="sm:ml-auto"
+                onSelect={(val) => setSortBy(val)}
+                options={[
+                  { value: "newest", label: "Newest First" },
+                  { value: "oldest", label: "Oldest First" },
+                  { value: "recently_updated", label: "Recently Updated" },
+                  { value: "event_date", label: "Event Date" },
+                  { value: "total_amount", label: "Total Amount" },
+                ]}
+              />
+
+              {/* Global Clear Filters */}
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0"
                 >
-                  {tab.label}
+                  <X size={12} />
+                  <span>Reset</span>
                 </button>
-              ))}
+              )}
             </div>
 
             {/* Main Table Container */}
@@ -822,6 +875,21 @@ export default function AdminQuotesList() {
                                   <span className="text-[11px] text-muted-foreground block tabular-nums">
                                     {formatDateClean(item.eventDate)} • {item.guestCount} guests
                                   </span>
+                                  <div className="flex items-center gap-1 pt-0.5">
+                                    {item.isCustomSetup ? (
+                                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/80">
+                                        <Palette size={9} /> Custom Setup
+                                      </span>
+                                    ) : item.isFoodOnly ? (
+                                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80">
+                                        <Utensils size={9} /> Food Only
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground truncate max-w-[130px] block">
+                                        {item.packageName}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
 
@@ -1135,6 +1203,111 @@ export default function AdminQuotesList() {
                     </div>
                   </div>
                 </div>
+
+                {/* Custom Setup Concept Card (When Applicable) */}
+                {selectedQuotation.isCustomSetup && (
+                  <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/40 border border-blue-200/80 rounded-xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between gap-2 border-b border-blue-200/60 pb-2">
+                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+                        <Palette size={12} className="text-blue-600" /> Custom Styling Concept &amp; Pegs
+                      </h5>
+                      <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[9px] font-bold">
+                        Design from Scratch
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {selectedQuotation.eventTheme && (
+                        <div>
+                          <span className="text-[10px] text-blue-700/80 font-medium block">Theme &amp; Motif</span>
+                          <span className="font-semibold text-slate-900">{selectedQuotation.eventTheme}</span>
+                        </div>
+                      )}
+                      {Array.isArray(selectedQuotation.eventPalette) && selectedQuotation.eventPalette.length > 0 && (
+                        <div>
+                          <span className="text-[10px] text-blue-700/80 font-medium block">Color Palette</span>
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {selectedQuotation.eventPalette.map((col, idx) => (
+                              <span key={idx} className="px-1.5 py-0.2 rounded bg-white text-slate-800 text-[10px] font-medium border border-blue-200/60 shadow-2xs">
+                                {col}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {selectedQuotation.budgetRange && (
+                        <div>
+                          <span className="text-[10px] text-blue-700/80 font-medium block">Target Budget</span>
+                          <span className="font-semibold text-slate-900">{selectedQuotation.budgetRange}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Setup Scope Elements */}
+                    {Array.isArray(selectedQuotation.customSetupScope) && selectedQuotation.customSetupScope.length > 0 && (
+                      <div className="pt-1.5 border-t border-blue-200/50 space-y-1">
+                        <span className="text-[10px] text-blue-700/80 font-bold uppercase tracking-wider block">
+                          Requested Scope Elements ({selectedQuotation.customSetupScope.length})
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedQuotation.customSetupScope.map((scope, idx) => (
+                            <span key={idx} className="px-2 py-0.5 rounded-md bg-white text-blue-900 border border-blue-200 text-[11px] font-medium shadow-2xs">
+                              ✓ {scope}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Stylist Notes */}
+                    {selectedQuotation.customSetupNotes && (
+                      <div className="pt-1.5 border-t border-blue-200/50 space-y-1">
+                        <span className="text-[10px] text-blue-700/80 font-bold uppercase tracking-wider block">
+                          Stylist Vision Notes
+                        </span>
+                        <p className="text-xs text-slate-800 bg-white/90 p-2.5 rounded-lg border border-blue-200/70 whitespace-pre-wrap leading-relaxed">
+                          {selectedQuotation.customSetupNotes}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Inspiration Moodboard Photos */}
+                    {Array.isArray(selectedQuotation.inspirationImages) && selectedQuotation.inspirationImages.length > 0 && (
+                      <div className="pt-2 border-t border-blue-200/50 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-blue-900 font-bold uppercase tracking-wider flex items-center gap-1">
+                            <ImageIcon size={11} /> Customer Inspiration Pegs ({selectedQuotation.inspirationImages.length})
+                          </span>
+                          <span className="text-[9.5px] text-blue-600">Click photo to open</span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {selectedQuotation.inspirationImages.map((imgUrl, idx) => (
+                            <a
+                              key={idx}
+                              href={imgUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group relative aspect-square rounded-md overflow-hidden border border-blue-200 bg-white hover:ring-2 hover:ring-blue-500 shadow-2xs transition-all block cursor-pointer"
+                              title="Open full resolution image in new tab"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Inspiration ${idx + 1}`}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-medium gap-0.5">
+                                <ExternalLink size={10} />
+                              </div>
+                              <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-[8px] px-1 rounded font-bold">
+                                #{idx + 1}
+                              </span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Quotation Line Items & Financial Breakdown */}
                 <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2">

@@ -290,7 +290,15 @@ const BookingSchema = new mongoose.Schema(
         "Ready for Event",
         "ready for event",
         "converted to booking",
-        "preparing", // Legacy
+        "preparing",
+        "food prep",
+        "Food Prep",
+        "out for delivery",
+        "Out for Delivery",
+        "in transit",
+        "ready for delivery",
+        "delivered",
+        "Delivered",
         "ongoing", // Legacy
         "Completed",
         "completed", // Legacy

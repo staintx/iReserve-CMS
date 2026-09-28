@@ -11,7 +11,7 @@ import {
   FileText, Activity, Utensils, Send, RefreshCw, Ruler,
   Package as PackageIcon, Users, AlertTriangle, Layers,
   Truck, Check, ShieldAlert, HeartPulse, ChevronDown,
-  ChevronUp, Sparkles, Printer, ExternalLink, Image as ImageIcon
+  ChevronUp, Palette, Sparkles, Printer, ExternalLink, Image as ImageIcon
 } from "lucide-react";
 import InvoiceModal from "../../components/common/invoice/InvoiceModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
@@ -926,7 +926,7 @@ export default function AdminQuoteDetails() {
                 isFoodOnly && !quote.is_custom_setup
                   ? Utensils
                   : quote.is_custom_setup || (!quote.package_id && !quote.had_package_selection)
-                  ? Sparkles
+                  ? Palette
                   : PackageIcon
               }
               badge={
@@ -936,7 +936,7 @@ export default function AdminQuoteDetails() {
                   </span>
                 ) : quote.is_custom_setup || (!quote.package_id && !quote.had_package_selection) ? (
                   <span className="rounded bg-primary/10 px-2 py-0.5 text-[10.5px] font-mono font-bold text-primary border border-primary/20 flex items-center gap-1">
-                    <Sparkles size={11} /> 100% Bespoke Custom Setup
+                    <Palette size={11} /> 100% Custom Styling &amp; Setup
                   </span>
                 ) : quote.package_id && totalInclusionsCount > 0 ? (
                   <span className="rounded bg-slate-100 px-2 py-0.5 text-[10.5px] font-mono font-semibold text-slate-600 border border-slate-200/60">
@@ -1163,12 +1163,12 @@ export default function AdminQuoteDetails() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-slate-50/70 p-4 rounded-lg border border-blue-100/80">
                     <div className="flex items-center gap-3.5 min-w-0">
                       <div className="w-12 h-12 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
-                        <Sparkles size={22} />
+                        <Palette size={22} />
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-tight truncate">
-                            {quote.event_theme ? `Custom ${quote.event_theme} Setup` : "100% Bespoke Custom Event Setup"}
+                            {quote.event_theme ? `Custom ${quote.event_theme} Setup` : "100% Custom Styling & Setup"}
                           </h3>
                           <span className="px-2 py-0.5 rounded font-mono bg-blue-100 text-blue-800 text-[10px] font-bold border border-blue-200 shrink-0">
                             Design From Scratch
@@ -1511,7 +1511,7 @@ export default function AdminQuoteDetails() {
             {Boolean(quote.package_id) && ((Array.isArray(quote.inspiration_images) && quote.inspiration_images.length > 0) ||
               (Array.isArray(quote.custom_setup_scope) && quote.custom_setup_scope.length > 0) ||
               quote.custom_setup_notes) && (
-                <SectionContainer title="Inspiration & Custom Setup" icon={Sparkles}>
+                <SectionContainer title="Inspiration & Custom Setup" icon={Palette}>
                   <div className="space-y-4">
                     {Array.isArray(quote.inspiration_images) && quote.inspiration_images.length > 0 && (
                       <div>

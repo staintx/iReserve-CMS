@@ -13,7 +13,12 @@ import {
   FileText,
   Search,
   Sparkles,
-  Sliders
+  Sliders,
+  Printer,
+  Phone,
+  User,
+  Ruler,
+  CheckSquare
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -45,6 +50,7 @@ export default function AdminOcular() {
   const [search, setSearch] = useState("");
   const [filterTab, setFilterTab] = useState("all");
   const [drawerRow, setDrawerRow] = useState(null);
+  const [printAssessmentTarget, setPrintAssessmentTarget] = useState(null);
 
   // Schedule Modal State
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -144,19 +150,42 @@ export default function AdminOcular() {
       else if (rawOutcome === "reschedule") outcomeBadge = "Reschedule Needed";
       else if (o.outcome) outcomeBadge = o.outcome;
 
+      const customerPhone = b.contact_phone || b.customer_id?.phone || "";
+      const customerAltPhone = b.contact_alt_phone || "";
+      const addressParts = [b.street, b.barangay, b.municipality, b.province].filter(Boolean);
+      const venueFull = addressParts.join(", ")
+        ? addressParts.join(", ") + (b.zip_code ? ` (${b.zip_code})` : "")
+        : b.venue_address || "Venue TBA";
+
+      const scaffoldDims = (b.scaffold_width && b.scaffold_length)
+        ? `${b.scaffold_width}×${b.scaffold_length}`
+        : (b.event_space_size || "");
+
       return {
         _id: b._id,
         id: b.reference || `BK-${b._id.substring(b._id.length - 6).toUpperCase()}`,
         customer: b.customer_id?.full_name || `${b.contact_first_name || ""} ${b.contact_last_name || ""}`.trim() || "Customer",
         email: b.customer_id?.email || b.contact_email || "",
-        phone: b.contact_phone || b.customer_id?.phone || "",
+        phone: customerPhone,
+        contactPhone: customerPhone,
+        contactAltPhone: customerAltPhone,
         eventType: b.event_type || "Catering Event",
-        venue: [b.street, b.barangay, b.municipality, b.province].filter(Boolean).join(", ")
-          || [b.municipality, b.province].filter(Boolean).join(", ")
+        eventDate: b.event_date,
+        eventDateFormatted: formatEventDate(b.event_date, { fallback: "TBA" }),
+        guestCount: b.guest_count || 0,
+        venue: [b.street, b.barangay, b.municipality].filter(Boolean).join(", ")
+          || [b.barangay, b.municipality].filter(Boolean).join(", ")
+          || b.municipality
+          || b.street
           || b.venue_address
           || "Venue TBA",
+        venueFull,
         venueType: b.venue_type || "",
+        landmark: b.landmark || "",
+        scaffoldDimensions: scaffoldDims,
+        specialRequests: b.special_requests || "",
         coordinator: b.event_manager_id?.full_name || "Unassigned",
+        assignedCoordinator: b.event_manager_id?.full_name || "Assigned on Dispatch",
         date: formatEventDate(o.scheduled_date, { fallback: "TBA" }),
         rawDate: o.scheduled_date || null,
         time: o.scheduled_time || "TBA",
@@ -359,6 +388,7 @@ export default function AdminOcular() {
 
   const buildRowActions = (o) => [
     { key: "view", label: "Inspect Details", icon: Eye, onSelect: () => setDrawerRow(o) },
+    { key: "print", label: "Print Assessment Sheet", icon: Printer, onSelect: () => setPrintAssessmentTarget(o) },
     ...(o.status === "Requested"
       ? [{ key: "confirm", label: "Confirm Date & Schedule", icon: Calendar, onSelect: () => {
           setSelectedBookingId(o._id);
@@ -393,18 +423,30 @@ export default function AdminOcular() {
     },
     { 
       key: "customer", 
-      header: "Customer", 
+      header: "Customer & Contact", 
       render: (o) => (
-        <div>
-          <span className="text-xs font-semibold text-foreground block">{o.customer}</span>
-          <span className="text-xs text-muted-foreground">{o.phone || o.email}</span>
+        <div className="space-y-0.5 min-w-[130px]">
+          <span className="text-xs font-semibold text-foreground block truncate">{o.customer}</span>
+          <span className="text-[11px] text-muted-foreground flex items-center gap-1 truncate">
+            {o.phone && <Phone size={10} className="text-muted-foreground/70 shrink-0" />}
+            <span>{o.phone || o.email || "—"}</span>
+          </span>
         </div>
       )
     },
     {
       key: "venue",
       header: "Venue Location",
-      render: (o) => <span className="text-xs text-foreground font-medium max-w-44 block truncate">{o.venue}</span>
+      render: (o) => (
+        <div className="space-y-0.5 min-w-[130px]">
+          <span className="text-xs text-foreground font-medium max-w-48 block truncate">{o.venue}</span>
+          {o.landmark && (
+            <span className="text-[10.5px] text-muted-foreground block truncate max-w-48">
+              Near: {o.landmark}
+            </span>
+          )}
+        </div>
+      )
     },
     { 
       key: "datetime", 
@@ -451,6 +493,13 @@ export default function AdminOcular() {
               <Check size={11} /> Pass
             </button>
           )}
+          <button
+            onClick={() => setPrintAssessmentTarget(o)}
+            className="p-1 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors cursor-pointer"
+            title="Print Site Assessment Sheet"
+          >
+            <Printer size={13} />
+          </button>
           <RowActionsMenu actions={buildRowActions(o)} />
         </div>
       ),
@@ -560,6 +609,15 @@ export default function AdminOcular() {
         footer={
           drawerRow && (
             <div className="flex flex-wrap gap-2 justify-end w-full">
+              <Btn 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setPrintAssessmentTarget(drawerRow)}
+                className="gap-1 border-border/80 text-foreground"
+              >
+                <Printer size={13} /> Assessment Sheet
+              </Btn>
+
               {drawerRow.status === "Requested" && (
                 <Btn 
                   variant="primary" 
@@ -598,22 +656,30 @@ export default function AdminOcular() {
         }
       >
         {drawerRow && (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 text-xs">
             <DrawerField
               label="Booking Reference"
               value={
-                <span className="text-amber-700 font-mono font-bold cursor-pointer hover:underline" onClick={() => navigate(`/admin/bookings/${drawerRow._id}/details`)}>
+                <span className="text-primary font-mono font-bold cursor-pointer hover:underline" onClick={() => navigate(`/admin/bookings/${drawerRow._id}/details`)}>
                   {drawerRow.id}
                 </span>
               }
             />
             <DrawerField label="Event Type" value={drawerRow.eventType} />
-            <DrawerField label="Visit Date" value={drawerRow.date} />
-            <DrawerField label="Visit Time" value={drawerRow.time} />
-            <DrawerField label="Venue Location" value={drawerRow.venue} full />
-            <DrawerField label="Status" value={<Badge status={drawerRow.status} />} />
-            <DrawerField label="Outcome" value={<Badge status={drawerRow.outcomeBadge} />} />
+            <DrawerField label="Target Event Date" value={drawerRow.eventDateFormatted || "TBA"} />
+            <DrawerField label="Guest Count" value={`${drawerRow.guestCount} pax`} />
+            <DrawerField label="Site Visit Date" value={drawerRow.date} />
+            <DrawerField label="Site Visit Time" value={drawerRow.time} />
+            <DrawerField label="Site Contact Phone" value={drawerRow.contactPhone || "—"} />
+            {drawerRow.contactAltPhone && <DrawerField label="Alt Contact Phone" value={drawerRow.contactAltPhone} />}
+            <DrawerField label="Assigned Coordinator" value={drawerRow.assignedCoordinator || drawerRow.coordinator} />
+            {drawerRow.scaffoldDimensions && <DrawerField label="Space / Tent Dimensions" value={drawerRow.scaffoldDimensions} />}
+            <DrawerField label="Full Venue Address" value={drawerRow.venueFull || drawerRow.venue} full />
+            {drawerRow.landmark && <DrawerField label="Landmark & Directions" value={drawerRow.landmark} full />}
+            <DrawerField label="Ocular Status" value={<Badge status={drawerRow.status} />} />
+            <DrawerField label="Inspection Outcome" value={<Badge status={drawerRow.outcomeBadge} />} />
             <DrawerField label="Inspection Notes" value={drawerRow.notes} full />
+            {drawerRow.specialRequests && <DrawerField label="Customer Setup Notes" value={drawerRow.specialRequests} full />}
           </div>
         )}
       </DetailDrawer>
@@ -792,6 +858,194 @@ export default function AdminOcular() {
               </Btn>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Printable Site Assessment Sheet Modal */}
+      <Dialog open={!!printAssessmentTarget} onOpenChange={(open) => !open && setPrintAssessmentTarget(null)}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto print:max-w-none print:max-h-none print:p-0 print:border-none print:shadow-none">
+          {printAssessmentTarget && (
+            <div className="space-y-4 py-2 print:py-0 text-slate-800">
+              {/* Printable Document Header */}
+              <div className="flex items-start justify-between border-b-2 border-slate-900 pb-3">
+                <div>
+                  <h3 className="font-extrabold text-base sm:text-lg tracking-tight text-slate-900 uppercase">
+                    iReserve Event Services
+                  </h3>
+                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    On-Site Ocular Inspection &amp; Feasibility Assessment
+                  </p>
+                </div>
+                <div className="text-right text-xs">
+                  <span className="font-mono font-bold text-sm block text-slate-900">
+                    {printAssessmentTarget.id}
+                  </span>
+                  <span className="text-[11px] text-slate-500 block">
+                    Inspection: {printAssessmentTarget.date} {printAssessmentTarget.time !== "TBA" ? `@ ${printAssessmentTarget.time}` : ""}
+                  </span>
+                </div>
+              </div>
+
+              {/* Section A: Event & Venue Snapshot */}
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 text-xs grid grid-cols-2 gap-2.5">
+                <div>
+                  <span className="font-bold uppercase text-[10px] text-slate-500 block">Client / Customer</span>
+                  <span className="font-semibold text-slate-900 block">{printAssessmentTarget.customer}</span>
+                  <span className="text-slate-600 block">{printAssessmentTarget.phone || "No phone provided"}</span>
+                  {printAssessmentTarget.contactAltPhone && (
+                    <span className="text-slate-500 block text-[11px]">Alt: {printAssessmentTarget.contactAltPhone}</span>
+                  )}
+                </div>
+                <div>
+                  <span className="font-bold uppercase text-[10px] text-slate-500 block">Target Event Details</span>
+                  <span className="font-semibold text-slate-900 block">{printAssessmentTarget.eventType}</span>
+                  <span className="text-slate-600 block">
+                    {printAssessmentTarget.eventDateFormatted} · {printAssessmentTarget.guestCount} guests
+                  </span>
+                </div>
+                <div className="col-span-2 pt-1 border-t border-slate-200">
+                  <span className="font-bold uppercase text-[10px] text-slate-500 block">Venue Location</span>
+                  <span className="font-semibold text-slate-900 block">{printAssessmentTarget.venueFull}</span>
+                  {printAssessmentTarget.landmark && (
+                    <span className="text-slate-600 block text-[11px]">
+                      <span className="font-medium">Landmark:</span> {printAssessmentTarget.landmark}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Section B: Inspection Checklist */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1 flex items-center justify-between">
+                  <span>Site Feasibility &amp; Physical Checklist</span>
+                  <span className="text-[10px] text-slate-500 font-normal normal-case">Check all verified conditions</span>
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div className="p-2 border border-slate-200 rounded flex items-start gap-2">
+                    <div className="w-4 h-4 border border-slate-400 rounded-xs mt-0.5 shrink-0 bg-white" />
+                    <div>
+                      <span className="font-semibold block text-slate-900">Access &amp; Ingress / Egress</span>
+                      <span className="text-[11px] text-slate-600">Truck gate clearance, delivery pathway, no steep barriers</span>
+                    </div>
+                  </div>
+
+                  <div className="p-2 border border-slate-200 rounded flex items-start gap-2">
+                    <div className="w-4 h-4 border border-slate-400 rounded-xs mt-0.5 shrink-0 bg-white" />
+                    <div>
+                      <span className="font-semibold block text-slate-900">Ground &amp; Terrain Leveling</span>
+                      <span className="text-[11px] text-slate-600">Firm ground, drainage check, ground wedges requirement</span>
+                    </div>
+                  </div>
+
+                  <div className="p-2 border border-slate-200 rounded flex items-start gap-2">
+                    <div className="w-4 h-4 border border-slate-400 rounded-xs mt-0.5 shrink-0 bg-white" />
+                    <div>
+                      <span className="font-semibold block text-slate-900">Power &amp; Utilities Supply</span>
+                      <span className="text-[11px] text-slate-600">220V outlet accessibility, water line for food catering</span>
+                    </div>
+                  </div>
+
+                  <div className="p-2 border border-slate-200 rounded flex items-start gap-2">
+                    <div className="w-4 h-4 border border-slate-400 rounded-xs mt-0.5 shrink-0 bg-white" />
+                    <div>
+                      <span className="font-semibold block text-slate-900">Scaffold &amp; Tent Clearance</span>
+                      <span className="text-[11px] text-slate-600">Overhead clearance, tree branches, power lines safety</span>
+                    </div>
+                  </div>
+
+                  <div className="p-2 border border-slate-200 rounded flex items-start gap-2">
+                    <div className="w-4 h-4 border border-slate-400 rounded-xs mt-0.5 shrink-0 bg-white" />
+                    <div>
+                      <span className="font-semibold block text-slate-900">Buffet &amp; Dining Circulation</span>
+                      <span className="text-[11px] text-slate-600">Min 1.5m guest queue perimeter, fire exits unimpeded</span>
+                    </div>
+                  </div>
+
+                  <div className="p-2 border border-slate-200 rounded flex items-start gap-2">
+                    <div className="w-4 h-4 border border-slate-400 rounded-xs mt-0.5 shrink-0 bg-white" />
+                    <div>
+                      <span className="font-semibold block text-slate-900">Weather Protection</span>
+                      <span className="text-[11px] text-slate-600">Sun/wind exposure, rain contingency side curtains</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section C: Dimensions & Technical Measure Grid */}
+              <div className="space-y-1.5">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1">
+                  On-Site Measured Dimensions
+                </h4>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="p-2 border border-slate-200 rounded bg-slate-50/50">
+                    <span className="text-[10px] font-semibold text-slate-500 block uppercase">Target Scaffold Size</span>
+                    <span className="font-mono font-bold text-slate-900 mt-0.5 block">
+                      {printAssessmentTarget.scaffoldDimensions || "Pending On-Site Measure"}
+                    </span>
+                  </div>
+                  <div className="p-2 border border-slate-200 rounded bg-slate-50/50">
+                    <span className="text-[10px] font-semibold text-slate-500 block uppercase">Area Available (W × L)</span>
+                    <span className="font-mono text-slate-400 mt-0.5 block">______m × ______m</span>
+                  </div>
+                  <div className="p-2 border border-slate-200 rounded bg-slate-50/50">
+                    <span className="text-[10px] font-semibold text-slate-500 block uppercase">Clearance Height</span>
+                    <span className="font-mono text-slate-400 mt-0.5 block">______ meters</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section D: Notes & Recommendations */}
+              <div className="space-y-1.5">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1">
+                  Field Inspector Observations &amp; Technical Notes
+                </h4>
+                <div className="p-2.5 border border-slate-200 rounded-lg bg-white min-h-[60px] text-xs text-slate-700 leading-relaxed">
+                  {printAssessmentTarget.notes !== "—" ? printAssessmentTarget.notes : "No preliminary notes logged."}
+                </div>
+              </div>
+
+              {/* Section E: Recommendation & Signatures */}
+              <div className="pt-2 border-t border-slate-200 grid grid-cols-2 gap-6 text-xs">
+                <div className="space-y-8">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-700">Inspector Verdict:</span>
+                    <span className="font-semibold text-slate-900">{printAssessmentTarget.outcomeBadge}</span>
+                  </div>
+                  <div className="border-t border-slate-400 pt-1 text-center">
+                    <span className="font-semibold text-slate-900 block">{printAssessmentTarget.assignedCoordinator}</span>
+                    <span className="text-[10px] text-slate-500 uppercase block">Lead Ocular Inspector Signature</span>
+                  </div>
+                </div>
+
+                <div className="space-y-8">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-700">Date Inspected:</span>
+                    <span className="font-semibold text-slate-900">{printAssessmentTarget.date}</span>
+                  </div>
+                  <div className="border-t border-slate-400 pt-1 text-center">
+                    <span className="font-semibold text-slate-900 block">{printAssessmentTarget.customer}</span>
+                    <span className="text-[10px] text-slate-500 uppercase block">Client / Venue Representative Signature</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dialog Actions (Hidden in Print) */}
+              <DialogFooter className="print:hidden pt-3 border-t border-slate-200 gap-2 sm:gap-0">
+                <Btn type="button" variant="secondary" onClick={() => setPrintAssessmentTarget(null)}>
+                  Close
+                </Btn>
+                <Btn
+                  type="button"
+                  variant="primary"
+                  className="gap-1.5"
+                  onClick={() => window.print()}
+                >
+                  <Printer size={13} /> Print Assessment Sheet
+                </Btn>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

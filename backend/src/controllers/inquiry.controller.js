@@ -548,9 +548,13 @@ exports.updateInquiryByCustomer = asyncHandler(async (req, res) => {
     }
   }
 
-  // Bespoke-setup answers belong to a bespoke request. On any other request
-  // they are not an edit, they are an attempt to become one.
-  if (!inquiry.is_custom_setup) {
+  const isCustomInquiry = Boolean(
+    inquiry.is_custom_setup ||
+    (!inquiry.package_id && inquiry.booking_type === "custom") ||
+    (Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0) ||
+    (Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0)
+  );
+  if (!isCustomInquiry) {
     CUSTOM_SETUP_FIELDS.forEach((field) => delete updates[field]);
   }
 

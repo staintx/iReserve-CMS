@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   Eye,
@@ -12,10 +12,14 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
+  ArrowUpDown,
   Check,
   Sparkles,
   Package as PackageIcon,
   ExternalLink,
+  Layers,
+  Boxes,
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -23,15 +27,13 @@ import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import InventoryModal from "../../components/admin/ui/InventoryModal";
 import AIInventoryParserModal from "../../components/admin/ui/AIInventoryParserModal";
-import ConfirmDialog from "../../components/common/ConfirmDialog";
 import ItemDeleteWarningModal from "../../components/admin/common/ItemDeleteWarningModal";
-import FilterPopover from "../../components/admin/table/FilterPopover";
-import FilterChip from "../../components/admin/table/FilterChip";
+import FilterPill from "../../components/admin/table/FilterPill";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import DetailDrawer from "../../components/admin/table/DetailDrawer";
-import DrawerField from "../../components/admin/table/DrawerField";
 import usePagination from "../../hooks/usePagination";
 
 // Returns today's local date in YYYY-MM-DD format (as required by HTML5 date inputs)
@@ -89,17 +91,18 @@ export default function AdminInventory() {
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Filters & Sorting
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [availabilityFilter, setAvailabilityFilter] = useState("all");
+  const [stockStatusFilter, setStockStatusFilter] = useState("all");
+  const [sortField, setSortField] = useState("name"); // 'name' | 'quantity' | 'stockOnHand'
+  const [sortOrder, setSortOrder] = useState("asc"); // 'asc' | 'desc'
+
   const [showModal, setShowModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [drawerRow, setDrawerRow] = useState(null);
-
-  const [availabilityFilter, setAvailabilityFilter] = useState("all");
-  const [draftAvailabilityFilter, setDraftAvailabilityFilter] = useState("all");
-
-  const [stockStatusFilter, setStockStatusFilter] = useState("all");
-  const [draftStockStatusFilter, setDraftStockStatusFilter] = useState("all");
 
   const [logState, setLogState] = useState({ itemId: null, entries: [] });
 
@@ -126,6 +129,12 @@ export default function AdminInventory() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData(selectedDate);
+  }, [selectedDate]);
+
+  useRealTimeRefresh(() => loadData(selectedDate));
 
   const getAssociatedPackages = (item) => {
     if (!item || !packages.length) return [];
@@ -154,10 +163,6 @@ export default function AdminInventory() {
       return false;
     });
   };
-
-  useEffect(() => {
-    loadData(selectedDate);
-  }, [selectedDate]);
 
   // Keep drawerRow synchronized with fresh availability & event_usages when date or inventory data updates
   useEffect(() => {
@@ -213,7 +218,7 @@ export default function AdminInventory() {
         reason: nextStatus ? "Item marked as Available" : "Item marked as Unavailable",
       });
       notify(`"${item.item_name}" is now ${nextStatus ? "Available" : "Unavailable"}`, "success");
-    } catch (err) {
+    } catch {
       notify("Failed to update status", "error");
       loadData(selectedDate);
     }
@@ -230,32 +235,113 @@ export default function AdminInventory() {
       .catch((err) => notify(err.response?.data?.message || "Failed to delete item", "error"));
   };
 
-  const filtered = inventory.filter((i) => {
-    const matchSearch = !search || (i.item_name && i.item_name.toLowerCase().includes(search.toLowerCase()));
-    const matchAvailability = availabilityFilter === "all" || (availabilityFilter === "available" ? i.available : !i.available);
-    
-    const stockOnHand = i.available_quantity ?? Math.max(0, (i.quantity || 0) - (i.reserved_quantity || 0));
-    const threshold = i.low_stock_threshold;
-    let sStatus = i.stock_status;
-    if (!sStatus) {
-      if (stockOnHand === 0) sStatus = "no_stock";
-      else if (threshold != null && threshold > 0 && stockOnHand <= threshold) sStatus = "low_stock";
-      else sStatus = "in_stock";
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
     }
-    const matchStockStatus = stockStatusFilter === "all" || sStatus === stockStatusFilter;
+  };
 
-    return matchSearch && matchAvailability && matchStockStatus;
-  });
+  const filteredAndSorted = useMemo(() => {
+    const list = inventory.filter((i) => {
+      const matchSearch =
+        !search || (i.item_name && i.item_name.toLowerCase().includes(search.toLowerCase()));
 
-  const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
+      const matchCategory =
+        categoryFilter === "all" ||
+        (i.category && i.category.toLowerCase() === categoryFilter.toLowerCase());
+
+      const matchAvailability =
+        availabilityFilter === "all" ||
+        (availabilityFilter === "available" ? i.available : !i.available);
+
+      const stockOnHand =
+        i.available_quantity ?? Math.max(0, (i.quantity || 0) - (i.reserved_quantity || 0));
+      const threshold = i.low_stock_threshold;
+      let sStatus = i.stock_status;
+      if (!sStatus) {
+        if (stockOnHand === 0) sStatus = "no_stock";
+        else if (threshold != null && threshold > 0 && stockOnHand <= threshold) sStatus = "low_stock";
+        else sStatus = "in_stock";
+      }
+      const matchStockStatus = stockStatusFilter === "all" || sStatus === stockStatusFilter;
+
+      return matchSearch && matchCategory && matchAvailability && matchStockStatus;
+    });
+
+    list.sort((a, b) => {
+      let valA, valB;
+      if (sortField === "name") {
+        valA = (a.item_name || "").toLowerCase();
+        valB = (b.item_name || "").toLowerCase();
+        return sortOrder === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      if (sortField === "quantity") {
+        valA = a.quantity || 0;
+        valB = b.quantity || 0;
+        return sortOrder === "asc" ? valA - valB : valB - valA;
+      }
+      if (sortField === "stockOnHand") {
+        valA = a.available_quantity ?? Math.max(0, (a.quantity || 0) - (a.reserved_quantity || 0));
+        valB = b.available_quantity ?? Math.max(0, (b.quantity || 0) - (b.reserved_quantity || 0));
+        return sortOrder === "asc" ? valA - valB : valB - valA;
+      }
+      return 0;
+    });
+
+    return list;
+  }, [inventory, search, categoryFilter, availabilityFilter, stockStatusFilter, sortField, sortOrder]);
+
+  const { pageRows, page, setPage, totalPages, pageSize } = usePagination(filteredAndSorted, 10);
+
+  // Filter count summaries
+  const categoryCounts = useMemo(() => {
+    let setupCount = 0;
+    let diningCount = 0;
+    inventory.forEach((i) => {
+      if (i.category === "Dining & Service Inventory") diningCount++;
+      else setupCount++;
+    });
+    return { all: inventory.length, setup: setupCount, dining: diningCount };
+  }, [inventory]);
+
+  const availabilityCounts = useMemo(() => {
+    let avail = 0;
+    let unavail = 0;
+    inventory.forEach((i) => {
+      if (i.available !== false) avail++;
+      else unavail++;
+    });
+    return { all: inventory.length, available: avail, unavailable: unavail };
+  }, [inventory]);
+
+  const stockCounts = useMemo(() => {
+    let inStock = 0;
+    let lowStock = 0;
+    let noStock = 0;
+    inventory.forEach((i) => {
+      const stockOnHand =
+        i.available_quantity ?? Math.max(0, (i.quantity || 0) - (i.reserved_quantity || 0));
+      const threshold = i.low_stock_threshold;
+      if (stockOnHand === 0) noStock++;
+      else if (threshold != null && threshold > 0 && stockOnHand <= threshold) lowStock++;
+      else inStock++;
+    });
+    return { all: inventory.length, in_stock: inStock, low_stock: lowStock, no_stock: noStock };
+  }, [inventory]);
 
   return (
     <AdminLayout>
       <div className="space-y-4 bg-background min-h-screen">
+        {/* ============ HEADER ============ */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Inventory Management</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Track current stock on hand, live reservations, and equipment availability.</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Track current stock on hand, live reservations, and equipment availability.
+            </p>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
             <button
@@ -272,10 +358,10 @@ export default function AdminInventory() {
           </div>
         </div>
 
-        {/* ============ INVENTORY TOOLBAR ============ */}
+        {/* ============ TOOLBAR ============ */}
         <AdminCard className="!p-3 sm:!p-3.5 border border-gray-200/80 shadow-xs">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3">
-            {/* Left: Wider Search input using the additional space */}
+            {/* Search */}
             <div className="flex-1 min-w-0">
               <div className="relative w-full">
                 <div className="flex items-center gap-2 bg-gray-50/70 border border-gray-200 rounded-lg px-3 h-9 text-sm focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10 focus-within:bg-white transition-all shadow-2xs">
@@ -301,10 +387,10 @@ export default function AdminInventory() {
               </div>
             </div>
 
-            {/* Right: Date Filter → Availability */}
+            {/* Filter Pills & Date Picker */}
             <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
               {/* Date Filter */}
-              <div className="flex items-center gap-1.5 px-2.5 h-9 bg-white border border-gray-200 rounded-lg text-xs shadow-2xs hover:border-gray-300 transition-colors">
+              <div className="flex items-center gap-1.5 px-2.5 h-8 bg-white border border-gray-200 rounded-lg text-xs shadow-2xs hover:border-gray-300 transition-colors">
                 <Calendar size={13} className="text-gray-400 shrink-0" />
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Date:</span>
                 <input
@@ -328,91 +414,50 @@ export default function AdminInventory() {
                 </button>
               </div>
 
-              {/* Availability Popover */}
-              <FilterPopover
-                label="Availability"
-                activeCount={availabilityFilter !== "all" ? 1 : 0}
-                onApply={() => setAvailabilityFilter(draftAvailabilityFilter)}
-                onClear={() => {
-                  setDraftAvailabilityFilter("all");
-                  setAvailabilityFilter("all");
-                }}
-              >
-                <div className="space-y-1.5">
-                  {["all", "available", "unavailable"].map((v) => (
-                    <label key={v} className="flex items-center gap-2 text-sm text-foreground capitalize cursor-pointer">
-                      <input
-                        type="radio"
-                        name="inventory-availability"
-                        checked={draftAvailabilityFilter === v}
-                        onChange={() => setDraftAvailabilityFilter(v)}
-                      />
-                      {v === "all" ? "All availability" : v}
-                    </label>
-                  ))}
-                </div>
-              </FilterPopover>
+              {/* Category Filter Pill */}
+              <FilterPill
+                label="Category"
+                value={categoryFilter}
+                defaultValue="all"
+                options={[
+                  { value: "all", label: "All Categories", count: categoryCounts.all },
+                  { value: "Event Setup & Furniture", label: "Event Setup & Furniture", count: categoryCounts.setup },
+                  { value: "Dining & Service Inventory", label: "Dining & Service Inventory", count: categoryCounts.dining },
+                ]}
+                onSelect={(val) => setCategoryFilter(val)}
+                onClear={() => setCategoryFilter("all")}
+              />
 
-              {/* Stock Status Popover */}
-              <FilterPopover
-                label="Stock Status"
-                activeCount={stockStatusFilter !== "all" ? 1 : 0}
-                onApply={() => setStockStatusFilter(draftStockStatusFilter)}
-                onClear={() => {
-                  setDraftStockStatusFilter("all");
-                  setStockStatusFilter("all");
-                }}
-              >
-                <div className="space-y-1.5">
-                  {[
-                    { value: "all", label: "All stock conditions" },
-                    { value: "in_stock", label: "In Stock" },
-                    { value: "low_stock", label: "Low Stock" },
-                    { value: "no_stock", label: "No Stock" },
-                  ].map((opt) => (
-                    <label key={opt.value} className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-                      <input
-                        type="radio"
-                        name="inventory-stock-status"
-                        checked={draftStockStatusFilter === opt.value}
-                        onChange={() => setDraftStockStatusFilter(opt.value)}
-                      />
-                      {opt.label}
-                    </label>
-                  ))}
-                </div>
-              </FilterPopover>
+              {/* Availability Filter Pill */}
+              <FilterPill
+                label="Availability"
+                value={availabilityFilter}
+                defaultValue="all"
+                options={[
+                  { value: "all", label: "All Availability", count: availabilityCounts.all },
+                  { value: "available", label: "Available", count: availabilityCounts.available },
+                  { value: "unavailable", label: "Unavailable", count: availabilityCounts.unavailable },
+                ]}
+                onSelect={(val) => setAvailabilityFilter(val)}
+                onClear={() => setAvailabilityFilter("all")}
+              />
+
+              {/* Stock Status Filter Pill */}
+              <FilterPill
+                label="Stock Condition"
+                value={stockStatusFilter}
+                defaultValue="all"
+                options={[
+                  { value: "all", label: "All Conditions", count: stockCounts.all },
+                  { value: "in_stock", label: "In Stock", count: stockCounts.in_stock },
+                  { value: "low_stock", label: "Low Stock", count: stockCounts.low_stock },
+                  { value: "no_stock", label: "No Stock", count: stockCounts.no_stock },
+                ]}
+                onSelect={(val) => setStockStatusFilter(val)}
+                onClear={() => setStockStatusFilter("all")}
+              />
             </div>
           </div>
-
-          {(availabilityFilter !== "all" || stockStatusFilter !== "all") && (
-            <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-gray-100 flex-wrap">
-              {availabilityFilter !== "all" && (
-                <FilterChip
-                  label={`Availability: ${availabilityFilter}`}
-                  onRemove={() => {
-                    setAvailabilityFilter("all");
-                    setDraftAvailabilityFilter("all");
-                  }}
-                />
-              )}
-              {stockStatusFilter !== "all" && (
-                <FilterChip
-                  label={`Stock Status: ${
-                    stockStatusFilter === "in_stock" 
-                      ? "In Stock" 
-                      : stockStatusFilter === "low_stock" 
-                        ? "Low Stock" 
-                        : "No Stock"
-                  }`}
-                  onRemove={() => {
-                    setStockStatusFilter("all");
-                    setDraftStockStatusFilter("all");
-                  }}
-                />
-              )}
-            </div>
-          )}
         </AdminCard>
 
         {/* ============ INVENTORY TABLE ============ */}
@@ -422,8 +467,10 @@ export default function AdminInventory() {
           ) : pageRows.length === 0 ? (
             <div className="p-12 text-center space-y-1">
               <p className="text-sm font-semibold text-gray-700">No inventory found.</p>
-              {(search || availabilityFilter !== "all") && (
+              {search || categoryFilter !== "all" || availabilityFilter !== "all" || stockStatusFilter !== "all" ? (
                 <p className="text-xs text-gray-400">Try adjusting your search or filters.</p>
+              ) : (
+                <p className="text-xs text-gray-400">Create an inventory item or import with Zelle AI!</p>
               )}
             </div>
           ) : (
@@ -431,14 +478,47 @@ export default function AdminInventory() {
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-[#F8FAFC] border-b border-gray-200/80">
                   <tr>
+                    <th
+                      onClick={() => handleSort("name")}
+                      className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 cursor-pointer hover:text-gray-800 transition-colors select-none"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Item Name</span>
+                        {sortField === "name" ? (
+                          sortOrder === "asc" ? <ChevronUp size={13} className="text-primary" /> : <ChevronDown size={13} className="text-primary" />
+                        ) : (
+                          <ArrowUpDown size={11} className="text-gray-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                      Item Name
+                      Category
                     </th>
-                    <th className="px-5 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                      Total Quantity
+                    <th
+                      onClick={() => handleSort("quantity")}
+                      className="px-5 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500 cursor-pointer hover:text-gray-800 transition-colors select-none"
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>Total Quantity</span>
+                        {sortField === "quantity" ? (
+                          sortOrder === "asc" ? <ChevronUp size={13} className="text-primary" /> : <ChevronDown size={13} className="text-primary" />
+                        ) : (
+                          <ArrowUpDown size={11} className="text-gray-400 opacity-60" />
+                        )}
+                      </div>
                     </th>
-                    <th className="px-5 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                      Stock on Hand
+                    <th
+                      onClick={() => handleSort("stockOnHand")}
+                      className="px-5 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500 cursor-pointer hover:text-gray-800 transition-colors select-none"
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>Stock on Hand</span>
+                        {sortField === "stockOnHand" ? (
+                          sortOrder === "asc" ? <ChevronUp size={13} className="text-primary" /> : <ChevronDown size={13} className="text-primary" />
+                        ) : (
+                          <ArrowUpDown size={11} className="text-gray-400 opacity-60" />
+                        )}
+                      </div>
                     </th>
                     <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
                       Stock Status
@@ -466,16 +546,14 @@ export default function AdminInventory() {
                       else stockStatus = "in_stock";
                     }
 
-                    // Data-driven Stock on Hand styling:
-                    // Green: healthy stock (> threshold)
-                    // Amber: low stock (<= threshold)
-                    // Red: 0 / no stock
                     let stockBadgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200/80";
                     if (stockStatus === "no_stock" || stockOnHand <= 0) {
                       stockBadgeStyle = "bg-rose-50 text-rose-700 border-rose-200/80";
                     } else if (stockStatus === "low_stock") {
                       stockBadgeStyle = "bg-amber-50 text-amber-800 border-amber-200/80";
                     }
+
+                    const categoryLabel = i.category || "Event Setup & Furniture";
 
                     return (
                       <tr
@@ -494,6 +572,12 @@ export default function AdminInventory() {
                           )}
                         </td>
 
+                        <td className="px-5 py-3.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/70 truncate max-w-[180px]">
+                            {categoryLabel}
+                          </span>
+                        </td>
+
                         <td className="px-5 py-3.5 text-center">
                           <span className="text-sm font-semibold text-gray-800 tabular-nums">
                             {i.quantity || 0}
@@ -509,7 +593,7 @@ export default function AdminInventory() {
                           </span>
                         </td>
 
-                        {/* Stock Status (Automatic calculation) */}
+                        {/* Stock Status */}
                         <td className="px-5 py-3.5 text-left">
                           <Badge 
                             status={
@@ -523,7 +607,7 @@ export default function AdminInventory() {
                           />
                         </td>
 
-                        {/* Availability Status (Manual Admin Switch) */}
+                        {/* Availability Status */}
                         <td className="px-5 py-3.5 text-left" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
@@ -582,7 +666,7 @@ export default function AdminInventory() {
           {/* ============ TABLE FOOTER ============ */}
           <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-3 border-t border-gray-100 bg-white gap-2">
             <span className="text-xs text-gray-500 font-medium">
-              Showing {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              Showing {filteredAndSorted.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredAndSorted.length)} of {filteredAndSorted.length}
             </span>
             {totalPages > 1 && (
               <div className="flex items-center gap-1">
@@ -750,234 +834,240 @@ export default function AdminInventory() {
                   </div>
                 </div>
 
-              {/* Low Stock Threshold - Compact secondary info line */}
-              <div className="flex items-center justify-between text-xs px-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Low Stock Threshold</span>
-                <span className="text-xs font-semibold text-slate-700">
-                  {threshold != null ? `${threshold} units` : "Not set"}
-                </span>
-              </div>
+                {/* Category & Low Stock Threshold Details */}
+                <div className="p-2.5 rounded-lg border border-slate-200/80 bg-slate-50/50 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Category</span>
+                    <span className="font-semibold text-slate-800">{drawerRow.category || "Event Setup & Furniture"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Low Stock Threshold</span>
+                    <span className="font-semibold text-slate-800">
+                      {threshold != null ? `${threshold} units` : "Not set"}
+                    </span>
+                  </div>
+                </div>
 
-              {/* Formula explanation box - reduced padding & prominence */}
-              <div className="px-2.5 py-2 bg-slate-50/60 rounded-md border border-slate-200/60 text-[11px] text-slate-600 space-y-0.5">
-                <span className="font-semibold text-slate-700 block text-[11px]">Stock &amp; Status Calculation:</span>
-                <p className="text-slate-600 leading-relaxed text-[11px]">
-                  <strong className="text-slate-900 font-semibold">{drawerRow.quantity || 0}</strong> (Total Quantity) −{" "}
-                  <strong className="text-slate-900 font-semibold">{drawerRow.reserved_quantity || 0}</strong> (
-                  {selectedDate && selectedDate !== getTodayDateString() ? "In-Use on Date" : "In-Use Today"}
-                  ) ={" "}
-                  <strong className={stockStatus === "no_stock" ? "text-rose-600 font-semibold" : stockStatus === "low_stock" ? "text-amber-600 font-semibold" : "text-emerald-600 font-semibold"}>
-                    {stockOnHand}
-                  </strong>{" "}
-                  (Stock on Hand).
-                </p>
-                <p className="text-[10.5px] text-slate-500">
-                  Threshold:{" "}
-                  <strong className="text-slate-700 font-semibold">{threshold != null ? `${threshold} units` : "Not set"}</strong>{" "}
-                  → Automatic Stock Status:{" "}
-                  <strong className={stockStatus === "no_stock" ? "text-rose-600 font-semibold" : stockStatus === "low_stock" ? "text-amber-600 font-semibold" : "text-emerald-600 font-semibold"}>
-                    {stockStatus === "no_stock" ? "No Stock" : stockStatus === "low_stock" ? "Low Stock" : "In Stock"}
-                  </strong>.
-                </p>
-              </div>
+                {/* Formula explanation box */}
+                <div className="px-2.5 py-2 bg-slate-50/60 rounded-md border border-slate-200/60 text-[11px] text-slate-600 space-y-0.5">
+                  <span className="font-semibold text-slate-700 block text-[11px]">Stock &amp; Status Calculation:</span>
+                  <p className="text-slate-600 leading-relaxed text-[11px]">
+                    <strong className="text-slate-900 font-semibold">{drawerRow.quantity || 0}</strong> (Total Quantity) −{" "}
+                    <strong className="text-slate-900 font-semibold">{drawerRow.reserved_quantity || 0}</strong> (
+                    {selectedDate && selectedDate !== getTodayDateString() ? "In-Use on Date" : "In-Use Today"}
+                    ) ={" "}
+                    <strong className={stockStatus === "no_stock" ? "text-rose-600 font-semibold" : stockStatus === "low_stock" ? "text-amber-600 font-semibold" : "text-emerald-600 font-semibold"}>
+                      {stockOnHand}
+                    </strong>{" "}
+                    (Stock on Hand).
+                  </p>
+                  <p className="text-[10.5px] text-slate-500">
+                    Threshold:{" "}
+                    <strong className="text-slate-700 font-semibold">{threshold != null ? `${threshold} units` : "Not set"}</strong>{" "}
+                    → Automatic Stock Status:{" "}
+                    <strong className={stockStatus === "no_stock" ? "text-rose-600 font-semibold" : stockStatus === "low_stock" ? "text-amber-600 font-semibold" : "text-emerald-600 font-semibold"}>
+                      {stockStatus === "no_stock" ? "No Stock" : stockStatus === "low_stock" ? "Low Stock" : "In Stock"}
+                    </strong>.
+                  </p>
+                </div>
 
-              {/* Associated Packages */}
-              {(() => {
-                const associated = getAssociatedPackages(drawerRow);
-                return (
-                  <div className="pt-3 border-t border-slate-100 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                        <PackageIcon size={11} className="text-blue-600" /> Associated Packages ({associated.length})
-                      </h5>
+                {/* Associated Packages */}
+                {(() => {
+                  const associated = getAssociatedPackages(drawerRow);
+                  return (
+                    <div className="pt-3 border-t border-slate-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h5 className="font-bold text-[10px] uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                          <PackageIcon size={11} className="text-blue-600" /> Associated Packages ({associated.length})
+                        </h5>
+                      </div>
+
+                      {associated.length > 0 ? (
+                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
+                          {associated.map((pkg) => (
+                            <div
+                              key={pkg._id}
+                              className="flex items-center justify-between px-2.5 py-1.5 rounded-lg border border-slate-200/80 bg-white hover:bg-slate-50/70 transition-colors"
+                            >
+                              <div className="min-w-0 flex-1 pr-2">
+                                <p className="text-xs font-semibold text-slate-900 truncate">{pkg.name}</p>
+                                <p className="text-[10.5px] text-slate-500 mt-0.5">
+                                  {pkg.offer_type === "special" ? "Special Combo" : "Event Package"} · {pkg.event_type || "Catering"}
+                                </p>
+                              </div>
+                              <Link
+                                to={`/admin/packages?id=${pkg._id}&tab=${pkg.offer_type === "special" ? "special" : "regular"}`}
+                                onClick={() => setDrawerRow(null)}
+                                className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-blue-600 hover:text-blue-700 transition-colors bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs hover:bg-slate-50 shrink-0"
+                              >
+                                View <ExternalLink size={10} />
+                              </Link>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="py-2 px-3 rounded-md bg-slate-50/40 border border-dashed border-slate-200/80 text-center">
+                          <p className="text-[11px] text-slate-400 italic">
+                            This inventory item is not currently included in any packages.
+                          </p>
+                        </div>
+                      )}
                     </div>
+                  );
+                })()}
 
-                    {associated.length > 0 ? (
-                      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
-                        {associated.map((pkg) => (
-                          <div
-                            key={pkg._id}
-                            className="flex items-center justify-between px-2.5 py-1.5 rounded-lg border border-slate-200/80 bg-white hover:bg-slate-50/70 transition-colors"
-                          >
-                            <div className="min-w-0 flex-1 pr-2">
-                              <p className="text-xs font-semibold text-slate-900 truncate">{pkg.name}</p>
-                              <p className="text-[10.5px] text-slate-500 mt-0.5">
-                                {pkg.offer_type === "special" ? "Special Combo" : "Event Package"} · {pkg.event_type || "Catering"}
+                {/* Upcoming Event Usage (for selected date) */}
+                <div className="pt-3 border-t border-slate-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h5 className="font-bold text-[10px] uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <Calendar size={11} className="text-blue-600" />
+                      Upcoming Event Usage ({(drawerRow.event_usages || []).length})
+                    </h5>
+                    <span className="text-[10px] font-mono font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/60">
+                      {selectedDate
+                        ? new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })
+                        : "Today"}
+                    </span>
+                  </div>
+
+                  {drawerRow.event_usages && drawerRow.event_usages.length > 0 ? (
+                    <div className="space-y-1.5 max-h-60 overflow-y-auto pr-0.5">
+                      {drawerRow.event_usages.map((usage, idx) => (
+                        <div
+                          key={usage.booking_id || idx}
+                          className="p-2 rounded-lg border border-slate-200/80 bg-white hover:bg-slate-50/70 transition-colors flex flex-col gap-1.5"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-slate-900 truncate">
+                                {usage.package_name || usage.event_name || "Event Reservation"}
                               </p>
+                              <div className="grid grid-cols-2 gap-1 mt-0.5 text-[10.5px] text-slate-500">
+                                <div>
+                                  Customer: <span className="font-semibold text-slate-800">{usage.customer_name}</span>
+                                </div>
+                                <div>
+                                  Event Date:{" "}
+                                  <span className="font-medium text-slate-800">
+                                    {usage.event_date
+                                      ? new Date(usage.event_date).toLocaleDateString("en-US", {
+                                          long: "numeric",
+                                          month: "long",
+                                          day: "numeric",
+                                          year: "numeric",
+                                        })
+                                      : "—"}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1 text-[10.5px]">
+                                <span className="text-slate-500 font-medium">Quantity:</span>
+                                <span className="bg-amber-50 text-amber-700 px-1.5 py-0.2 rounded text-[10.5px] font-bold border border-amber-200">
+                                  {usage.quantity} {usage.unit || (usage.quantity === 1 ? "unit" : "pcs")}
+                                </span>
+                                {usage.reference && (
+                                  <span className="text-[10px] font-mono text-slate-500">
+                                    (#{usage.reference})
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <Link
-                              to={`/admin/packages?id=${pkg._id}&tab=${pkg.offer_type === "special" ? "special" : "regular"}`}
+                              to={`/admin/bookings/${usage.booking_id}/details`}
                               onClick={() => setDrawerRow(null)}
                               className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-blue-600 hover:text-blue-700 transition-colors bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs hover:bg-slate-50 shrink-0"
                             >
                               View <ExternalLink size={10} />
                             </Link>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="py-2 px-3 rounded-md bg-slate-50/40 border border-dashed border-slate-200/80 text-center">
-                        <p className="text-[11px] text-slate-400 italic">
-                          This inventory item is not currently included in any packages.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-2 px-3 rounded-md bg-slate-50/40 border border-dashed border-slate-200/80 text-center">
+                      <p className="text-[11px] text-slate-400 italic">
+                        No upcoming events are using this item on the selected date.
+                      </p>
+                    </div>
+                  )}
+                </div>
 
-              {/* Upcoming Event Usage (for selected date) */}
-              <div className="pt-3 border-t border-slate-100 space-y-2">
-                <div className="flex items-center justify-between">
+                {/* Inventory Log */}
+                <div className="pt-3 border-t border-slate-100 space-y-2">
                   <h5 className="font-bold text-[10px] uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                    <Calendar size={11} className="text-blue-600" />
-                    Upcoming Event Usage ({(drawerRow.event_usages || []).length})
+                    <RotateCcw size={11} className="text-blue-600" /> Inventory Log
                   </h5>
-                  <span className="text-[10px] font-mono font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/60">
-                    {selectedDate
-                      ? new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })
-                      : "Today"}
-                  </span>
-                </div>
-
-                {drawerRow.event_usages && drawerRow.event_usages.length > 0 ? (
-                  <div className="space-y-1.5 max-h-60 overflow-y-auto pr-0.5">
-                    {drawerRow.event_usages.map((usage, idx) => (
-                      <div
-                        key={usage.booking_id || idx}
-                        className="p-2 rounded-lg border border-slate-200/80 bg-white hover:bg-slate-50/70 transition-colors flex flex-col gap-1.5"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-slate-900 truncate">
-                              {usage.package_name || usage.event_name || "Event Reservation"}
-                            </p>
-                            <div className="grid grid-cols-2 gap-1 mt-0.5 text-[10.5px] text-slate-500">
-                              <div>
-                                Customer: <span className="font-semibold text-slate-800">{usage.customer_name}</span>
-                              </div>
-                              <div>
-                                Event Date:{" "}
-                                <span className="font-medium text-slate-800">
-                                  {usage.event_date
-                                    ? new Date(usage.event_date).toLocaleDateString("en-US", {
-                                        long: "numeric",
-                                        month: "long",
-                                        day: "numeric",
-                                        year: "numeric",
-                                      })
-                                    : "—"}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 mt-1 text-[10.5px]">
-                              <span className="text-slate-500 font-medium">Quantity:</span>
-                              <span className="bg-amber-50 text-amber-700 px-1.5 py-0.2 rounded text-[10.5px] font-bold border border-amber-200">
-                                {usage.quantity} {usage.unit || (usage.quantity === 1 ? "unit" : "pcs")}
+                  {logsLoading ? (
+                    <p className="text-xs text-slate-400 py-1.5 text-center">Loading log…</p>
+                  ) : logs.length === 0 ? (
+                    <p className="text-[11px] text-slate-400 py-1.5 text-center italic">No stock changes recorded yet.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5">
+                      {logs.map((entry) => (
+                        <div key={entry._id} className="space-y-0.5 pb-2 border-b border-slate-100 last:border-b-0 last:pb-0">
+                          <div className="flex items-center gap-2">
+                            <Badge status={eventLabel[entry.event_type] || entry.event_type} />
+                            {entry.delta !== 0 && (
+                              <span className={`text-xs font-bold font-mono ${entry.delta > 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                                {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
                               </span>
-                              {usage.reference && (
-                                <span className="text-[10px] font-mono text-slate-500">
-                                  (#{usage.reference})
-                                </span>
-                              )}
-                            </div>
+                            )}
                           </div>
-                          <Link
-                            to={`/admin/bookings/${usage.booking_id}/details`}
-                            onClick={() => setDrawerRow(null)}
-                            className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-blue-600 hover:text-blue-700 transition-colors bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs hover:bg-slate-50 shrink-0"
-                          >
-                            View <ExternalLink size={10} />
-                          </Link>
+                          {entry.reason && <p className="text-xs text-slate-800 font-medium">{entry.reason}</p>}
+                          <p className="text-[10.5px] text-slate-400">
+                            {entry.actor_id?.full_name || "System"} · {new Date(entry.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                            {entry.booking_id?.reference && ` · Booking ${entry.booking_id.reference}`}
+                          </p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-2 px-3 rounded-md bg-slate-50/40 border border-dashed border-slate-200/80 text-center">
-                    <p className="text-[11px] text-slate-400 italic">
-                      No upcoming events are using this item on the selected date.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Inventory Log */}
-              <div className="pt-3 border-t border-slate-100 space-y-2">
-                <h5 className="font-bold text-[10px] uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <RotateCcw size={11} className="text-blue-600" /> Inventory Log
-                </h5>
-                {logsLoading ? (
-                  <p className="text-xs text-slate-400 py-1.5 text-center">Loading log…</p>
-                ) : logs.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 py-1.5 text-center italic">No stock changes recorded yet.</p>
-                ) : (
-                  <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5">
-                    {logs.map((entry) => (
-                      <div key={entry._id} className="space-y-0.5 pb-2 border-b border-slate-100 last:border-b-0 last:pb-0">
-                        <div className="flex items-center gap-2">
-                          <Badge status={eventLabel[entry.event_type] || entry.event_type} />
-                          {entry.delta !== 0 && (
-                            <span className={`text-xs font-bold font-mono ${entry.delta > 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                              {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
-                            </span>
-                          )}
-                        </div>
-                        {entry.reason && <p className="text-xs text-slate-800 font-medium">{entry.reason}</p>}
-                        <p className="text-[10.5px] text-slate-400">
-                          {entry.actor_id?.full_name || "System"} · {new Date(entry.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                          {entry.booking_id?.reference && ` · Booking ${entry.booking_id.reference}`}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Metadata timestamps */}
-              <div className="pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-3 text-xs text-slate-500">
-                <div className="flex items-center gap-2">
-                  <Calendar size={12} className="shrink-0 text-slate-400" />
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Created</p>
-                    <p className="text-slate-700 font-medium text-[11px]">
-                      {drawerRow.createdAt
-                        ? new Date(drawerRow.createdAt).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })
-                        : "—"}
-                    </p>
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Calendar size={12} className="shrink-0 text-slate-400" />
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Last Updated</p>
-                    <p className="text-slate-700 font-medium text-[11px]">
-                      {drawerRow.updatedAt
-                        ? new Date(drawerRow.updatedAt).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })
-                        : "—"}
-                    </p>
+
+                {/* Metadata timestamps */}
+                <div className="pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-3 text-xs text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <Calendar size={12} className="shrink-0 text-slate-400" />
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Created</p>
+                      <p className="text-slate-700 font-medium text-[11px]">
+                        {drawerRow.createdAt
+                          ? new Date(drawerRow.createdAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })
+                          : "—"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar size={12} className="shrink-0 text-slate-400" />
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Last Updated</p>
+                      <p className="text-slate-700 font-medium text-[11px]">
+                        {drawerRow.updatedAt
+                          ? new Date(drawerRow.updatedAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })
+                          : "—"}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
-        </DetailDrawer>
-      );
-    })()}
-  </AdminLayout>
-);
+            )}
+          </DetailDrawer>
+        );
+      })()}
+    </AdminLayout>
+  );
 }

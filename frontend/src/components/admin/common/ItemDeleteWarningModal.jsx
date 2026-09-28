@@ -21,7 +21,7 @@ export default function ItemDeleteWarningModal({
   onClose,
   onConfirm,
   item,
-  type = "inventory", // "inventory" | "menu"
+  type = "inventory", // "inventory" | "menu" | "addon"
   confirmText,
 }) {
   const [loading, setLoading] = useState(true);
@@ -31,13 +31,23 @@ export default function ItemDeleteWarningModal({
 
   const itemName = item ? (item.item_name || item.name || "this item") : "this item";
 
+  const typeLabel = type === "menu" ? "Food Menu Item" : type === "addon" ? "Addon" : "Inventory Item";
+  const typeNoun = type === "menu" ? "food" : type === "addon" ? "addon" : "inventory";
+  const catalogNoun = type === "menu" ? "Food Menu" : type === "addon" ? "Addons" : "Inventory";
+
   useEffect(() => {
     if (!isOpen || !item?._id) return;
     let isMounted = true;
     setLoading(true);
     setError("");
 
-    const fetchUsage = type === "menu" ? AdminAPI.getMenuUsage : AdminAPI.getInventoryUsage;
+    const fetchUsage = 
+      type === "menu" 
+        ? AdminAPI.getMenuUsage 
+        : type === "addon"
+          ? AdminAPI.getAddonUsage
+          : AdminAPI.getInventoryUsage;
+
     fetchUsage(item._id)
       .then((res) => {
         if (isMounted) {
@@ -90,19 +100,19 @@ export default function ItemDeleteWarningModal({
   const hasUsage = usage?.hasUsage;
 
   const resolvedConfirmText =
-    confirmText || (type === "menu" ? "Delete Item" : "Delete Item");
+    confirmText || "Delete Item";
 
   // Determine modal header icon and title
-  let modalTitle = `Delete ${type === "menu" ? "Food Menu Item" : "Inventory Item"}`;
+  let modalTitle = `Delete ${typeLabel}`;
   let HeaderIcon = Trash2;
   let iconBgClass = "bg-rose-100 text-rose-600";
 
   if (hasActiveCustomerUsage) {
-    modalTitle = `Warning: ${type === "menu" ? "Food Item Currently Used" : "Inventory Item Currently Used"}`;
+    modalTitle = `Warning: ${typeLabel} Currently Used`;
     HeaderIcon = AlertTriangle;
     iconBgClass = "bg-amber-100 text-amber-600";
   } else if (hasUsage) {
-    modalTitle = `Warning: ${type === "menu" ? "Food Item In Use" : "Inventory Item In Use"}`;
+    modalTitle = `Warning: ${typeLabel} In Use`;
     HeaderIcon = AlertTriangle;
     iconBgClass = "bg-amber-100 text-amber-600";
   }
@@ -157,7 +167,7 @@ export default function ItemDeleteWarningModal({
                     <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
                     <div className="text-xs space-y-0.5">
                       <p className="font-bold text-amber-950">
-                        Deleting this {type === "menu" ? "food" : "inventory"} item may affect an active customer transaction.
+                        Deleting this {typeNoun} item may affect an active customer transaction.
                       </p>
                       <p className="text-amber-800/90 text-[11px] leading-relaxed">
                         The admin should still be able to choose whether to proceed. Do not automatically modify or delete the inquiry, quotation, or booking.
@@ -301,7 +311,7 @@ export default function ItemDeleteWarningModal({
                 {/* Clarification notes */}
                 {hasUsage && (
                   <p className="text-[11px] text-muted-foreground/90 italic pt-1">
-                    Important: Deleting this item will only remove it from the current {type === "menu" ? "Food Menu" : "Inventory"} catalog. Historical/completed events and active records will remain intact.
+                    Important: Deleting this item will only remove it from the current {catalogNoun} catalog. Historical/completed events and active records will remain intact.
                   </p>
                 )}
 

@@ -42,6 +42,7 @@ import {
   offerFoodByCategory,
   offerCourseRequirement,
   offerInclusions,
+  offerBookingProblem,
 } from "../../../lib/specialOffers";
 import {
   SERVICE_TYPES,
@@ -211,10 +212,11 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
   const handleSelectPackage = (pkg) => {
     const isCombo = isSpecialOffer(pkg);
     const comboPax = isCombo ? offerGuestCount(pkg) : 0;
+    const isFoodOnlyPkg = pkg.package_type === "Food Only";
 
     let serviceType = SERVICE_TYPES.FULL_SERVICE;
     let includeFood = true;
-    if (pkg.package_type === "Food Only") {
+    if (isFoodOnlyPkg) {
       serviceType = SERVICE_TYPES.FOOD_ONLY;
       includeFood = true;
     } else if (pkg.package_type === "Event Setup Only") {
@@ -229,7 +231,9 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
       include_food: includeFood,
       is_custom_setup: false,
       ...(comboPax > 0 ? { guest_count: String(comboPax) } : {}),
-      delivery_method: isCombo ? prev.delivery_method || "setup" : "setup",
+      delivery_method: isCombo
+        ? (isFoodOnlyPkg ? "pickup" : (prev.delivery_method || "pickup"))
+        : "setup",
     }));
   };
 
@@ -1518,27 +1522,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     });
   }, [packageDetails, isOffer]);
 
-  // Sync combo pack rules
-  useEffect(() => {
-    if (!isOffer) return;
-    setForm((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      if (
-        prev.include_food !== true ||
-        prev.service_type !== SERVICE_TYPES.FOOD_ONLY
-      ) {
-        next.include_food = true;
-        next.service_type = SERVICE_TYPES.FOOD_ONLY;
-        changed = true;
-      }
-      if (offerPax > 0 && Number(prev.guest_count) !== offerPax) {
-        next.guest_count = String(offerPax);
-        changed = true;
-      }
-      return changed ? next : prev;
-    });
-  }, [isOffer, offerPax]);
 
   // Seed menu from package
   const seededPackageId = useRef(null);
@@ -2048,22 +2031,96 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
       case "EventDetails": {
         const guests = parseNumber(form.guest_count) || 0;
-        if (!form.event_type) {
-          errs.event_type = "Please select or describe the event type.";
-          msg = "Event type is required.";
-        }
-        if (guests <= 0) {
-          errs.guest_count = "Guest count must be at least 1.";
-          msg = "Enter a valid guest count.";
-        }
-        if (form.delivery_method !== "pickup") {
-          if (!form.municipality) errs.municipality = "Municipality is required.";
-          if (!form.barangay) errs.barangay = "Barangay is required.";
-          if (!errs.municipality && !errs.barangay && !msg) {
-            // Address ok
+
+        if (isOffer) {
+          if (guests <= 0) {
+            errs.guest_count = "Enter how many guests you're catering for.";
           } else {
-            msg = "Please provide the venue municipality and barangay.";
+            const problem = offerBookingProblem(packageDetails, guests);
+            if (problem) errs.guest_count = problem;
           }
+
+          if (form.delivery_method === "pickup") {
+            // Food only pickup: no address, venue, or event type required
+          } else if (form.delivery_method === "delivery") {
+            if (
+              form.booking_for === "someone_else" &&
+              !String(form.celebrant_name || "").trim()
+            ) {
+              errs.celebrant_name = "Enter the celebrant or honoree's name.";
+            }
+            if (!form.municipality)
+              errs.municipality = "Select the delivery municipality.";
+            if (!form.barangay) errs.barangay = "Select the delivery barangay.";
+            if (!String(form.street || "").trim())
+              errs.street = "Enter the delivery street address.";
+          } else {
+            // With Event Setup
+            if (
+              form.booking_for === "someone_else" &&
+              !String(form.celebrant_name || "").trim()
+            ) {
+              errs.celebrant_name = "Enter the celebrant or honoree's name.";
+            }
+            const eventType =
+              form.event_type === OTHER_EVENT_TYPE
+                ? String(form.event_type_other || "").trim()
+                : form.event_type;
+            if (!eventType) {
+              errs[form.event_type === OTHER_EVENT_TYPE ? "event_type_other" : "event_type"] =
+                "Tell us what kind of event this is.";
+            }
+            if (!form.municipality)
+              errs.municipality = "Select the municipality of your venue.";
+            if (!form.barangay) errs.barangay = "Select the barangay.";
+            if (
+              form.venue_type === OTHER_VENUE_TYPE &&
+              !String(form.venue_type_other || "").trim()
+            ) {
+              errs.venue_type_other = "Tell us what kind of venue this is.";
+            }
+          }
+          if (Object.keys(errs).length > 0) {
+            msg = Object.values(errs)[0];
+          }
+          break;
+        }
+
+        // Regular Package or Custom Setup
+        if (
+          form.booking_for === "someone_else" &&
+          !String(form.celebrant_name || "").trim()
+        ) {
+          errs.celebrant_name = "Enter the celebrant or honoree's name.";
+        }
+
+        const eventType =
+          form.event_type === OTHER_EVENT_TYPE
+            ? String(form.event_type_other || "").trim()
+            : form.event_type;
+        if (!eventType) {
+          errs[form.event_type === OTHER_EVENT_TYPE ? "event_type_other" : "event_type"] =
+            "Tell us what kind of event this is.";
+        }
+        if (!form.municipality)
+          errs.municipality = "Select the municipality of your venue.";
+        if (!form.barangay) errs.barangay = "Select the barangay.";
+        if (
+          form.venue_type === OTHER_VENUE_TYPE &&
+          !String(form.venue_type_other || "").trim()
+        ) {
+          errs.venue_type_other = "Tell us what kind of venue this is.";
+        }
+
+        if (guests <= 0) {
+          errs.guest_count = "Enter how many guests you're expecting.";
+        } else if (guests < (guestMin || 1)) {
+          errs.guest_count = `Enter a guest count of at least ${guestMin || 1}.`;
+        } else if (guestMax && guests > guestMax) {
+          errs.guest_count = `The maximum guest count for this package setup is ${guestMax}.`;
+        }
+        if (Object.keys(errs).length > 0) {
+          msg = Object.values(errs)[0];
         }
         break;
       }
@@ -2071,15 +2128,21 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       case "DeliveryDetails": {
         const guests = parseNumber(form.guest_count) || 0;
         if (guests <= 0) {
-          errs.guest_count = "Enter guest count.";
-          msg = "Guest count must be at least 1.";
+          errs.guest_count = "Enter how many guests you're feeding.";
+        } else if (guests < (guestMin || 1)) {
+          errs.guest_count = `Enter a guest count of at least ${guestMin || 1}.`;
+        } else if (guestMax && guests > guestMax) {
+          errs.guest_count = `The maximum guest count for this package is ${guestMax}.`;
         }
-        if (form.delivery_method === "delivery") {
-          if (!form.municipality) errs.municipality = "Delivery municipality is required.";
-          if (!form.barangay) errs.barangay = "Delivery barangay is required.";
+        if (form.delivery_method !== "pickup") {
+          if (!form.municipality)
+            errs.municipality = "Select the delivery municipality.";
+          if (!form.barangay) errs.barangay = "Select the delivery barangay.";
           if (!String(form.street || "").trim())
-            errs.street = "Street address is required for delivery.";
-          if (Object.keys(errs).length > 0) msg = "Complete delivery address.";
+            errs.street = "Enter the street and building so we can find you.";
+        }
+        if (Object.keys(errs).length > 0) {
+          msg = Object.values(errs)[0];
         }
         break;
       }
@@ -2151,6 +2214,15 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     const valid = !msg && Object.keys(errs).length === 0;
     return { valid, errors: errs, message: msg };
   };
+
+  // Clear stale errors once step becomes valid
+  useEffect(() => {
+    if (Object.keys(stepErrors).length === 0) return;
+    const { valid } = validateStep(currentStepId);
+    if (valid) {
+      setStepErrors({});
+    }
+  }, [form, currentStepId]);
 
   const handleNext = () => {
     const { valid, errors: errs, message } = validateStep(currentStepId);
@@ -2284,7 +2356,14 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         booking_type: isOffer ? "special" : form.package_id ? "regular" : "custom",
         include_food: form.include_food !== false,
         event_type:
-          form.event_type === OTHER_EVENT_TYPE ? form.event_type_other : form.event_type,
+          (form.event_type === OTHER_EVENT_TYPE
+            ? String(form.event_type_other || "").trim()
+            : String(form.event_type || "").trim()) ||
+          (isFoodOnly || (isOffer && form.delivery_method !== "setup")
+            ? "Special Offer Catering"
+            : isOffer
+            ? "Special Offer Event"
+            : "Food Delivery"),
         event_theme: form.event_theme || undefined,
         event_palette: form.event_palette || [],
         booking_for: form.booking_for || "myself",

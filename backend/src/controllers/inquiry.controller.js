@@ -33,9 +33,10 @@ const {
 
 // Customer submits a new inquiry
 exports.createInquiry = asyncHandler(async (req, res) => {
+  const isStaffOrAdmin = ["admin", "manager", "staff"].includes(req.user?.role);
   const payload = {
     ...req.body,
-    customer_id: req.user?._id || req.body.customer_id,
+    customer_id: isStaffOrAdmin ? (req.body.customer_id || req.user?._id) : req.user?._id,
     status: "Pending Review",
   };
 
@@ -201,8 +202,8 @@ exports.createInquiry = asyncHandler(async (req, res) => {
     }));
   }
 
-  // Validate minimum lead time: require at least 3 full buffer days between today and event date
-  if (payload.event_date) {
+  // Validate minimum lead time: require at least 3 full buffer days between today and event date (customer self-service only)
+  if (!isStaffOrAdmin && payload.event_date) {
     const parsedDate = new Date(payload.event_date);
     if (!isNaN(parsedDate.getTime())) {
       const eventStart = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate());
@@ -237,17 +238,19 @@ exports.createInquiry = asyncHandler(async (req, res) => {
     }
   }
 
-  // Anti-spam check: prevent duplicate submissions within 60 seconds
-  const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
-  const recentInquiry = await Inquiry.findOne({
-    customer_id: payload.customer_id,
-    createdAt: { $gte: oneMinuteAgo }
-  });
-
-  if (recentInquiry) {
-    return res.status(429).json({
-      message: "You are submitting inquiries too quickly. Please wait a moment before trying again."
+  // Anti-spam check: prevent duplicate submissions within 60 seconds (customer self-service only)
+  if (!isStaffOrAdmin) {
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+    const recentInquiry = await Inquiry.findOne({
+      customer_id: payload.customer_id,
+      createdAt: { $gte: oneMinuteAgo }
     });
+
+    if (recentInquiry) {
+      return res.status(429).json({
+        message: "You are submitting inquiries too quickly. Please wait a moment before trying again."
+      });
+    }
   }
 
   const inquiry = await Inquiry.create(payload);

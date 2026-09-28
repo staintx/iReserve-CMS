@@ -18,6 +18,7 @@ export const AdminAPI = {
   // Inquiries
   getInquiries: () => api.get("/inquiries"),
   getInquiry: (id) => api.get(`/inquiries/${id}`),
+  createInquiry: (data) => api.post("/inquiries", data),
   updateInquiry: (id, data) => api.put(`/inquiries/${id}`, data),
   setInquiryArchived: (id, archived = true) => api.patch(`/inquiries/${id}/archive`, { archived }),
   reviewInquiry: (id) => api.patch(`/inquiries/${id}/review`),

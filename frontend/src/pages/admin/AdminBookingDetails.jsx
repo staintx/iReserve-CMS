@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   UserPlus,
   Truck,
+  Palette,
   Sparkles,
   Layers,
   AlertTriangle,
@@ -1475,7 +1476,7 @@ export default function AdminBookingDetails() {
                 </div>
               </div>
 
-              {/* Bespoke Custom Styling Concept Card (When Applicable) */}
+              {/* Custom Styling Concept Card (When Applicable) */}
               {(booking.is_custom_setup ||
                 booking.inspiration_images?.length > 0 ||
                 booking.custom_setup_scope?.length > 0 ||
@@ -1483,9 +1484,9 @@ export default function AdminBookingDetails() {
                 <div className="bg-gradient-to-br from-blue-50/60 to-indigo-50/30 border border-blue-200/80 rounded-xl p-4 space-y-3.5 shadow-2xs">
                   <div className="flex items-center justify-between border-b border-blue-200/60 pb-2">
                     <div className="flex items-center gap-2">
-                      <Sparkles size={14} className="text-blue-600" />
+                      <Palette size={14} className="text-blue-600" />
                       <h3 className="font-bold text-xs text-blue-950 uppercase tracking-wider">
-                        Bespoke Styling Concept &amp; Specifications
+                        Custom Styling Concept &amp; Specifications
                       </h3>
                     </div>
                     <span className="px-2 py-0.5 rounded font-mono bg-blue-100 text-blue-800 text-[10px] font-bold border border-blue-200">
@@ -1872,8 +1873,8 @@ export default function AdminBookingDetails() {
                     {(customScope.length > 0 || customNotes) && (
                       <div className="p-3 bg-purple-50/50 border border-purple-200/80 rounded-lg space-y-2.5">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
-                          <Sparkles size={13} className="text-purple-600" />
-                          <span>Bespoke Custom Setup Brief &amp; Scope</span>
+                          <Palette size={13} className="text-purple-600" />
+                          <span>Custom Styling Brief &amp; Scope</span>
                         </div>
                         {customScope.length > 0 && (
                           <div className="space-y-1">
@@ -1917,7 +1918,7 @@ export default function AdminBookingDetails() {
                     {inspirationImages.length > 0 && (
                       <div className="space-y-1.5 pt-1">
                         <span className="text-[10px] uppercase font-bold text-muted-foreground block flex items-center gap-1">
-                          <Sparkles size={11} className="text-primary" /> Customer Inspiration Pegs ({inspirationImages.length})
+                          <Palette size={11} className="text-primary" /> Customer Inspiration Pegs ({inspirationImages.length})
                         </span>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                           {inspirationImages.map((imgUrl, i) => (

@@ -14,18 +14,21 @@ import {
   Calendar, 
   CreditCard,
   RefreshCw,
-  Sparkles,
+  Palette,
+  Package,
   Phone,
   MapPin,
   User,
   Utensils,
   Sliders,
   X,
+  Tag,
   FileSpreadsheet,
   Users
 } from "lucide-react";
 import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
+import FilterPill from "../../components/admin/table/FilterPill";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import KPICard from "../../components/admin/ui/KPICard";
 import Btn from "../../components/admin/ui/Btn";
@@ -79,8 +82,8 @@ export default function AdminBookingsHistory() {
   // Filters & Search
   const [search, setSearch] = useState("");
   const [statusTab, setStatusTab] = useState("all");
-  const [serviceTypeFilter, setServiceTypeFilter] = useState("all");
   const [archetypeFilter, setArchetypeFilter] = useState("all"); // 'all' | 'package' | 'bespoke' | 'food_only'
+  const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
 
   const [drawerRow, setDrawerRow] = useState(null);
@@ -150,7 +153,7 @@ export default function AdminBookingsHistory() {
         customer: customerName,
         email: customerEmail,
         phone: customerPhone,
-        eventType: b.event_type || "Catering Event",
+        eventType: b.event_type === "Other" && b.event_type_other ? b.event_type_other : (b.event_type || "Catering Event"),
         pkg: b.package_id?.name || (isCustomSetup ? "Bespoke Custom Setup" : "Custom Catering"),
         guests: b.guest_count || 0,
         date: b.event_date ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A",
@@ -179,6 +182,12 @@ export default function AdminBookingsHistory() {
     });
   }, [bookings, payments]);
 
+  // Unique Event Types
+  const availableEventTypes = useMemo(() => {
+    const types = new Set(formattedHistory.map((b) => b.eventType).filter(Boolean));
+    return Array.from(types).sort((a, b) => a.localeCompare(b));
+  }, [formattedHistory]);
+
   // KPI Metrics Calculation
   const kpiStats = useMemo(() => {
     const totalCount = formattedHistory.length;
@@ -192,6 +201,24 @@ export default function AdminBookingsHistory() {
     return { totalCount, completedCount, cancelledCount, totalRevenue };
   }, [formattedHistory]);
 
+  // Active filter tracking & global reset
+  const hasActiveFilters = Boolean(
+    search.trim() ||
+    statusTab !== "all" ||
+    archetypeFilter !== "all" ||
+    eventTypeFilter !== "all" ||
+    dateRange.from ||
+    dateRange.to
+  );
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatusTab("all");
+    setArchetypeFilter("all");
+    setEventTypeFilter("all");
+    setDateRange({ from: "", to: "" });
+  };
+
   // Filtered Results
   const filtered = useMemo(() => {
     return formattedHistory.filter((r) => {
@@ -204,11 +231,14 @@ export default function AdminBookingsHistory() {
       if (archetypeFilter === "bespoke" && !r.isCustomSetup) return false;
       if (archetypeFilter === "food_only" && !r.isFoodOnly) return false;
 
-      // 3. Date Range Filter
+      // 3. Event Type Filter
+      if (eventTypeFilter !== "all" && r.eventType !== eventTypeFilter) return false;
+
+      // 4. Date Range Filter
       if (dateRange.from && r.rawDate && r.rawDate < new Date(dateRange.from)) return false;
       if (dateRange.to && r.rawDate && r.rawDate > new Date(`${dateRange.to}T23:59:59`)) return false;
 
-      // 4. Search Filter
+      // 5. Search Filter
       if (search.trim()) {
         const q = search.toLowerCase();
         return (
@@ -223,7 +253,7 @@ export default function AdminBookingsHistory() {
 
       return true;
     });
-  }, [formattedHistory, statusTab, archetypeFilter, dateRange, search]);
+  }, [formattedHistory, statusTab, archetypeFilter, eventTypeFilter, dateRange, search]);
 
   const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
 
@@ -258,7 +288,7 @@ export default function AdminBookingsHistory() {
       `"${r.phone}"`,
       `"${r.eventType}"`,
       `"${r.pkg.replace(/"/g, '""')}"`,
-      `"${r.isCustomSetup ? "Bespoke Styling" : r.isFoodOnly ? "Food Only" : "Standard Package"}"`,
+      `"${r.isCustomSetup ? "Custom Styling" : r.isFoodOnly ? "Food Only" : "Standard Package"}"`,
       `"${r.date}"`,
       r.guests,
       `"${r.venueFull.replace(/"/g, '""')}"`,
@@ -324,7 +354,7 @@ export default function AdminBookingsHistory() {
           <div className="flex items-center gap-1">
             {r.isCustomSetup ? (
               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/80">
-                <Sparkles size={9} /> Bespoke Setup
+                <Palette size={9} /> Custom Setup
               </span>
             ) : r.isFoodOnly ? (
               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80">
@@ -439,80 +469,146 @@ export default function AdminBookingsHistory() {
           <KPICard title="Historic Revenue" value={fmt(kpiStats.totalRevenue)} sub="Realized revenue" icon={DollarSign} />
         </div>
 
-        {/* Toolbar & Filter Options */}
-        <AdminCard className="!p-3 sm:!p-3.5 space-y-3">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            {/* Status Tabs */}
-            <div className="flex items-center gap-1 overflow-x-auto">
-              {[
-                { id: "all", label: `All Archived (${kpiStats.totalCount})` },
-                { id: "completed", label: `Completed (${kpiStats.completedCount})` },
-                { id: "cancelled", label: `Cancelled / Refunded (${kpiStats.cancelledCount})` },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setStatusTab(tab.id)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
-                    statusTab === tab.id
-                      ? "bg-primary text-primary-foreground shadow-2xs"
-                      : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Search Box */}
-            <div className="relative w-full md:w-64">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search event, customer, ref, venue..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-7 py-1 text-xs rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary h-8"
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
+        {/* Single-Line Interactive Filter Bar */}
+        <div className="bg-white border border-slate-200/80 rounded-xl p-2 sm:p-2.5 shadow-2xs flex flex-wrap items-center gap-2 font-sans">
+          {/* Search Input Field */}
+          <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={13} />
+            <input
+              type="text"
+              placeholder="Search event, customer, ref, venue..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8 pr-7 py-1 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 h-8 transition-colors"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                title="Clear search"
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
 
-          {/* Archetype Filter Chips Row */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pt-1 border-t border-border/40 text-xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground shrink-0">Format:</span>
-            {[
-              { id: "all", label: "All Formats" },
-              { id: "package", label: "Standard Packages" },
-              { id: "bespoke", label: "Bespoke Styling", icon: Sparkles },
-              { id: "food_only", label: "Food Only", icon: Utensils },
-            ].map((arch) => {
-              const Icon = arch.icon;
-              const active = archetypeFilter === arch.id;
-              return (
-                <button
-                  key={arch.id}
-                  type="button"
-                  onClick={() => setArchetypeFilter(arch.id)}
-                  className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors cursor-pointer inline-flex items-center gap-1 whitespace-nowrap ${
-                    active
-                      ? "bg-slate-900 text-white shadow-2xs dark:bg-slate-100 dark:text-slate-900"
-                      : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50"
-                  }`}
-                >
-                  {Icon && <Icon size={11} />}
-                  <span>{arch.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </AdminCard>
+          <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+          {/* Status Filter Pill with Counts */}
+          <FilterPill
+            label="Status"
+            icon={Sliders}
+            value={statusTab}
+            defaultValue="all"
+            onSelect={(val) => setStatusTab(val)}
+            options={[
+              { value: "all", label: "All Archived", count: kpiStats.totalCount },
+              { value: "completed", label: "Completed", count: kpiStats.completedCount, icon: CheckCircle2 },
+              { value: "cancelled", label: "Cancelled / Refunded", count: kpiStats.cancelledCount, icon: XCircle },
+            ]}
+          />
+
+          {/* Format / Archetype Filter Pill */}
+          <FilterPill
+            label="Format"
+            icon={Palette}
+            value={archetypeFilter}
+            defaultValue="all"
+            onSelect={(val) => setArchetypeFilter(val)}
+            options={[
+              { value: "all", label: "All Formats" },
+              { value: "package", label: "Standard Packages", icon: Package },
+              { value: "bespoke", label: "Custom Styling", icon: Palette },
+              { value: "food_only", label: "Food Only", icon: Utensils },
+            ]}
+          />
+
+          {/* Event Type Filter Pill */}
+          {availableEventTypes.length > 0 && (
+            <FilterPill
+              label="Event Type"
+              icon={Tag}
+              value={eventTypeFilter}
+              defaultValue="all"
+              onSelect={(val) => setEventTypeFilter(val)}
+              options={[
+                { value: "all", label: "All Event Types" },
+                ...availableEventTypes.map((type) => ({ value: type, label: type })),
+              ]}
+            />
+          )}
+
+          {/* Date Range Filter Pill */}
+          <FilterPill
+            label="Date Range"
+            icon={Calendar}
+            value={dateRange.from || dateRange.to ? "custom" : "all"}
+            defaultValue="all"
+            customActive={Boolean(dateRange.from || dateRange.to)}
+            customLabel={
+              dateRange.from && dateRange.to
+                ? `${dateRange.from} to ${dateRange.to}`
+                : dateRange.from
+                ? `From ${dateRange.from}`
+                : dateRange.to
+                ? `Until ${dateRange.to}`
+                : "All Dates"
+            }
+            onClear={() => setDateRange({ from: "", to: "" })}
+            renderCustomContent={(close) => (
+              <div className="p-2 space-y-2 text-xs font-sans">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Event Date Range</span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div>
+                    <label className="text-[9.5px] text-slate-500 block mb-0.5 font-medium">From</label>
+                    <input
+                      type="date"
+                      value={dateRange.from}
+                      onChange={(e) => setDateRange((prev) => ({ ...prev, from: e.target.value }))}
+                      className="w-full text-[11px] bg-white border border-slate-200 text-slate-800 rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9.5px] text-slate-500 block mb-0.5 font-medium">To</label>
+                    <input
+                      type="date"
+                      value={dateRange.to}
+                      onChange={(e) => setDateRange((prev) => ({ ...prev, to: e.target.value }))}
+                      className="w-full text-[11px] bg-white border border-slate-200 text-slate-800 rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+                {(dateRange.from || dateRange.to) && (
+                  <div className="pt-1.5 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDateRange({ from: "", to: "" });
+                        close();
+                      }}
+                      className="text-[10.5px] text-slate-500 hover:text-slate-800 font-medium cursor-pointer"
+                    >
+                      Clear Dates
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          />
+
+          {/* Global Clear Filters */}
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 sm:ml-auto"
+            >
+              <X size={12} />
+              <span>Reset</span>
+            </button>
+          )}
+        </div>
 
         {/* Data Table */}
         <AdminCard className="!p-0 overflow-hidden shadow-xs border border-border/80">

@@ -23,7 +23,9 @@ import {
   ChevronDown,
   FileText,
   MapPin,
+  Palette,
   Sparkles,
+  Utensils,
   Info,
   DollarSign,
   Package,
@@ -41,6 +43,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
+import FilterPill from "../../components/admin/table/FilterPill";
 import KPICard from "../../components/admin/ui/KPICard";
 import Badge from "../../components/admin/ui/Badge";
 import ConflictModal from "../../components/admin/ui/ConflictModal";
@@ -152,7 +155,9 @@ export default function AdminReservations() {
 
   // Filter & Search
   const [search, setSearch] = useState(() => searchParams.get("search") || "");
-  const [filter, setFilter] = useState("all"); // 'all' | 'upcoming' | 'this_week' | 'completed' | 'cancelled'
+  const [filter, setFilter] = useState("all"); // 'all' | 'upcoming' | 'this_week' | 'completed' | 'cancelled' | 'cancellations'
+  const [archetypeFilter, setArchetypeFilter] = useState("all"); // 'all' | 'package' | 'bespoke' | 'food_only'
+  const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [sortBy, setSortBy] = useState("event_date"); // 'event_date' | 'newest' | 'total_amount' | 'guests'
 
   // Selection & Details Drawer
@@ -269,7 +274,8 @@ export default function AdminReservations() {
           customer: b.customer_id?.full_name || `${b.contact_first_name || ""} ${b.contact_last_name || ""}`.trim() || "Customer",
           email: b.customer_id?.email || b.contact_email || "N/A",
           phone: b.contact_phone || b.customer_id?.phone || "N/A",
-          eventType: recordTitle(b),
+          eventTitle: recordTitle(b),
+          eventType: b.event_type === "Other" && b.event_type_other ? b.event_type_other : (b.event_type || b.inquiry_id?.event_type || "Event"),
           pkg: b.package_id?.name || "Custom Catering",
           guests: b.guest_count || 0,
           dateFormatted: b.event_date ? formatDateClean(b.event_date) : "TBA",
@@ -392,6 +398,52 @@ export default function AdminReservations() {
     return { total, upcomingThisWeek, confirmedPaid, changeRequests, cancellationRequests };
   }, [inScope]);
 
+  // Status counts for filter pills
+  const statusCounts = useMemo(() => {
+    const now = new Date();
+    const next7 = new Date();
+    next7.setDate(now.getDate() + 7);
+
+    return {
+      all: inScope.length,
+      upcoming: inScope.filter((r) => {
+        const s = r.rawStatus.toLowerCase();
+        return s !== "completed" && s !== "cancelled" && (!r.rawDate || r.rawDate >= now);
+      }).length,
+      this_week: inScope.filter((r) => {
+        const s = r.rawStatus.toLowerCase();
+        return s !== "completed" && s !== "cancelled" && r.rawDate && r.rawDate >= now && r.rawDate <= next7;
+      }).length,
+      cancellations: inScope.filter((r) => r.isCancellationPending).length,
+      completed: inScope.filter((r) => r.rawStatus.toLowerCase() === "completed").length,
+      cancelled: inScope.filter((r) => r.rawStatus.toLowerCase() === "cancelled").length,
+    };
+  }, [inScope]);
+
+  // Unique Event Types
+  const availableEventTypes = useMemo(() => {
+    const types = new Set(inScope.map((b) => b.eventType).filter(Boolean));
+    return Array.from(types).sort((a, b) => a.localeCompare(b));
+  }, [inScope]);
+
+  // Active filter tracking & global reset
+  const hasActiveFilters = Boolean(
+    search.trim() ||
+    filter !== "all" ||
+    archetypeFilter !== "all" ||
+    eventTypeFilter !== "all" ||
+    sortBy !== "event_date"
+  );
+
+  const clearFilters = () => {
+    setSearch("");
+    setFilter("all");
+    setArchetypeFilter("all");
+    setEventTypeFilter("all");
+    setSortBy("event_date");
+    setPage(1);
+  };
+
   // Reservation Filter Tabs & Search
   const filteredBookings = useMemo(() => {
     const now = new Date();
@@ -401,7 +453,7 @@ export default function AdminReservations() {
     return inScope.filter((r) => {
       const statusNorm = r.rawStatus.toLowerCase();
 
-      // Filter Tabs Logic
+      // Filter Status Logic
       if (filter === "upcoming") {
         if (statusNorm === "completed" || statusNorm === "cancelled") return false;
         if (r.rawDate && r.rawDate < now) return false;
@@ -416,13 +468,21 @@ export default function AdminReservations() {
         if (!r.isCancellationPending) return false;
       }
 
+      // Format / Archetype Filter
+      if (archetypeFilter === "package" && (r.isCustomSetup || r.isFoodOnly)) return false;
+      if (archetypeFilter === "bespoke" && !r.isCustomSetup) return false;
+      if (archetypeFilter === "food_only" && !r.isFoodOnly) return false;
+
+      // Event Type Filter
+      if (eventTypeFilter !== "all" && r.eventType !== eventTypeFilter) return false;
+
       // Search Query
       if (search.trim()) {
         const q = search.toLowerCase();
         const matchCustomer = r.customer.toLowerCase().includes(q);
         const matchEmail = r.email.toLowerCase().includes(q);
         const matchId = r.id.toLowerCase().includes(q);
-        const matchEvent = r.eventType.toLowerCase().includes(q);
+        const matchEvent = r.eventType.toLowerCase().includes(q) || (r.eventTitle || "").toLowerCase().includes(q);
         const matchVenue = r.venue.toLowerCase().includes(q);
         const matchPkg = r.pkg.toLowerCase().includes(q);
         if (!matchCustomer && !matchEmail && !matchId && !matchEvent && !matchVenue && !matchPkg) {
@@ -432,7 +492,7 @@ export default function AdminReservations() {
 
       return true;
     });
-  }, [inScope, filter, search]);
+  }, [inScope, filter, archetypeFilter, eventTypeFilter, search]);
 
   // Sort Logic
   const sortedBookings = useMemo(() => {
@@ -467,7 +527,7 @@ export default function AdminReservations() {
   // Reset page on filter change
   useEffect(() => {
     setPage(1);
-  }, [search, filter, sortBy]);
+  }, [search, filter, archetypeFilter, eventTypeFilter, sortBy]);
 
 
   // Handlers
@@ -630,90 +690,107 @@ export default function AdminReservations() {
               />
             </div>
 
-            {/* Reservation Search & Filter Controls Bar */}
-            <div className="bg-card border border-border/70 rounded-xl p-2.5 sm:p-3 shadow-2xs">
-              <div className="flex flex-wrap items-end gap-2.5 text-xs">
-                {/* Search Input Field */}
-                <div className="flex-1 min-w-[200px] flex flex-col gap-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Search Reservations</label>
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" size={13} />
-                    <input
-                      type="text"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search booking ref, customer, event, venue..."
-                      className="w-full pl-8 pr-7 py-1 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-8"
-                    />
-                    {search && (
-                      <button
-                        onClick={() => setSearch("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        <X size={12} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-
-                {/* Clear Filter Button */}
-                {(search || filter !== "all") && (
-                  <div className="flex flex-col gap-1 shrink-0 justify-end">
-                    <button
-                      onClick={() => {
-                        setSearch("");
-                        setFilter("all");
-                      }}
-                      className="h-8 px-3 rounded-lg border border-input bg-background hover:bg-muted text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <X size={13} /> Clear Filters
-                    </button>
-                  </div>
+            {/* Single-Line Interactive Filter Bar */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-2 sm:p-2.5 shadow-2xs flex flex-wrap items-center gap-2 font-sans">
+              {/* Search Input Field */}
+              <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={13} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search booking ref, customer, venue..."
+                  className="w-full pl-8 pr-7 py-1 text-xs bg-white border border-slate-200 text-slate-800 placeholder:text-slate-400 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 h-8 transition-colors"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X size={12} />
+                  </button>
                 )}
               </div>
-            </div>
 
-            {/* Status Tabs Bar & Sort By Toolbar */}
-            <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
-              {/* Filter Tabs */}
-              <div className="flex items-center gap-1 overflow-x-auto pb-1 max-w-full">
-                {[
-                  { id: "all", label: "All Bookings" },
-                  { id: "upcoming", label: "Upcoming" },
-                  { id: "this_week", label: "This Week" },
-                  { id: "cancellations", label: `Cancellations${kpiStats.cancellationRequests > 0 ? ` (${kpiStats.cancellationRequests})` : ""}` },
-                  { id: "completed", label: "Completed" },
-                  { id: "cancelled", label: "Cancelled" },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setFilter(tab.id)}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                      filter === tab.id
-                        ? "bg-primary text-primary-foreground shadow-2xs"
-                        : "bg-card border border-border/70 text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
+              <div className="h-4 w-px bg-slate-200 hidden sm:block" />
 
-              {/* Sort By Dropdown */}
-              <div className="flex items-center gap-1.5 text-xs shrink-0">
-                <span className="text-muted-foreground">Sort by:</span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-background border border-input rounded-lg px-2 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer h-7"
+              {/* Status Filter Pill with Counts */}
+              <FilterPill
+                label="Status"
+                icon={Sliders}
+                value={filter}
+                defaultValue="all"
+                onSelect={(val) => setFilter(val)}
+                options={[
+                  { value: "all", label: "All Bookings", count: statusCounts.all },
+                  { value: "upcoming", label: "Upcoming", count: statusCounts.upcoming, icon: Calendar },
+                  { value: "this_week", label: "This Week", count: statusCounts.this_week, icon: Clock },
+                  { value: "cancellations", label: "Cancellations", count: statusCounts.cancellations, icon: AlertTriangle },
+                  { value: "completed", label: "Completed", count: statusCounts.completed, icon: CheckCircle2 },
+                  { value: "cancelled", label: "Cancelled", count: statusCounts.cancelled, icon: XCircle },
+                ]}
+              />
+
+              {/* Format / Archetype Filter Pill */}
+              <FilterPill
+                label="Format"
+                icon={Palette}
+                value={archetypeFilter}
+                defaultValue="all"
+                onSelect={(val) => setArchetypeFilter(val)}
+                options={[
+                  { value: "all", label: "All Formats" },
+                  { value: "package", label: "Standard Packages", icon: Package },
+                  { value: "bespoke", label: "Custom Styling", icon: Palette },
+                  { value: "food_only", label: "Food Only", icon: Utensils },
+                ]}
+              />
+
+              {/* Event Type Filter Pill */}
+              {availableEventTypes.length > 0 && (
+                <FilterPill
+                  label="Event Type"
+                  icon={Tag}
+                  value={eventTypeFilter}
+                  defaultValue="all"
+                  onSelect={(val) => setEventTypeFilter(val)}
+                  options={[
+                    { value: "all", label: "All Event Types" },
+                    ...availableEventTypes.map((type) => ({ value: type, label: type })),
+                  ]}
+                />
+              )}
+
+              {/* Sort By Filter Pill */}
+              <FilterPill
+                label="Sort"
+                icon={ArrowUpRight}
+                value={sortBy}
+                defaultValue="event_date"
+                align="end"
+                className="sm:ml-auto"
+                onSelect={(val) => setSortBy(val)}
+                options={[
+                  { value: "event_date", label: "Event Date (Soonest)" },
+                  { value: "newest", label: "Created Date (Newest)" },
+                  { value: "total_amount", label: "Total Amount (High-Low)" },
+                  { value: "guests", label: "Guest Count (High-Low)" },
+                ]}
+              />
+
+              {/* Global Clear Filters */}
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0"
                 >
-                  <option value="event_date">Event Date (Soonest)</option>
-                  <option value="newest">Created Date (Newest)</option>
-                  <option value="total_amount">Total Amount (High-Low)</option>
-                  <option value="guests">Guest Count (High-Low)</option>
-                </select>
-              </div>
+                  <X size={12} />
+                  <span>Reset</span>
+                </button>
+              )}
             </div>
 
             {/* Reservations Table */}
@@ -801,11 +878,11 @@ export default function AdminReservations() {
                             {/* Event & Package */}
                             <td className="py-2.5 px-3">
                               <div className="space-y-0.5">
-                                <p className="font-medium text-foreground text-xs truncate max-w-[140px]">{r.eventType}</p>
+                                <p className="font-medium text-foreground text-xs truncate max-w-[140px]">{r.eventTitle || r.eventType}</p>
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   {r.isCustomSetup ? (
                                     <span className="px-1.5 py-0.2 rounded font-mono bg-blue-100 text-blue-800 text-[9.5px] font-bold inline-flex items-center gap-1 border border-blue-200">
-                                      <Sparkles size={9} /> Custom Setup
+                                      <Palette size={9} /> Custom Setup
                                     </span>
                                   ) : (
                                     <p className="text-[11px] text-muted-foreground truncate max-w-[140px]">{r.pkg}</p>
@@ -1196,12 +1273,12 @@ export default function AdminReservations() {
                         </div>
                       </div>
 
-                      {/* Bespoke Custom Setup Concept Card (When Applicable) */}
+                      {/* Custom Setup Concept Card (When Applicable) */}
                       {selectedBooking.isCustomSetup && (
                         <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/40 border border-blue-200/80 rounded-xl p-3.5 space-y-3">
                           <div className="flex items-center justify-between gap-2 border-b border-blue-200/60 pb-2">
                             <h5 className="font-bold text-[10px] uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
-                              <Sparkles size={12} className="text-blue-600" /> Bespoke Styling Concept &amp; Pegs
+                              <Palette size={12} className="text-blue-600" /> Custom Styling Concept &amp; Pegs
                             </h5>
                             <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[9px] font-bold">
                               Design from Scratch

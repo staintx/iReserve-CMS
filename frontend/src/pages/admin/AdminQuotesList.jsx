@@ -6,6 +6,7 @@ import ConvertBookingModal from "../../components/admin/quotation/ConvertBooking
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
+import FilterPill from "../../components/admin/table/FilterPill";
 import { 
   FileText, 
   Clock, 
@@ -33,6 +34,7 @@ import {
   ArrowUpRight,
   Edit3,
   RotateCcw,
+  Palette,
   Sparkles,
   Info,
   DollarSign,
@@ -231,6 +233,26 @@ export default function AdminQuotesList() {
     setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Active filter tracking & global reset
+  const hasActiveFilters = Boolean(
+    search.trim() ||
+    activeTab !== "all" ||
+    archetypeFilter !== "all" ||
+    eventTypeFilter !== "all" ||
+    dateRangeFilter !== "all" ||
+    sortBy !== "newest"
+  );
+
+  const clearFilters = () => {
+    setSearch("");
+    setActiveTab("all");
+    setArchetypeFilter("all");
+    setEventTypeFilter("all");
+    setDateRangeFilter("all");
+    setSortBy("newest");
+    setCurrentPage(1);
+  };
+
   /** Check if quote is awaiting deposit */
   const isAwaitingDeposit = useCallback((q) => {
     const isAccepted =
@@ -311,7 +333,7 @@ export default function AdminQuotesList() {
         inquiryId: inq._id || latest.inquiry_id,
         quotationNumber: latest.quotation_number || `QTN-${latest._id.slice(-6).toUpperCase()}`,
         reference: inq.reference || `INQ-${(inq._id || "").slice(-6).toUpperCase()}`,
-        eventType: inq.event_type || "Event",
+        eventType: inq.event_type === "Other" && inq.event_type_other ? inq.event_type_other : (inq.event_type || "Event"),
         customerName,
         customerPhone,
         customerEmail,
@@ -374,7 +396,7 @@ export default function AdminQuotesList() {
   // Unique Event Types for Dropdown Filter
   const availableEventTypes = useMemo(() => {
     const types = new Set(groupedQuotations.map(q => q.eventType).filter(Boolean));
-    return Array.from(types);
+    return Array.from(types).sort((a, b) => a.localeCompare(b));
   }, [groupedQuotations]);
 
   // Metrics KPI calculations (STRICTLY 4 CARDS & MUTUALLY EXCLUSIVE TABS)
@@ -555,17 +577,6 @@ export default function AdminQuotesList() {
     }
   };
 
-  /** Reset all search & filter dropdowns */
-  const clearFilters = () => {
-    setSearch("");
-    setSortBy("newest");
-    setDateRangeFilter("all");
-    setEventTypeFilter("all");
-    setArchetypeFilter("all");
-    setActiveTab("all");
-    setCurrentPage(1);
-  };
-
   // Close drawer on Escape key
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -630,159 +641,141 @@ export default function AdminQuotesList() {
               />
             </div>
 
-            {/* Stacked Label Filter Controls Bar (With Sort By Control) */}
-            <div className="bg-card border border-border/70 rounded-xl p-2.5 sm:p-3 shadow-2xs">
-              <div className="flex flex-wrap items-end gap-2.5 text-xs">
-                
-                {/* Search Input Field */}
-                <div className="flex-1 min-w-[180px] flex flex-col gap-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Search Quotations</label>
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" size={13} />
-                    <input
-                      type="text"
-                      value={search}
-                      onChange={(e) => {
-                        setSearch(e.target.value);
-                        setCurrentPage(1);
-                      }}
-                      placeholder="Search quotation no., customer, event, venue..."
-                      className="w-full pl-8 pr-7 py-1 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-8"
-                    />
-                    {search && (
-                      <button
-                        onClick={() => setSearch("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
-                      >
-                        <X size={12} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Sort By Dropdown (Replaces Status Dropdown) */}
-                <div className="flex flex-col gap-1 min-w-[130px] shrink-0">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Sort By</label>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full bg-background border border-input rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer h-8"
-                  >
-                    <option value="newest">Newest</option>
-                    <option value="oldest">Oldest</option>
-                    <option value="recently_updated">Recently Updated</option>
-                    <option value="event_date">Event Date</option>
-                    <option value="total_amount">Total Amount</option>
-                  </select>
-                </div>
-
-                {/* Event Type Dropdown */}
-                <div className="flex flex-col gap-1 min-w-[120px] shrink-0">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Event Type</label>
-                  <select
-                    value={eventTypeFilter}
-                    onChange={(e) => {
-                      setEventTypeFilter(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="w-full bg-background border border-input rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer h-8"
-                  >
-                    <option value="all">All Event Types</option>
-                    {availableEventTypes.map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Date Range Dropdown */}
-                <div className="flex flex-col gap-1 min-w-[110px] shrink-0">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date Range</label>
-                  <select
-                    value={dateRangeFilter}
-                    onChange={(e) => {
-                      setDateRangeFilter(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="w-full bg-background border border-input rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer h-8"
-                  >
-                    <option value="all">All Dates</option>
-                    <option value="next_7">Next 7 Days</option>
-                    <option value="next_30">Next 30 Days</option>
-                  </select>
-                </div>
-
-                {/* Clear Filters Button */}
-                {(search || dateRangeFilter !== "all" || eventTypeFilter !== "all" || archetypeFilter !== "all" || activeTab !== "all" || sortBy !== "newest") && (
+            {/* Single-Line Interactive Filter Bar */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-2 sm:p-2.5 shadow-2xs flex flex-wrap items-center gap-2 font-sans">
+              {/* Search Input Field */}
+              <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={13} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder="Search quotation no., customer, venue..."
+                  className="w-full pl-8 pr-7 py-1 text-xs bg-white border border-slate-200 text-slate-800 placeholder:text-slate-400 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 h-8 transition-colors"
+                />
+                {search && (
                   <button
-                    onClick={clearFilters}
-                    className="text-xs font-semibold text-primary hover:underline h-8 flex items-center cursor-pointer"
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setCurrentPage(1);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title="Clear search"
                   >
-                    Reset
+                    <X size={12} />
                   </button>
                 )}
               </div>
-            </div>
 
-            {/* Status Tabs & Archetype Row */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-border/40">
-                {[
-                  { id: "all", label: `All (${metrics.totalQuotations})` },
-                  { id: "draft", label: `Draft (${metrics.draftCount})` },
-                  { id: "sent", label: `Sent (${metrics.sentCount})` },
-                  { id: "revision", label: `Revision Requested (${metrics.revisionCount})` },
-                  { id: "accepted", label: `Accepted (${metrics.acceptedCount})` },
-                  { id: "converted", label: `Converted (${metrics.convertedCount})` },
-                  { id: "expired", label: `Expired (${metrics.expiredCount})` },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      setActiveTab(tab.id);
-                      setCurrentPage(1);
-                    }}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
-                      activeTab === tab.id
-                        ? "bg-primary text-white shadow-2xs"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
+              <div className="h-4 w-px bg-slate-200 hidden sm:block" />
 
-              {/* Service Type / Archetype Filter Chips */}
-              <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground shrink-0">Format:</span>
-                {[
-                  { id: "all", label: "All Formats" },
-                  { id: "package", label: "Standard Packages" },
-                  { id: "bespoke", label: "Bespoke Styling", icon: Sparkles },
-                  { id: "food_only", label: "Food Only", icon: Utensils },
-                ].map((arch) => {
-                  const Icon = arch.icon;
-                  const active = archetypeFilter === arch.id;
-                  return (
-                    <button
-                      key={arch.id}
-                      type="button"
-                      onClick={() => {
-                        setArchetypeFilter(arch.id);
-                        setCurrentPage(1);
-                      }}
-                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors cursor-pointer inline-flex items-center gap-1 whitespace-nowrap ${
-                        active
-                          ? "bg-slate-900 text-white shadow-2xs dark:bg-slate-100 dark:text-slate-900"
-                          : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50"
-                      }`}
-                    >
-                      {Icon && <Icon size={11} />}
-                      <span>{arch.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              {/* Status Filter Pill with Live Counts */}
+              <FilterPill
+                label="Status"
+                icon={Sliders}
+                value={activeTab}
+                defaultValue="all"
+                onSelect={(val) => {
+                  setActiveTab(val);
+                  setCurrentPage(1);
+                }}
+                options={[
+                  { value: "all", label: "All Statuses", count: metrics.totalQuotations },
+                  { value: "draft", label: "Draft", count: metrics.draftCount, icon: Edit3 },
+                  { value: "sent", label: "Sent", count: metrics.sentCount, icon: Send },
+                  { value: "revision", label: "Revision Requested", count: metrics.revisionCount, icon: RotateCcw },
+                  { value: "accepted", label: "Accepted", count: metrics.acceptedCount, icon: CheckCircle },
+                  { value: "converted", label: "Converted", count: metrics.convertedCount, icon: CheckCircle2 },
+                  { value: "expired", label: "Expired", count: metrics.expiredCount, icon: AlertTriangle },
+                ]}
+              />
+
+              {/* Format / Archetype Filter Pill */}
+              <FilterPill
+                label="Format"
+                icon={Palette}
+                value={archetypeFilter}
+                defaultValue="all"
+                onSelect={(val) => {
+                  setArchetypeFilter(val);
+                  setCurrentPage(1);
+                }}
+                options={[
+                  { value: "all", label: "All Formats" },
+                  { value: "package", label: "Standard Packages", icon: Package },
+                  { value: "bespoke", label: "Custom Styling", icon: Palette },
+                  { value: "food_only", label: "Food Only", icon: Utensils },
+                ]}
+              />
+
+              {/* Event Type Filter Pill */}
+              {availableEventTypes.length > 0 && (
+                <FilterPill
+                  label="Event Type"
+                  icon={Tag}
+                  value={eventTypeFilter}
+                  defaultValue="all"
+                  onSelect={(val) => {
+                    setEventTypeFilter(val);
+                    setCurrentPage(1);
+                  }}
+                  options={[
+                    { value: "all", label: "All Event Types" },
+                    ...availableEventTypes.map((type) => ({ value: type, label: type })),
+                  ]}
+                />
+              )}
+
+              {/* Date Range Filter Pill */}
+              <FilterPill
+                label="Date Range"
+                icon={Calendar}
+                value={dateRangeFilter}
+                defaultValue="all"
+                onSelect={(val) => {
+                  setDateRangeFilter(val);
+                  setCurrentPage(1);
+                }}
+                options={[
+                  { value: "all", label: "All Dates" },
+                  { value: "next_7", label: "Next 7 Days" },
+                  { value: "next_30", label: "Next 30 Days" },
+                ]}
+              />
+
+              {/* Sort By Filter Pill */}
+              <FilterPill
+                label="Sort"
+                icon={ArrowUpRight}
+                value={sortBy}
+                defaultValue="newest"
+                align="end"
+                className="sm:ml-auto"
+                onSelect={(val) => setSortBy(val)}
+                options={[
+                  { value: "newest", label: "Newest First" },
+                  { value: "oldest", label: "Oldest First" },
+                  { value: "recently_updated", label: "Recently Updated" },
+                  { value: "event_date", label: "Event Date" },
+                  { value: "total_amount", label: "Total Amount" },
+                ]}
+              />
+
+              {/* Global Clear Filters */}
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                >
+                  <X size={12} />
+                  <span>Reset</span>
+                </button>
+              )}
             </div>
 
             {/* Main Table Container */}
@@ -885,7 +878,7 @@ export default function AdminQuotesList() {
                                   <div className="flex items-center gap-1 pt-0.5">
                                     {item.isCustomSetup ? (
                                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/80">
-                                        <Sparkles size={9} /> Bespoke
+                                        <Palette size={9} /> Custom Setup
                                       </span>
                                     ) : item.isFoodOnly ? (
                                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80">
@@ -1211,12 +1204,12 @@ export default function AdminQuotesList() {
                   </div>
                 </div>
 
-                {/* Bespoke Custom Setup Concept Card (When Applicable) */}
+                {/* Custom Setup Concept Card (When Applicable) */}
                 {selectedQuotation.isCustomSetup && (
                   <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/40 border border-blue-200/80 rounded-xl p-3.5 space-y-3">
                     <div className="flex items-center justify-between gap-2 border-b border-blue-200/60 pb-2">
                       <h5 className="font-bold text-[10px] uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
-                        <Sparkles size={12} className="text-blue-600" /> Bespoke Styling Concept &amp; Pegs
+                        <Palette size={12} className="text-blue-600" /> Custom Styling Concept &amp; Pegs
                       </h5>
                       <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[9px] font-bold">
                         Design from Scratch

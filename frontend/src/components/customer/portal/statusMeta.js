@@ -9,6 +9,7 @@ import {
   Utensils,
   Layers,
   PartyPopper,
+  Truck,
 } from "lucide-react";
 import { isSpecialOffer } from "../../../lib/specialOffers";
 
@@ -194,7 +195,20 @@ export const recordTitle = (record) => {
 /* ── Bookings ─────────────────────────────────────────────────── */
 
 export const BOOKING_STATUS_GROUPS = {
-  confirmed: ["confirmed", "converted to booking", "preparing", "ongoing", "ocular scheduled", "ready for event"],
+  confirmed: [
+    "confirmed",
+    "converted to booking",
+    "preparing",
+    "food prep",
+    "food preparation",
+    "out for delivery",
+    "in transit",
+    "ready for delivery",
+    "delivered",
+    "ongoing",
+    "ocular scheduled",
+    "ready for event"
+  ],
   deposit_needed: ["deposit pending", "pending deposit", "customer_accepted"],
   completed: ["completed"],
   cancelled: ["cancelled"],
@@ -253,12 +267,29 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
     };
   }
 
-  if (raw === "preparing") {
+  if (["out for delivery", "in transit", "ready for delivery"].includes(raw)) {
     return {
       tone: "info",
-      label: "Being Prepared",
+      label: "Out for Delivery",
+      icon: Truck,
+      notice: {
+        tone: "info",
+        title: "Your food order is on the way!",
+        text: `Our delivery courier has been dispatched to your drop-off location. ${nothingOrBalance}`
+      },
+    };
+  }
+
+  if (["preparing", "food prep", "food preparation"].includes(raw)) {
+    return {
+      tone: "info",
+      label: "Food Prep in Progress",
       icon: ChefHat,
-      notice: { tone: balance > 0 ? "neutral" : "info", title: "We're preparing your event.", text: nothingOrBalance },
+      notice: {
+        tone: balance > 0 ? "neutral" : "info",
+        title: "We're preparing your food in the kitchen.",
+        text: `Our culinary team is actively preparing and packing your party trays. ${nothingOrBalance}`
+      },
     };
   }
 
@@ -266,12 +297,16 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
     return { tone: "info", label: "Happening Now", icon: ChefHat, notice: null };
   }
 
-  if (raw === "ready for event") {
+  if (["ready for event", "delivered"].includes(raw)) {
     return {
       tone: "success",
-      label: "Ready For Event",
+      label: raw === "delivered" ? "Delivered" : "Ready For Event",
       icon: CheckCircle2,
-      notice: { tone: "success", title: "You're all set.", text: "Everything is prepared and ready for your event." },
+      notice: {
+        tone: "success",
+        title: raw === "delivered" ? "Food order delivered!" : "You're all set.",
+        text: raw === "delivered" ? `Your order has arrived at the venue. ${nothingOrBalance}` : "Everything is prepared and ready for your event."
+      },
     };
   }
 

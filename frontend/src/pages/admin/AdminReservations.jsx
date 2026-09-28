@@ -52,7 +52,7 @@ import ConfirmDialog from "../../components/common/ConfirmDialog";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
 import { menuLineTotal } from "../../utils/quotationPricing";
-import { recordTitle } from "../../components/customer/portal/statusMeta";
+import { recordTitle, isFoodOnly } from "../../components/customer/portal/statusMeta";
 
 /**
  * Format currency to PHP string (e.g. ₱12,500.00)
@@ -298,6 +298,7 @@ export default function AdminReservations() {
           coordinator: b.event_manager_id?.full_name || "Unassigned",
           staffAssignments: Array.isArray(b.staff_assignments) ? b.staff_assignments : [],
           staffCount: Array.isArray(b.staff_assignments) ? b.staff_assignments.length : 0,
+          isFoodOnly: isFoodOnly(b.service_type),
           depositPaid: depositPaidBool,
           isFullyPaid,
           quotationBacked: quotationBackedIds.has(String(b._id)),
@@ -344,6 +345,11 @@ export default function AdminReservations() {
         "ready for event",
         "ocular scheduled",
         "preparing",
+        "food prep",
+        "out for delivery",
+        "in transit",
+        "ready for delivery",
+        "delivered",
         "ongoing",
         "final payment pending"
       ].includes(statusLower);
@@ -847,11 +853,11 @@ export default function AdminReservations() {
                                 )}
                                 {r.staffCount > 0 ? (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                    <UserCheck size={10} /> {r.staffCount} Staff
+                                    <UserCheck size={10} /> {r.isFoodOnly ? `${r.staffCount} Kitchen/Courier` : `${r.staffCount} Staff`}
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                    No Team
+                                    {r.isFoodOnly ? "No Driver" : "No Team"}
                                   </span>
                                 )}
                               </div>

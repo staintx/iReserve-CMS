@@ -46,6 +46,7 @@ import {
 import AdminLayout from "../../components/layout/AdminLayout";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 import AdminAssignStaffModal from "../../components/admin/ui/AdminAssignStaffModal";
 import VerifyEquipmentReturnsModal from "../../components/admin/ui/VerifyEquipmentReturnsModal";
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
@@ -98,6 +99,10 @@ export default function AdminBookingDetails() {
   const [showProposalModal, setShowProposalModal] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showVerifyReturnsModal, setShowVerifyReturnsModal] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [showStatusSelectModal, setShowStatusSelectModal] = useState(false);
+  const [selectedNewStatus, setSelectedNewStatus] = useState("");
+  const [statusConfirmTarget, setStatusConfirmTarget] = useState(null);
 
   // Damage / Loss Charge Modal state (Admin Only)
   const [showDamageChargeModal, setShowDamageChargeModal] = useState(false);
@@ -879,6 +884,23 @@ export default function AdminBookingDetails() {
     }
   };
 
+  const handleUpdateStatus = async (newStatus, successMsg) => {
+    setUpdatingStatus(true);
+    try {
+      if (newStatus === "completed" || newStatus === "delivered") {
+        await AdminAPI.markBookingCompleted(booking._id);
+      } else {
+        await AdminAPI.updateBooking(booking._id, { status: newStatus });
+      }
+      notify(successMsg || `Booking status updated to ${newStatus}.`, "success");
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to update booking status.", "error");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   const handleMarkCompleted = async () => {
     if (!window.confirm("Are you sure you want to mark this event as Completed? This will finalize the event and allow the customer to leave a review.")) return;
     try {
@@ -958,22 +980,120 @@ export default function AdminBookingDetails() {
                 <MessageSquare size={13} /> Message
               </Btn>
 
-              {booking.status === "inquiry" && (
-                <Btn size="sm" variant="primary" onClick={() => setShowQuoteModal(true)}>
-                  <Send size={13} /> Send Official Quote
-                </Btn>
-              )}
+              {/* Food-Only Lifecycle Progressive Actions */}
+              {isFoodOnlyService ? (
+                <>
+                  {["pending deposit", "Deposit Pending"].includes(rawStatus) && (
+                    <Btn size="sm" variant="primary" onClick={handleApprove}>
+                      <Check size={13} /> Confirm Booking
+                    </Btn>
+                  )}
 
-              {["pending deposit", "Deposit Pending"].includes(booking.status) && (
-                <Btn size="sm" variant="primary" onClick={handleApprove}>
-                  <Check size={13} /> Confirm Booking
-                </Btn>
-              )}
+                  {["confirmed", "converted to booking"].includes(rawStatus) && (
+                    <Btn
+                      size="sm"
+                      variant="primary"
+                      disabled={updatingStatus}
+                      onClick={() => setStatusConfirmTarget({
+                        status: "preparing",
+                        title: "Start Food Preparation?",
+                        message: "Are you sure you want to update this booking to 'Food Prep'? This will notify the customer that the kitchen is actively preparing and packing their party trays.",
+                        confirmText: "Yes, Start Food Prep",
+                        successMsg: "Food preparation started! Customer tracker updated to Food Prep."
+                      })}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
+                      title="Mark as Food Prep (Step 6)"
+                    >
+                      <Utensils size={13} /> Start Food Prep
+                    </Btn>
+                  )}
 
-              {["confirmed", "Confirmed", "preparing", "Ready for Event", "ready for event", "ongoing"].includes(booking.status) && (
-                <Btn size="sm" variant="primary" onClick={handleMarkCompleted} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-2xs">
-                  <CheckCircle2 size={13} /> Mark Completed
-                </Btn>
+                  {["preparing", "food preparation", "food prep", "ongoing"].includes(rawStatus) && (
+                    <Btn
+                      size="sm"
+                      variant="primary"
+                      disabled={updatingStatus}
+                      onClick={() => setStatusConfirmTarget({
+                        status: "out for delivery",
+                        title: "Dispatch Out for Delivery?",
+                        message: "Are you sure you want to dispatch this order? This will update the customer tracker to 'Out for Delivery' with the delivery courier on the way.",
+                        confirmText: "Yes, Dispatch Order",
+                        successMsg: "Dispatched out for delivery! Customer tracker updated to Out for Delivery."
+                      })}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
+                      title="Mark as Out for Delivery (Step 7)"
+                    >
+                      <Truck size={13} /> Dispatch Out for Delivery
+                    </Btn>
+                  )}
+
+                  {["out for delivery", "in transit", "ready for delivery"].includes(rawStatus) && (
+                    <Btn
+                      size="sm"
+                      variant="primary"
+                      disabled={updatingStatus}
+                      onClick={() => setStatusConfirmTarget({
+                        status: "completed",
+                        title: "Mark as Delivered & Completed?",
+                        message: "Are you sure you want to finalize this food delivery as Completed? This will conclude the booking lifecycle and invite the customer to leave a review.",
+                        confirmText: "Yes, Mark Completed",
+                        successMsg: "Event marked as Completed successfully!"
+                      })}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
+                      title="Finalize delivery as Completed (Step 8)"
+                    >
+                      <CheckCircle2 size={13} /> Mark Delivered &amp; Completed
+                    </Btn>
+                  )}
+
+                  {/* Manual Status Override / Quick Select */}
+                  {!["cancelled", "completed"].includes(rawStatus) && (
+                    <Btn
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setSelectedNewStatus(booking.status);
+                        setShowStatusSelectModal(true);
+                      }}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                      title="Manually adjust booking status"
+                    >
+                      Change Status...
+                    </Btn>
+                  )}
+                </>
+              ) : (
+                /* Full Service Setup Progressive Action Buttons */
+                <>
+                  {booking.status === "inquiry" && (
+                    <Btn size="sm" variant="primary" onClick={() => setShowQuoteModal(true)}>
+                      <Send size={13} /> Send Official Quote
+                    </Btn>
+                  )}
+
+                  {["pending deposit", "Deposit Pending"].includes(booking.status) && (
+                    <Btn size="sm" variant="primary" onClick={handleApprove}>
+                      <Check size={13} /> Confirm Booking
+                    </Btn>
+                  )}
+
+                  {["confirmed", "Confirmed", "preparing", "Ready for Event", "ready for event", "ongoing"].includes(booking.status) && (
+                    <Btn
+                      size="sm"
+                      variant="primary"
+                      onClick={() => setStatusConfirmTarget({
+                        status: "completed",
+                        title: "Mark Event as Completed?",
+                        message: "Are you sure you want to mark this event as Completed? This will finalize the event and allow the customer to leave a review.",
+                        confirmText: "Yes, Mark Completed",
+                        successMsg: "Event marked as Completed successfully!"
+                      })}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-2xs"
+                    >
+                      <CheckCircle2 size={13} /> Mark Completed
+                    </Btn>
+                  )}
+                </>
               )}
 
               {!["cancelled", "completed"].includes(rawStatus) && (
@@ -1175,20 +1295,20 @@ export default function AdminBookingDetails() {
           <div className="bg-card border border-border/80 rounded-xl p-3 sm:p-3.5 space-y-1 shadow-2xs">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase tracking-wider">
-                <ShieldCheck size={12} className="text-primary" /> Coordinator &amp; Crew
+                <ShieldCheck size={12} className="text-primary" /> {isFoodOnlyService ? "Kitchen & Delivery" : "Coordinator & Crew"}
               </span>
               {Array.isArray(booking.staff_assignments) && booking.staff_assignments.length > 0 ? (
                 <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                  {booking.staff_assignments.length} Crew
+                  {booking.staff_assignments.length} Assigned
                 </span>
               ) : (
                 <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
-                  No Team
+                  {isFoodOnlyService ? "No Driver" : "No Team"}
                 </span>
               )}
             </div>
             <div className="font-bold text-xs sm:text-sm text-foreground truncate">
-              {booking.event_manager_id?.full_name || "Unassigned Coordinator"}
+              {booking.event_manager_id?.full_name || (isFoodOnlyService ? "Unassigned Kitchen Lead" : "Unassigned Coordinator")}
             </div>
             <div className="text-[11px] text-muted-foreground truncate flex items-center gap-1">
               <Phone size={10} className="text-muted-foreground/60" />
@@ -1213,10 +1333,10 @@ export default function AdminBookingDetails() {
               },
               { 
                 id: "staff_equipment", 
-                label: "Staff & Equipment", 
-                icon: Users,
-                badge: equipmentSummary.hasIssues ? "Issue Reported" : (equipmentSummary.hasReturnsLogged ? "Turnover Logged" : undefined),
-                count: (booking.staff_assignments?.length || 0) + (equipmentItems.length || 0) || undefined
+                label: isFoodOnlyService ? "Kitchen & Delivery Dispatch" : "Staff & Equipment", 
+                icon: isFoodOnlyService ? Truck : Users,
+                badge: !isFoodOnlyService && equipmentSummary.hasIssues ? "Issue Reported" : (!isFoodOnlyService && equipmentSummary.hasReturnsLogged ? "Turnover Logged" : undefined),
+                count: (booking.staff_assignments?.length || 0) + (isFoodOnlyService ? 0 : (equipmentItems.length || 0)) || undefined
               },
               { 
                 id: "financials_history", 
@@ -1911,460 +2031,671 @@ export default function AdminBookingDetails() {
               </div>
 
             </div>
-            );
-          })()}
+          );
+        })()}
 
-          {/* ============================================================ */}
-          {/* TAB 3: STAFF & EQUIPMENT                                     */}
-          {/* ============================================================ */}
-          {activeTab === "staff_equipment" && (
+        {/* ============================================================ */}
+        {/* TAB 3: STAFF & EQUIPMENT / KITCHEN & DELIVERY DISPATCH       */}
+        {/* ============================================================ */}
+        {activeTab === "staff_equipment" && (
             <div className="p-4 sm:p-5 space-y-4">
-              
-              {/* Coordinator Management */}
-              <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                  <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <ShieldCheck size={13} className="text-primary" /> Event Coordinator
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedManagerId(booking.event_manager_id?._id || booking.event_manager_id || "");
-                      setShowAssignManagerModal(true);
-                    }}
-                    className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    {booking.event_manager_id ? <><Edit size={11} /> Change Coordinator</> : <><UserPlus size={11} /> Assign Coordinator</>}
-                  </button>
-                </div>
-
-                {booking.event_manager_id ? (
-                  <div className="p-3 bg-card border border-border/60 rounded-lg flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary font-bold flex items-center justify-center shrink-0 border border-primary/20 text-sm">
-                        {(booking.event_manager_id.full_name || "M").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+              {isFoodOnlyService ? (
+                <>
+                  {/* Food-Only Logistics Banner */}
+                  <div className="bg-gradient-to-r from-blue-50 via-indigo-50/40 to-slate-50 border border-blue-200/80 rounded-xl p-4 flex items-start gap-3 shadow-2xs">
+                    <div className="w-9 h-9 rounded-lg bg-blue-100 border border-blue-200 text-blue-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <Truck size={18} />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-xs sm:text-sm text-blue-950">
+                          Food-Only Drop-Off &amp; Delivery Logistics
+                        </h4>
+                        <span className="text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-full">
+                          Drop-off Fulfillment
+                        </span>
                       </div>
-                      <div className="min-w-0">
-                        <div className="font-bold text-foreground text-sm truncate flex items-center gap-2">
-                          <span>{booking.event_manager_id.full_name}</span>
-                          <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
-                            Active Lead
+                      <p className="text-[11.5px] text-blue-900/80 leading-relaxed">
+                        On-site table servers and venue equipment turnover inspections are omitted for food-only catering. Manage the kitchen preparation supervisor, courier assignment, and drop-off delivery destination below.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Kitchen Lead & Dispatch Supervisor */}
+                  <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                      <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <ShieldCheck size={13} className="text-primary" /> Kitchen Lead &amp; Dispatch Supervisor
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedManagerId(booking.event_manager_id?._id || booking.event_manager_id || "");
+                          setShowAssignManagerModal(true);
+                        }}
+                        className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        {booking.event_manager_id ? <><Edit size={11} /> Change Kitchen Lead</> : <><UserPlus size={11} /> Assign Kitchen Lead</>}
+                      </button>
+                    </div>
+
+                    {booking.event_manager_id ? (
+                      <div className="p-3 bg-card border border-border/60 rounded-lg flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary font-bold flex items-center justify-center shrink-0 border border-primary/20 text-sm">
+                            {(booking.event_manager_id.full_name || "M").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-foreground text-sm truncate flex items-center gap-2">
+                              <span>{booking.event_manager_id.full_name}</span>
+                              <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+                                Dispatch Lead
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground flex items-center gap-3 mt-0.5">
+                              {booking.event_manager_id.email && <span>{booking.event_manager_id.email}</span>}
+                              {booking.event_manager_id.phone && <span>• {booking.event_manager_id.phone}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div 
+                        onClick={() => {
+                          setSelectedManagerId("");
+                          setShowAssignManagerModal(true);
+                        }}
+                        className="p-5 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
+                      >
+                        <UserPlus size={18} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
+                        <p className="text-xs font-semibold text-foreground">No Kitchen Lead Assigned</p>
+                        <p className="text-[11px] text-muted-foreground">Click here to assign a kitchen manager to supervise food preparation and delivery dispatch.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dispatched Kitchen Staff & Delivery Courier */}
+                  <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <Users size={13} className="text-primary" /> Dispatched Kitchen Staff &amp; Delivery Courier
+                        </h3>
+                        <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                          {booking.staff_assignments?.length || 0} Assigned
+                        </span>
+                      </div>
+                      <Btn
+                        size="xs"
+                        variant="secondary"
+                        onClick={() => setShowAssignTeamModal(true)}
+                      >
+                        {booking.staff_assignments?.length > 0 ? <><Edit size={12} /> Edit Crew &amp; Driver</> : <><UserPlus size={12} /> Assign Crew &amp; Driver</>}
+                      </Btn>
+                    </div>
+
+                    {Array.isArray(booking.staff_assignments) && booking.staff_assignments.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                        {booking.staff_assignments.map((assignment, idx) => {
+                          const memberName = assignment.name || assignment.user_id?.full_name || "Staff Member";
+                          const memberPhone = assignment.phone || assignment.user_id?.phone || "No phone";
+                          const memberRole = assignment.role || "Kitchen Crew";
+                          const isHeadCook = memberRole.toLowerCase().includes("cook") || memberRole.toLowerCase().includes("chef");
+                          const isDriver = memberRole.toLowerCase().includes("driver") || memberRole.toLowerCase().includes("courier") || memberRole.toLowerCase().includes("delivery");
+
+                          return (
+                            <div key={idx} className="p-3 bg-card border border-border/60 rounded-lg flex items-start gap-2.5 text-xs shadow-2xs">
+                              <div className={`w-8 h-8 rounded-md font-bold text-xs flex items-center justify-center shrink-0 border ${
+                                isHeadCook ? "bg-amber-100 text-amber-900 border-amber-300" :
+                                isDriver ? "bg-blue-100 text-blue-900 border-blue-200" :
+                                "bg-emerald-100 text-emerald-900 border-emerald-200"
+                              }`}>
+                                {memberName.slice(0, 2).toUpperCase()}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="font-bold text-foreground truncate">{memberName}</span>
+                                  <span className={`text-[9px] font-bold uppercase tracking-tight px-1.5 py-0.2 rounded ${
+                                    isDriver ? "bg-blue-100 text-blue-800 border border-blue-200" : isHeadCook ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-muted text-muted-foreground"
+                                  }`}>
+                                    {memberRole}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-muted-foreground truncate mt-0.5 flex items-center gap-1">
+                                  <Phone size={10} className="text-muted-foreground/60 shrink-0" />
+                                  <span>{memberPhone}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div 
+                        onClick={() => setShowAssignTeamModal(true)}
+                        className="p-5 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
+                      >
+                        <Users size={18} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
+                        <p className="text-xs font-semibold text-foreground">No Kitchen Staff or Courier Assigned</p>
+                        <p className="text-[11px] text-muted-foreground">Click here to assign cooks, food preparation crew, and delivery drivers for dispatch.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Packaging & Drop-off Destination Card */}
+                  <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                      <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <MapPin size={13} className="text-primary" /> Delivery Destination &amp; Packaging Specs
+                      </h3>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
+                        <PackageCheck size={11} /> Food-Grade Trays &amp; Thermal Packaging
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {/* Destination Address & Contact */}
+                      <div className="p-3 bg-card border border-border/60 rounded-lg space-y-2 text-xs">
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                          Drop-Off Address
+                        </span>
+                        <p className="font-semibold text-foreground flex items-start gap-1.5">
+                          <MapPin size={13} className="text-primary shrink-0 mt-0.5" />
+                          <span>{booking.venue_address || booking.venue_type || booking.municipality || "Address TBA"}</span>
+                        </p>
+                        <div className="pt-2 border-t border-border/40 text-[11px] text-muted-foreground space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span>Recipient Contact:</span>
+                            <span className="font-semibold text-foreground">{customerName}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Phone Number:</span>
+                            <span className="font-semibold text-foreground">{booking.customer_id?.phone || booking.contact_phone || "N/A"}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>Target Dispatch Time:</span>
+                            <span className="font-semibold text-foreground">{booking.start_time || "TBA"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Packaging & Handling Specs */}
+                      <div className="p-3 bg-card border border-border/60 rounded-lg space-y-2 text-xs">
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                          Fulfillment Details
+                        </span>
+                        <div className="space-y-1.5 text-[11.5px]">
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Guest Headcount:</span>
+                            <span className="font-bold text-foreground">{guestCount} Pax</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Menu Dish Selections:</span>
+                            <span className="font-bold text-foreground">{booking.menu_items?.length || 0} Dishes</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Packaging Type:</span>
+                            <span className="font-semibold text-foreground">Heavy-duty insulated food-grade trays</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Turnover Inspection:</span>
+                            <span className="font-semibold text-emerald-700">Not Applicable (Drop-Off Only)</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Full-Service Catering Coordinator, Staff & Equipment Section */
+                <>
+                  {/* Coordinator Management */}
+                  <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                      <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <ShieldCheck size={13} className="text-primary" /> Event Coordinator
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedManagerId(booking.event_manager_id?._id || booking.event_manager_id || "");
+                          setShowAssignManagerModal(true);
+                        }}
+                        className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        {booking.event_manager_id ? <><Edit size={11} /> Change Coordinator</> : <><UserPlus size={11} /> Assign Coordinator</>}
+                      </button>
+                    </div>
+
+                    {booking.event_manager_id ? (
+                      <div className="p-3 bg-card border border-border/60 rounded-lg flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary font-bold flex items-center justify-center shrink-0 border border-primary/20 text-sm">
+                            {(booking.event_manager_id.full_name || "M").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-foreground text-sm truncate flex items-center gap-2">
+                              <span>{booking.event_manager_id.full_name}</span>
+                              <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+                                Active Lead
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground flex items-center gap-3 mt-0.5">
+                              {booking.event_manager_id.email && <span>{booking.event_manager_id.email}</span>}
+                              {booking.event_manager_id.phone && <span>• {booking.event_manager_id.phone}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div 
+                        onClick={() => {
+                          setSelectedManagerId("");
+                          setShowAssignManagerModal(true);
+                        }}
+                        className="p-5 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
+                      >
+                        <UserPlus size={18} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
+                        <p className="text-xs font-semibold text-foreground">No Coordinator Assigned</p>
+                        <p className="text-[11px] text-muted-foreground">Click here to assign an active manager to supervise this event.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Staff Team Dispatch */}
+                  <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <Users size={13} className="text-primary" /> Dispatched Staff Team &amp; Crew
+                        </h3>
+                        <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                          {booking.staff_assignments?.length || 0} Crew Members
+                        </span>
+                      </div>
+                      <Btn
+                        size="xs"
+                        variant="secondary"
+                        onClick={() => setShowAssignTeamModal(true)}
+                      >
+                        {booking.staff_assignments?.length > 0 ? <><Edit size={12} /> Edit Staff Team</> : <><UserPlus size={12} /> Assign Team</>}
+                      </Btn>
+                    </div>
+
+                    {Array.isArray(booking.staff_assignments) && booking.staff_assignments.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                        {booking.staff_assignments.map((assignment, idx) => {
+                          const memberName = assignment.name || assignment.user_id?.full_name || "Staff Member";
+                          const memberPhone = assignment.phone || assignment.user_id?.phone || "No phone";
+                          const memberRole = assignment.role || "Crew";
+                          const isHeadCook = memberRole.toLowerCase().includes("cook") || memberRole.toLowerCase().includes("chef");
+                          const isServer = memberRole.toLowerCase().includes("server");
+                          const isSetup = memberRole.toLowerCase().includes("setup");
+
+                          return (
+                            <div key={idx} className="p-3 bg-card border border-border/60 rounded-lg flex items-start gap-2.5 text-xs shadow-2xs">
+                              <div className={`w-8 h-8 rounded-md font-bold text-xs flex items-center justify-center shrink-0 border ${
+                                isHeadCook ? "bg-amber-100 text-amber-900 border-amber-300" :
+                                isServer ? "bg-blue-100 text-blue-900 border-blue-200" :
+                                isSetup ? "bg-emerald-100 text-emerald-900 border-emerald-200" :
+                                "bg-muted text-muted-foreground border-border"
+                              }`}>
+                                {memberName.slice(0, 2).toUpperCase()}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="font-bold text-foreground truncate">{memberName}</span>
+                                  <span className="text-[9px] font-bold uppercase tracking-tight px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
+                                    {memberRole}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-muted-foreground truncate mt-0.5 flex items-center gap-1">
+                                  <Phone size={10} className="text-muted-foreground/60 shrink-0" />
+                                  <span>{memberPhone}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div 
+                        onClick={() => setShowAssignTeamModal(true)}
+                        className="p-5 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
+                      >
+                        <Users size={18} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
+                        <p className="text-xs font-semibold text-foreground">No Crew Assigned</p>
+                        <p className="text-[11px] text-muted-foreground">Click here to dispatch head cooks, servers, and setup crew for event day.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Equipment Turnover & Return Verification */}
+                  <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-border/50 pb-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <Boxes size={13} className="text-primary" /> Assigned Equipment &amp; Turnover Status
+                        </h3>
+                        <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                          {equipmentItems.length} Dispatched Items
+                        </span>
+                        {booking.equipment_manager_verified?.confirmed ? (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
+                            <ShieldCheck size={11} /> Manager Verified
+                          </span>
+                        ) : equipmentSummary.hasReturnsLogged ? (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1">
+                            <AlertTriangle size={11} /> Staff Reported · Pending Verification
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded flex items-center gap-1">
+                            <Clock size={11} /> Pending Turnover
+                          </span>
+                        )}
+                      </div>
+
+                      <Btn
+                        size="xs"
+                        variant="primary"
+                        onClick={() => setShowVerifyReturnsModal(true)}
+                        className="font-bold gap-1 text-xs shrink-0 cursor-pointer"
+                      >
+                        <PackageCheck size={13} />
+                        {booking.equipment_manager_verified?.confirmed ? "Re-verify / Adjust Returns" : "Verify Equipment Returns"}
+                      </Btn>
+                    </div>
+
+                    {/* Verification & Staff Report Banner */}
+                    {booking.equipment_manager_verified?.confirmed ? (
+                      <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-lg text-xs space-y-1">
+                        <div className="flex items-center justify-between flex-wrap gap-2 text-emerald-950 font-semibold">
+                          <span className="flex items-center gap-1.5">
+                            <ShieldCheck size={14} className="text-emerald-600" />
+                            Manager Verification Confirmed by <strong>{booking.equipment_manager_verified.confirmed_by?.full_name || "Manager / Admin"}</strong>
+                          </span>
+                          {booking.equipment_manager_verified.confirmed_at && (
+                            <span className="text-emerald-800 text-[11px] font-normal">
+                              {formatDateTime(booking.equipment_manager_verified.confirmed_at)}
+                            </span>
+                          )}
+                        </div>
+                        {booking.equipment_manager_verified.additional_notes && (
+                          <p className="text-emerald-900 text-[11px] pl-5 italic">
+                            Inspection Notes: "{booking.equipment_manager_verified.additional_notes}"
+                          </p>
+                        )}
+                      </div>
+                    ) : equipmentSummary.hasReturnsLogged && (
+                      <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-lg text-xs space-y-1">
+                        <div className="flex items-center justify-between flex-wrap gap-2 text-amber-950 font-semibold">
+                          <span className="flex items-center gap-1.5">
+                            <AlertTriangle size={14} className="text-amber-600" />
+                            Turnover Report Submitted by Staff
+                          </span>
+                          {equipmentItems.some((it) => it.verified_at) && (
+                            <span className="text-amber-800 text-[11px] font-normal">
+                              {formatDateTime(equipmentItems.find((it) => it.verified_at)?.verified_at)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-amber-900 text-[11px] pl-5">
+                          Staff has submitted the equipment turnover report. Please review the counts and notes below and confirm verification.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Equipment Summary KPI Strip */}
+                    {equipmentItems.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Total Assigned</span>
+                          <span className="font-mono font-bold text-sm text-foreground">{equipmentSummary.totalAssigned}</span>
+                        </div>
+                        <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Returned (Good)</span>
+                          <span className="font-mono font-bold text-emerald-600">{equipmentSummary.totalReturned}</span>
+                        </div>
+                        <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Damaged / Broken</span>
+                          <span className={`font-mono font-bold text-sm ${equipmentSummary.totalDamaged > 0 ? "text-rose-600 font-bold" : "text-muted-foreground"}`}>
+                            {equipmentSummary.totalDamaged}
                           </span>
                         </div>
-                        <div className="text-[11px] text-muted-foreground flex items-center gap-3 mt-0.5">
-                          {booking.event_manager_id.email && <span>{booking.event_manager_id.email}</span>}
-                          {booking.event_manager_id.phone && <span>• {booking.event_manager_id.phone}</span>}
+                        <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Missing / Lost</span>
+                          <span className={`font-mono font-bold text-sm ${equipmentSummary.totalMissing > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}`}>
+                            {equipmentSummary.totalMissing}
+                          </span>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div 
-                    onClick={() => {
-                      setSelectedManagerId("");
-                      setShowAssignManagerModal(true);
-                    }}
-                    className="p-5 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
-                  >
-                    <UserPlus size={18} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
-                    <p className="text-xs font-semibold text-foreground">No Coordinator Assigned</p>
-                    <p className="text-[11px] text-muted-foreground">Click here to assign an active manager to supervise this event.</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Staff Team Dispatch */}
-              <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <Users size={13} className="text-primary" /> Dispatched Staff Team &amp; Crew
-                    </h3>
-                    <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                      {booking.staff_assignments?.length || 0} Crew Members
-                    </span>
-                  </div>
-                  <Btn
-                    size="xs"
-                    variant="secondary"
-                    onClick={() => setShowAssignTeamModal(true)}
-                  >
-                    {booking.staff_assignments?.length > 0 ? <><Edit size={12} /> Edit Staff Team</> : <><UserPlus size={12} /> Assign Team</>}
-                  </Btn>
-                </div>
-
-                {Array.isArray(booking.staff_assignments) && booking.staff_assignments.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                    {booking.staff_assignments.map((assignment, idx) => {
-                      const memberName = assignment.name || assignment.user_id?.full_name || "Staff Member";
-                      const memberPhone = assignment.phone || assignment.user_id?.phone || "No phone";
-                      const memberRole = assignment.role || "Crew";
-                      const isHeadCook = memberRole.toLowerCase().includes("cook") || memberRole.toLowerCase().includes("chef");
-                      const isServer = memberRole.toLowerCase().includes("server");
-                      const isSetup = memberRole.toLowerCase().includes("setup");
-
-                      return (
-                        <div key={idx} className="p-3 bg-card border border-border/60 rounded-lg flex items-start gap-2.5 text-xs shadow-2xs">
-                          <div className={`w-8 h-8 rounded-md font-bold text-xs flex items-center justify-center shrink-0 border ${
-                            isHeadCook ? "bg-amber-100 text-amber-900 border-amber-300" :
-                            isServer ? "bg-blue-100 text-blue-900 border-blue-200" :
-                            isSetup ? "bg-emerald-100 text-emerald-900 border-emerald-200" :
-                            "bg-muted text-muted-foreground border-border"
-                          }`}>
-                            {memberName.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="font-bold text-foreground truncate">{memberName}</span>
-                              <span className="text-[9px] font-bold uppercase tracking-tight px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
-                                {memberRole}
-                              </span>
-                            </div>
-                            <div className="text-[11px] text-muted-foreground truncate mt-0.5 flex items-center gap-1">
-                              <Phone size={10} className="text-muted-foreground/60 shrink-0" />
-                              <span>{memberPhone}</span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div 
-                    onClick={() => setShowAssignTeamModal(true)}
-                    className="p-5 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
-                  >
-                    <Users size={18} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
-                    <p className="text-xs font-semibold text-foreground">No Crew Assigned</p>
-                    <p className="text-[11px] text-muted-foreground">Click here to dispatch head cooks, servers, and setup crew for event day.</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Equipment Turnover & Return Verification */}
-              <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-border/50 pb-2.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <Boxes size={13} className="text-primary" /> Assigned Equipment &amp; Turnover Status
-                    </h3>
-                    <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                      {equipmentItems.length} Dispatched Items
-                    </span>
-                    {booking.equipment_manager_verified?.confirmed ? (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
-                        <ShieldCheck size={11} /> Manager Verified
-                      </span>
-                    ) : equipmentSummary.hasReturnsLogged ? (
-                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1">
-                        <AlertTriangle size={11} /> Staff Reported · Pending Verification
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded flex items-center gap-1">
-                        <Clock size={11} /> Pending Turnover
-                      </span>
                     )}
-                  </div>
 
-                  <Btn
-                    size="xs"
-                    variant="primary"
-                    onClick={() => setShowVerifyReturnsModal(true)}
-                    className="font-bold gap-1 text-xs shrink-0 cursor-pointer"
-                  >
-                    <PackageCheck size={13} />
-                    {booking.equipment_manager_verified?.confirmed ? "Re-verify / Adjust Returns" : "Verify Equipment Returns"}
-                  </Btn>
-                </div>
+                    {/* Itemized Equipment Cards */}
+                    {equipmentItems.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {equipmentItems.map((item, idx) => {
+                          const reporterName = resolveStaffReporter(item);
+                          const isDamaged = item.quantity_damaged > 0;
+                          const isMissing = item.quantity_missing > 0;
+                          const isClean = !isDamaged && !isMissing && item.quantity_returned > 0;
+                          const isPending = item.quantity_returned === 0 && !isDamaged && !isMissing;
 
-                {/* Verification & Staff Report Banner */}
-                {booking.equipment_manager_verified?.confirmed ? (
-                  <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-lg text-xs space-y-1">
-                    <div className="flex items-center justify-between flex-wrap gap-2 text-emerald-950 font-semibold">
-                      <span className="flex items-center gap-1.5">
-                        <ShieldCheck size={14} className="text-emerald-600" />
-                        Manager Verification Confirmed by <strong>{booking.equipment_manager_verified.confirmed_by?.full_name || "Manager / Admin"}</strong>
-                      </span>
-                      {booking.equipment_manager_verified.confirmed_at && (
-                        <span className="text-emerald-800 text-[11px] font-normal">
-                          {formatDateTime(booking.equipment_manager_verified.confirmed_at)}
-                        </span>
-                      )}
-                    </div>
-                    {booking.equipment_manager_verified.additional_notes && (
-                      <p className="text-emerald-900 text-[11px] pl-5 italic">
-                        Inspection Notes: "{booking.equipment_manager_verified.additional_notes}"
-                      </p>
-                    )}
-                  </div>
-                ) : equipmentSummary.hasReturnsLogged && (
-                  <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-lg text-xs space-y-1">
-                    <div className="flex items-center justify-between flex-wrap gap-2 text-amber-950 font-semibold">
-                      <span className="flex items-center gap-1.5">
-                        <AlertTriangle size={14} className="text-amber-600" />
-                        Turnover Report Submitted by Staff
-                      </span>
-                      {equipmentItems.some((it) => it.verified_at) && (
-                        <span className="text-amber-800 text-[11px] font-normal">
-                          {formatDateTime(equipmentItems.find((it) => it.verified_at)?.verified_at)}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-amber-900 text-[11px] pl-5">
-                      Staff has submitted the equipment turnover report. Please review the counts and notes below and confirm verification.
-                    </p>
-                  </div>
-                )}
-
-                {/* Equipment Summary KPI Strip */}
-                {equipmentItems.length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Total Assigned</span>
-                      <span className="font-mono font-bold text-sm text-foreground">{equipmentSummary.totalAssigned}</span>
-                    </div>
-                    <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Returned (Good)</span>
-                      <span className="font-mono font-bold text-sm text-emerald-600">{equipmentSummary.totalReturned}</span>
-                    </div>
-                    <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Damaged / Broken</span>
-                      <span className={`font-mono font-bold text-sm ${equipmentSummary.totalDamaged > 0 ? "text-rose-600 font-bold" : "text-muted-foreground"}`}>
-                        {equipmentSummary.totalDamaged}
-                      </span>
-                    </div>
-                    <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Missing / Lost</span>
-                      <span className={`font-mono font-bold text-sm ${equipmentSummary.totalMissing > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}`}>
-                        {equipmentSummary.totalMissing}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Itemized Equipment Cards */}
-                {equipmentItems.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {equipmentItems.map((item, idx) => {
-                      const reporterName = resolveStaffReporter(item);
-                      const isDamaged = item.quantity_damaged > 0;
-                      const isMissing = item.quantity_missing > 0;
-                      const isClean = !isDamaged && !isMissing && item.quantity_returned > 0;
-                      const isPending = item.quantity_returned === 0 && !isDamaged && !isMissing;
-
-                      return (
-                        <div
-                          key={idx}
-                          className={`p-3.5 bg-card border rounded-lg space-y-2.5 shadow-2xs transition-all ${
-                            isDamaged ? "border-rose-300/80 bg-rose-50/15" :
-                            isMissing ? "border-amber-300/80 bg-amber-50/15" :
-                            "border-border/60 hover:border-border"
-                          }`}
-                        >
-                          {/* Item Header & Condition Badge */}
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <h4 className="font-bold text-sm text-foreground truncate flex items-center gap-1.5">
-                                <Boxes size={14} className="text-primary/70 shrink-0" />
-                                <span>{item.name}</span>
-                              </h4>
-                              <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
-                                {item.category}
-                              </span>
-                            </div>
-
-                            <div className="shrink-0">
-                              {isDamaged ? (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
-                                  <AlertTriangle size={10} /> Damaged
-                                </span>
-                              ) : isMissing ? (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
-                                  <AlertCircle size={10} /> Missing
-                                </span>
-                              ) : isClean ? (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                                  <CheckCircle2 size={10} /> Returned Good
-                                </span>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground border border-border flex items-center gap-1">
-                                  <Clock size={10} /> Pending
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Quantities Grid */}
-                          <div className="grid grid-cols-4 gap-1.5 py-1.5 px-2 bg-muted/40 rounded-md border border-border/40 text-center text-xs">
-                            <div>
-                              <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Assigned</span>
-                              <span className="font-mono font-bold text-foreground text-xs">{item.quantity_assigned}</span>
-                            </div>
-                            <div>
-                              <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Returned</span>
-                              <span className="font-mono font-bold text-emerald-600 text-xs">{item.quantity_returned}</span>
-                            </div>
-                            <div>
-                              <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Damaged</span>
-                              <span className={`font-mono font-bold text-xs ${item.quantity_damaged > 0 ? "text-rose-600 font-bold" : "text-muted-foreground"}`}>
-                                {item.quantity_damaged}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Missing</span>
-                              <span className={`font-mono font-bold text-xs ${item.quantity_missing > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}`}>
-                                {item.quantity_missing}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Item-Specific Staff Note */}
-                          {item.notes ? (
-                            <div className="p-2 bg-amber-50/70 border border-amber-200/80 rounded-md text-xs">
-                              <div className="flex items-start gap-1.5">
-                                <FileText size={12} className="text-amber-700 shrink-0 mt-0.5" />
-                                <div className="min-w-0 flex-1">
-                                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                                    Item Note:
+                          return (
+                            <div
+                              key={idx}
+                              className={`p-3.5 bg-card border rounded-lg space-y-2.5 shadow-2xs transition-all ${
+                                isDamaged ? "border-rose-300/80 bg-rose-50/15" :
+                                isMissing ? "border-amber-300/80 bg-amber-50/15" :
+                                "border-border/60 hover:border-border"
+                              }`}
+                            >
+                              {/* Item Header & Condition Badge */}
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <h4 className="font-bold text-sm text-foreground truncate flex items-center gap-1.5">
+                                    <Boxes size={14} className="text-primary/70 shrink-0" />
+                                    <span>{item.name}</span>
+                                  </h4>
+                                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                                    {item.category}
                                   </span>
-                                  <p className="text-foreground text-xs italic font-semibold mt-0.5">
-                                    "{item.notes}"
-                                  </p>
                                 </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-[11px] text-muted-foreground italic px-1">
-                              No specific damage notes reported.
-                            </div>
-                          )}
 
-                          {/* Footer Details: Reporter, Timestamp, Verification */}
-                          <div className="pt-2 border-t border-border/50 space-y-1 text-[11px] text-muted-foreground">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="truncate">
-                                Reported by: <strong className="text-foreground font-semibold">{reporterName}</strong>
-                              </span>
-                              {item.verified_at && (
-                                <span className="text-[10px] text-muted-foreground font-mono shrink-0">
-                                  {formatDateTime(item.verified_at)}
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-between gap-2 pt-0.5">
-                              <span className="flex items-center gap-1">
-                                <ShieldCheck size={11} className={booking.equipment_manager_verified?.confirmed ? "text-emerald-600" : "text-muted-foreground/60"} />
-                                <span className={booking.equipment_manager_verified?.confirmed ? "text-emerald-700 font-semibold" : "text-muted-foreground"}>
-                                  {booking.equipment_manager_verified?.confirmed
-                                    ? `Verified by ${booking.equipment_manager_verified.confirmed_by?.full_name || "Manager"}`
-                                    : "Pending Manager Verification"}
-                                </span>
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Admin-only damage/loss charge action */}
-                          {isAdmin && (isDamaged || isMissing) && (() => {
-                            const existing = findExistingDamageCharge(item);
-                            const hasExisting = Boolean(existing && Number(existing.amount) > 0);
-                            const existingAmount = hasExisting ? Number(existing.amount) : 0;
-                            const isDamagePaid = hasExisting && (remainingBalance === 0 || totalPaid >= (booking.total_price || 0)) && totalPaid > 0;
-
-                            if (isDamagePaid) {
-                              return (
-                                <div className="pt-2 border-t border-border/50 space-y-1.5">
-                                  {/* Damage Fee Paid Non-Editable Indicator */}
-                                  <div className="p-2 bg-emerald-50/90 border border-emerald-200/90 rounded text-[11px] space-y-1 text-emerald-950">
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-semibold flex items-center gap-1 text-emerald-800">
-                                        <DollarSign size={11} className="text-emerald-600" /> Damage Fee
-                                      </span>
-                                      <span className="font-mono font-bold text-emerald-900">
-                                        ₱{existingAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center justify-between pt-1 border-t border-emerald-200/70 text-[10px]">
-                                      <span className="text-emerald-700 font-medium">Status:</span>
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold uppercase tracking-wider text-[9px]">
-                                        <CheckCircle2 size={10} /> Paid
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <Btn
-                                    size="xs"
-                                    variant="outline"
-                                    disabled
-                                    className="w-full font-semibold text-xs flex items-center justify-center gap-1.5 opacity-80 bg-slate-100 text-slate-600 border-slate-200 cursor-not-allowed shadow-none"
-                                    data-testid="damage-charge-btn"
-                                    id={`damage-charge-btn-${idx}`}
-                                    title={`Damage fee for ${item.name} has already been paid in full and cannot be adjusted.`}
-                                  >
-                                    <CheckCircle2 size={12} className="text-emerald-600" />
-                                    Damage Fee Paid
-                                  </Btn>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div className="pt-2 border-t border-border/50 space-y-1.5">
-                                {/* Damage Fee Charged indicator if already assessed on booking */}
-                                {hasExisting && (
-                                  <div className="p-1.5 bg-amber-50/80 border border-amber-200/90 rounded text-[11px] flex items-center justify-between text-amber-950">
-                                    <span className="font-semibold flex items-center gap-1">
-                                      <DollarSign size={11} className="text-amber-700" /> Current Damage Fee:
+                                <div className="shrink-0">
+                                  {isDamaged ? (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                                      <AlertTriangle size={10} /> Damaged
                                     </span>
-                                    <span className="font-mono font-bold text-amber-900">
-                                      ₱{existingAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                                  ) : isMissing ? (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                                      <AlertCircle size={10} /> Missing
                                     </span>
-                                  </div>
-                                )}
-
-                                <Btn
-                                  size="xs"
-                                  variant="primary"
-                                  onClick={() => handleOpenDamageModal(item)}
-                                  className={`w-full font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs ${
-                                    hasExisting
-                                      ? "bg-amber-600 hover:bg-amber-700 text-white"
-                                      : "bg-rose-600 hover:bg-rose-700 text-white"
-                                  }`}
-                                  data-testid="damage-charge-btn"
-                                  id={`damage-charge-btn-${idx}`}
-                                  title={hasExisting ? `Adjust Damage / Loss Fee for ${item.name}` : `Assess Damage / Loss Fee for ${item.name}`}
-                                >
-                                  {hasExisting ? (
-                                    <>
-                                      <Edit size={12} />
-                                      Adjust Damage / Loss Fee
-                                    </>
+                                  ) : isClean ? (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                                      <CheckCircle2 size={10} /> Returned Good
+                                    </span>
                                   ) : (
-                                    <>
-                                      <DollarSign size={13} />
-                                      Damage / Loss Fee
-                                    </>
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground border border-border flex items-center gap-1">
+                                      <Clock size={10} /> Pending
+                                    </span>
                                   )}
-                                </Btn>
+                                </div>
                               </div>
-                            );
-                          })()}
-                        </div>
-                      );
-                    })}
+
+                              {/* Quantities Grid */}
+                              <div className="grid grid-cols-4 gap-1.5 py-1.5 px-2 bg-muted/40 rounded-md border border-border/40 text-center text-xs">
+                                <div>
+                                  <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Assigned</span>
+                                  <span className="font-mono font-bold text-foreground text-xs">{item.quantity_assigned}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Returned</span>
+                                  <span className="font-mono font-bold text-emerald-600 text-xs">{item.quantity_returned}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Damaged</span>
+                                  <span className={`font-mono font-bold text-xs ${item.quantity_damaged > 0 ? "text-rose-600 font-bold" : "text-muted-foreground"}`}>
+                                    {item.quantity_damaged}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Missing</span>
+                                  <span className={`font-mono font-bold text-xs ${item.quantity_missing > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}`}>
+                                    {item.quantity_missing}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Item-Specific Staff Note */}
+                              {item.notes ? (
+                                <div className="p-2 bg-amber-50/70 border border-amber-200/80 rounded-md text-xs">
+                                  <div className="flex items-start gap-1.5">
+                                    <FileText size={12} className="text-amber-700 shrink-0 mt-0.5" />
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                                        Item Note:
+                                      </span>
+                                      <p className="text-foreground text-xs italic font-semibold mt-0.5">
+                                        "{item.notes}"
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-muted-foreground italic px-1">
+                                  No specific damage notes reported.
+                                </div>
+                              )}
+
+                              {/* Footer Details: Reporter, Timestamp, Verification */}
+                              <div className="pt-2 border-t border-border/50 space-y-1 text-[11px] text-muted-foreground">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="truncate">
+                                    Reported by: <strong className="text-foreground font-semibold">{reporterName}</strong>
+                                  </span>
+                                  {item.verified_at && (
+                                    <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                                      {formatDateTime(item.verified_at)}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center justify-between gap-2 pt-0.5">
+                                  <span className="flex items-center gap-1">
+                                    <ShieldCheck size={11} className={booking.equipment_manager_verified?.confirmed ? "text-emerald-600" : "text-muted-foreground/60"} />
+                                    <span className={booking.equipment_manager_verified?.confirmed ? "text-emerald-700 font-semibold" : "text-muted-foreground"}>
+                                      {booking.equipment_manager_verified?.confirmed
+                                        ? `Verified by ${booking.equipment_manager_verified.confirmed_by?.full_name || "Manager"}`
+                                        : "Pending Manager Verification"}
+                                    </span>
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Admin-only damage/loss charge action */}
+                              {isAdmin && (isDamaged || isMissing) && (() => {
+                                const existing = findExistingDamageCharge(item);
+                                const hasExisting = Boolean(existing && Number(existing.amount) > 0);
+                                const existingAmount = hasExisting ? Number(existing.amount) : 0;
+                                const isDamagePaid = hasExisting && (remainingBalance === 0 || totalPaid >= (booking.total_price || 0)) && totalPaid > 0;
+
+                                if (isDamagePaid) {
+                                  return (
+                                    <div className="pt-2 border-t border-border/50 space-y-1.5">
+                                      {/* Damage Fee Paid Non-Editable Indicator */}
+                                      <div className="p-2 bg-emerald-50/90 border border-emerald-200/90 rounded text-[11px] space-y-1 text-emerald-950">
+                                        <div className="flex items-center justify-between">
+                                          <span className="font-semibold flex items-center gap-1 text-emerald-800">
+                                            <DollarSign size={11} className="text-emerald-600" /> Damage Fee
+                                          </span>
+                                          <span className="font-mono font-bold text-emerald-900">
+                                            ₱{existingAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center justify-between pt-1 border-t border-emerald-200/70 text-[10px]">
+                                          <span className="text-emerald-700 font-medium">Status:</span>
+                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold uppercase tracking-wider text-[9px]">
+                                            <CheckCircle2 size={10} /> Paid
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <Btn
+                                        size="xs"
+                                        variant="outline"
+                                        disabled
+                                        className="w-full font-semibold text-xs flex items-center justify-center gap-1.5 opacity-80 bg-slate-100 text-slate-600 border-slate-200 cursor-not-allowed shadow-none"
+                                        data-testid="damage-charge-btn"
+                                        id={`damage-charge-btn-${idx}`}
+                                        title={`Damage fee for ${item.name} has already been paid in full and cannot be adjusted.`}
+                                      >
+                                        <CheckCircle2 size={12} className="text-emerald-600" />
+                                        Damage Fee Paid
+                                      </Btn>
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <div className="pt-2 border-t border-border/50 space-y-1.5">
+                                    {/* Damage Fee Charged indicator if already assessed on booking */}
+                                    {hasExisting && (
+                                      <div className="p-1.5 bg-amber-50/80 border border-amber-200/90 rounded text-[11px] flex items-center justify-between text-amber-950">
+                                        <span className="font-semibold flex items-center gap-1">
+                                          <DollarSign size={11} className="text-amber-700" /> Current Damage Fee:
+                                        </span>
+                                        <span className="font-mono font-bold text-amber-900">
+                                          ₱{existingAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    <Btn
+                                      size="xs"
+                                      variant="primary"
+                                      onClick={() => handleOpenDamageModal(item)}
+                                      className={`w-full font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs ${
+                                        hasExisting
+                                          ? "bg-amber-600 hover:bg-amber-700 text-white"
+                                          : "bg-rose-600 hover:bg-rose-700 text-white"
+                                      }`}
+                                      data-testid="damage-charge-btn"
+                                      id={`damage-charge-btn-${idx}`}
+                                      title={hasExisting ? `Adjust Damage / Loss Fee for ${item.name}` : `Assess Damage / Loss Fee for ${item.name}`}
+                                    >
+                                      {hasExisting ? (
+                                        <>
+                                          <Edit size={12} />
+                                          Adjust Damage / Loss Fee
+                                        </>
+                                      ) : (
+                                        <>
+                                          <DollarSign size={13} />
+                                          Damage / Loss Fee
+                                        </>
+                                      )}
+                                    </Btn>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => setShowVerifyReturnsModal(true)}
+                        className="p-6 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
+                      >
+                        <Boxes size={20} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
+                        <p className="text-xs font-semibold text-foreground">No Equipment Assigned Yet</p>
+                        <p className="text-[11px] text-muted-foreground">Click here to review and assign equipment items for this booking.</p>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div
-                    onClick={() => setShowVerifyReturnsModal(true)}
-                    className="p-6 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
-                  >
-                    <Boxes size={20} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
-                    <p className="text-xs font-semibold text-foreground">No Equipment Assigned Yet</p>
-                    <p className="text-[11px] text-muted-foreground">Click here to review and assign equipment items for this booking.</p>
-                  </div>
-                )}
-              </div>
+                </>
+              )}
 
             </div>
           )}
@@ -3234,6 +3565,114 @@ export default function AdminBookingDetails() {
             })()}
           </DialogContent>
         </Dialog>
+
+        {/* Manual Status Override / Quick Select Modal */}
+        <Dialog open={showStatusSelectModal} onOpenChange={(val) => !val && setShowStatusSelectModal(false)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                <RefreshCw size={16} className="text-primary" />
+                Change Booking Status
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Manually adjust the lifecycle status for booking{" "}
+                <strong className="font-mono text-foreground">
+                  {booking.reference || `BK-${String(booking._id).slice(-6).toUpperCase()}`}
+                </strong>
+                . This will update client trackers and scheduling views immediately.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2 text-xs">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Select Target Status:
+                </label>
+                <div className="grid grid-cols-1 gap-2">
+                  {[
+                    { id: "confirmed", label: "Confirmed / Reserved", desc: "Deposit received, date locked in schedule", tone: "border-emerald-200 bg-emerald-50/40 text-emerald-950 hover:border-emerald-400" },
+                    { id: "preparing", label: isFoodOnlyService ? "Food Prep (Kitchen In-Progress)" : "Preparing / Ready for Setup", desc: isFoodOnlyService ? "Culinary team cooking and packaging food trays" : "Event preparations in progress", tone: "border-amber-200 bg-amber-50/40 text-amber-950 hover:border-amber-400" },
+                    ...(isFoodOnlyService ? [{ id: "out for delivery", label: "Out for Delivery (Dispatched)", desc: "Delivery courier en route to destination venue", tone: "border-blue-200 bg-blue-50/40 text-blue-950 hover:border-blue-400" }] : []),
+                    { id: "completed", label: isFoodOnlyService ? "Delivered & Completed" : "Completed / Event Concluded", desc: "Service delivered and concluded successfully", tone: "border-emerald-200 bg-emerald-50/40 text-emerald-950 hover:border-emerald-400" },
+                    { id: "cancelled", label: "Cancelled", desc: "Reservation cancelled", tone: "border-rose-200 bg-rose-50/40 text-rose-950 hover:border-rose-400" },
+                  ].map((opt) => (
+                    <label
+                      key={opt.id}
+                      className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                        selectedNewStatus?.toLowerCase() === opt.id
+                          ? "border-primary ring-2 ring-primary/20 bg-primary/5"
+                          : opt.tone
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="override_status"
+                        value={opt.id}
+                        checked={selectedNewStatus?.toLowerCase() === opt.id}
+                        onChange={(e) => setSelectedNewStatus(e.target.value)}
+                        className="mt-0.5 text-primary focus:ring-primary"
+                      />
+                      <div className="min-w-0">
+                        <div className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                          <span>{opt.label}</span>
+                          {booking.status?.toLowerCase() === opt.id && (
+                            <span className="text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
+                              Current
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{opt.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Btn
+                type="button"
+                variant="secondary"
+                onClick={() => setShowStatusSelectModal(false)}
+                disabled={updatingStatus}
+              >
+                Cancel
+              </Btn>
+              <Btn
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  if (!selectedNewStatus) {
+                    notify("Please select a status to apply.", "warning");
+                    return;
+                  }
+                  setShowStatusSelectModal(false);
+                  handleUpdateStatus(selectedNewStatus, `Booking status successfully changed to "${selectedNewStatus}".`);
+                }}
+                disabled={updatingStatus || !selectedNewStatus || selectedNewStatus?.toLowerCase() === booking.status?.toLowerCase()}
+                className="font-bold cursor-pointer"
+              >
+                {updatingStatus ? "Updating..." : "Apply Status Change"}
+              </Btn>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Declarative Status Change Confirmation Dialog */}
+        {statusConfirmTarget && (
+          <ConfirmDialog
+            title={statusConfirmTarget.title}
+            message={statusConfirmTarget.message}
+            confirmText={statusConfirmTarget.confirmText || "Confirm"}
+            cancelText="Cancel"
+            onConfirm={async () => {
+              const target = statusConfirmTarget;
+              setStatusConfirmTarget(null);
+              await handleUpdateStatus(target.status, target.successMsg);
+            }}
+            onCancel={() => setStatusConfirmTarget(null)}
+          />
+        )}
 
       </div>
     </AdminLayout>

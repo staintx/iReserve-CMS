@@ -48,6 +48,33 @@ export default function Badge({ status, variant, icon, children, dot = false, cl
     );
   }
 
+  if (norm === "food prep" || norm === "preparing" || norm === "food preparation") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-300 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
+        <span>Food Prep</span>
+      </span>
+    );
+  }
+
+  if (norm === "out for delivery" || norm === "in transit" || norm === "ready for delivery") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-300 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" />}
+        <span>Out for Delivery</span>
+      </span>
+    );
+  }
+
+  if (norm === "delivered") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />}
+        <span>Delivered</span>
+      </span>
+    );
+  }
+
   if (norm === "scheduled" || norm === "booked") {
     return (
       <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 ${className} whitespace-nowrap`}>

@@ -160,6 +160,20 @@ export default function StepEventDetails({
     }
   };
 
+  const allowsSetup =
+    packageDetails?.package_type !== "Food Only" &&
+    offer?.package_type !== "Food Only";
+
+  useEffect(() => {
+    if (!allowsSetup && form.delivery_method === "setup") {
+      setForm((prev) => ({
+        ...prev,
+        delivery_method: "pickup",
+        service_type: SERVICE_TYPES.FOOD_ONLY,
+      }));
+    }
+  }, [allowsSetup, form.delivery_method, setForm]);
+
   const fulfillmentOptions = [
     {
       key: "pickup",
@@ -175,13 +189,17 @@ export default function StepEventDetails({
       icon: Truck,
       active: isDelivery,
     },
-    {
-      key: "setup",
-      title: "With Event Setup",
-      description: "Full catering with buffet setup, styling, equipment & crew.",
-      icon: Sparkles,
-      active: isWithSetup,
-    },
+    ...(allowsSetup
+      ? [
+          {
+            key: "setup",
+            title: "With Event Setup",
+            description: "Full catering with buffet setup, styling, equipment & crew.",
+            icon: Sparkles,
+            active: isWithSetup,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -210,7 +228,7 @@ export default function StepEventDetails({
       {isOffer && (
         <Card className="mb-3.5 p-3.5 sm:p-4">
           <SectionTitle icon={Sparkles}>Choose your service option</SectionTitle>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className={cn("grid grid-cols-1 gap-2", allowsSetup ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
             {fulfillmentOptions.map((opt) => {
               const Icon = opt.icon;
               return (

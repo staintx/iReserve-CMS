@@ -43,7 +43,17 @@ import {
   offerCourseRequirement,
   offerInclusions,
   offerBookingProblem,
+  offerFoodItems,
 } from "../../../lib/specialOffers";
+import {
+  computeQuotationTotals,
+  derivePackageStartingPrice,
+  inclusionAdjustmentAmount,
+  MENU_PRICING,
+  money,
+} from "../../../utils/quotationPricing";
+import { parseInclusionQuantity, eventSpaceLabel } from "../../../lib/packageDisplay";
+import { resolveDishImageUrl } from "../quotation/DishThumbnail";
 import {
   SERVICE_TYPES,
   SERVICE_LABELS,
@@ -59,7 +69,13 @@ import {
   getBatangasBarangays,
   getBatangasMunicipalities,
 } from "../../../utils/batangas";
-import { guestRange } from "../../../lib/packageDisplay";
+import {
+  guestRange,
+  capacityLabel,
+  serviceLabel,
+  eventTypeForPackage,
+  packagePriceParts,
+} from "../../../lib/packageDisplay";
 import { formatCurrency, formatEventDate } from "../../../utils/format";
 import { cn } from "@/lib/utils";
 
@@ -178,6 +194,163 @@ const EMPTY_FORM = {
   balance_payment_preference: "in_person",
 };
 
+// ─── Square / Rich Package Card (Matching Customer Dashboard & Packages Layout) ─────
+function WalkInPackageCard({ pkg, isSelected, onSelect }) {
+  const isCombo = isSpecialOffer(pkg);
+  const capacity = capacityLabel(pkg);
+  const service = serviceLabel(pkg);
+  const event = eventTypeForPackage(pkg);
+  const priceInfo = packagePriceParts(pkg);
+  const perPax = isCombo ? offerPricePerPax(pkg) : 0;
+  const pax = isCombo ? offerGuestCount(pkg) : 0;
+
+  return (
+    <article
+      onClick={onSelect}
+      className={cn(
+        "group relative flex flex-col rounded-2xl border-2 transition-all duration-200 cursor-pointer overflow-hidden bg-white text-left select-none",
+        isSelected
+          ? "border-blue-600 bg-blue-50/20 shadow-md ring-4 ring-blue-600/10"
+          : "border-slate-200/90 hover:border-blue-300 hover:shadow-lg hover:-translate-y-0.5"
+      )}
+    >
+      {/* Media / Image area (Square / Near-square Aspect Ratio matching customer cards) */}
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
+        {pkg.image_url ? (
+          <img
+            src={pkg.image_url}
+            alt={pkg.name}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full w-full bg-slate-100 text-slate-400 p-4 text-center">
+            <Package size={36} className="mb-1.5 text-slate-300" />
+            <span className="text-xs font-semibold text-slate-500 line-clamp-1">{pkg.name}</span>
+          </div>
+        )}
+
+        {/* Top-left tag badge */}
+        <div className="absolute left-3 top-3 flex items-center gap-1.5 z-10">
+          {isCombo ? (
+            <span className="inline-flex items-center gap-1 rounded-md bg-amber-500 text-white font-bold text-[10.5px] uppercase tracking-wider px-2.5 py-1 shadow-xs">
+              <Sparkles size={11} /> Combo Pack
+            </span>
+          ) : event ? (
+            <span className="inline-flex items-center rounded-md bg-white/95 text-slate-800 font-bold text-[10.5px] uppercase tracking-wider px-2.5 py-1 shadow-xs backdrop-blur-xs">
+              {event}
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-md bg-white/95 text-slate-800 font-bold text-[10.5px] uppercase tracking-wider px-2.5 py-1 shadow-xs backdrop-blur-xs">
+              {pkg.package_type || "Package"}
+            </span>
+          )}
+        </div>
+
+        {/* Top-right selection indicator */}
+        <div className="absolute right-3 top-3 z-10">
+          <div
+            className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-full transition-all shadow-xs",
+              isSelected
+                ? "bg-blue-600 text-white ring-2 ring-white"
+                : "bg-white/90 border border-slate-300 text-transparent group-hover:border-blue-400"
+            )}
+          >
+            <Check size={14} strokeWidth={3} className={isSelected ? "opacity-100" : "opacity-0"} />
+          </div>
+        </div>
+      </div>
+
+      {/* Card Body */}
+      <div className="p-4 sm:p-5 flex flex-1 flex-col justify-between">
+        <div>
+          {/* Category / Service subtitle */}
+          <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600 mb-1">
+            {isCombo ? "Special Combo Offer" : service}
+          </p>
+
+          {/* Title */}
+          <h3 className="text-base sm:text-lg font-bold text-slate-900 line-clamp-1 group-hover:text-blue-600 transition-colors">
+            {pkg.name}
+          </h3>
+
+          {/* Description */}
+          {pkg.description && (
+            <p className="mt-1.5 text-xs text-slate-500 line-clamp-2 leading-relaxed">
+              {pkg.description}
+            </p>
+          )}
+        </div>
+
+        <div>
+          {/* Facts / Price Section */}
+          <dl className="mt-4 pt-3.5 border-t border-slate-100 space-y-2 text-xs">
+            <div className="flex items-baseline justify-between gap-2">
+              <dt className="text-slate-500 text-xs">Price</dt>
+              <dd className="text-right">
+                {isCombo ? (
+                  <span className="inline-flex items-baseline gap-1">
+                    <strong className="text-base sm:text-lg font-extrabold text-blue-700 tabular-nums">
+                      {formatCurrency(perPax)}
+                    </strong>
+                    <span className="text-xs text-slate-500 font-normal">/ pax</span>
+                  </span>
+                ) : priceInfo.amount ? (
+                  <span className="inline-flex items-baseline gap-1">
+                    {priceInfo.prefix && (
+                      <span className="text-xs text-slate-500 font-normal">{priceInfo.prefix}</span>
+                    )}
+                    <strong className="text-base sm:text-lg font-extrabold text-blue-700 tabular-nums">
+                      {priceInfo.amount}
+                    </strong>
+                    {priceInfo.suffix && (
+                      <span className="text-xs text-slate-500 font-normal">{priceInfo.suffix}</span>
+                    )}
+                  </span>
+                ) : (
+                  <strong className="text-xs font-semibold text-slate-800">{priceInfo.text}</strong>
+                )}
+              </dd>
+            </div>
+
+            {(pax > 0 || capacity) && (
+              <div className="flex items-baseline justify-between gap-2">
+                <dt className="text-slate-500 text-xs">Estimated Guests</dt>
+                <dd>
+                  <strong className="text-xs font-bold text-slate-800">
+                    {isCombo ? `${pax} guests` : capacity}
+                  </strong>
+                </dd>
+              </div>
+            )}
+          </dl>
+
+          {/* Action Button */}
+          <div className="mt-4 pt-1">
+            <div
+              className={cn(
+                "w-full py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all",
+                isSelected
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "bg-slate-50 border border-slate-200 text-slate-700 group-hover:bg-blue-50 group-hover:text-blue-700 group-hover:border-blue-300"
+              )}
+            >
+              {isSelected ? (
+                <>
+                  <Check size={14} strokeWidth={2.5} /> Selected Package
+                </>
+              ) : (
+                "Select Package"
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 // ─── Step 0: Booking Setup ───────────────────────────────────────────────────
 function StageBookingSetup({ form, setForm, packages, errors }) {
   const [pkgTab, setPkgTab] = useState("all");
@@ -191,23 +364,27 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
     return packages.filter((p) => isSpecialOffer(p));
   }, [packages]);
 
-  const filteredPackages = useMemo(() => {
-    let list = packages;
-    if (pkgTab === "regular") list = regularPackages;
-    else if (pkgTab === "combo") list = comboPackages;
+  const filterList = (list) => {
+    if (!pkgSearch.trim()) return list;
+    const q = pkgSearch.toLowerCase();
+    return list.filter(
+      (p) =>
+        (p.name || "").toLowerCase().includes(q) ||
+        (p.description || "").toLowerCase().includes(q) ||
+        (p.package_type || "").toLowerCase().includes(q) ||
+        (p.event_type || "").toLowerCase().includes(q)
+    );
+  };
 
-    if (pkgSearch.trim()) {
-      const q = pkgSearch.toLowerCase();
-      list = list.filter(
-        (p) =>
-          (p.name || "").toLowerCase().includes(q) ||
-          (p.description || "").toLowerCase().includes(q) ||
-          (p.package_type || "").toLowerCase().includes(q) ||
-          (p.event_type || "").toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [packages, pkgTab, pkgSearch, regularPackages, comboPackages]);
+  const filteredRegular = useMemo(() => filterList(regularPackages), [regularPackages, pkgSearch]);
+  const filteredCombo = useMemo(() => filterList(comboPackages), [comboPackages, pkgSearch]);
+
+  const totalFilteredCount =
+    pkgTab === "regular"
+      ? filteredRegular.length
+      : pkgTab === "combo"
+      ? filteredCombo.length
+      : filteredRegular.length + filteredCombo.length;
 
   const handleSelectPackage = (pkg) => {
     const isCombo = isSpecialOffer(pkg);
@@ -366,7 +543,7 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
 
       {/* ── Option A: Existing Packages Selection (shown ONLY when Existing Package is active) ── */}
       {form.package_type === "existing" && (
-        <div className="pt-4 border-t border-slate-100 space-y-4">
+        <div className="pt-5 border-t border-slate-100 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <p className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-slate-500 mb-1">
@@ -377,14 +554,14 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
               {/* Category tabs */}
               <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-1 text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => setPkgTab("all")}
                   className={cn(
-                    "rounded-md px-2.5 py-1 transition-colors cursor-pointer",
+                    "rounded-md px-3 py-1.5 transition-colors cursor-pointer",
                     pkgTab === "all"
                       ? "bg-white text-blue-600 shadow-2xs font-bold"
                       : "text-slate-500 hover:text-slate-800"
@@ -396,7 +573,7 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
                   type="button"
                   onClick={() => setPkgTab("regular")}
                   className={cn(
-                    "rounded-md px-2.5 py-1 transition-colors cursor-pointer",
+                    "rounded-md px-3 py-1.5 transition-colors cursor-pointer",
                     pkgTab === "regular"
                       ? "bg-white text-blue-600 shadow-2xs font-bold"
                       : "text-slate-500 hover:text-slate-800"
@@ -408,7 +585,7 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
                   type="button"
                   onClick={() => setPkgTab("combo")}
                   className={cn(
-                    "rounded-md px-2.5 py-1 transition-colors cursor-pointer",
+                    "rounded-md px-3 py-1.5 transition-colors cursor-pointer",
                     pkgTab === "combo"
                       ? "bg-white text-blue-600 shadow-2xs font-bold"
                       : "text-slate-500 hover:text-slate-800"
@@ -451,123 +628,85 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
             </div>
           )}
 
-          {filteredPackages.length === 0 ? (
+          {totalFilteredCount === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center bg-slate-50/50">
-              <Package size={32} className="mx-auto text-slate-300 mb-2" />
-              <p className="text-sm font-semibold text-slate-700">No packages found</p>
+              <Package size={36} className="mx-auto text-slate-300 mb-2" />
+              <p className="text-sm font-semibold text-slate-700">No packages match your search</p>
               <p className="text-xs text-slate-400 mt-1">Try adjusting your search query or tab filter.</p>
+              {(pkgSearch || pkgTab !== "all") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPkgSearch("");
+                    setPkgTab("all");
+                  }}
+                  className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
+                >
+                  Clear search &amp; filters
+                </button>
+              )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[460px] overflow-y-auto pr-1">
-              {filteredPackages.map((pkg) => {
-                const isSelected = form.package_id === pkg._id;
-                const isCombo = isSpecialOffer(pkg);
-                const pax = isCombo ? offerGuestCount(pkg) : 0;
-                const pricePax = isCombo ? offerPricePerPax(pkg) : 0;
-
-                return (
-                  <button
-                    key={pkg._id}
-                    type="button"
-                    onClick={() => handleSelectPackage(pkg)}
-                    className={cn(
-                      "group relative flex flex-col rounded-2xl border-2 p-3.5 text-left transition-all duration-150 cursor-pointer overflow-hidden",
-                      isSelected
-                        ? "border-blue-600 bg-blue-50/40 ring-4 ring-blue-600/10 shadow-sm"
-                        : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5"
-                    )}
-                  >
-                    <div className="flex gap-3">
-                      <div className="h-16 w-16 shrink-0 rounded-xl overflow-hidden bg-slate-100 border border-slate-100 flex items-center justify-center">
-                        {pkg.image_url ? (
-                          <img
-                            src={pkg.image_url}
-                            alt={pkg.name}
-                            className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                          />
-                        ) : (
-                          <Package size={22} className="text-slate-300" />
-                        )}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-1">
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider",
-                              isCombo
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-blue-100 text-blue-800"
-                            )}
-                          >
-                            {isCombo ? (
-                              <>
-                                <Sparkles size={10} /> Combo Pack
-                              </>
-                            ) : (
-                              pkg.package_type || "Regular"
-                            )}
-                          </span>
-
-                          <div
-                            className={cn(
-                              "flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border transition-all",
-                              isSelected
-                                ? "border-blue-600 bg-blue-600 text-white"
-                                : "border-slate-300 bg-white group-hover:border-blue-400"
-                            )}
-                          >
-                            {isSelected && <Check size={11} strokeWidth={3} />}
-                          </div>
-                        </div>
-
-                        <p className="mt-1 font-bold text-sm text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1">
-                          {pkg.name}
-                        </p>
-                        {pkg.description && (
-                          <p className="text-[11.5px] text-slate-500 line-clamp-1 mt-0.5">
-                            {pkg.description}
-                          </p>
-                        )}
-                      </div>
+            <div className="space-y-8">
+              {/* Category 1: Regular Packages */}
+              {(pkgTab === "all" || pkgTab === "regular") && filteredRegular.length > 0 && (
+                <div className="space-y-3.5">
+                  <div className="flex items-baseline justify-between border-b border-slate-100 pb-2">
+                    <div>
+                      <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                        Regular Packages
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {filteredRegular.length} {filteredRegular.length === 1 ? "package" : "packages"} available
+                      </p>
                     </div>
+                  </div>
 
-                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
-                      {isCombo ? (
-                        <>
-                          <span className="font-bold text-blue-700">
-                            {formatCurrency(pricePax)}{" "}
-                            <span className="text-[11px] font-normal text-slate-500">/ pax</span>
-                          </span>
-                          <span className="text-[11.5px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                            {pax} guests
-                          </span>
-                        </>
-                      ) : pkg.package_type === "Event Setup Only" ? (
-                        <>
-                          <span className="font-bold text-blue-700">
-                            {formatCurrency(pkg.setup_price || 0)}{" "}
-                            <span className="text-[11px] font-normal text-slate-500">setup</span>
-                          </span>
-                          <span className="text-[11px] text-slate-500">Event Setup</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="font-bold text-blue-700">
-                            {formatCurrency(pkg.price_per_guest || 0)}{" "}
-                            <span className="text-[11px] font-normal text-slate-500">/ guest</span>
-                          </span>
-                          {(pkg.guest_min || pkg.guest_max) && (
-                            <span className="text-[11px] text-slate-500">
-                              {pkg.guest_min || 0}–{pkg.guest_max || 0} pax
-                            </span>
-                          )}
-                        </>
-                      )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {filteredRegular.map((pkg) => (
+                      <WalkInPackageCard
+                        key={pkg._id}
+                        pkg={pkg}
+                        isSelected={form.package_id === pkg._id}
+                        onSelect={() => handleSelectPackage(pkg)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Category 2: Special Offers & Combo Packs */}
+              {(pkgTab === "all" || pkgTab === "combo") && filteredCombo.length > 0 && (
+                <div className="space-y-3.5">
+                  <div className="flex items-baseline justify-between border-b border-slate-100 pb-2">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles size={16} className="text-amber-500" />
+                        <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                          Special Offers &amp; Combo Packs
+                        </h3>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Curated combo meals with set pricing per plate ready to book
+                      </p>
                     </div>
-                  </button>
-                );
-              })}
+                    <span className="text-xs font-semibold text-slate-400">
+                      {filteredCombo.length} {filteredCombo.length === 1 ? "combo" : "combos"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {filteredCombo.map((pkg) => (
+                      <WalkInPackageCard
+                        key={pkg._id}
+                        pkg={pkg}
+                        isSelected={form.package_id === pkg._id}
+                        onSelect={() => handleSelectPackage(pkg)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -575,7 +714,7 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
 
       {/* ── Option B: Customize Booking Services (shown ONLY when Customize Booking is active) ── */}
       {form.package_type === "custom" && (
-        <div className="pt-4 border-t border-slate-100 space-y-3.5">
+        <div className="pt-5 border-t border-slate-100 space-y-4">
           <div>
             <p className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-slate-500 mb-1">
               Service Type
@@ -702,172 +841,50 @@ function WalkInContactStep({ form, setForm, customers, errors }) {
   );
 }
 
-// ─── Default Quotation Item Generator ─────────────────────────────────────────
-function generateDefaultQuotationItems(form, packageDetails, isOffer) {
-  const items = [];
-  const guestCount = parseNumber(form.guest_count) || 1;
+// ─── Quotation Builder Helpers ───────────────────────────────────────────────
+const inclusionText = (inclusion) =>
+  typeof inclusion === "string" ? inclusion : String(inclusion?.name || inclusion || "");
 
-  // 1. Package / Combo line
-  if (form.package_type === "existing" && packageDetails) {
-    if (isOffer) {
-      const comboPax = offerGuestCount(packageDetails) || guestCount;
-      const basePrice =
-        offerBaseFoodPrice(packageDetails, guestCount) ||
-        offerPricePerPax(packageDetails) * guestCount ||
-        Number(packageDetails.price || 0);
-      items.push({
-        key: `pkg-${packageDetails._id}`,
-        package_id: packageDetails._id,
-        name: `${packageDetails.name} (Combo Package)`,
-        description: `Fixed combo meal catering package for ${comboPax} pax`,
-        category: "Package",
-        quantity: 1,
-        unit: "Package",
-        unitPrice: basePrice,
-        isDefault: true,
-      });
-    } else if (packageDetails.package_type === "Event Setup Only") {
-      const setupPrice = Number(form.scaffold_price || packageDetails.setup_price || 0);
-      items.push({
-        key: `pkg-${packageDetails._id}`,
-        package_id: packageDetails._id,
-        name: packageDetails.name,
-        description:
-          form.scaffold_width && form.scaffold_length
-            ? `${form.scaffold_width}×${form.scaffold_length} ft setup`
-            : "Event Setup & Styling Package",
-        category: "Package",
-        quantity: 1,
-        unit: "Setup",
-        unitPrice: setupPrice,
-        isDefault: true,
-      });
-    } else if (packageDetails.price_per_guest) {
-      items.push({
-        key: `pkg-${packageDetails._id}`,
-        package_id: packageDetails._id,
-        name: packageDetails.name,
-        description: `Catering Package for ${guestCount} guests`,
-        category: "Package",
-        quantity: guestCount,
-        unit: "Pax",
-        unitPrice: Number(packageDetails.price_per_guest || 0),
-        isDefault: true,
-      });
-    } else if (packageDetails.setup_price) {
-      items.push({
-        key: `pkg-${packageDetails._id}`,
-        package_id: packageDetails._id,
-        name: packageDetails.name,
-        description: "Package Base Setup",
-        category: "Package",
-        quantity: 1,
-        unit: "Setup",
-        unitPrice: Number(packageDetails.setup_price || 0),
-        isDefault: true,
-      });
-    }
-  } else if (form.package_type === "custom") {
-    if (
-      packageDetails &&
-      (form.service_type === SERVICE_TYPES.SETUP_ONLY ||
-        form.service_type === SERVICE_TYPES.FULL_SERVICE)
-    ) {
-      items.push({
-        key: `pkg-${packageDetails._id}`,
-        package_id: packageDetails._id,
-        name: packageDetails.name,
-        description:
-          form.scaffold_width && form.scaffold_length
-            ? `${form.scaffold_width}×${form.scaffold_length} ft setup`
-            : "Custom Setup Package",
-        category: "Package",
-        quantity: 1,
-        unit: "Setup",
-        unitPrice: Number(form.scaffold_price || packageDetails.setup_price || 0),
-        isDefault: true,
-      });
-    } else if (form.is_custom_setup) {
-      items.push({
-        key: "pkg-custom-styling",
-        name: "Custom Setup & Styling Theme",
-        description: form.event_theme
-          ? `Theme: ${form.event_theme}`
-          : "Custom Styling & Floral Setup",
-        category: "Package",
-        quantity: 1,
-        unit: "Lot",
-        unitPrice: 0,
-        isDefault: true,
-      });
-    }
-  }
+const inclusionRow = (name, partial = {}) => {
+  const text = inclusionText(name);
+  const parsed = parseInclusionQuantity(text);
+  return {
+    name: text,
+    removed: false,
+    deduction: "",
+    fromPackage: true,
+    baseQuantity: parsed ? parsed.quantity : null,
+    quantity: parsed ? parsed.quantity : null,
+    unitPrice: "",
+    ...partial,
+  };
+};
 
-  // 2. Menu Items (Dishes)
-  if (!isOffer && form.include_food !== false && Array.isArray(form.selected_menu)) {
-    const isPerGuestPackage = Boolean(
-      form.package_type === "existing" &&
-        packageDetails?.price_per_guest &&
-        packageDetails?.package_type !== "Food Only"
-    );
+const menuRow = (partial = {}) => ({
+  name: "",
+  category: "",
+  note: "",
+  quantity: 1,
+  unit: "",
+  pricing_type: MENU_PRICING.QUANTITY,
+  price: "",
+  image_url: "",
+  isCustomUnit: false,
+  removed: false,
+  ...partial,
+});
 
-    form.selected_menu.forEach((dish) => {
-      const dishId = dish._id || dish.name;
-      const defaultPrice = isPerGuestPackage ? 0 : Number(dish.price || 0);
-      items.push({
-        key: `dish-${dishId}`,
-        dish_id: dish._id,
-        name: dish.name,
-        description: isPerGuestPackage
-          ? `${dish.category || "Menu Item"} (Included in Package)`
-          : dish.category || "Catering Dish",
-        category: "Menu",
-        quantity: guestCount,
-        unit: dish.unit || "Pax",
-        unitPrice: defaultPrice,
-        isDefault: true,
-      });
-    });
-  }
+const numberOf = (val) => {
+  const n = Number(val);
+  return Number.isFinite(n) ? n : 0;
+};
 
-  // 3. Add-on Services
-  if (Array.isArray(form.selected_package_addons)) {
-    form.selected_package_addons.forEach((addon) => {
-      const addonId = addon._id || addon.name;
-      items.push({
-        key: `addon-${addonId}`,
-        addon_id: addon._id,
-        name: addon.name,
-        description: addon.category || "Add-on Service",
-        category: "Add-on",
-        quantity: Number(addon.quantity || 1),
-        unit: addon.unit || "Set",
-        unitPrice: Number(addon.price || 0),
-        isDefault: true,
-      });
-    });
-  }
-
-  // 4. Equipment & Inventory Items
-  if (Array.isArray(form.inventory_items)) {
-    form.inventory_items.forEach((inv) => {
-      const invId = inv.inventory_id || inv.name;
-      items.push({
-        key: `inv-${invId}`,
-        inventory_id: inv.inventory_id,
-        name: inv.name,
-        description: "Equipment / Setup Inclusions",
-        category: "Equipment",
-        quantity: Number(inv.quantity || 1),
-        unit: "pcs",
-        unitPrice: Number(inv.price || 0),
-        isDefault: true,
-      });
-    });
-  }
-
-  return items;
-}
+const toDateInput = (val) => {
+  if (!val) return "";
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().split("T")[0];
+};
 
 // ─── Step: Review & Final Confirmation (Read-only Summary) ───────────────────
 function WalkInReviewAndQuotation({
@@ -914,6 +931,13 @@ function WalkInReviewAndQuotation({
         return "bg-purple-50 text-purple-700 border-purple-200";
       case "Equipment":
         return "bg-amber-50 text-amber-700 border-amber-200";
+      case "Deduction":
+        return "bg-emerald-50 text-emerald-700 border-emerald-200";
+      case "Extra":
+      case "Logistics":
+      case "Overtime":
+      case "Fee":
+        return "bg-slate-100 text-slate-700 border-slate-200";
       default:
         return "bg-slate-100 text-slate-700 border-slate-200";
     }
@@ -1119,12 +1143,14 @@ function WalkInReviewAndQuotation({
 
                   <div className="sm:col-span-2 text-left sm:text-right text-slate-600 font-mono">
                     <span className="sm:hidden text-slate-400">Unit: </span>
-                    {formatCurrency(price)}
+                    {price < 0 ? `-${formatCurrency(Math.abs(price))}` : formatCurrency(price)}
                   </div>
 
-                  <div className="sm:col-span-2 text-left sm:text-right font-bold text-slate-900 tabular-nums">
+                  <div className="sm:col-span-2 text-left sm:text-right font-bold tabular-nums">
                     <span className="sm:hidden text-slate-400 font-normal">Subtotal: </span>
-                    {formatCurrency(lineTotal)}
+                    <span className={lineTotal < 0 ? "text-emerald-700 font-bold" : "text-slate-900"}>
+                      {lineTotal < 0 ? `-${formatCurrency(Math.abs(lineTotal))}` : formatCurrency(lineTotal)}
+                    </span>
                   </div>
                 </div>
               );
@@ -1246,16 +1272,34 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
   const [isEditing, setIsEditing] = useState(false);
   const [stepErrors, setStepErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [depositPaidImmediately, setDepositPaidImmediately] = useState(true);
 
-  // Walk-in Quotation & Payment State
-  const [quotationItems, setQuotationItems] = useState([]);
-  const [discount, setDiscount] = useState("");
+  // Walk-in Quotation Builder State (Exact Admin Quotation Builder)
+  const [quotationPackageName, setQuotationPackageName] = useState("");
+  const [startingPrice, setStartingPrice] = useState("");
+  const [inclusions, setInclusions] = useState([]);
+  const [selectedScaffoldId, setSelectedScaffoldId] = useState("");
+  const [scaffoldWidth, setScaffoldWidth] = useState("");
+  const [scaffoldLength, setScaffoldLength] = useState("");
+  const [isCustomScaffold, setIsCustomScaffold] = useState(false);
+  const [quotationMenuItems, setQuotationMenuItems] = useState([]);
+  const [quotationAddOns, setQuotationAddOns] = useState([]);
+  const [transportationFee, setTransportationFee] = useState("");
+  const [includeOvertime, setIncludeOvertime] = useState(false);
+  const [overtimeMode, setOvertimeMode] = useState("per_crew");
+  const [overtimeHours, setOvertimeHours] = useState(2);
+  const [crewCount, setCrewCount] = useState(3);
+  const [hourlyRatePerCrew, setHourlyRatePerCrew] = useState(200);
+  const [flatOvertimeFee, setFlatOvertimeFee] = useState(1500);
+  const [additionalFees, setAdditionalFees] = useState([]);
+  const [discounts, setDiscounts] = useState("");
+  const [taxes, setTaxes] = useState("");
   const [depositPercent, setDepositPercent] = useState(20);
   const [customDeposit, setCustomDeposit] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [depositPaidImmediately, setDepositPaidImmediately] = useState(true);
   const [balancePreference, setBalancePreference] = useState("in_person");
   const [quotationNotes, setQuotationNotes] = useState("");
+  const [isQuotationDirty, setIsQuotationDirty] = useState(false);
 
   // Catalogs
   const [packages, setPackages] = useState([]);
@@ -1355,13 +1399,31 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       setForm(EMPTY_FORM);
       setPackageDetails(null);
       setDepositPaidImmediately(true);
-      setQuotationItems([]);
-      setDiscount("");
+      setQuotationPackageName("");
+      setStartingPrice("");
+      setInclusions([]);
+      setSelectedScaffoldId("");
+      setScaffoldWidth("");
+      setScaffoldLength("");
+      setIsCustomScaffold(false);
+      setQuotationMenuItems([]);
+      setQuotationAddOns([]);
+      setTransportationFee("");
+      setIncludeOvertime(false);
+      setOvertimeMode("per_crew");
+      setOvertimeHours(2);
+      setCrewCount(3);
+      setHourlyRatePerCrew(200);
+      setFlatOvertimeFee(1500);
+      setAdditionalFees([]);
+      setDiscounts("");
+      setTaxes("");
       setDepositPercent(businessInfo?.deposit_percentage ?? 20);
       setCustomDeposit("");
       setPaymentMethod("cash");
       setBalancePreference("in_person");
       setQuotationNotes("");
+      setIsQuotationDirty(false);
     }
   }, [open, businessInfo?.deposit_percentage]);
 
@@ -1377,11 +1439,16 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
   const isFoodOnly =
     (isCustomBooking && form.service_type === SERVICE_TYPES.FOOD_ONLY) ||
-    (isOffer && form.service_type === SERVICE_TYPES.FOOD_ONLY);
-  const isEventSetupOnly =
-    isCustomBooking && form.service_type === SERVICE_TYPES.SETUP_ONLY;
+    (isOffer && form.service_type === SERVICE_TYPES.FOOD_ONLY) ||
+    form.service_type === SERVICE_TYPES.FOOD_ONLY;
+  const isSetupOnly =
+    (isCustomBooking && form.service_type === SERVICE_TYPES.SETUP_ONLY) ||
+    packageDetails?.package_type === "Event Setup Only" ||
+    form.service_type === SERVICE_TYPES.SETUP_ONLY;
+  const isEventSetupOnly = isSetupOnly;
   const isFoodAndEventSetup =
-    isCustomBooking && form.service_type === SERVICE_TYPES.FULL_SERVICE;
+    (isCustomBooking && form.service_type === SERVICE_TYPES.FULL_SERVICE) ||
+    (!isFoodOnly && !isSetupOnly);
 
   const deliveryMethod = isOffer
     ? form.delivery_method || "setup"
@@ -1640,57 +1707,152 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     }));
   }, []);
 
-  // ─── Quotation Line Items Synchronization ─────────────────────────────────
-  const handleResetQuotationToDefaults = useCallback(() => {
-    const defaults = generateDefaultQuotationItems(form, packageDetails, isOffer);
-    setQuotationItems(defaults);
-    setDiscount("");
-    notify("Quotation line items reset to default catalog rates.", "info");
-  }, [form, packageDetails, isOffer, notify]);
+  // ─── Quotation Builder Synchronization & Handlers ──────────────────────────
+  const syncQuotationFromWizard = useCallback(() => {
+    // 1. Package Name
+    const resolvedPkgName = form.is_custom_setup
+      ? form.event_theme
+        ? `Custom ${form.event_theme} Event Setup`
+        : "Bespoke Custom Event Setup"
+      : packageDetails?.name || "Custom Package";
+    setQuotationPackageName(resolvedPkgName);
 
-  // Synchronize quotation items whenever selections change, preserving admin price/quantity edits
+    // 2. Inclusions
+    if (form.is_custom_setup) {
+      setInclusions(
+        (Array.isArray(form.custom_setup_scope) ? form.custom_setup_scope : []).map((s) =>
+          inclusionRow(s)
+        )
+      );
+    } else {
+      const rawInclusions = Array.isArray(packageDetails?.inclusions)
+        ? packageDetails.inclusions
+        : [];
+      setInclusions(rawInclusions.map((entry) => inclusionRow(entry)));
+    }
+
+    // 3. Starting Price
+    const guests = parseNumber(form.guest_count) || 1;
+    if (isOffer) {
+      const baseFood = offerBaseFoodPrice(packageDetails, guests);
+      setStartingPrice(baseFood ? String(baseFood) : "");
+    } else if (form.is_custom_setup) {
+      setStartingPrice("");
+    } else {
+      const derived = derivePackageStartingPrice(
+        { package_id: packageDetails, guest_count: form.guest_count },
+        guests
+      );
+      if (derived) {
+        setStartingPrice(String(derived));
+      } else if (packageDetails?.setup_price) {
+        setStartingPrice(String(packageDetails.setup_price));
+      } else if (packageDetails?.price_per_guest) {
+        setStartingPrice(String(Number(packageDetails.price_per_guest) * guests));
+      } else {
+        setStartingPrice("");
+      }
+    }
+
+    // 4. Scaffold size & options
+    setSelectedScaffoldId(
+      form.selected_scaffold_option_id
+        ? String(form.selected_scaffold_option_id)
+        : packageDetails?.scaffold_size_options?.[0]?._id
+        ? String(packageDetails.scaffold_size_options[0]._id)
+        : ""
+    );
+    setScaffoldWidth(form.scaffold_width ? String(form.scaffold_width) : "");
+    setScaffoldLength(form.scaffold_length ? String(form.scaffold_length) : "");
+    setIsCustomScaffold(Boolean(form.is_custom_scaffold || form.selected_scaffold_option_id === "custom"));
+
+    // 5. Menu Items
+    if (isOffer) {
+      const foodList =
+        Array.isArray(form.offer_food_snapshot) && form.offer_food_snapshot.length > 0
+          ? form.offer_food_snapshot.map((item) => ({
+              name: item.item_name || item.name,
+              category: item.menu_category || item.category || "",
+              image_url: item.image_url || "",
+            }))
+          : packageDetails
+          ? offerFoodItems(packageDetails).map((item) => ({
+              name: item.item_name || item.name,
+              category: item.menu_category || item.category || "",
+              image_url: item.image_url || "",
+            }))
+          : [];
+
+      setQuotationMenuItems(
+        foodList.map(({ name, category, image_url }) =>
+          menuRow({
+            name,
+            category,
+            note: "Covered by combo package",
+            price: 0,
+            unit: "Included",
+            quantity: 1,
+            image_url: image_url || resolveDishImageUrl({ name }, menuItems),
+          })
+        )
+      );
+    } else if (form.service_type !== SERVICE_TYPES.SETUP_ONLY && form.include_food !== false) {
+      setQuotationMenuItems(
+        (Array.isArray(form.selected_menu) ? form.selected_menu : []).map((item) => {
+          if (item && typeof item === "object") {
+            return menuRow({
+              name: item.name || "",
+              category: item.category || "",
+              note: item.note || "",
+              unit: item.unit || "Pax",
+              price: item.price ? String(item.price) : "",
+              image_url: item.image_url || resolveDishImageUrl({ name: item.name }, menuItems),
+            });
+          }
+          return menuRow({
+            name: String(item || ""),
+            image_url: resolveDishImageUrl({ name: String(item || "") }, menuItems),
+          });
+        })
+      );
+    } else {
+      setQuotationMenuItems([]);
+    }
+
+    // 6. Add-ons
+    setQuotationAddOns(
+      (Array.isArray(form.selected_package_addons) ? form.selected_package_addons : []).map((item) => ({
+        name: item.name || "",
+        price: item.price ? String(item.price) : "",
+        quantity: Number(item.quantity) > 0 ? Number(item.quantity) : 1,
+        note: item.note || "",
+        pricing_type: "quantity",
+        removed: false,
+      }))
+    );
+  }, [form, packageDetails, isOffer, menuItems]);
+
+  const handleResetQuotationToDefaults = useCallback(() => {
+    syncQuotationFromWizard();
+    setIsQuotationDirty(false);
+    setDiscounts("");
+    setTaxes("");
+    setTransportationFee("");
+    setAdditionalFees([]);
+    setIncludeOvertime(false);
+    notify("Quotation builder reset to step selections & catalog defaults.", "info");
+  }, [syncQuotationFromWizard, notify]);
+
+  // Synchronize quotation when wizard selections change and quotation is not manually edited
   useEffect(() => {
     if (!open) return;
-    setQuotationItems((prevItems) => {
-      const defaults = generateDefaultQuotationItems(form, packageDetails, isOffer);
-      if (prevItems.length === 0) {
-        return defaults;
-      }
-
-      const prevMap = new Map();
-      prevItems.forEach((item) => {
-        if (item.key) prevMap.set(item.key, item);
-      });
-
-      const nextItems = [];
-      defaults.forEach((def) => {
-        const existing = prevMap.get(def.key);
-        if (existing) {
-          nextItems.push({
-            ...def,
-            quantity: existing.quantity !== undefined ? existing.quantity : def.quantity,
-            unit: existing.unit || def.unit,
-            unitPrice: existing.unitPrice !== undefined ? existing.unitPrice : def.unitPrice,
-            description: existing.description || def.description,
-            name: existing.name || def.name,
-          });
-          prevMap.delete(def.key);
-        } else {
-          nextItems.push(def);
-        }
-      });
-
-      // Retain custom lines added by admin
-      prevItems.forEach((item) => {
-        if (item.isCustom) {
-          nextItems.push(item);
-        }
-      });
-
-      return nextItems;
-    });
+    if (!isQuotationDirty) {
+      syncQuotationFromWizard();
+    }
   }, [
     open,
+    isQuotationDirty,
+    syncQuotationFromWizard,
     form.package_id,
     form.package_type,
     form.service_type,
@@ -1698,14 +1860,290 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     form.event_theme,
     form.guest_count,
     form.selected_menu,
+    form.offer_food_snapshot,
     form.selected_package_addons,
-    form.inventory_items,
     form.scaffold_price,
     form.scaffold_width,
     form.scaffold_length,
+    form.selected_scaffold_option_id,
     packageDetails,
     isOffer,
   ]);
+
+  /* ─── Quotation Builder User Edit Handlers ─── */
+  const handleInclusionQuantity = (index, value) => {
+    setIsQuotationDirty(true);
+    setInclusions((prev) =>
+      prev.map((entry, i) => (i === index ? { ...entry, quantity: value === "" ? "" : Number(value) } : entry))
+    );
+  };
+
+  const handleInclusionUnitPrice = (index, value) => {
+    setIsQuotationDirty(true);
+    setInclusions((prev) => prev.map((entry, i) => (i === index ? { ...entry, unitPrice: value } : entry)));
+  };
+
+  const handleInclusionDeduction = (index, value) => {
+    setIsQuotationDirty(true);
+    setInclusions((prev) => prev.map((entry, i) => (i === index ? { ...entry, deduction: value } : entry)));
+  };
+
+  const toggleInclusionRemoved = (index) => {
+    setIsQuotationDirty(true);
+    setInclusions((prev) =>
+      prev.map((entry, i) =>
+        i === index
+          ? {
+              ...entry,
+              removed: !entry.removed,
+              deduction: !entry.removed ? entry.deduction || "" : "",
+            }
+          : entry
+      )
+    );
+  };
+
+  const scaffoldOptions = useMemo(() => {
+    return Array.isArray(packageDetails?.scaffold_size_options) ? packageDetails.scaffold_size_options : [];
+  }, [packageDetails]);
+
+  const handleScaffoldOptionChange = (optionId) => {
+    setIsQuotationDirty(true);
+    if (optionId === "custom") {
+      setIsCustomScaffold(true);
+      setSelectedScaffoldId("custom");
+      return;
+    }
+    const opt = scaffoldOptions.find(
+      (entry, idx) => String(entry?._id) === String(optionId) || String(idx) === String(optionId)
+    );
+    if (opt) {
+      setIsCustomScaffold(false);
+      setSelectedScaffoldId(String(opt._id || optionId));
+      setScaffoldWidth(opt.width_ft ? String(opt.width_ft) : "");
+      setScaffoldLength(opt.length_ft ? String(opt.length_ft) : "");
+      if (opt.price != null && Number(opt.price) > 0) {
+        setStartingPrice(String(opt.price));
+      }
+    }
+  };
+
+  const handleCustomScaffoldChange = (w, l) => {
+    setIsQuotationDirty(true);
+    setIsCustomScaffold(true);
+    setSelectedScaffoldId("custom");
+    setScaffoldWidth(w);
+    setScaffoldLength(l);
+  };
+
+  const handleMenuChange = (index, field, value) => {
+    setIsQuotationDirty(true);
+    setQuotationMenuItems((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const toggleMenuRemoved = (index) => {
+    setIsQuotationDirty(true);
+    setQuotationMenuItems((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, removed: !item.removed } : item))
+    );
+  };
+
+  const handleDeleteMenu = (index) => {
+    setIsQuotationDirty(true);
+    setQuotationMenuItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddCatalogDish = (dish) => {
+    setIsQuotationDirty(true);
+    setQuotationMenuItems((prev) => [
+      ...prev,
+      menuRow({
+        name: dish.name,
+        category: dish.category || "",
+        price: dish.price ? String(dish.price) : "",
+        unit: dish.unit || "Pax",
+        quantity: 1,
+        image_url: dish.image_url || "",
+      }),
+    ]);
+  };
+
+  const handleAddCustomDish = (name) => {
+    if (!name?.trim()) return;
+    setIsQuotationDirty(true);
+    setQuotationMenuItems((prev) => [
+      ...prev,
+      menuRow({
+        name: name.trim(),
+        category: "Custom",
+        price: "",
+        unit: "Pax",
+        quantity: 1,
+      }),
+    ]);
+  };
+
+  const handleSpecialOfferDishReplace = (category, oldDishName, newDishName) => {
+    setIsQuotationDirty(true);
+    const dishImg = resolveDishImageUrl({ name: newDishName }, menuItems) || "";
+    setQuotationMenuItems((prev) => {
+      const cleanCat = (category || "").toLowerCase();
+      const targetIdx = prev.findIndex(
+        (m) =>
+          !m.removed &&
+          (m.category || "").toLowerCase() === cleanCat &&
+          (m.name || "").trim().toLowerCase() === (oldDishName || "").trim().toLowerCase()
+      );
+      if (targetIdx !== -1) {
+        const next = [...prev];
+        next[targetIdx] = menuRow({
+          name: newDishName,
+          category: category,
+          note: "Included in combo package",
+          unit: "Included",
+          price: 0,
+          quantity: 1,
+          image_url: dishImg,
+        });
+        return next;
+      }
+      return [
+        ...prev,
+        menuRow({
+          name: newDishName,
+          category: category,
+          note: "Included in combo package",
+          unit: "Included",
+          price: 0,
+          quantity: 1,
+          image_url: dishImg,
+        }),
+      ];
+    });
+  };
+
+  const handleSpecialOfferDishRemove = (dishName, category) => {
+    setIsQuotationDirty(true);
+    setQuotationMenuItems((prev) =>
+      prev.filter((m) => {
+        const sameName = (m.name || "").trim().toLowerCase() === (dishName || "").trim().toLowerCase();
+        const sameCat = !category || (m.category || "").toLowerCase() === (category || "").toLowerCase();
+        return !(sameName && sameCat);
+      })
+    );
+  };
+
+  const handleSpecialOfferDishSelect = (dishName, category) => {
+    setIsQuotationDirty(true);
+    const dishImg = resolveDishImageUrl({ name: dishName }, menuItems) || "";
+    setQuotationMenuItems((prev) => {
+      if (prev.some((m) => !m.removed && (m.name || "").trim().toLowerCase() === (dishName || "").trim().toLowerCase())) {
+        return prev;
+      }
+      return [
+        ...prev,
+        menuRow({
+          name: dishName,
+          category: category,
+          note: "Included in combo package",
+          unit: "Included",
+          price: 0,
+          quantity: 1,
+          image_url: dishImg,
+        }),
+      ];
+    });
+  };
+
+  const handleResetSpecialOfferFood = () => {
+    setIsQuotationDirty(true);
+    const original = (Array.isArray(form.offer_food_snapshot) && form.offer_food_snapshot.length > 0)
+      ? form.offer_food_snapshot.map((item) => ({ name: item.item_name, category: item.menu_category || "", image_url: item.image_url || "" }))
+      : (packageDetails ? offerFoodItems(packageDetails).map((item) => ({ name: item.item_name, category: item.menu_category || "", image_url: item.image_url || "" })) : []);
+
+    setQuotationMenuItems(
+      original.map(({ name, category, image_url }) =>
+        menuRow({
+          name,
+          category,
+          note: "Covered by combo package",
+          price: 0,
+          unit: "Included",
+          quantity: 1,
+          image_url: image_url || resolveDishImageUrl({ name }, menuItems) || "",
+        })
+      )
+    );
+  };
+
+  const handleAddOnChange = (index, field, value) => {
+    setIsQuotationDirty(true);
+    setQuotationAddOns((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const toggleAddOnRemoved = (index) => {
+    setIsQuotationDirty(true);
+    setQuotationAddOns((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, removed: !item.removed } : item))
+    );
+  };
+
+  const handleDeleteAddOn = (index) => {
+    setIsQuotationDirty(true);
+    setQuotationAddOns((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddCatalogAddon = (addon) => {
+    setIsQuotationDirty(true);
+    setQuotationAddOns((prev) => [
+      ...prev,
+      {
+        name: addon.name,
+        price: addon.price ? String(addon.price) : "",
+        quantity: 1,
+        note: "",
+        pricing_type: "quantity",
+        removed: false,
+      },
+    ]);
+  };
+
+  const handleAddCustomAddon = (name) => {
+    if (!name?.trim()) return;
+    setIsQuotationDirty(true);
+    setQuotationAddOns((prev) => [
+      ...prev,
+      {
+        name: name.trim(),
+        price: "",
+        quantity: 1,
+        note: "",
+        pricing_type: "quantity",
+        removed: false,
+      },
+    ]);
+  };
+
+  const handleFeeChange = (index, field, value) => {
+    setIsQuotationDirty(true);
+    setAdditionalFees((prev) =>
+      prev.map((fee, i) => (i === index ? { ...fee, [field]: value } : fee))
+    );
+  };
+
+  const handleRemoveFee = (index) => {
+    setIsQuotationDirty(true);
+    setAdditionalFees((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddFee = () => {
+    setIsQuotationDirty(true);
+    setAdditionalFees((prev) => [...prev, { name: "", amount: "", isOvertime: false }]);
+  };
 
   // ─── Dynamic Steps Array (Identical to Customer Booking Sequence) ───────────
   const wizardSteps = useMemo(() => {
@@ -1877,27 +2315,325 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     }
   }, [wizardSteps.length, step]);
 
-  // ─── Quotation Financial Totals ─────────────────────────────────────────────
-  const quotationSubtotal = useMemo(() => {
-    return quotationItems.reduce((sum, item) => {
-      const q = Number(item.quantity) || 0;
-      const p = Number(item.unitPrice) || 0;
-      return sum + q * p;
-    }, 0);
-  }, [quotationItems]);
+  // ─── Quotation Financial Totals & Items (Reusing computeQuotationTotals) ───
+  const removedInclusions = useMemo(
+    () =>
+      inclusions
+        .filter((entry) => entry.removed)
+        .map((entry) => ({ name: String(entry.name || "").trim(), deduction: numberOf(entry.deduction) })),
+    [inclusions]
+  );
 
-  const quotationDiscountNum = Number(discount) || 0;
-  const quotationGrandTotal = Math.max(0, quotationSubtotal - quotationDiscountNum);
+  const keptInclusions = useMemo(
+    () =>
+      inclusions
+        .filter((entry) => !entry.removed)
+        .map((entry) => String(entry.name || "").trim())
+        .filter(Boolean),
+    [inclusions]
+  );
 
-  const quotationDepositAmount = useMemo(() => {
+  const inclusionAdjustments = useMemo(
+    () =>
+      inclusions
+        .filter(
+          (entry) =>
+            !entry.removed &&
+            entry.baseQuantity !== null &&
+            entry.baseQuantity !== undefined &&
+            Number(entry.quantity) !== Number(entry.baseQuantity)
+        )
+        .map((entry) => ({
+          name: String(entry.name || "").trim(),
+          base_quantity: Number(entry.baseQuantity) || 0,
+          quantity: Number(entry.quantity) || 0,
+          unit_price: numberOf(entry.unitPrice),
+        }))
+        .filter((entry) => entry.name),
+    [inclusions]
+  );
+
+  const cateringIncluded = !isSetupOnly && form.include_food !== false;
+
+  const chargeableMenuItems = useMemo(
+    () => (cateringIncluded ? quotationMenuItems.filter((item) => !item.removed) : []),
+    [cateringIncluded, quotationMenuItems]
+  );
+
+  const chargeableAddOns = useMemo(
+    () => quotationAddOns.filter((item) => !item.removed),
+    [quotationAddOns]
+  );
+
+  // Overtime calculations
+  const computedOvertimeAmount = useMemo(() => {
+    if (!includeOvertime) return 0;
+    if (overtimeMode === "flat") {
+      return Math.max(0, Number(flatOvertimeFee) || 0);
+    }
+    const hrs = Math.max(0, Number(overtimeHours) || 0);
+    const crew = Math.max(1, Number(crewCount) || 1);
+    const rate = Math.max(0, Number(hourlyRatePerCrew) || 0);
+    return Math.round(hrs * crew * rate);
+  }, [includeOvertime, overtimeMode, overtimeHours, crewCount, hourlyRatePerCrew, flatOvertimeFee]);
+
+  const defaultOvertimeTitle = useMemo(() => {
+    const hrs = Number(overtimeHours) || 0;
+    const hrsLabel = `${hrs} hr${hrs === 1 ? "" : "s"}`;
+    if (overtimeMode === "flat") {
+      return `Event Overtime Fee (${hrsLabel} flat extension)`;
+    }
+    const crew = Number(crewCount) || 1;
+    const rate = Number(hourlyRatePerCrew) || 0;
+    return `Crew Overtime (${hrsLabel} × ${crew} crew @ ₱${rate}/hr)`;
+  }, [overtimeMode, overtimeHours, crewCount, hourlyRatePerCrew]);
+
+  // Sync overtime into additional fees
+  useEffect(() => {
+    const title = defaultOvertimeTitle;
+    const amountStr = String(computedOvertimeAmount);
+
+    setAdditionalFees((prev) => {
+      const filtered = prev.filter((f) => !f.isOvertime && !/overtime/i.test(f.name || ""));
+      if (!includeOvertime || computedOvertimeAmount <= 0) {
+        return filtered;
+      }
+      return [...filtered, { name: title, amount: amountStr, isOvertime: true }];
+    });
+  }, [includeOvertime, computedOvertimeAmount, defaultOvertimeTitle]);
+
+  const activeSpecialDishes = useMemo(
+    () => (cateringIncluded ? quotationMenuItems.filter((m) => !m.removed) : []),
+    [cateringIncluded, quotationMenuItems]
+  );
+
+  const offerContext = useMemo(() => {
+    if (!isOffer) return null;
+    const guests = Number(form.guest_count) || offerGuestCount(packageDetails) || 1;
+    const perPax =
+      offerPricePerPax(packageDetails) ||
+      Number(packageDetails?.price_per_guest) ||
+      0;
+
+    const snapshot = (isOffer && activeSpecialDishes.length > 0)
+      ? activeSpecialDishes.map((item) => ({
+          menu_category: item.category || "",
+          item_name: item.name || "",
+        }))
+      : (Array.isArray(form.offer_food_snapshot) && form.offer_food_snapshot.length > 0
+          ? form.offer_food_snapshot
+          : (packageDetails ? offerFoodItems(packageDetails) : []));
+
+    const basePrice = Math.round(perPax * guests * 100) / 100;
+
+    return {
+      name: packageDetails?.name || "Special Offer",
+      guests,
+      perPax,
+      basePrice,
+      food: snapshot.map((item) => (item.menu_category ? `${item.item_name} (${item.menu_category})` : item.item_name)),
+      foodItems: snapshot.map((item) => ({ name: item.item_name, category: item.menu_category || "" })),
+      included: [
+        ...snapshot.map((item) => (item.menu_category ? `${item.item_name} (${item.menu_category})` : item.item_name)),
+        ...(packageDetails ? offerInclusions(packageDetails) : []),
+      ],
+    };
+  }, [
+    isOffer,
+    packageDetails,
+    form.guest_count,
+    form.offer_food_snapshot,
+    activeSpecialDishes,
+  ]);
+
+  const pricingInput = useMemo(
+    () => ({
+      is_special_offer: isOffer,
+      booking_type: isOffer ? "special" : "regular",
+      package_starting_price: startingPrice,
+      removed_inclusions: removedInclusions,
+      inclusion_adjustments: inclusionAdjustments,
+      guest_count: form.guest_count,
+      menu_items: isOffer ? [] : chargeableMenuItems,
+      add_ons: chargeableAddOns,
+      transportation_fee: transportationFee,
+      additional_fees: additionalFees,
+      taxes,
+      discounts,
+      deposit_amount: customDeposit !== "" ? customDeposit : undefined,
+    }),
+    [
+      isOffer,
+      startingPrice,
+      removedInclusions,
+      inclusionAdjustments,
+      form.guest_count,
+      chargeableMenuItems,
+      chargeableAddOns,
+      transportationFee,
+      additionalFees,
+      taxes,
+      discounts,
+      customDeposit,
+    ]
+  );
+
+  const quotationTotals = useMemo(() => {
+    const calc = computeQuotationTotals(pricingInput);
     if (customDeposit !== "" && customDeposit !== undefined) {
-      return Math.min(quotationGrandTotal, Math.max(0, Number(customDeposit) || 0));
+      const parsedCustom = Math.min(calc.totalCost, Math.max(0, Number(customDeposit) || 0));
+      return {
+        ...calc,
+        depositAmount: parsedCustom,
+        remainingBalance: Math.max(0, calc.totalCost - parsedCustom),
+      };
     }
     const pct = Number(depositPercent || businessInfo?.deposit_percentage || 20);
-    return Math.round(quotationGrandTotal * (pct / 100));
-  }, [customDeposit, quotationGrandTotal, depositPercent, businessInfo?.deposit_percentage]);
+    const dep = Math.round((calc.totalCost * pct) / 100);
+    return {
+      ...calc,
+      depositAmount: dep,
+      remainingBalance: Math.max(0, calc.totalCost - dep),
+    };
+  }, [pricingInput, customDeposit, depositPercent, businessInfo?.deposit_percentage]);
 
-  const quotationRemainingBalance = Math.max(0, quotationGrandTotal - quotationDepositAmount);
+  const eventSpace = useMemo(() => {
+    if (scaffoldWidth && scaffoldLength) {
+      return `${scaffoldWidth}×${scaffoldLength}`;
+    }
+    return eventSpaceLabel(form, packageDetails);
+  }, [scaffoldWidth, scaffoldLength, form, packageDetails]);
+
+  // Review table line items constructed from authoritative quotation data
+  const reviewQuotationItems = useMemo(() => {
+    const rows = [];
+    // 1. Package Line
+    rows.push({
+      key: "pkg-base",
+      category: "Package",
+      name: quotationPackageName || packageDetails?.name || "Package",
+      description: isFoodOnly ? "Food Catering" : eventSpace || "Event Setup",
+      quantity: 1,
+      unit: isFoodOnly ? "Package" : "Setup",
+      unitPrice: quotationTotals.packagePrice,
+    });
+
+    // 2. Removed Inclusions (Deductions)
+    removedInclusions
+      .filter((i) => i.deduction > 0)
+      .forEach((i, idx) => {
+        rows.push({
+          key: `deduct-${idx}`,
+          category: "Deduction",
+          name: `Deduction: ${i.name}`,
+          description: "Removed from package inclusions",
+          quantity: 1,
+          unit: "Item",
+          unitPrice: -i.deduction,
+        });
+      });
+
+    // 3. Inclusion Variations
+    inclusionAdjustments
+      .filter((i) => i.unit_price > 0 && i.quantity !== i.base_quantity)
+      .forEach((i, idx) => {
+        const delta = i.quantity - i.base_quantity;
+        rows.push({
+          key: `adj-${idx}`,
+          category: "Extra",
+          name: `${i.name} (Variation)`,
+          description: `Base: ${i.base_quantity} → New: ${i.quantity}`,
+          quantity: delta,
+          unit: "Unit",
+          unitPrice: i.unit_price,
+        });
+      });
+
+    // 4. Menu Items
+    if (isOffer && offerContext) {
+      offerContext.foodItems.forEach((m, idx) => {
+        rows.push({
+          key: `offer-food-${idx}`,
+          category: "Menu",
+          name: m.name,
+          description: m.category ? `${m.category} (Covered in combo)` : "Covered in combo",
+          quantity: Number(form.guest_count) || 1,
+          unit: "Pax",
+          unitPrice: 0,
+        });
+      });
+    } else {
+      chargeableMenuItems.forEach((m, idx) => {
+        rows.push({
+          key: `menu-${idx}`,
+          category: "Menu",
+          name: m.name,
+          description: m.category || m.note || "Catering Dish",
+          quantity: Number(m.quantity) || 1,
+          unit: m.unit || "Pax",
+          unitPrice: Number(m.price) || 0,
+        });
+      });
+    }
+
+    // 5. Add-ons
+    chargeableAddOns.forEach((a, idx) => {
+      rows.push({
+        key: `addon-${idx}`,
+        category: "Add-on",
+        name: a.name,
+        description: a.note || "Add-on Service",
+        quantity: Number(a.quantity) || 1,
+        unit: "Unit",
+        unitPrice: Number(a.price) || 0,
+      });
+    });
+
+    // 6. Transportation
+    if (Number(transportationFee) > 0) {
+      rows.push({
+        key: "logistics-trans",
+        category: "Logistics",
+        name: "Transportation & Delivery",
+        description: "Venue delivery & logistics fee",
+        quantity: 1,
+        unit: "Trip",
+        unitPrice: Number(transportationFee),
+      });
+    }
+
+    // 7. Additional & Overtime Fees
+    additionalFees
+      .filter((f) => Number(f.amount) > 0)
+      .forEach((f, idx) => {
+        rows.push({
+          key: `fee-${idx}`,
+          category: f.isOvertime ? "Overtime" : "Fee",
+          name: f.name || "Additional Fee",
+          description: f.isOvertime ? "Crew / Event extension" : "Custom adjustment",
+          quantity: 1,
+          unit: "Fee",
+          unitPrice: Number(f.amount),
+        });
+      });
+
+    return rows;
+  }, [
+    quotationPackageName,
+    packageDetails?.name,
+    isFoodOnly,
+    eventSpace,
+    quotationTotals.packagePrice,
+    removedInclusions,
+    inclusionAdjustments,
+    isOffer,
+    offerContext,
+    form.guest_count,
+    chargeableMenuItems,
+    chargeableAddOns,
+    transportationFee,
+    additionalFees,
+  ]);
 
   // ─── Live Quotation & Estimate Calculation (Fallback) ───────────────────────
   const estimate = useMemo(() => {
@@ -2188,17 +2924,9 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       }
 
       case "Quotation": {
-        if (!quotationItems || quotationItems.length === 0) {
-          errs.quotation = "At least one item is required in the quotation.";
-          msg = "Please add at least one line item to the quotation.";
-        } else {
-          const invalidItem = quotationItems.find(
-            (item) => Number(item.quantity) <= 0 || Number(item.unitPrice) < 0 || !item.name?.trim()
-          );
-          if (invalidItem) {
-            errs.quotation = "All items must have valid name, quantity, and non-negative price.";
-            msg = "Please verify all line item quantities and unit prices.";
-          }
+        if (!quotationTotals || quotationTotals.totalCost <= 0) {
+          errs.quotation = "Quotation total must be greater than zero.";
+          msg = "Quotation total must be greater than zero. Please review package and item prices.";
         }
         break;
       }
@@ -2290,11 +3018,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
     setSubmitting(true);
     try {
-      const finalPrice = quotationGrandTotal;
-      const finalSubtotal = quotationSubtotal;
-      const finalDiscount = quotationDiscountNum;
-      const depositAmount = quotationDepositAmount;
-
       const cleanPhone = (val) => (val ? String(val).replace(/\s+/g, "") : undefined);
       const cleanZip =
         form.zip_code && /^\d{4}$/.test(form.zip_code.trim())
@@ -2310,43 +3033,8 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         if (found) customerId = found._id;
       }
 
-      // Map priced items from quotation
-      const menuItemsQuotation = quotationItems
-        .filter((item) => item.category === "Menu")
-        .map((m) => ({
-          name: m.name,
-          category: m.description?.replace(" (Included in Package)", "") || "Catering Dish",
-          price: Number(m.unitPrice) || 0,
-          quantity: Number(m.quantity) || Number(form.guest_count) || 1,
-          unit: m.unit || "Pax",
-          pricing_type: m.unit?.toLowerCase() === "pax" ? "per_guest" : "quantity",
-        }));
-
-      const serviceItemsQuotation = quotationItems
-        .filter((item) => item.category === "Add-on" || item.category === "Custom")
-        .map((a) => ({
-          name: a.name,
-          quantity: Number(a.quantity || 1),
-          price: Number(a.unitPrice || 0),
-          note: a.description || "",
-          pricing_type: "quantity",
-        }));
-
-      const additionalChargesQuotation = quotationItems
-        .filter((item) => item.category === "Equipment")
-        .map((e) => ({
-          name: e.name,
-          amount: (Number(e.quantity) || 1) * (Number(e.unitPrice) || 0),
-          charge_type: "equipment",
-          inventory_id: e.inventory_id || undefined,
-        }));
-
-      const packageLine = quotationItems.find((item) => item.category === "Package");
-      const packagePrice = packageLine
-        ? (Number(packageLine.quantity) || 1) * (Number(packageLine.unitPrice) || 0)
-        : 0;
-
-      const payload = {
+      // Step 1: Create the Inquiry record
+      const inquiryPayload = {
         customer_id: customerId || undefined,
         package_id:
           form.package_type === "existing" && form.package_id && form.package_id !== "none"
@@ -2394,52 +3082,120 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         contact_email: form.contact_email,
         contact_phone: cleanPhone(form.contact_phone) || form.contact_phone,
         contact_alt_phone: cleanPhone(form.contact_alt_phone),
-        contact_method: form.contact_method || "email",
+        contact_method: form.contact_method || "Walk-in",
         selected_menu: form.selected_menu?.map((m) => m._id || m) || [],
-        menu_items:
-          menuItemsQuotation.length > 0
-            ? menuItemsQuotation
-            : (form.selected_menu || []).map((m) => ({
-                name: m.name,
-                category: m.category,
-                price: m.price,
-                quantity: Number(form.guest_count) || 1,
-                unit: m.unit || "serving",
-              })),
-        offer_food_snapshot: form.offer_food_snapshot || [],
+        offer_food_snapshot: isOffer && offerContext
+          ? offerContext.foodItems.map((f) => ({ menu_category: f.category, item_name: f.name }))
+          : form.offer_food_snapshot || [],
         dietary_restrictions: form.dietary_restrictions || undefined,
         allergies: form.allergies || undefined,
         special_requests:
           [form.special_requests, quotationNotes].filter(Boolean).join(" | ") || undefined,
-        service_items:
-          serviceItemsQuotation.length > 0
-            ? serviceItemsQuotation
-            : (form.selected_package_addons || []).map((a) => ({
-                name: a.name,
-                quantity: Number(a.quantity || 1),
-                price: Number(a.price || 0),
-              })),
-        additional_charges: additionalChargesQuotation,
-        package_price: packagePrice,
+        service_items: chargeableAddOns.map((a) => ({
+          name: a.name,
+          quantity: Number(a.quantity || 1),
+          price: Number(a.price || 0),
+          note: a.note || "",
+        })),
         inventory_items: form.inventory_items || [],
-        total_price: Number(finalPrice) || 0,
-        subtotal: Number(finalSubtotal) || Number(finalPrice) || 0,
-        discount_amount: Number(finalDiscount) || 0,
-        deposit_amount: depositAmount,
-        payment_method: paymentMethod || form.payment_method || "cash",
-        balance_payment_preference:
-          balancePreference || form.balance_payment_preference || "in_person",
-        status: depositPaidImmediately ? "confirmed" : "pending deposit",
-        payment_status: depositPaidImmediately ? "deposit_paid" : "pending",
+        selected_scaffold_option_id: selectedScaffoldId !== "custom" && selectedScaffoldId ? selectedScaffoldId : undefined,
+        scaffold_width: scaffoldWidth ? Number(scaffoldWidth) : undefined,
+        scaffold_length: scaffoldLength ? Number(scaffoldLength) : undefined,
       };
 
-      await AdminAPI.createBooking(payload);
-      notify("Walk-in booking created successfully!", "success");
+      const inqRes = await AdminAPI.createInquiry(inquiryPayload);
+      const newInquiry = inqRes.data;
+      if (!newInquiry?._id) {
+        throw new Error("Failed to create walk-in inquiry record.");
+      }
+
+      // Step 2: Create the Quotation record matching QuotationBuilderModal
+      const quotationSubmitPayload = {
+        inquiry_id: newInquiry._id,
+        package_id: packageDetails?._id || newInquiry.package_id || undefined,
+        package_name: quotationPackageName || packageDetails?.name || "Custom Package",
+        booking_type: isOffer ? "special" : "regular",
+        is_special_offer: isOffer,
+        offer_price_per_guest: isOffer ? offerContext?.perPax : undefined,
+        offer_food_snapshot: isOffer && offerContext
+          ? offerContext.foodItems.map((f) => ({ menu_category: f.category, item_name: f.name }))
+          : undefined,
+        event_space_label: eventSpace || undefined,
+        package_starting_price: quotationTotals.startingPrice,
+        package_price: quotationTotals.packagePrice,
+        package_inclusions: keptInclusions,
+        removed_inclusions: removedInclusions.filter((entry) => entry.name),
+        inclusion_adjustments: inclusionAdjustments.map((entry) => ({
+          ...entry,
+          amount: inclusionAdjustmentAmount(entry),
+        })),
+        guest_count: quotationTotals.guestCount,
+        menu_items: isOffer
+          ? (offerContext?.foodItems || []).map((item) => ({
+              name: String(item.name || "").trim(),
+              category: String(item.category || "").trim(),
+              note: "Included in combo package",
+              pricing_type: "per_guest",
+              quantity: 1,
+              unit: "Included",
+              price: 0,
+            }))
+          : chargeableMenuItems.map((item) => ({
+              name: String(item.name || "").trim(),
+              category: String(item.category || "").trim(),
+              note: String(item.note || "").trim(),
+              pricing_type: MENU_PRICING.QUANTITY,
+              quantity: Math.max(1, Number(item.quantity) || 1),
+              unit: String(item.unit || "").trim() || "Pax",
+              price: money(item.price),
+            })),
+        add_ons: chargeableAddOns.map((item) => ({
+          name: String(item.name || "").trim(),
+          price: money(item.price),
+          quantity: Math.max(1, Number(item.quantity) || 1),
+          note: String(item.note || "").trim(),
+          pricing_type: "quantity",
+        })),
+        transportation_fee: money(transportationFee),
+        additional_fees: additionalFees
+          .filter((fee) => String(fee.name || "").trim() || numberOf(fee.amount))
+          .map((fee) => ({ name: String(fee.name || "").trim(), amount: money(fee.amount) })),
+        taxes: quotationTotals.taxes,
+        discounts: quotationTotals.discounts,
+        subtotal: quotationTotals.subtotal,
+        total_cost: quotationTotals.totalCost,
+        deposit_amount: quotationTotals.depositAmount,
+        remaining_balance: quotationTotals.remainingBalance,
+        expiration_date: toDateInput(new Date(Date.now() + 7 * 86400000)),
+        admin_notes: quotationNotes,
+      };
+
+      await AdminAPI.createQuotation(quotationSubmitPayload);
+
+      // Step 3: Handle Status Routing Based on Deposit Payment
+      if (depositPaidImmediately) {
+        // Customer paid deposit right now: convert inquiry into confirmed reservation
+        await AdminAPI.createBookingFromInquiry(newInquiry._id, {
+          bypass_deposit: true,
+          payment_method: paymentMethod || "cash",
+        });
+        notify(
+          "Walk-in booking created and confirmed into Reservations (deposit recorded)!",
+          "success"
+        );
+      } else {
+        // Unpaid deposit: stays under Quotations as "Quotation Sent"
+        notify(
+          "Walk-in inquiry & quotation created! Placed in Quotations pending deposit payment.",
+          "success"
+        );
+      }
+
       onCreated?.();
       onClose();
     } catch (err) {
       notify(
-        err.response?.data?.message || "Could not create the booking. Please check details.",
+        err.response?.data?.message || err.message || "Could not create the walk-in booking. Please check details.",
         "error"
       );
     } finally {
@@ -2459,7 +3215,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       style={{ animation: "wibm-fade 0.15s ease" }}
     >
       <div
-        className="relative flex h-[94dvh] w-[95vw] max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10"
+        className="relative flex h-[94dvh] w-[96vw] max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10"
         style={{ animation: "wibm-up 0.18s ease" }}
       >
         {/* ── Modal Header ── */}
@@ -2475,22 +3231,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Live Quotation preview pill */}
-              {(quotationGrandTotal > 0 || estimate.finalTotal > 0) && (
-                <div className="hidden md:flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/80 px-3 py-1 text-xs font-semibold text-blue-800 tabular-nums">
-                  <span>
-                    {formatCurrency(quotationGrandTotal > 0 ? quotationGrandTotal : estimate.finalTotal)}
-                  </span>
-                  <span className="text-blue-400">·</span>
-                  <span className="text-blue-600 font-normal">
-                    Dep:{" "}
-                    {formatCurrency(
-                      quotationGrandTotal > 0 ? quotationDepositAmount : estimate.depositAmount
-                    )}
-                  </span>
-                </div>
-              )}
-
               {/* Close Button */}
               <button
                 type="button"
@@ -2503,21 +3243,23 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
             </div>
           </div>
 
-          {/* ── Step-by-Step Progress Indicator ── */}
-          <div className="pt-2 border-t border-slate-100">
-            <BookingStepper
-              currentStepIndex={step + 1}
-              steps={wizardSteps}
-              onStepClick={handleStepClick}
-              isEditing={isEditing}
-              maxStepReached={
-                isEditing || step === wizardSteps.length - 1
-                  ? wizardSteps.length
-                  : Math.max(maxStepReached + 1, step + 1)
-              }
-              showAiAssistant={false}
-            />
-          </div>
+          {/* ── Step-by-Step Progress Indicator (Shown only after continuing past initial selection screen) ── */}
+          {step > 0 && (
+            <div className="pt-2.5 border-t border-slate-100">
+              <BookingStepper
+                currentStepIndex={step + 1}
+                steps={wizardSteps}
+                onStepClick={handleStepClick}
+                isEditing={isEditing}
+                maxStepReached={
+                  isEditing || step === wizardSteps.length - 1
+                    ? wizardSteps.length
+                    : Math.max(maxStepReached + 1, step + 1)
+                }
+                showAiAssistant={false}
+              />
+            </div>
+          )}
         </div>
 
         {/* ── Modal Body Content ── */}
@@ -2703,13 +3445,112 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                 />
               )}
 
-              {/* Step: Quotation & Pricing */}
+              {/* Step: Quotation & Pricing (Full Admin Quotation Builder) */}
               {currentStepId === "Quotation" && (
                 <WalkInQuotationStep
-                  quotationItems={quotationItems}
-                  setQuotationItems={setQuotationItems}
-                  discount={discount}
-                  setDiscount={setDiscount}
+                  packageName={quotationPackageName || packageDetails?.name || "Custom Package"}
+                  startingPrice={startingPrice}
+                  setStartingPrice={(val) => {
+                    setIsQuotationDirty(true);
+                    setStartingPrice(val);
+                  }}
+                  inclusions={inclusions}
+                  setInclusions={(val) => {
+                    setIsQuotationDirty(true);
+                    setInclusions(val);
+                  }}
+                  handleInclusionQuantity={handleInclusionQuantity}
+                  handleInclusionUnitPrice={handleInclusionUnitPrice}
+                  handleInclusionDeduction={handleInclusionDeduction}
+                  toggleInclusionRemoved={toggleInclusionRemoved}
+                  scaffoldOptions={scaffoldOptions}
+                  selectedScaffoldId={selectedScaffoldId}
+                  handleScaffoldOptionChange={handleScaffoldOptionChange}
+                  isCustomScaffold={isCustomScaffold}
+                  scaffoldWidth={scaffoldWidth}
+                  scaffoldLength={scaffoldLength}
+                  handleCustomScaffoldChange={handleCustomScaffoldChange}
+                  isFoodOnly={isFoodOnly}
+                  isSetupOnly={isSetupOnly}
+                  cateringIncluded={cateringIncluded}
+                  isSpecialOffer={isOffer}
+                  offerContext={offerContext}
+                  packageRecord={packageDetails}
+                  inquiry={null}
+                  menuItems={quotationMenuItems}
+                  handleMenuChange={handleMenuChange}
+                  toggleMenuRemoved={toggleMenuRemoved}
+                  handleDeleteMenu={handleDeleteMenu}
+                  onReplaceSpecialOfferDish={handleSpecialOfferDishReplace}
+                  onRemoveSpecialOfferDish={handleSpecialOfferDishRemove}
+                  onSelectSpecialOfferDish={handleSpecialOfferDishSelect}
+                  onResetSpecialOfferFood={handleResetSpecialOfferFood}
+                  catalogMenuItems={menuItems}
+                  onAddCatalogDish={handleAddCatalogDish}
+                  onAddCustomDish={handleAddCustomDish}
+                  addOns={quotationAddOns}
+                  handleAddOnChange={handleAddOnChange}
+                  toggleAddOnRemoved={toggleAddOnRemoved}
+                  handleDeleteAddOn={handleDeleteAddOn}
+                  catalogAddons={addons}
+                  onAddCatalogAddon={handleAddCatalogAddon}
+                  onAddCustomAddon={handleAddCustomAddon}
+                  transportationFee={transportationFee}
+                  setTransportationFee={(val) => {
+                    setIsQuotationDirty(true);
+                    setTransportationFee(val);
+                  }}
+                  includeOvertime={includeOvertime}
+                  setIncludeOvertime={(val) => {
+                    setIsQuotationDirty(true);
+                    setIncludeOvertime(val);
+                  }}
+                  overtimeMode={overtimeMode}
+                  setOvertimeMode={(val) => {
+                    setIsQuotationDirty(true);
+                    setOvertimeMode(val);
+                  }}
+                  overtimeHours={overtimeHours}
+                  setOvertimeHours={(val) => {
+                    setIsQuotationDirty(true);
+                    setOvertimeHours(val);
+                  }}
+                  crewCount={crewCount}
+                  setCrewCount={(val) => {
+                    setIsQuotationDirty(true);
+                    setCrewCount(val);
+                  }}
+                  hourlyRatePerCrew={hourlyRatePerCrew}
+                  setHourlyRatePerCrew={(val) => {
+                    setIsQuotationDirty(true);
+                    setHourlyRatePerCrew(val);
+                  }}
+                  flatOvertimeFee={flatOvertimeFee}
+                  setFlatOvertimeFee={(val) => {
+                    setIsQuotationDirty(true);
+                    setFlatOvertimeFee(val);
+                  }}
+                  computedOvertimeAmount={computedOvertimeAmount}
+                  additionalFees={additionalFees}
+                  handleFeeChange={handleFeeChange}
+                  handleRemoveFee={handleRemoveFee}
+                  handleAddFee={handleAddFee}
+                  discounts={discounts}
+                  setDiscounts={(val) => {
+                    setIsQuotationDirty(true);
+                    setDiscounts(val);
+                  }}
+                  taxes={taxes}
+                  setTaxes={(val) => {
+                    setIsQuotationDirty(true);
+                    setTaxes(val);
+                  }}
+                  errors={stepErrors}
+                  onProceedToReview={handleNext}
+                  totals={quotationTotals}
+                  eventSpace={eventSpace}
+                  chargeableMenuItemsCount={chargeableMenuItems.length}
+                  chargeableAddOnsCount={chargeableAddOns.length}
                   depositPercent={depositPercent}
                   setDepositPercent={setDepositPercent}
                   customDeposit={customDeposit}
@@ -2723,8 +3564,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                   notes={quotationNotes}
                   setNotes={setQuotationNotes}
                   onResetToDefault={handleResetQuotationToDefaults}
-                  guestCount={parseNumber(form.guest_count) || 1}
-                  packageName={packageDetails?.name || ""}
                 />
               )}
 
@@ -2734,13 +3573,13 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                   form={form}
                   packageDetails={packageDetails}
                   estimate={estimate}
-                  quotationItems={quotationItems}
-                  quotationSubtotal={quotationSubtotal}
-                  quotationDiscount={quotationDiscountNum}
-                  quotationGrandTotal={quotationGrandTotal}
-                  depositAmount={quotationDepositAmount}
+                  quotationItems={reviewQuotationItems}
+                  quotationSubtotal={quotationTotals.subtotal}
+                  quotationDiscount={quotationTotals.discounts}
+                  quotationGrandTotal={quotationTotals.totalCost}
+                  depositAmount={quotationTotals.depositAmount}
                   depositPercentage={depositPercent}
-                  remainingBalance={quotationRemainingBalance}
+                  remainingBalance={quotationTotals.remainingBalance}
                   paymentMethod={paymentMethod}
                   depositPaidImmediately={depositPaidImmediately}
                   balancePreference={balancePreference}

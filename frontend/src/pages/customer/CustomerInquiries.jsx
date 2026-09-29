@@ -445,7 +445,7 @@ export default function CustomerInquiries() {
             openQuotationView(inq);
           }}
           disabled={isLoadingQuotation}
-          className="bg-[#1E3563] hover:bg-[#152547] text-white font-bold text-xs h-9 px-4 rounded-xl shrink-0 cursor-pointer shadow-xs gap-1.5 active:scale-[0.98] transition-all"
+          className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white font-bold text-xs h-9 px-4 rounded-xl shrink-0 cursor-pointer shadow-xs gap-1.5 active:scale-[0.98] transition-all"
         >
           <FileCheck2 className="w-3.5 h-3.5" />
           <span>Review Quote</span>
@@ -481,10 +481,10 @@ export default function CustomerInquiries() {
           e.stopPropagation();
           handleViewInquiry(inq);
         }}
-        className="border-slate-200 bg-white hover:bg-slate-50 text-slate-800 hover:text-[#2C4B8A] font-bold text-xs h-9 px-3.5 rounded-xl shrink-0 cursor-pointer shadow-2xs gap-1 transition-all"
+        className="border-slate-200 bg-white hover:bg-slate-50 text-slate-800 hover:text-[#4C81E0] font-bold text-xs h-9 px-3.5 rounded-xl shrink-0 cursor-pointer shadow-2xs gap-1 transition-all"
       >
         <span>View Details</span>
-        <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-[#2C4B8A] transition-transform group-hover:translate-x-0.5" />
+        <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-[#4C81E0] transition-transform group-hover:translate-x-0.5" />
       </Button>
     );
   };
@@ -537,19 +537,19 @@ export default function CustomerInquiries() {
                 className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border border-slate-200 shrink-0 shadow-2xs"
               />
             ) : (
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-blue-50/80 border border-blue-100 flex items-center justify-center text-[#2C4B8A] shrink-0 shadow-2xs">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-blue-50/80 border border-blue-100 flex items-center justify-center text-[#4C81E0] shrink-0 shadow-2xs">
                 <Utensils className="w-6 h-6 sm:w-7 sm:h-7 opacity-80" />
               </div>
             )}
 
             <div className="min-w-0 space-y-1">
-              <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate font-sans group-hover:text-[#2C4B8A] transition-colors">
+              <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate font-sans group-hover:text-[#4C81E0] transition-colors">
                 {titleStr}
               </h3>
 
               <div className="text-xs text-slate-700 font-medium flex items-center gap-1.5 flex-wrap">
                 <span className="flex items-center gap-1 font-semibold text-slate-800">
-                  <Calendar className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                  <Calendar className="w-3.5 h-3.5 text-[#4C81E0]" />
                   {formatShortDate(inq.event_date)}
                 </span>
                 <span className="text-slate-400">•</span>
@@ -615,7 +615,7 @@ export default function CustomerInquiries() {
 
           <Button
             onClick={() => navigate("/packages")}
-            className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-xs rounded-xl font-bold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
+            className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white shadow-xs rounded-xl font-bold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
           >
             <Plus className="h-4 w-4 mr-1.5" />
             <span>New Request</span>
@@ -634,7 +634,7 @@ export default function CustomerInquiries() {
                 placeholder="Search by event name or reference..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-md border border-slate-200/90 focus:border-[#2C4B8A] focus:ring-2 focus:ring-[#2C4B8A]/10 outline-none transition-all shadow-2xs"
+                className="w-full pl-9 pr-8 py-2 bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-md border border-slate-200/90 focus:border-[#4C81E0] focus:ring-2 focus:ring-[#4C81E0]/10 outline-none transition-all shadow-2xs"
               />
               {searchQuery && (
                 <button
@@ -655,7 +655,7 @@ export default function CustomerInquiries() {
                     variant="outline"
                     className={cn(
                       "h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0",
-                      statusFilter !== "all" && "bg-blue-50 text-[#2C4B8A] border-blue-200"
+                      statusFilter !== "all" && "bg-blue-50 text-[#4C81E0] border-blue-200"
                     )}
                   >
                     <span>
@@ -688,11 +688,11 @@ export default function CustomerInquiries() {
                       onClick={() => setStatusFilter(item.id)}
                       className={cn(
                         "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                        statusFilter === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                        statusFilter === item.id ? "bg-[#4C81E0]/10 text-[#4C81E0] font-semibold" : "text-slate-700"
                       )}
                     >
                       <span>{item.label}</span>
-                      {statusFilter === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                      {statusFilter === item.id && <Check className="w-3.5 h-3.5 text-[#4C81E0]" />}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -705,10 +705,10 @@ export default function CustomerInquiries() {
                     variant="outline"
                     className={cn(
                       "h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0",
-                      serviceTypeFilter !== "all" && "bg-blue-50 text-[#2C4B8A] border-blue-200"
+                      serviceTypeFilter !== "all" && "bg-blue-50 text-[#4C81E0] border-blue-200"
                     )}
                   >
-                    <SlidersHorizontal className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-[#4C81E0]" />
                     <span>{serviceTypeFilter === "all" ? "All Services" : serviceTypeFilter}</span>
                     <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                   </Button>
@@ -718,11 +718,11 @@ export default function CustomerInquiries() {
                     onClick={() => setServiceTypeFilter("all")}
                     className={cn(
                       "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                      serviceTypeFilter === "all" ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                      serviceTypeFilter === "all" ? "bg-[#4C81E0]/10 text-[#4C81E0] font-semibold" : "text-slate-700"
                     )}
                   >
                     <span>All Services</span>
-                    {serviceTypeFilter === "all" && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                    {serviceTypeFilter === "all" && <Check className="w-3.5 h-3.5 text-[#4C81E0]" />}
                   </DropdownMenuItem>
 
                   <DropdownMenuSeparator className="my-1 bg-slate-100" />
@@ -738,11 +738,11 @@ export default function CustomerInquiries() {
                         onClick={() => setServiceTypeFilter(opt)}
                         className={cn(
                           "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                          serviceTypeFilter === opt ? "bg-[#4C81E0]/10 text-[#4C81E0] font-semibold" : "text-slate-700"
                         )}
                       >
                         <span>{opt}</span>
-                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#4C81E0]" />}
                       </DropdownMenuItem>
                     ))
                   ) : (
@@ -762,11 +762,11 @@ export default function CustomerInquiries() {
                         onClick={() => setServiceTypeFilter(name)}
                         className={cn(
                           "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          serviceTypeFilter === name ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                          serviceTypeFilter === name ? "bg-[#4C81E0]/10 text-[#4C81E0] font-semibold" : "text-slate-700"
                         )}
                       >
                         <span className="truncate">{name}</span>
-                        {serviceTypeFilter === name && <Check className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0" />}
+                        {serviceTypeFilter === name && <Check className="w-3.5 h-3.5 text-[#4C81E0] shrink-0" />}
                       </DropdownMenuItem>
                     ))
                   ) : (
@@ -789,11 +789,11 @@ export default function CustomerInquiries() {
                       onClick={() => setServiceTypeFilter(opt)}
                       className={cn(
                         "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                        serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                        serviceTypeFilter === opt ? "bg-[#4C81E0]/10 text-[#4C81E0] font-semibold" : "text-slate-700"
                       )}
                     >
                       <span>{opt}</span>
-                      {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                      {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#4C81E0]" />}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -830,11 +830,11 @@ export default function CustomerInquiries() {
                       onClick={() => setSortBy(item.id)}
                       className={cn(
                         "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                        sortBy === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                        sortBy === item.id ? "bg-[#4C81E0]/10 text-[#4C81E0] font-semibold" : "text-slate-700"
                       )}
                     >
                       <span>{item.label}</span>
-                      {sortBy === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                      {sortBy === item.id && <Check className="w-3.5 h-3.5 text-[#4C81E0]" />}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -874,7 +874,7 @@ export default function CustomerInquiries() {
                   <Button
                     size="sm"
                     onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
-                    className="mt-4 bg-[#2C4B8A] hover:bg-[#1E3563] text-white text-xs font-semibold rounded-md"
+                    className="mt-4 bg-[#4C81E0] hover:bg-[#3B6EC6] text-white text-xs font-semibold rounded-md shadow-xs cursor-pointer"
                   >
                     Create Quote Request
                   </Button>

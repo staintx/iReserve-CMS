@@ -197,7 +197,7 @@ export default function CustomerDateEventsModal({
                           ? "bg-amber-600 hover:bg-amber-700 text-white"
                           : event.type === "ocular"
                           ? "bg-purple-700 hover:bg-purple-800 text-white"
-                          : "bg-[#2C4B8A] hover:bg-[#1E3563] text-white"
+                          : "bg-[#4C81E0] hover:bg-[#3B6EC6] text-white"
                       )}
                     >
                       {event.type === "payment_due" || event.type === "overdue_payment" ? (

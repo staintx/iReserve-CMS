@@ -35,9 +35,10 @@ export default function CustomerPaymentsTable({
     switch (String(status || "").toLowerCase()) {
       case "approved":
       case "paid":
+      case "successful":
         return (
           <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Approved
+            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Successful
           </span>
         );
       case "pending":
@@ -69,14 +70,14 @@ export default function CustomerPaymentsTable({
     if (t === "deposit") {
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50/80 text-[#4C81E0] border border-blue-200/70">
-          Initial Deposit
+          Deposit
         </span>
       );
     }
     if (t === "balance") {
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50/80 text-[#4C81E0] border border-blue-200/70">
-          Remaining Balance
+          Balance payment
         </span>
       );
     }

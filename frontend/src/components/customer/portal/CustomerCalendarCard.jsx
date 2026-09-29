@@ -174,8 +174,8 @@ export default function CustomerCalendarCard({
                 isCurrentMonth
                   ? "text-slate-800 hover:bg-slate-50 hover:border-slate-300"
                   : "text-slate-300 bg-slate-50/30 border-transparent hover:bg-slate-50 hover:text-slate-500",
-                isToday && !isSelected && "ring-1.5 ring-[#2C4B8A] bg-blue-50/40 text-[#2C4B8A] font-bold",
-                isSelected && "bg-[#2C4B8A]/10 border-[#2C4B8A] ring-1 ring-[#2C4B8A] font-bold text-[#2C4B8A]",
+                isToday && !isSelected && "ring-1.5 ring-[#4C81E0] bg-blue-50/40 text-[#4C81E0] font-bold",
+                isSelected && "bg-[#4C81E0]/10 border-[#4C81E0] ring-1 ring-[#4C81E0] font-bold text-[#4C81E0]",
                 hasEvents && !isSelected && "border-slate-200 shadow-2xs font-semibold"
               )}
             >
@@ -183,8 +183,8 @@ export default function CustomerCalendarCard({
               <span
                 className={cn(
                   "text-xs sm:text-sm font-medium leading-none mt-1",
-                  isToday && "font-bold text-[#2C4B8A]",
-                  isSelected && "text-[#2C4B8A] font-bold"
+                  isToday && "font-bold text-[#4C81E0]",
+                  isSelected && "text-[#4C81E0] font-bold"
                 )}
               >
                 {dayNum}

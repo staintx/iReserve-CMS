@@ -10,7 +10,12 @@ exports.updateUserSchema = Joi.object({
   alt_phone: Joi.string().allow("").optional(),
   address: Joi.string().allow("").optional(),
   username: Joi.string().allow("").optional(),
-  position: Joi.string().allow("").optional()
+  position: Joi.string().allow("").optional(),
+  otp: Joi.string().trim().length(6).required().messages({
+    "string.empty": "Verification code is required to save changes.",
+    "string.length": "Verification code must be exactly 6 digits.",
+    "any.required": "Verification code is required to save changes."
+  })
 });
 
 // The current password is only compared against the stored hash, so it is never

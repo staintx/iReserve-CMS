@@ -3,6 +3,7 @@ import AdminLayout from "../../components/layout/AdminLayout";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import useAuth from "../../hooks/useAuth";
+import ProfileOtpModal from "../../components/auth/ProfileOtpModal";
 import {
   User,
   Lock,
@@ -27,6 +28,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { cn } from "@/lib/utils";
+import { maskEmail, maskPhone } from "@/lib/privacyMask";
 
 export default function AdminProfile() {
   const { user, updateUser } = useAuth();
@@ -59,11 +61,23 @@ export default function AdminProfile() {
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [isSecurityLoading, setIsSecurityLoading] = useState(false);
   const [isDataFetching, setIsDataFetching] = useState(true);
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [maskedEmail, setMaskedEmail] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [pendingPayload, setPendingPayload] = useState(null);
   const [visible, setVisible] = useState({
     current_password: false,
     new_password: false,
     confirm_password: false
   });
+
+  // UI Privacy States
+  const [isEmailMasked, setIsEmailMasked] = useState(true);
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [isPhoneMasked, setIsPhoneMasked] = useState(true);
+  const [phoneFocused, setPhoneFocused] = useState(false);
   
   const { notify } = useToast();
 
@@ -105,7 +119,7 @@ export default function AdminProfile() {
     form.first_name !== initialForm.first_name ||
     form.last_name !== initialForm.last_name ||
     form.username !== initialForm.username ||
-    form.email !== initialForm.email ||
+    (isEditingEmail ? (newEmail.trim().toLowerCase() !== initialForm.email) : (form.email !== initialForm.email)) ||
     form.phone !== initialForm.phone;
 
   const handleNameChange = (key, value) => {
@@ -118,6 +132,8 @@ export default function AdminProfile() {
 
   const resetForm = () => {
     setForm(initialForm);
+    setIsEditingEmail(false);
+    setNewEmail(initialForm.email || "");
   };
 
   const saveProfile = async (e) => {
@@ -127,39 +143,76 @@ export default function AdminProfile() {
       return notify("First name or full name is required", "error");
     }
 
-    if (!form.email.trim()) {
+    const emailToSubmit = isEditingEmail ? newEmail.trim().toLowerCase() : form.email.trim().toLowerCase();
+    if (!emailToSubmit) {
       return notify("Email address is required", "error");
     }
 
+    const payload = {
+      first_name: form.first_name.trim(),
+      last_name: form.last_name.trim(),
+      full_name: form.full_name.trim() || [form.first_name.trim(), form.last_name.trim()].filter(Boolean).join(" "),
+      email: emailToSubmit,
+      username: form.username.trim(),
+      phone: form.phone.trim()
+    };
+
     setIsProfileLoading(true);
     try {
-      const payload = {
-        first_name: form.first_name.trim(),
-        last_name: form.last_name.trim(),
-        full_name: form.full_name.trim() || [form.first_name.trim(), form.last_name.trim()].filter(Boolean).join(" "),
-        email: form.email.trim().toLowerCase(),
-        username: form.username.trim(),
-        phone: form.phone.trim()
-      };
-
-      const res = await AdminAPI.updateProfile(payload);
-      if (res.data) {
-        updateUser(res.data);
-        setInitialForm({
-          first_name: res.data.first_name || payload.first_name,
-          last_name: res.data.last_name || payload.last_name,
-          full_name: res.data.full_name || payload.full_name,
-          email: res.data.email || payload.email,
-          username: res.data.username || payload.username,
-          phone: res.data.phone || payload.phone
-        });
-      }
-      notify("Profile updated successfully!", "success");
+      // Trigger 2FA OTP request to user's registered email
+      const res = await AdminAPI.requestProfileOtp();
+      setMaskedEmail(res.data?.masked_email || user?.email || "");
+      setPendingPayload(payload);
+      setOtpError("");
+      setIsOtpModalOpen(true);
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to update profile", "error");
+      notify(err.response?.data?.message || "Failed to send verification code. Please try again.", "error");
     } finally {
       setIsProfileLoading(false);
     }
+  };
+
+  const handleVerifyOtp = async (otpCode) => {
+    if (!pendingPayload) return;
+    setIsVerifyingOtp(true);
+    setOtpError("");
+    try {
+      const res = await AdminAPI.updateProfile({
+        ...pendingPayload,
+        otp: otpCode
+      });
+      if (res.data) {
+        updateUser(res.data);
+        setInitialForm({
+          first_name: res.data.first_name || pendingPayload.first_name,
+          last_name: res.data.last_name || pendingPayload.last_name,
+          full_name: res.data.full_name || pendingPayload.full_name,
+          email: res.data.email || pendingPayload.email,
+          username: res.data.username || pendingPayload.username,
+          phone: res.data.phone || pendingPayload.phone
+        });
+        setForm((prev) => ({
+          ...prev,
+          email: res.data.email || pendingPayload.email
+        }));
+        setIsEditingEmail(false);
+      }
+      setIsOtpModalOpen(false);
+      setPendingPayload(null);
+      notify("Profile updated successfully!", "success");
+    } catch (err) {
+      setOtpError(err.response?.data?.message || "Verification failed. Please check the code and try again.");
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    const res = await AdminAPI.requestProfileOtp();
+    if (res.data?.masked_email) {
+      setMaskedEmail(res.data.masked_email);
+    }
+    notify("A new verification code was sent to your email.", "info");
   };
 
   const savePassword = async (e) => {
@@ -334,15 +387,33 @@ export default function AdminProfile() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="admin-phone" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                          Contact Phone Number
-                        </Label>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="admin-phone" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                            Contact Phone Number
+                          </Label>
+                          {form.phone && (
+                            <button
+                              type="button"
+                              onClick={() => setIsPhoneMasked((m) => !m)}
+                              className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 font-medium cursor-pointer"
+                            >
+                              {isPhoneMasked ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                              <span>{isPhoneMasked ? "Show" : "Hide"}</span>
+                            </button>
+                          )}
+                        </div>
                         <div className="relative">
                           <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                           <Input
                             id="admin-phone"
-                            className="pl-9"
-                            value={form.phone}
+                            className="pl-9 font-mono"
+                            value={
+                              isPhoneMasked && !phoneFocused && form.phone
+                                ? maskPhone(form.phone)
+                                : form.phone || ""
+                            }
+                            onFocus={() => setPhoneFocused(true)}
+                            onBlur={() => setPhoneFocused(false)}
                             onChange={(e) => setForm({ ...form, phone: e.target.value })}
                             placeholder="e.g. +63 912 345 6789"
                             disabled={isDataFetching || isProfileLoading}
@@ -354,22 +425,74 @@ export default function AdminProfile() {
 
                     {/* Email Address */}
                     <div className="space-y-2">
-                      <Label htmlFor="admin-email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Email Address <span className="text-destructive">*</span>
-                      </Label>
-                      <div className="relative">
-                        <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          id="admin-email"
-                          type="email"
-                          className="pl-9"
-                          value={form.email}
-                          onChange={(e) => setForm({ ...form, email: e.target.value })}
-                          placeholder="admin@example.com"
-                          disabled={isDataFetching || isProfileLoading}
-                          required
-                        />
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="admin-email" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                          Email Address <span className="text-destructive">*</span>
+                        </Label>
+                        {!isEditingEmail && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewEmail(form.email);
+                              setIsEditingEmail(true);
+                            }}
+                            className="text-xs font-semibold text-primary hover:underline cursor-pointer"
+                          >
+                            Change Email
+                          </button>
+                        )}
                       </div>
+
+                      {isEditingEmail ? (
+                        <div className="space-y-2 animate-in fade-in-50">
+                          <div className="relative">
+                            <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                              id="admin-email"
+                              type="email"
+                              className="pl-9 pr-16"
+                              value={newEmail}
+                              onChange={(e) => setNewEmail(e.target.value)}
+                              placeholder="admin@example.com"
+                              disabled={isDataFetching || isProfileLoading}
+                              autoFocus
+                              required
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingEmail(false)}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground font-medium px-2 py-1 rounded cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                            <Shield className="w-3.5 h-3.5 text-primary" />
+                            Changing admin email will require 2FA OTP verification on your current email address.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between h-10 px-3 rounded-md border border-border bg-muted/30 text-sm">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
+                            <span className="font-mono text-xs sm:text-sm text-foreground truncate">
+                              {isEmailMasked ? maskEmail(form.email) : form.email}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full shrink-0">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              Verified
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsEmailMasked((prev) => !prev)}
+                            className="text-muted-foreground hover:text-foreground p-1 cursor-pointer shrink-0 ml-2"
+                            aria-label={isEmailMasked ? "Show full email" : "Mask email"}
+                          >
+                            {isEmailMasked ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      )}
                       <p className="text-[11px] text-muted-foreground">Used for security alerts and system login.</p>
                     </div>
 
@@ -705,6 +828,23 @@ export default function AdminProfile() {
           </div>
         )}
       </div>
+
+      {/* 2FA OTP Confirmation Modal */}
+      <ProfileOtpModal
+        isOpen={isOtpModalOpen}
+        onClose={() => {
+          if (!isVerifyingOtp) {
+            setIsOtpModalOpen(false);
+            setOtpError("");
+          }
+        }}
+        onVerify={handleVerifyOtp}
+        onResend={handleResendOtp}
+        maskedEmail={maskedEmail}
+        loading={isVerifyingOtp}
+        error={otpError}
+        setError={setOtpError}
+      />
     </AdminLayout>
   );
 }

@@ -11,8 +11,6 @@ const logAction = require("../utils/logAction");
 const Notification = require("../models/Notification");
 const { notifyAdmins } = require("../utils/notify");
 
-const ALLOWED_CATEGORIES = ["Event Setup & Furniture", "Dining & Service Inventory"];
-
 const normalizeIdentifier = (name) => {
   if (!name || typeof name !== "string") return "";
   return name
@@ -936,32 +934,6 @@ exports.parseWithAI = async (req, res) => {
       rawList = [parsedData];
     }
 
-    const normalizeCat = (cat, itemName = "") => {
-      if (ALLOWED_CATEGORIES.includes(cat)) return cat;
-      const lower = (String(cat || "") + " " + String(itemName || "")).toLowerCase();
-      if (
-        lower.includes("dining") ||
-        lower.includes("tableware") ||
-        lower.includes("plate") ||
-        lower.includes("spoon") ||
-        lower.includes("glass") ||
-        lower.includes("cup") ||
-        lower.includes("cutlery") ||
-        lower.includes("warmer") ||
-        lower.includes("chafing") ||
-        lower.includes("cooler") ||
-        lower.includes("dish") ||
-        lower.includes("ice") ||
-        lower.includes("jug") ||
-        lower.includes("gallon") ||
-        lower.includes("planggana") ||
-        lower.includes("tulyasi")
-      ) {
-        return "Dining & Service Inventory";
-      }
-      return "Event Setup & Furniture";
-    };
-
     const cleaned = rawList
       .filter((i) => i && (i.item_name || i.name))
       .map((i) => {
@@ -1028,9 +1000,6 @@ exports.createBulk = async (req, res) => {
         quantity: qty,
         available: raw.available !== false,
       };
-      if (raw.category) {
-        itemPayload.category = raw.category;
-      }
 
       const newItem = await Inventory.create(itemPayload);
 

@@ -152,8 +152,6 @@ export default function AIInventoryParserModal({
 
   const handleLoadSampleText = () => {
     setTextInput(`EVENT INVENTORY & LOGISTICS SUMMARY
-
-Event Setup & Furniture:
 - Stage Setup
 - Buffet Setup
 - Balloon and Name Backdrop
@@ -169,8 +167,6 @@ Event Setup & Furniture:
 - Red Carpet
 - Dove
 - Chandelier (2)
-
-Dining & Service Inventory:
 - Food Warmer (7)
 - Serving Spoons
 - Plates (200)
@@ -583,7 +579,7 @@ Dining & Service Inventory:
 
                   <textarea
                     className="w-full h-44 rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 text-xs font-mono text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 focus:outline-none transition-all resize-none"
-                    placeholder={`Example:\nEvent Setup & Furniture:\n- Round Tables (12)\n- Monoblock Chairs (100)\n\nDining & Service Inventory:\n- Food Warmer (7)\n- Plates (200)`}
+                    placeholder={`Example:\n- Round Tables (12)\n- Monoblock Chairs (100)\n- Food Warmer (7)\n- Plates (200)`}
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}
                   />

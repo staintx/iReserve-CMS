@@ -4,11 +4,6 @@ import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
-const INVENTORY_CATEGORIES = [
-  "Event Setup & Furniture",
-  "Dining & Service Inventory",
-];
-
 // Canonical identifier normalizer for duplicate checks
 const normalizeIdentifier = (name) => {
   if (!name || typeof name !== "string") return "";
@@ -27,7 +22,6 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
 
   const [formData, setFormData] = useState({
     item_name: "",
-    category: "Event Setup & Furniture",
     quantity: "",
     low_stock_threshold: "",
     available: true,
@@ -48,7 +42,6 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
     if (item) {
       setFormData({
         item_name: item.item_name || "",
-        category: item.category || "Event Setup & Furniture",
         quantity: item.quantity !== undefined ? item.quantity : "",
         low_stock_threshold:
           item.low_stock_threshold !== undefined && item.low_stock_threshold !== null
@@ -60,7 +53,6 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
     } else {
       setFormData({
         item_name: "",
-        category: "Event Setup & Furniture",
         quantity: "",
         low_stock_threshold: "",
         available: true,
@@ -142,7 +134,6 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
     try {
       const payload = {
         item_name: formData.item_name.trim(),
-        category: formData.category || "Event Setup & Furniture",
         quantity: Number(formData.quantity),
         low_stock_threshold: thresholdNum,
         available: Boolean(formData.available),
@@ -216,27 +207,6 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Category */}
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                Inventory Category <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-foreground bg-white cursor-pointer"
-              >
-                {INVENTORY_CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Classifies whether this item is event setup furniture or dining service equipment.
-              </p>
             </div>
 
             {/* Total Quantity */}

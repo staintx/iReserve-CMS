@@ -47,8 +47,6 @@ import BookingWizard from "../pages/customer/booking/BookingWizard";
 import BookingSuccess from "../pages/customer/booking/BookingSuccess";
 import InquirySubmitted from "../pages/customer/booking/InquirySubmitted";
 
-import QuoteWizard from "../pages/customer/quote/QuoteWizard";
-
 import AdminDashboard from "../pages/admin/AdminDashboard";
 
 import AdminPayments from "../pages/admin/AdminPayments";
@@ -165,7 +163,7 @@ export default function AppRoutes() {
         <Route path="/customer/profile" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerProfile /></ProtectedRoute>} />
         <Route path="/customer/notifications" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerNotifications /></ProtectedRoute>} />
 
-        <Route path="/customer/quote" element={<ProtectedRoute allowedRoles={customerOnly}><QuoteWizard /></ProtectedRoute>} />
+        <Route path="/customer/quote" element={<Navigate to="/customer/book" replace />} />
 
         {/* Admin (protected by role) */}
         <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={adminOnly}><AdminDashboard /></ProtectedRoute>} />

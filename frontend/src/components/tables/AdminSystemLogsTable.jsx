@@ -1,134 +1,36 @@
-import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
-
+import React, { useState } from "react";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../ui/table";
+  ChevronDown,
+  ChevronUp,
+  Building2,
+  Bot,
+} from "lucide-react";
 import { Badge } from "../ui/badge";
+import {
+  ACTION_LABELS,
+  ACTION_BADGE_STYLES,
+  ENTITY_META,
+  ROLE_STYLES,
+  timeAgo,
+  formatTimeCompact,
+  formatDateTimeFull,
+} from "./systemLogsConfig";
 
-const ACTION_LABELS = {
-  business_info_updated: "Business Info Updated",
-  package_created: "Package Created",
-  package_updated: "Package Updated",
-  package_deleted: "Package Deleted",
-  menu_item_created: "Menu Item Created",
-  menu_item_updated: "Menu Item Updated",
-  menu_item_deleted: "Menu Item Deleted",
-  menu_bulk_created: "Menu Bulk Created",
-  addon_created: "Addon Created",
-  addon_updated: "Addon Updated",
-  addon_deleted: "Addon Deleted",
-  addons_bulk_created: "Addons Bulk Created",
-  inquiry_reviewed: "Inquiry Reviewed",
-  inquiry_updated: "Inquiry Updated",
-  inquiry_customer_status_update: "Customer Update",
-  booking_created: "Booking Created",
-  booking_created_from_inquiry: "Booking from Inquiry",
-  booking_updated: "Booking Updated",
-  booking_deleted: "Booking Deleted",
-  booking_guests_added: "Guests Added",
-  booking_upgraded: "Booking Upgraded",
-  booking_change_requested: "Change Requested",
-  booking_refunded: "Booking Refunded",
-  booking_returns_verified: "Returns Verified",
-  booking_inventory_assigned: "Inventory Assigned",
-  ocular_scheduled: "Ocular Scheduled",
-  ocular_completed: "Ocular Completed",
-  ocular_requested: "Ocular Requested",
-  booking_cancellation_requested: "Cancellation Requested",
-  booking_cancellation_approved: "Cancellation Approved",
-  booking_cancellation_rejected: "Cancellation Rejected",
-  change_request_submitted: "Change Submitted",
-  change_request_resolved: "Change Resolved",
-  booking_revision_proposed: "Revision Proposed",
-  booking_revision_accepted: "Revision Accepted",
-  booking_revision_rejected: "Revision Rejected",
-  quote_accepted: "Quote Accepted",
-};
-
-const ACTION_STYLES = {
-  business_info_updated: "info",
-  package_created: "success",
-  package_updated: "info",
-  package_deleted: "destructive",
-  menu_item_created: "success",
-  menu_item_updated: "info",
-  menu_item_deleted: "destructive",
-  menu_bulk_created: "success",
-  addon_created: "success",
-  addon_updated: "info",
-  addon_deleted: "destructive",
-  addons_bulk_created: "success",
-  inquiry_reviewed: "secondary",
-  inquiry_updated: "info",
-  inquiry_customer_status_update: "warning",
-  booking_created: "success",
-  booking_created_from_inquiry: "success",
-  booking_updated: "info",
-  booking_deleted: "destructive",
-  booking_guests_added: "info",
-  booking_upgraded: "info",
-  booking_change_requested: "warning",
-  booking_refunded: "destructive",
-  booking_returns_verified: "success",
-  booking_inventory_assigned: "secondary",
-  ocular_scheduled: "info",
-  ocular_completed: "success",
-  ocular_requested: "warning",
-  booking_cancellation_requested: "destructive",
-  booking_cancellation_approved: "destructive",
-  booking_cancellation_rejected: "warning",
-  change_request_submitted: "warning",
-  change_request_resolved: "success",
-  booking_revision_proposed: "warning",
-  booking_revision_accepted: "success",
-  booking_revision_rejected: "destructive",
-  quote_accepted: "success",
-};
-
-const ENTITY_LABELS = {
-  business_info: "Business Info",
-  package: "Package",
-  menu: "Menu",
-  addon: "Addon",
-  inquiry: "Inquiry",
-  booking: "Booking",
-};
-
-const ROLE_STYLES = {
-  admin: "default",
-  manager: "secondary",
-  staff: "outline",
-  customer: "outline",
-};
-
-function timeAgo(dateStr) {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const seconds = Math.floor((now - date) / 1000);
-
-  if (seconds < 60) return "Just now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-  return date.toLocaleDateString();
+function getInitials(name = "") {
+  if (!name) return "SY";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
 }
 
-function formatDateTime(value) {
-  if (!value) return "-";
-  return new Date(value).toLocaleString();
-}
-
+/**
+ * Compact inline Changes Cell
+ */
 function ChangesCell({ changes }) {
   const [expanded, setExpanded] = useState(false);
 
   if (!changes || typeof changes !== "object" || Object.keys(changes).length === 0) {
-    return <span className="text-muted-foreground text-xs">—</span>;
+    return <span className="text-muted-foreground/60 text-xs">—</span>;
   }
 
   const entries = Object.entries(changes);
@@ -137,30 +39,36 @@ function ChangesCell({ changes }) {
 
   const renderEntry = ([field, val]) => {
     if (!val || typeof val !== "object") return null;
+    const fromVal = String(val.from ?? "—");
+    const toVal = String(val.to ?? "—");
+
     return (
-      <div key={field} className="flex items-center gap-1.5 text-xs py-0.5">
-        <span className="font-medium text-foreground">{field}</span>
-        <span className="text-muted-foreground">→</span>
-        <span className="line-through text-muted-foreground truncate max-w-[100px]">{String(val.from ?? "—")}</span>
-        <span className="text-muted-foreground">→</span>
-        <span className="text-emerald-600 font-medium truncate max-w-[100px]">{String(val.to ?? "—")}</span>
+      <div key={field} className="flex items-center gap-1.5 text-[11px] leading-tight flex-wrap">
+        <span className="font-semibold text-foreground text-[10px] uppercase tracking-wider">{field}:</span>
+        <span className="line-through text-slate-400 font-mono text-[10.5px] bg-slate-100/80 px-1 py-0.2 rounded truncate max-w-[85px]" title={fromVal}>
+          {fromVal}
+        </span>
+        <span className="text-slate-400 text-[10px]">→</span>
+        <span className="text-emerald-700 font-semibold font-mono text-[10.5px] bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60 truncate max-w-[85px]" title={toVal}>
+          {toVal}
+        </span>
       </div>
     );
   };
 
   return (
-    <div className="flex flex-col items-start gap-1">
+    <div className="flex flex-col items-start gap-1" onClick={(e) => e.stopPropagation()}>
       {(expanded ? entries : preview).map(renderEntry)}
       {hasMore && (
         <button
           type="button"
-          className="text-[10px] flex items-center gap-1 font-medium text-primary hover:underline"
+          className="text-[10px] inline-flex items-center gap-0.5 font-semibold text-[#4C81E0] hover:underline cursor-pointer pt-0.5"
           onClick={() => setExpanded(!expanded)}
         >
           {expanded ? (
-            <>Show less <ChevronUp size={10} /></>
+            <>Show less <ChevronUp size={11} /></>
           ) : (
-            <>+{entries.length - 1} more <ChevronDown size={10} /></>
+            <>+{entries.length - 1} more <ChevronDown size={11} /></>
           )}
         </button>
       )}
@@ -168,82 +76,141 @@ function ChangesCell({ changes }) {
   );
 }
 
-export default function AdminSystemLogsTable({ logs }) {
+export default function AdminSystemLogsTable({ logs = [], selectedLog = null, onSelectLog }) {
   return (
-    <div className="rounded-md border border-border bg-card">
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead>Timestamp</TableHead>
-            <TableHead>User</TableHead>
-            <TableHead>Action</TableHead>
-            <TableHead>Entity</TableHead>
-            <TableHead>Details</TableHead>
-            <TableHead className="min-w-[200px]">Changes</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+    <div className="w-full">
+      <table className="w-full text-left text-xs border-collapse">
+        <thead>
+          <tr className="bg-slate-50/80 border-b border-border/80 text-[11px] font-bold uppercase tracking-wider text-muted-foreground select-none">
+            <th className="py-2.5 px-3 font-semibold w-[130px]">Timestamp</th>
+            <th className="py-2.5 px-3 font-semibold w-[145px]">User / Actor</th>
+            <th className="py-2.5 px-3 font-semibold w-[165px]">Action</th>
+            <th className="py-2.5 px-3 font-semibold w-[135px]">Entity</th>
+            <th className="py-2.5 px-3 font-semibold">Details</th>
+            <th className="py-2.5 px-3 font-semibold w-[210px]">Changes</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/60">
           {logs.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+            <tr>
+              <td colSpan={6} className="h-24 text-center text-muted-foreground text-xs">
                 No logs found.
-              </TableCell>
-            </TableRow>
+              </td>
+            </tr>
           ) : (
-            logs.map((log) => (
-              <TableRow key={log._id}>
-                <TableCell>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium text-foreground">{timeAgo(log.createdAt)}</span>
-                    <span className="text-[10px] text-muted-foreground" title={formatDateTime(log.createdAt)}>
-                      {formatDateTime(log.createdAt)}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-col items-start gap-1">
-                    <span className="text-sm font-medium text-foreground">
-                      {log.user_id?.full_name || log.user_id?.email || "System"}
-                    </span>
-                    {log.user_id?.role && (
-                      <Badge variant={ROLE_STYLES[log.user_id.role] || "outline"} className="text-[10px] py-0 h-4 capitalize">
-                        {log.user_id.role}
-                      </Badge>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={ACTION_STYLES[log.action] || "secondary"} className="whitespace-nowrap font-normal">
-                    {ACTION_LABELS[log.action] || log.action}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1.5">
-                    {log.entity_type && (
-                      <span className="text-xs font-medium text-foreground capitalize">
-                        {ENTITY_LABELS[log.entity_type] || log.entity_type}
+            logs.map((log) => {
+              const isSelected = selectedLog?._id === log._id;
+              const entityInfo = ENTITY_META[log.entity_type] || {
+                label: log.entity_type || "System",
+                icon: Building2,
+              };
+              const EntityIcon = entityInfo.icon;
+              const actionLabel = ACTION_LABELS[log.action] || log.action;
+              const actionStyle = ACTION_BADGE_STYLES[log.action] || "bg-blue-50 text-[#2C5EB5] border-blue-200/80";
+
+              const userName = log.user_id?.full_name || log.user_id?.email || (log.user_id ? "Unknown User" : "System");
+              const isSystem = !log.user_id || (!log.user_id?.full_name && !log.user_id?.email);
+              const userRole = log.user_id?.role;
+
+              return (
+                <tr
+                  key={log._id}
+                  onClick={() => onSelectLog && onSelectLog(log)}
+                  className={`group cursor-pointer transition-colors ${
+                    isSelected
+                      ? "bg-[#4C81E0]/5 border-l-2 border-l-[#4C81E0]"
+                      : "hover:bg-slate-50/70"
+                  }`}
+                >
+                  {/* 1. Timestamp */}
+                  <td className="py-2.5 px-3 align-top">
+                    <div className="flex flex-col gap-0.5" title={formatDateTimeFull(log.createdAt)}>
+                      <span className="text-xs font-semibold text-foreground leading-tight">
+                        {timeAgo(log.createdAt)}
                       </span>
-                    )}
-                    {log.entity_id && (
-                      <span className="text-[10px] text-muted-foreground bg-accent/50 px-1 rounded font-mono" title={log.entity_id}>
-                        #{log.entity_id.slice(-6).toUpperCase()}
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        {formatTimeCompact(log.createdAt)}
                       </span>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <span className="text-sm text-muted-foreground max-w-[250px] truncate block" title={log.details}>
-                    {log.details || "—"}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <ChangesCell changes={log.changes} />
-                </TableCell>
-              </TableRow>
-            ))
+                    </div>
+                  </td>
+
+                  {/* 2. User / Actor */}
+                  <td className="py-2.5 px-3 align-top">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200/80 text-[10px] font-bold text-slate-700 flex items-center justify-center shrink-0">
+                        {isSystem ? <Bot size={12} className="text-slate-500" /> : getInitials(userName)}
+                      </div>
+                      <div className="min-w-0 flex flex-col">
+                        <span className="text-xs font-medium text-foreground truncate max-w-[105px]" title={userName}>
+                          {userName}
+                        </span>
+                        {userRole ? (
+                          <span
+                            className={`text-[9.5px] font-semibold uppercase tracking-wider px-1 py-0.2 rounded border w-fit capitalize leading-none mt-0.5 ${
+                              ROLE_STYLES[userRole] || "bg-slate-100 text-slate-600 border-slate-200"
+                            }`}
+                          >
+                            {userRole}
+                          </span>
+                        ) : isSystem ? (
+                          <span className="text-[9.5px] font-semibold text-muted-foreground/80 tracking-tight leading-none mt-0.5">
+                            Automated
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* 3. Action */}
+                  <td className="py-2.5 px-3 align-top">
+                    <Badge
+                      variant="outline"
+                      className={`text-[11px] font-semibold py-0.5 px-2 rounded-md whitespace-nowrap shadow-2xs ${actionStyle}`}
+                    >
+                      {actionLabel}
+                    </Badge>
+                  </td>
+
+                  {/* 4. Entity */}
+                  <td className="py-2.5 px-3 align-top">
+                    <div className="flex flex-col gap-1 items-start min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0 text-slate-700">
+                        <EntityIcon size={12} className="text-slate-500 shrink-0" />
+                        <span className="text-xs font-medium text-foreground truncate capitalize">
+                          {entityInfo.label}
+                        </span>
+                      </div>
+                      {log.entity_id && (
+                        <span
+                          className="text-[10px] text-slate-600 bg-slate-100/90 px-1.5 py-0.2 rounded border border-slate-200/80 font-mono"
+                          title={log.entity_id}
+                        >
+                          #{log.entity_id.slice(-6).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* 5. Details */}
+                  <td className="py-2.5 px-3 align-top">
+                    <span
+                      className="text-xs text-slate-600 leading-snug line-clamp-2 block"
+                      title={log.details}
+                    >
+                      {log.details || "—"}
+                    </span>
+                  </td>
+
+                  {/* 6. Changes */}
+                  <td className="py-2.5 px-3 align-top">
+                    <ChangesCell changes={log.changes} />
+                  </td>
+                </tr>
+              );
+            })
           )}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -5,7 +5,6 @@ import {
   Trash2,
   Calendar,
   Image as ImageIcon,
-  Globe,
   Tag,
   Clock,
 } from "lucide-react";
@@ -121,27 +120,6 @@ export default function GalleryDetailDrawer({
             <span className="text-xs font-medium">No image preview available</span>
           </div>
         )}
-
-        {/* Website Visibility Card */}
-        <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50/60 border border-blue-100/80">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <Globe size={14} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-foreground">Live on Public Website</p>
-              <p className="text-[11px] text-muted-foreground">Visible to all visitors in the customer gallery</p>
-            </div>
-          </div>
-          <a
-            href="/gallery"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 bg-white border border-primary/20 px-2.5 py-1 rounded-md shadow-2xs hover:bg-powder transition-colors"
-          >
-            Visit Website <ExternalLink size={11} />
-          </a>
-        </div>
 
         {/* Album & Title */}
         <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-muted/40 border border-border/70">

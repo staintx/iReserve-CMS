@@ -453,22 +453,34 @@ export const inquiryStatusMeta = (inquiry) => {
 
   if (group === "quote_ready") {
     const isAcceptedPendingDeposit = ["Quote Accepted", "Awaiting Final Confirmation"].includes(inquiry?.status);
+    if (isAcceptedPendingDeposit) {
+      return {
+        group: "quote_ready",
+        tone: "success",
+        label: "Accepted",
+        actionRequired: true,
+        actionLabel: "Deposit Required",
+        icon: CheckCircle2,
+        notice: {
+          tone: "warning",
+          title: "Quotation accepted · Deposit required",
+          text: "Please complete the required deposit payment to secure your event date on our calendar.",
+        },
+      };
+    }
+
     return {
       group: "quote_ready",
-      tone: isAcceptedPendingDeposit ? "warning" : "info",
-      label: "Quotation ready",
+      tone: "info",
+      label: "Quotation Ready",
+      actionRequired: true,
+      actionLabel: "Action Required",
       icon: FileCheck2,
-      notice: isAcceptedPendingDeposit
-        ? {
-            tone: "warning",
-            title: "Quotation accepted · Awaiting deposit",
-            text: "Please complete the required deposit payment to confirm your booking.",
-          }
-        : {
-            tone: "info",
-            title: "Your quotation is ready.",
-            text: "Review the pricing and accept it to continue to booking.",
-          },
+      notice: {
+        tone: "info",
+        title: "Your quotation is ready.",
+        text: "Review the itemized proposal to lock your pricing.",
+      },
     };
   }
 

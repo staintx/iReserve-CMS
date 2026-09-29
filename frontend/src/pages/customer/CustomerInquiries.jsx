@@ -48,6 +48,12 @@ import {
   ChevronDown,
   Check,
   SlidersHorizontal,
+  Clock,
+  CheckCircle2,
+  FileEdit,
+  Tag,
+  Layers,
+  Sparkles,
 } from "lucide-react";
 
 export default function CustomerInquiries() {
@@ -400,23 +406,48 @@ export default function CustomerInquiries() {
     }
   };
 
-  // Modern Compact Dotless Status Badge - Distinct from Buttons
+  // Modern Compact Semantic Status Badge - Distinct from Action Badges
   const renderStatusBadge = (inq) => {
     const meta = inquiryStatusMeta(inq);
-    let badgeClass = "bg-blue-50 text-blue-700 border-blue-200/80";
+    const isQuotationSent = inq.status === "Quotation Sent";
+    const isConverted = inq.status === "Converted to Booking" || Boolean(inq.converted_booking_id);
+    const isDepositPaid =
+      inq.payment_status === "deposit_paid" ||
+      inq.payment_status === "fully_paid" ||
+      inq.is_deposit_paid === true;
 
-    if (meta.tone === "warning") {
-      badgeClass = "bg-amber-50 text-amber-800 border-amber-200/80";
-    } else if (meta.tone === "success") {
+    const isQuoteAcceptedAwaitingPayment =
+      ["Quote Accepted", "Awaiting Final Confirmation"].includes(inq.status) &&
+      !isConverted &&
+      !isDepositPaid;
+
+    let badgeClass = "bg-blue-50 text-[#4C81E0] border-blue-200/80";
+    let label = meta.label;
+
+    if (isQuoteAcceptedAwaitingPayment) {
       badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200/80";
-    } else if (meta.tone === "danger" || meta.tone === "neutral") {
-      badgeClass = "bg-slate-100 text-slate-600 border-slate-200";
+      label = "Accepted";
+    } else if (isQuotationSent) {
+      badgeClass = "bg-blue-50 text-[#4C81E0] border-blue-200/80";
+      label = "Quotation Ready";
+    } else if (inq.status === "Revision Requested" || meta.tone === "warning") {
+      badgeClass = "bg-amber-50 text-amber-800 border-amber-200/80";
+      label = inq.status === "Revision Requested" ? "Revision Requested" : meta.label;
+    } else if (meta.tone === "success" || meta.group === "accepted") {
+      badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200/80";
+      label = "Accepted";
+    } else if (meta.tone === "danger" || meta.group === "cancelled") {
+      badgeClass = "bg-rose-50 text-rose-700 border-rose-200/80";
+      label = "Cancelled";
+    } else {
+      badgeClass = "bg-slate-100 text-slate-700 border-slate-200/80";
+      label = meta.label;
     }
 
     return (
-      <span className={cn("px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider border inline-flex items-center gap-1.5 shrink-0 select-none", badgeClass)}>
+      <span className={cn("px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide border inline-flex items-center gap-1.5 shrink-0 select-none", badgeClass)}>
         <span className="w-1.5 h-1.5 rounded-full bg-current" />
-        <span>{meta.label}</span>
+        <span>{label}</span>
       </span>
     );
   };
@@ -489,7 +520,7 @@ export default function CustomerInquiries() {
     );
   };
 
-  // Reusable Inquiry Card Renderer
+  // Reusable Inquiry Card Renderer (Neutral white card, icon-based next steps, separated status/action)
   const renderInquiryCard = (inq) => {
     const refCode = inq.reference || `INQ-${inq._id.substring(0, 6).toUpperCase()}`;
     const thumbnail = getEventThumbnail(inq);
@@ -497,21 +528,43 @@ export default function CustomerInquiries() {
     const meta = inquiryStatusMeta(inq);
     const locationStr = [inq.municipality, inq.province].filter(Boolean).join(", ") || inq.venue_address || "Location TBD";
     const group = inquiryStatusGroup(inq);
-    const isActionRequired = group === "quote_ready";
 
-    // Dynamic next-step sentence for crystal-clear user guidance
+    const isQuotationSent = inq.status === "Quotation Sent";
+    const isConverted = inq.status === "Converted to Booking" || Boolean(inq.converted_booking_id);
+    const isDepositPaid =
+      inq.payment_status === "deposit_paid" ||
+      inq.payment_status === "fully_paid" ||
+      inq.is_deposit_paid === true;
+
+    const isQuoteAcceptedAwaitingPayment =
+      ["Quote Accepted", "Awaiting Final Confirmation"].includes(inq.status) &&
+      !isConverted &&
+      !isDepositPaid;
+
+    const isActionRequired = isQuotationSent || isQuoteAcceptedAwaitingPayment;
+    const actionLabel = isQuoteAcceptedAwaitingPayment ? "Deposit Required" : "Action Required";
+
+    // Dynamic next-step guidance with clean Lucide icons (no emojis)
+    let NextIcon = Clock;
     let nextStepMessage = meta.notice?.text || "Our team is reviewing your event request details.";
-    if (inq.status === "Quotation Sent") {
-      nextStepMessage = "⚡ Official quotation ready. Review itemized proposal to lock your pricing.";
-    } else if (["Quote Accepted", "Awaiting Final Confirmation"].includes(inq.status) && !inq.is_deposit_paid) {
-      nextStepMessage = "💳 Quote accepted. Pay required deposit to secure your event date on our calendar.";
+
+    if (isQuotationSent) {
+      NextIcon = FileCheck2;
+      nextStepMessage = "Official quotation ready. Review itemized proposal to lock your pricing.";
+    } else if (isQuoteAcceptedAwaitingPayment) {
+      NextIcon = CreditCard;
+      nextStepMessage = "Quote accepted. Pay the required deposit to secure your event date on our calendar.";
     } else if (["Pending Review", "Under Review"].includes(inq.status)) {
-      nextStepMessage = "⏳ Caezelle's catering team is reviewing your event specifications (usually within 24–48h).";
+      NextIcon = Clock;
+      nextStepMessage = "Caezelle's catering team is reviewing your event specifications (usually within 24–48h).";
     } else if (inq.status === "Revision Requested") {
-      nextStepMessage = "✏️ Revision noted. Caezelle's coordinators are updating your proposal specifications.";
+      NextIcon = FileEdit;
+      nextStepMessage = "Revision noted. Caezelle's coordinators are updating your proposal specifications.";
     } else if (group === "accepted") {
-      nextStepMessage = "✅ Deposit confirmed! Booking confirmation is being finalized.";
+      NextIcon = CheckCircle2;
+      nextStepMessage = "Deposit confirmed! Booking confirmation is being finalized.";
     } else if (group === "cancelled") {
+      NextIcon = XCircle;
       nextStepMessage = "This inquiry has been closed.";
     }
 
@@ -519,79 +572,82 @@ export default function CustomerInquiries() {
       <div
         key={inq._id}
         onClick={() => handleViewInquiry(inq)}
-        className={cn(
-          "group p-4 sm:p-5 rounded-2xl border transition-all duration-200 cursor-pointer relative shadow-2xs",
-          isActionRequired
-            ? "border-amber-300/90 bg-gradient-to-r from-amber-50/40 via-white to-white hover:border-amber-400 hover:shadow-xs"
-            : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs"
-        )}
+        className="group p-4 sm:p-5 rounded-2xl border border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-xs transition-all duration-150 cursor-pointer relative shadow-2xs"
       >
-        {/* 12-COLUMN RESPONSIVE GRID ROW */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 md:gap-4 items-center">
-          {/* Cols 1-5: Thumbnail Image & Core Event Specs */}
-          <div className="md:col-span-5 flex items-start gap-3.5 min-w-0">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+          {/* Cols 1-5: Thumbnail Image & Core Event Metadata */}
+          <div className="lg:col-span-5 flex items-start gap-3.5 min-w-0">
             {thumbnail ? (
               <img
                 src={thumbnail}
                 alt={titleStr}
-                className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border border-slate-200 shrink-0 shadow-2xs"
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border border-slate-200/80 shrink-0 shadow-2xs"
               />
             ) : (
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-blue-50/80 border border-blue-100 flex items-center justify-center text-[#4C81E0] shrink-0 shadow-2xs">
-                <Utensils className="w-6 h-6 sm:w-7 sm:h-7 opacity-80" />
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-center text-slate-500 shrink-0 shadow-2xs">
+                <Utensils className="w-6 h-6 sm:w-7 sm:h-7 opacity-70" />
               </div>
             )}
 
             <div className="min-w-0 space-y-1">
-              <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate font-sans group-hover:text-[#4C81E0] transition-colors">
+              <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate font-sans group-hover:text-[#4C81E0] transition-colors tracking-tight">
                 {titleStr}
               </h3>
 
-              <div className="text-xs text-slate-700 font-medium flex items-center gap-1.5 flex-wrap">
+              <div className="text-xs text-slate-600 font-medium flex items-center gap-1.5 flex-wrap">
                 <span className="flex items-center gap-1 font-semibold text-slate-800">
-                  <Calendar className="w-3.5 h-3.5 text-[#4C81E0]" />
+                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   {formatShortDate(inq.event_date)}
                 </span>
-                <span className="text-slate-400">•</span>
-                <span className="text-slate-600 font-medium">{resolveServiceType(inq)}</span>
-                <span className="text-slate-400">•</span>
-                <span className="flex items-center gap-1 text-slate-700 font-medium">
-                  <Users className="w-3.5 h-3.5 text-slate-500" />
+                <span className="text-slate-300">·</span>
+                <span className="flex items-center gap-1 text-slate-600 font-medium">
+                  <Layers className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="truncate max-w-[150px]">{resolveServiceType(inq)}</span>
+                </span>
+                <span className="text-slate-300">·</span>
+                <span className="flex items-center gap-1 text-slate-600 font-medium">
+                  <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   {inq.guest_count ? `${inq.guest_count} guests` : "Guests TBD"}
                 </span>
               </div>
 
-              <div className="text-xs text-slate-600 font-medium flex items-center gap-1 truncate">
-                <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span className="truncate">{locationStr}</span>
-              </div>
-
-              <div className="text-[11px] font-mono text-slate-500 font-semibold pt-0.5">
-                Ref: #{refCode}
+              <div className="text-xs text-slate-500 font-medium flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1 truncate max-w-[220px]">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="truncate">{locationStr}</span>
+                </span>
+                <span className="text-slate-300">·</span>
+                <span className="flex items-center gap-1 font-mono text-[11px] text-slate-500">
+                  <Tag className="w-3 h-3 text-slate-400 shrink-0" />
+                  <span>#{refCode}</span>
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Cols 6-9: Modern Status Badge & Actionable Next Step Guidance */}
-          <div className="md:col-span-4 space-y-1.5 min-w-0">
+          {/* Cols 6-9: Semantic Status Badges & Actionable Guidance (No Emojis) */}
+          <div className="lg:col-span-4 space-y-1.5 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               {renderStatusBadge(inq)}
               {isActionRequired && (
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 uppercase tracking-wide">
-                  Action Required
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 uppercase tracking-wide inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  <span>{actionLabel}</span>
                 </span>
               )}
             </div>
-            <p className={cn(
-              "text-xs leading-snug line-clamp-2",
-              isActionRequired ? "text-amber-950 font-semibold" : "text-slate-700 font-medium"
-            )}>
-              {nextStepMessage}
-            </p>
+
+            <div className="flex items-start gap-1.5 text-xs text-slate-600 font-medium leading-relaxed">
+              <NextIcon className={cn(
+                "w-3.5 h-3.5 shrink-0 mt-0.5",
+                isActionRequired ? "text-amber-600" : "text-slate-400"
+              )} />
+              <span className="line-clamp-2">{nextStepMessage}</span>
+            </div>
           </div>
 
-          {/* Cols 10-12: Action Area (Right-Aligned, High Visibility CTAs) */}
-          <div className="md:col-span-3 flex items-center justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 shrink-0">
+          {/* Cols 10-12: Action CTA Area */}
+          <div className="lg:col-span-3 flex items-center justify-start lg:justify-end pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100 shrink-0">
             {renderCardActionButton(inq)}
           </div>
         </div>

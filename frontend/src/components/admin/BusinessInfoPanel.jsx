@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo, useRef } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
@@ -139,13 +139,6 @@ function PlatformIcon({ platform, className = "w-4 h-4" }) {
       return <Globe className={className} />;
   }
 }
-
-const formatFileSize = (bytes) => {
-  if (!bytes || isNaN(bytes)) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
 
 export default function BusinessInfoPanel() {
   const [form, setForm] = useState(DEFAULT_INFO);
@@ -368,29 +361,29 @@ export default function BusinessInfoPanel() {
   }
 
   return (
-    <form onSubmit={save} className="space-y-6">
+    <form onSubmit={save} className="space-y-4">
       {/* Top Action & Status Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-card border border-border/70 shadow-xs">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:px-4 sm:py-2.5 rounded-xl bg-card border border-border/80 shadow-2xs">
+        <div className="flex items-center gap-2.5">
           {isDirty ? (
             <Badge
               variant="outline"
-              className="bg-blue-50 text-blue-700 border-blue-200 gap-1.5 py-1 px-3 text-xs font-semibold"
+              className="bg-amber-50 text-amber-700 border-amber-200/80 gap-1.5 py-0.5 px-2.5 text-xs font-semibold rounded-md"
             >
-              <AlertCircle className="w-3.5 h-3.5" />
+              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
               Unsaved changes
             </Badge>
           ) : (
             <Badge
               variant="outline"
-              className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 gap-1.5 py-1 px-3 text-xs font-semibold"
+              className="bg-emerald-50 text-emerald-700 border-emerald-200/80 gap-1.5 py-0.5 px-2.5 text-xs font-semibold rounded-md"
             >
-              <CheckCircle2 className="w-3.5 h-3.5" />
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               Published &amp; Up to date
             </Badge>
           )}
-          <span className="text-xs text-muted-foreground hidden md:inline">
-            Updates reflect across the customer website, quotes, and order invoices.
+          <span className="text-xs text-muted-foreground hidden lg:inline">
+            Updates reflect live across the customer website, quotes, and order invoices.
           </span>
         </div>
 
@@ -398,11 +391,11 @@ export default function BusinessInfoPanel() {
           {isDirty && (
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={handleReset}
               disabled={saving}
-              className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+              className="text-xs h-8 px-3 border-border/80 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
               Discard
@@ -412,16 +405,16 @@ export default function BusinessInfoPanel() {
             type="submit"
             size="sm"
             disabled={saving || !isDirty}
-            className="cursor-pointer font-medium px-4 shadow-xs"
+            className="cursor-pointer font-semibold text-xs h-8 px-4 bg-[#4C81E0] hover:bg-[#3F70C7] text-white shadow-2xs transition-colors"
           >
             {saving ? (
               <>
-                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                 Saving...
               </>
             ) : (
               <>
-                <Save className="w-4 h-4 mr-1.5" />
+                <Save className="w-3.5 h-3.5 mr-1.5" />
                 Save Changes
               </>
             )}
@@ -429,39 +422,39 @@ export default function BusinessInfoPanel() {
         </div>
       </div>
 
-      {/* Main Responsive Two-Column Bento Layout (No large blank gaps, independent vertical flow) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      {/* Main Responsive Two-Column Bento Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5 items-start">
         {/* ══════════════════════════════════════════════════════════
             LEFT COLUMN: Business Contact Information + Policies & Legal
            ══════════════════════════════════════════════════════════ */}
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
           {/* ── Business Contact Information ────────────────────────── */}
-          <Card className="border-border/70 shadow-xs bg-card">
-            <CardHeader className="border-b border-border/40 pb-4 bg-muted/20">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                  <Phone className="w-5 h-5" />
+          <Card className="border-border/80 shadow-2xs bg-card overflow-hidden">
+            <CardHeader className="border-b border-border/70 px-4 py-3 bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-md bg-[#4C81E0]/10 text-[#4C81E0] flex items-center justify-center shrink-0">
+                  <Phone className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold tracking-tight">
+                  <CardTitle className="text-sm font-bold tracking-tight text-foreground">
                     Business Contact Information
                   </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                  <CardDescription className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
                     Official contact phone number, email address, and physical business location.
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
 
-            <CardContent className="p-6 space-y-4">
+            <CardContent className="p-4 sm:p-4.5 space-y-3.5">
               {/* Phone & Email side by side in a balanced 2-column grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="contact-number"
-                    className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
+                    className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
                   >
-                    <Phone className="w-3.5 h-3.5 text-primary" />
+                    <Phone className="w-3 h-3 text-[#4C81E0]" />
                     Phone Number
                   </Label>
                   <Input
@@ -470,16 +463,16 @@ export default function BusinessInfoPanel() {
                     value={form.contact_number}
                     onChange={updateField("contact_number")}
                     placeholder="e.g. +63 912 345 6789"
-                    className="bg-background"
+                    className="bg-background h-8.5 text-xs border-border/80 focus-visible:ring-1 focus-visible:ring-[#4C81E0] focus-visible:border-[#4C81E0]"
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="email-address"
-                    className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
+                    className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
                   >
-                    <Mail className="w-3.5 h-3.5 text-primary" />
+                    <Mail className="w-3 h-3 text-[#4C81E0]" />
                     Email Address
                   </Label>
                   <Input
@@ -488,7 +481,7 @@ export default function BusinessInfoPanel() {
                     value={form.email}
                     onChange={updateField("email")}
                     placeholder="e.g. contact@caezelle.com"
-                    className="bg-background"
+                    className="bg-background h-8.5 text-xs border-border/80 focus-visible:ring-1 focus-visible:ring-[#4C81E0] focus-visible:border-[#4C81E0]"
                   />
                 </div>
               </div>
@@ -497,18 +490,18 @@ export default function BusinessInfoPanel() {
               <div className="space-y-1.5">
                 <Label
                   htmlFor="business-address"
-                  className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
+                  className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
                 >
-                  <MapPin className="w-3.5 h-3.5 text-primary" />
+                  <MapPin className="w-3 h-3 text-[#4C81E0]" />
                   Location / Business Address
                 </Label>
                 <Textarea
                   id="business-address"
-                  rows={3}
+                  rows={2.5}
                   value={form.address}
                   onChange={updateField("address")}
                   placeholder="e.g. 143 Feast Avenue, Brgy. San Antonio, Pasig City, Metro Manila"
-                  className="bg-background resize-y text-sm"
+                  className="bg-background resize-y text-xs border-border/80 focus-visible:ring-1 focus-visible:ring-[#4C81E0] focus-visible:border-[#4C81E0] leading-relaxed"
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Displayed in the public landing page footer, quotation sheets, and official receipts.
@@ -516,24 +509,24 @@ export default function BusinessInfoPanel() {
               </div>
 
               {/* Optional Pickup Address Accordion/Toggle */}
-              <div className="pt-2 border-t border-border/40">
+              <div className="pt-2 border-t border-border/50">
                 {!showPickupAddress ? (
                   <button
                     type="button"
                     onClick={() => setShowPickupAddress(true)}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline cursor-pointer"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#4C81E0] hover:underline cursor-pointer"
                   >
                     <Truck className="w-3.5 h-3.5" />
-                    + Add separate pickup / kitchen location (optional)
+                    + Add separate pickup / commissary location (optional)
                   </button>
                 ) : (
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label
                         htmlFor="pickup-address"
-                        className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
+                        className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
                       >
-                        <Truck className="w-3.5 h-3.5 text-primary" />
+                        <Truck className="w-3 h-3 text-[#4C81E0]" />
                         Pickup / Commissary Address
                       </Label>
                       <button
@@ -542,7 +535,7 @@ export default function BusinessInfoPanel() {
                           setForm((p) => ({ ...p, pickup_address: "" }));
                           setShowPickupAddress(false);
                         }}
-                        className="text-[11px] text-muted-foreground hover:text-destructive cursor-pointer"
+                        className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 cursor-pointer"
                       >
                         Remove
                       </button>
@@ -553,7 +546,7 @@ export default function BusinessInfoPanel() {
                       value={form.pickup_address}
                       onChange={updateField("pickup_address")}
                       placeholder="Address where customers collect pickup orders (leave blank to default to main address)"
-                      className="bg-background text-sm"
+                      className="bg-background text-xs border-border/80 focus-visible:ring-1 focus-visible:ring-[#4C81E0] focus-visible:border-[#4C81E0]"
                     />
                     <p className="text-[11px] text-muted-foreground">
                       Shown specifically to customers who select "Customer Pickup" in the booking wizard.
@@ -564,25 +557,25 @@ export default function BusinessInfoPanel() {
             </CardContent>
           </Card>
 
-          {/* ── Legal & Policies (Simple & Beginner-Friendly Setup) ───────── */}
-          <Card className="border-border/70 shadow-xs bg-card">
-            <CardHeader className="border-b border-border/40 pb-4 bg-muted/20">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-[#1E3563]/10 text-[#1E3563]">
-                  <ShieldCheck className="w-5 h-5" />
+          {/* ── Legal & Policies ────────────────────────────────────────── */}
+          <Card className="border-border/80 shadow-2xs bg-card overflow-hidden">
+            <CardHeader className="border-b border-border/70 px-4 py-3 bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-md bg-[#4C81E0]/10 text-[#4C81E0] flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold tracking-tight text-foreground">
+                  <CardTitle className="text-sm font-bold tracking-tight text-foreground">
                     Legal &amp; Policies
                   </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                  <CardDescription className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
                     Click Edit on any policy to update terms, cancellation rules, or privacy guidelines.
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
 
-            <CardContent className="p-5 space-y-3">
+            <CardContent className="p-4 sm:p-4.5 space-y-2.5">
               {[
                 {
                   key: "terms",
@@ -611,11 +604,11 @@ export default function BusinessInfoPanel() {
                 return (
                   <div
                     key={policyItem.key}
-                    className="p-3.5 rounded-xl border border-border/70 bg-card hover:border-[#1E3563]/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className="p-3 rounded-lg border border-border/70 bg-card hover:border-[#4C81E0]/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
                   >
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-[#1E3563]/10 text-[#1E3563] flex items-center justify-center shrink-0 mt-0.5">
-                        <Icon className="w-4 h-4" />
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-md bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 mt-0.5 border border-border/50">
+                        <Icon className="w-3.5 h-3.5" />
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
@@ -625,14 +618,14 @@ export default function BusinessInfoPanel() {
                           {isPublished ? (
                             <Badge
                               variant="outline"
-                              className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px] font-semibold py-0 px-1.5"
+                              className="bg-emerald-50 text-emerald-700 border-emerald-200/80 text-[10px] font-semibold py-0 px-1.5"
                             >
                               Published
                             </Badge>
                           ) : (
                             <Badge
                               variant="outline"
-                              className="bg-blue-500/10 text-blue-600 border-blue-500/30 text-[10px] font-semibold py-0 px-1.5"
+                              className="bg-blue-50 text-blue-700 border-blue-200/80 text-[10px] font-semibold py-0 px-1.5"
                             >
                               Draft Edits
                             </Badge>
@@ -642,7 +635,7 @@ export default function BusinessInfoPanel() {
                           {policyItem.desc}
                         </p>
                         {lastUpdated && (
-                          <span className="text-[10px] text-muted-foreground/70 block mt-1">
+                          <span className="text-[10px] text-muted-foreground/70 block mt-1 font-mono">
                             Updated {new Date(lastUpdated).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                           </span>
                         )}
@@ -655,9 +648,9 @@ export default function BusinessInfoPanel() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleOpenEditPolicy(policyItem.key)}
-                        className="text-xs font-semibold cursor-pointer gap-1.5 border-border hover:bg-[#1E3563]/5 hover:text-[#1E3563] hover:border-[#1E3563]/30"
+                        className="text-xs font-semibold h-7 px-2.5 rounded-md cursor-pointer gap-1.5 border-border/80 hover:border-[#4C81E0]/50 hover:bg-[#4C81E0]/5 hover:text-[#4C81E0] transition-colors"
                       >
-                        <Pencil className="w-3.5 h-3.5" />
+                        <Pencil className="w-3 h-3" />
                         Edit
                       </Button>
                     </div>
@@ -666,12 +659,12 @@ export default function BusinessInfoPanel() {
               })}
 
               {/* Booking Capacity Rule */}
-              <div className="pt-3 border-t border-border/40 space-y-1.5">
+              <div className="pt-3 border-t border-border/50 space-y-1.5">
                 <Label
                   htmlFor="max-bookings"
-                  className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
+                  className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
                 >
-                  <CalendarCheck2 className="w-3.5 h-3.5 text-primary" />
+                  <CalendarCheck2 className="w-3.5 h-3.5 text-[#4C81E0]" />
                   Max Bookings Allowed Per Day
                 </Label>
                 <Input
@@ -682,7 +675,7 @@ export default function BusinessInfoPanel() {
                   value={form.max_bookings_per_day ?? 2}
                   onChange={updateField("max_bookings_per_day")}
                   placeholder="2"
-                  className="bg-background w-32 font-medium"
+                  className="bg-background w-28 h-8 text-xs font-semibold border-border/80 focus-visible:ring-1 focus-visible:ring-[#4C81E0] focus-visible:border-[#4C81E0]"
                 />
                 <p className="text-[11px] text-muted-foreground">
                   The booking engine uses this capacity threshold to automatically close calendar dates once reaching max intake.
@@ -695,33 +688,33 @@ export default function BusinessInfoPanel() {
         {/* ══════════════════════════════════════════════════════════
             RIGHT COLUMN: Business Hours + Online Presence
            ══════════════════════════════════════════════════════════ */}
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
           {/* ── Business Hours ─────────────────────────────────────── */}
-          <Card className="border-border/70 shadow-xs bg-card">
-            <CardHeader className="border-b border-border/40 pb-4 bg-muted/20">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                  <Clock className="w-5 h-5" />
+          <Card className="border-border/80 shadow-2xs bg-card overflow-hidden">
+            <CardHeader className="border-b border-border/70 px-4 py-3 bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-md bg-[#4C81E0]/10 text-[#4C81E0] flex items-center justify-center shrink-0">
+                  <Clock className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold tracking-tight">
+                  <CardTitle className="text-sm font-bold tracking-tight text-foreground">
                     Business Hours
                   </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                  <CardDescription className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
                     Define your customer service schedule and daily catering operating times.
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
 
-            <CardContent className="p-6 space-y-4">
+            <CardContent className="p-4 sm:p-4.5 space-y-3.5">
               {/* Opening Hours Input */}
               <div className="space-y-1.5">
                 <Label
                   htmlFor="business-hours"
-                  className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
+                  className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
                 >
-                  <Clock className="w-3.5 h-3.5 text-primary" />
+                  <Clock className="w-3 h-3 text-[#4C81E0]" />
                   Opening Hours
                 </Label>
                 <Input
@@ -729,7 +722,7 @@ export default function BusinessInfoPanel() {
                   value={form.hours}
                   onChange={updateField("hours")}
                   placeholder="e.g. Mon – Sun: 8:00 AM – 8:00 PM"
-                  className="bg-background font-medium"
+                  className="bg-background h-8.5 text-xs font-medium border-border/80 focus-visible:ring-1 focus-visible:ring-[#4C81E0] focus-visible:border-[#4C81E0]"
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Enter your standard operational hours or select from the common presets below.
@@ -737,8 +730,8 @@ export default function BusinessInfoPanel() {
               </div>
 
               {/* Quick Presets */}
-              <div className="space-y-2 pt-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block">
                   Quick Schedule Presets:
                 </span>
                 <div className="flex flex-wrap gap-1.5">
@@ -749,8 +742,8 @@ export default function BusinessInfoPanel() {
                       onClick={() => setForm((prev) => ({ ...prev, hours: preset }))}
                       className={`text-xs px-2.5 py-1 rounded-md border transition-all cursor-pointer ${
                         form.hours === preset
-                          ? "bg-primary text-primary-foreground border-primary font-medium"
-                          : "bg-muted/50 text-foreground border-border hover:bg-muted"
+                          ? "bg-[#4C81E0] text-white border-[#4C81E0] font-semibold shadow-2xs"
+                          : "bg-card text-foreground border-border/80 hover:bg-slate-50"
                       }`}
                     >
                       {preset}
@@ -760,12 +753,12 @@ export default function BusinessInfoPanel() {
               </div>
 
               {/* Customer Display View Box */}
-              <div className="rounded-lg border border-border/60 bg-muted/30 p-4 space-y-2 mt-2">
+              <div className="rounded-lg border border-border/70 bg-slate-50/70 p-3.5 space-y-2 mt-1">
                 <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                  <Calendar className="w-4 h-4 text-primary" />
+                  <Calendar className="w-3.5 h-3.5 text-[#4C81E0]" />
                   <span>Customer Website Display</span>
                 </div>
-                <div className="flex items-center justify-between text-xs bg-background p-2.5 rounded-md border border-border/50">
+                <div className="flex items-center justify-between text-xs bg-card p-2.5 rounded-md border border-border/60">
                   <span className="text-muted-foreground">Operating Schedule:</span>
                   <span className="font-semibold text-foreground">
                     {form.hours?.trim() ? form.hours : "Hours not specified"}
@@ -778,19 +771,19 @@ export default function BusinessInfoPanel() {
             </CardContent>
           </Card>
 
-          {/* ── Online Presence (Positioned on the RIGHT side) ───────── */}
-          <Card className="border-border/70 shadow-xs bg-card">
-            <CardHeader className="border-b border-border/40 pb-4 bg-muted/20">
+          {/* ── Online Presence ────────────────────────────────────────── */}
+          <Card className="border-border/80 shadow-2xs bg-card overflow-hidden">
+            <CardHeader className="border-b border-border/70 px-4 py-3 bg-slate-50/50">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                    <Globe className="w-5 h-5" />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-md bg-[#4C81E0]/10 text-[#4C81E0] flex items-center justify-center shrink-0">
+                    <Globe className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <CardTitle className="text-base font-bold tracking-tight">
+                    <CardTitle className="text-sm font-bold tracking-tight text-foreground">
                       Online Presence
                     </CardTitle>
-                    <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                    <CardDescription className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
                       Connect social media profiles and links so visitors can follow your brand.
                     </CardDescription>
                   </div>
@@ -802,7 +795,7 @@ export default function BusinessInfoPanel() {
                     size="sm"
                     variant="outline"
                     onClick={() => setIsAddingLink(true)}
-                    className="cursor-pointer gap-1 text-xs"
+                    className="cursor-pointer gap-1 text-xs h-7 px-2.5 rounded-md border-border/80 hover:border-[#4C81E0]/50 hover:text-[#4C81E0] transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Add Links
@@ -811,10 +804,10 @@ export default function BusinessInfoPanel() {
               </div>
             </CardHeader>
 
-            <CardContent className="p-6 space-y-4">
+            <CardContent className="p-4 sm:p-4.5 space-y-3">
               {/* If adding a link, display the new input row */}
               {isAddingLink && (
-                <div className="p-4 rounded-xl border-2 border-primary/30 bg-primary/5 space-y-3">
+                <div className="p-3.5 rounded-lg border border-[#4C81E0]/40 bg-[#4C81E0]/5 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-bold text-foreground">
                       Add Social Media or Website Link
@@ -838,7 +831,7 @@ export default function BusinessInfoPanel() {
                       }
                     }}
                     placeholder="Paste URL (e.g. https://facebook.com/yourpage or https://instagram.com/...)"
-                    className="bg-background text-sm"
+                    className="bg-background text-xs h-8.5 border-border/80 focus-visible:ring-1 focus-visible:ring-[#4C81E0] focus-visible:border-[#4C81E0]"
                   />
 
                   <div className="flex items-center justify-end gap-2">
@@ -850,7 +843,7 @@ export default function BusinessInfoPanel() {
                         setIsAddingLink(false);
                         setNewLinkUrl("");
                       }}
-                      className="text-xs cursor-pointer"
+                      className="text-xs h-7 px-2.5 cursor-pointer text-muted-foreground hover:text-foreground"
                     >
                       Cancel
                     </Button>
@@ -859,7 +852,7 @@ export default function BusinessInfoPanel() {
                       size="sm"
                       onClick={handleConfirmAddLink}
                       disabled={!newLinkUrl.trim()}
-                      className="text-xs cursor-pointer gap-1.5"
+                      className="text-xs h-7 px-3 cursor-pointer gap-1 bg-[#4C81E0] hover:bg-[#3F70C7] text-white"
                     >
                       <Check className="w-3.5 h-3.5" />
                       Done
@@ -870,7 +863,7 @@ export default function BusinessInfoPanel() {
 
               {/* List of saved social links */}
               {form.social_links && form.social_links.length > 0 ? (
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {form.social_links.map((link, index) => {
                     const platformInfo = detectPlatform(link.url);
                     const isEditingThis = editingIndex === index;
@@ -879,7 +872,7 @@ export default function BusinessInfoPanel() {
                       return (
                         <div
                           key={index}
-                          className="p-3.5 rounded-lg border border-primary/40 bg-card space-y-3"
+                          className="p-3 rounded-lg border border-[#4C81E0]/50 bg-card space-y-2.5 shadow-2xs"
                         >
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-semibold text-foreground">Edit Link</span>
@@ -898,7 +891,7 @@ export default function BusinessInfoPanel() {
                                 handleSaveEdit(index);
                               }
                             }}
-                            className="bg-background text-sm"
+                            className="bg-background text-xs h-8.5 border-border/80 focus-visible:ring-1 focus-visible:ring-[#4C81E0]"
                           />
                           <div className="flex items-center justify-end gap-2">
                             <Button
@@ -909,7 +902,7 @@ export default function BusinessInfoPanel() {
                                 setEditingIndex(-1);
                                 setEditingUrl("");
                               }}
-                              className="text-xs"
+                              className="text-xs h-7 px-2.5"
                             >
                               Cancel
                             </Button>
@@ -918,7 +911,7 @@ export default function BusinessInfoPanel() {
                               size="sm"
                               onClick={() => handleSaveEdit(index)}
                               disabled={!editingUrl.trim()}
-                              className="text-xs gap-1"
+                              className="text-xs h-7 px-3 gap-1 bg-[#4C81E0] hover:bg-[#3F70C7] text-white"
                             >
                               <Check className="w-3.5 h-3.5" />
                               Done
@@ -931,13 +924,13 @@ export default function BusinessInfoPanel() {
                     return (
                       <div
                         key={index}
-                        className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border/70 bg-card hover:bg-muted/30 transition-all"
+                        className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-border/70 bg-card hover:border-[#4C81E0]/30 transition-colors"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <div
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${platformInfo.badgeBg}`}
+                            className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${platformInfo.badgeBg}`}
                           >
-                            <PlatformIcon platform={platformInfo.key} className="w-4 h-4" />
+                            <PlatformIcon platform={platformInfo.key} className="w-3.5 h-3.5" />
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
@@ -956,7 +949,7 @@ export default function BusinessInfoPanel() {
                             type="button"
                             onClick={() => handleTestLink(link.url)}
                             title="Open Link"
-                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-slate-100 transition-colors cursor-pointer"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
                           </button>
@@ -964,7 +957,7 @@ export default function BusinessInfoPanel() {
                             type="button"
                             onClick={() => handleStartEdit(index)}
                             title="Edit Link"
-                            className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-muted transition-colors cursor-pointer"
+                            className="p-1 rounded-md text-muted-foreground hover:text-[#4C81E0] hover:bg-[#4C81E0]/10 transition-colors cursor-pointer"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -972,7 +965,7 @@ export default function BusinessInfoPanel() {
                             type="button"
                             onClick={() => handleRemoveLink(index)}
                             title="Remove Link"
-                            className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                            className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -983,22 +976,22 @@ export default function BusinessInfoPanel() {
                 </div>
               ) : (
                 !isAddingLink && (
-                  <div className="rounded-xl border border-dashed border-border/80 p-8 text-center bg-muted/20">
-                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-2 text-muted-foreground">
-                      <Share2 className="w-5 h-5" />
+                  <div className="rounded-lg border border-dashed border-border/80 p-5 text-center bg-slate-50/40">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-1.5 text-muted-foreground border border-border/50">
+                      <Share2 className="w-4 h-4 text-slate-500" />
                     </div>
                     <p className="text-xs font-semibold text-foreground">No social links added yet</p>
                     <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xs mx-auto">
-                      Click "Add Links" to connect your Facebook, Instagram, TikTok, YouTube, or website.
+                      Connect Facebook, Instagram, TikTok, YouTube, or your website.
                     </p>
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
                       onClick={() => setIsAddingLink(true)}
-                      className="mt-3 cursor-pointer text-xs gap-1.5"
+                      className="mt-2.5 cursor-pointer text-xs h-7 px-3 gap-1.5 border-border/80 hover:border-[#4C81E0]/50 hover:text-[#4C81E0]"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-3 h-3" />
                       Add Links
                     </Button>
                   </div>
@@ -1010,7 +1003,7 @@ export default function BusinessInfoPanel() {
       </div>
 
       {/* Bottom Sticky/Inline Save Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-card border border-border/70 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:px-4 sm:py-2.5 rounded-xl bg-card border border-border/80 shadow-2xs">
         <p className="text-xs text-muted-foreground m-0">
           All changes saved here will immediately update the customer-facing website and quote calculator.
         </p>
@@ -1022,7 +1015,7 @@ export default function BusinessInfoPanel() {
               size="sm"
               onClick={handleReset}
               disabled={saving}
-              className="text-xs cursor-pointer"
+              className="text-xs h-8 px-3 border-border/80 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
               Discard Changes
@@ -1032,16 +1025,16 @@ export default function BusinessInfoPanel() {
             type="submit"
             size="sm"
             disabled={saving || !isDirty}
-            className="cursor-pointer font-semibold px-5 shadow-xs"
+            className="cursor-pointer font-semibold text-xs h-8 px-5 bg-[#4C81E0] hover:bg-[#3F70C7] text-white shadow-2xs transition-colors"
           >
             {saving ? (
               <>
-                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                 Saving Changes...
               </>
             ) : (
               <>
-                <Save className="w-4 h-4 mr-1.5" />
+                <Save className="w-3.5 h-3.5 mr-1.5" />
                 Save Changes
               </>
             )}

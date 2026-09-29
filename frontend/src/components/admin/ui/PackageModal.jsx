@@ -644,15 +644,13 @@ export default function PackageModal({
   const [quickDrawer, setQuickDrawer] = useState({
     isOpen: false,
     initialName: "",
-    category: "Event Setup & Furniture",
     isAddon: false,
   });
 
-  const handleOpenQuickCreate = (name = "", category = "Event Setup & Furniture", isAddon = false) => {
+  const handleOpenQuickCreate = (name = "", isAddon = false) => {
     setQuickDrawer({
       isOpen: true,
       initialName: name || "",
-      category: category || "Event Setup & Furniture",
       isAddon: Boolean(isAddon),
     });
   };
@@ -1169,7 +1167,7 @@ export default function PackageModal({
       (item) => item.toLowerCase() === nameToAdd.toLowerCase()
     );
     if (!matched) {
-      handleOpenQuickCreate(nameToAdd, "Dining & Service Inventory", false);
+      handleOpenQuickCreate(nameToAdd, false);
       return;
     }
 
@@ -3576,7 +3574,7 @@ export default function PackageModal({
                         sourceLabel="Inventory"
                         onSubmit={() => handleAddInventoryInclusion()}
                         onCreateNew={(name) =>
-                          handleOpenQuickCreate(name, "Dining & Service Inventory", false)
+                          handleOpenQuickCreate(name, false)
                         }
                         createActionLabel="+ Create New Inventory Item"
                       />
@@ -4106,7 +4104,6 @@ export default function PackageModal({
     <QuickInventoryCreateDrawer
       isOpen={quickDrawer.isOpen}
       initialName={quickDrawer.initialName}
-      defaultCategory={quickDrawer.category}
       isAddon={quickDrawer.isAddon}
       existingItems={inventoryItems}
       existingAddons={addonItems}

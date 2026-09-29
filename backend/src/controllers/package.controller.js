@@ -98,23 +98,25 @@ async function validatePackageItems({
         matchedInvItem = inventoryItems.find(
           (i) => isSetupCategory(i.category) && i.item_name.toLowerCase().trim() === nameLower
         );
-        if (!matchedInvItem && !existingInclusionsSet.has(cleanInc)) {
-          return `Inclusion "${name}" does not exist in Event Setup & Furniture inventory.`;
-        }
       } else if (isDiningCategory(category)) {
         matchedInvItem = inventoryItems.find(
           (i) => isDiningCategory(i.category) && i.item_name.toLowerCase().trim() === nameLower
         );
-        if (!matchedInvItem && !existingInclusionsSet.has(cleanInc)) {
-          return `Inclusion "${name}" does not exist in Dining & Service inventory.`;
-        }
       } else {
         matchedInvItem = inventoryItems.find(
           (i) => i.item_name.toLowerCase().trim() === nameLower
         );
-        if (!matchedInvItem && !existingInclusionsSet.has(cleanInc)) {
-          return `Inclusion "${name}" does not exist in Inventory.`;
-        }
+      }
+
+      // Fallback: match by name across all inventory items if category was omitted or inventory item has no category
+      if (!matchedInvItem) {
+        matchedInvItem = inventoryItems.find(
+          (i) => i.item_name.toLowerCase().trim() === nameLower
+        );
+      }
+
+      if (!matchedInvItem && !existingInclusionsSet.has(cleanInc)) {
+        return `Inclusion "${name}" does not exist in Inventory.`;
       }
 
       // Quantity validation against Inventory Total Quantity

@@ -385,12 +385,14 @@ exports.verifyEquipment = asyncHandler(async (req, res) => {
   }
 
   const { confirmed, additional_notes } = req.body;
+  const returns = req.body.returns || req.body.equipment_returns;
   const isConfirmed = Boolean(confirmed);
 
-  if (isConfirmed && Array.isArray(booking.equipment_returns) && booking.equipment_returns.length > 0) {
+  if (isConfirmed && ((Array.isArray(booking.equipment_returns) && booking.equipment_returns.length > 0) || Array.isArray(returns))) {
     const { reconcileEquipmentTurnover } = require("../utils/reconcileInventory");
     await reconcileEquipmentTurnover({
       booking,
+      returns,
       actorId: req.user._id,
       notes: typeof additional_notes === "string" ? additional_notes.trim() : "",
       isManagerVerification: true,

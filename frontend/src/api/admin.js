@@ -92,6 +92,7 @@ export const AdminAPI = {
   deleteInventory: (id) => api.delete(`/inventory/${id}`),
   getInventoryLogs: (id) => api.get(`/inventory/${id}/logs`),
   getInventoryUsage: (id) => api.get(`/inventory/${id}/usage`),
+  resolveInventoryTurnover: (id, data) => api.post(`/inventory/${id}/resolve-stock`, data),
 
   // Addons
   getAddons: () => api.get("/addons"),

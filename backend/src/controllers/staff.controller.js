@@ -278,7 +278,7 @@ exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
   }
 
   const returns = req.body.returns || req.body.equipment_returns;
-  const { note } = req.body;
+  const noteText = (req.body.note || req.body.notes || req.body.equipment_notes || "").trim();
 
   if (!Array.isArray(booking.equipment_returns) || booking.equipment_returns.length === 0) {
     booking.equipment_returns = (booking.inventory_items || []).map((item) => ({
@@ -313,17 +313,17 @@ exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
       booking,
       returns,
       actorId: req.user._id,
-      notes: note || "",
+      notes: noteText,
       isManagerVerification: false,
     });
   }
 
-  if (note && note.trim()) {
+  if (noteText) {
     if (!Array.isArray(booking.staff_reports)) booking.staff_reports = [];
     booking.staff_reports.push({
       staff_id: req.user._id,
       role: "Equipment Verification",
-      note: note.trim(),
+      note: noteText,
       created_at: new Date()
     });
   }
@@ -350,12 +350,14 @@ exports.completeEvent = asyncHandler(async (req, res) => {
     });
   }
 
-  if (req.body.note && req.body.note.trim()) {
+  const completeNoteText = (req.body.note || req.body.notes || req.body.final_notes || req.body.equipment_notes || "").trim();
+
+  if (completeNoteText) {
     if (!Array.isArray(booking.staff_reports)) booking.staff_reports = [];
     booking.staff_reports.push({
       staff_id: req.user._id,
       role: req.body.role || "Staff",
-      note: req.body.note.trim(),
+      note: completeNoteText,
       created_at: new Date()
     });
   }
@@ -394,7 +396,7 @@ exports.completeEvent = asyncHandler(async (req, res) => {
       booking,
       returns,
       actorId: req.user._id,
-      notes: req.body.note || "",
+      notes: completeNoteText,
       isManagerVerification: false,
     });
   }

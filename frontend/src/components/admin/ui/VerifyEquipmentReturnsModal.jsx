@@ -127,7 +127,25 @@ export default function VerifyEquipmentReturnsModal({
   const updateItemField = (idx, field, value) => {
     setItems((prev) => {
       const next = [...prev];
-      next[idx] = { ...next[idx], [field]: value };
+      const item = { ...next[idx] };
+      const booked = Number(item.quantity_booked || 0);
+
+      if (field === "quantity_returned") {
+        const val = Math.max(0, Math.min(booked, Number(value) || 0));
+        item.quantity_returned = val;
+        if (val + Number(item.quantity_damaged || 0) > booked) {
+          item.quantity_damaged = Math.max(0, booked - val);
+        }
+      } else if (field === "quantity_damaged") {
+        const val = Math.max(0, Math.min(booked, Number(value) || 0));
+        item.quantity_damaged = val;
+        if (val + Number(item.quantity_returned || 0) > booked) {
+          item.quantity_returned = Math.max(0, booked - val);
+        }
+      } else {
+        item[field] = value;
+      }
+      next[idx] = item;
       return next;
     });
   };
@@ -137,15 +155,32 @@ export default function VerifyEquipmentReturnsModal({
     setSubmitting(true);
 
     try {
-      const payload = {
-        returns: items.map((i) => ({
+      const mappedReturns = items.map((i) => {
+        const booked = Number(i.quantity_booked || 0);
+        const ret = Number(i.quantity_returned || 0);
+        const dam = Number(i.quantity_damaged || 0);
+        const mis = Math.max(0, booked - (ret + dam));
+        return {
+          _id: i._id,
           inventory_id: i.inventory_id,
-          quantity_returned: Number(i.quantity_returned || 0),
-          quantity_damaged: Number(i.quantity_damaged || 0),
+          quantity_booked: booked,
+          quantity_returned: ret,
+          quantity_damaged: dam,
+          quantity_missing: mis,
           notes: i.notes || "",
-        })),
+        };
+      });
+
+      const firstIncidentItem = items.find(
+        (i) => (Number(i.quantity_damaged) || 0) > 0 || Math.max(0, (Number(i.quantity_booked) || 0) - (Number(i.quantity_returned) || 0) - (Number(i.quantity_damaged) || 0)) > 0
+      );
+
+      const payload = {
+        returns: mappedReturns,
         damage_fee: chargeCustomer ? Number(damageFee || 0) : 0,
         damage_reason: chargeCustomer ? damageReason.trim() : "",
+        inventory_id: chargeCustomer ? firstIncidentItem?.inventory_id : undefined,
+        equipment_return_id: chargeCustomer ? firstIncidentItem?._id : undefined,
         additional_notes: inspectionNotes.trim(),
       };
 

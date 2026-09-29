@@ -8,5 +8,7 @@ exports.inventorySchema = Joi.object({
   lowStockThreshold: Joi.number().integer().min(1).optional().allow(null, ""),
   category: Joi.string().allow("", null).optional(),
   available: Joi.boolean().optional(),
+  damaged_quantity: Joi.number().min(0).optional(),
+  missing_quantity: Joi.number().min(0).optional(),
   reason: Joi.string().allow("").optional()
 });

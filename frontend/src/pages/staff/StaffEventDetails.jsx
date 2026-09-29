@@ -156,15 +156,19 @@ export default function StaffEventDetails() {
 
       if (returns.length > 0) {
         returns.forEach((ret) => {
-          const qtyRet = ret.quantity_returned !== undefined ? ret.quantity_returned : (ret.quantity_booked || 1);
+          const booked = Number(ret.quantity_booked || 1);
+          const qtyRet = Number(ret.quantity_returned !== undefined ? ret.quantity_returned : booked);
+          const qtyDam = Number(ret.quantity_damaged !== undefined ? ret.quantity_damaged : 0);
+          const isComplete = (qtyRet + qtyDam) === booked;
           initialReturns.push({
             inventory_id: ret.inventory_id?._id || ret.inventory_id || null,
             name: ret.name || ret.inventory_id?.item_name || "Equipment Item",
-            quantity_booked: ret.quantity_booked || 1,
+            quantity_booked: booked,
             quantity_returned: qtyRet,
+            quantity_damaged: qtyDam,
             notes: ret.notes || "",
             _verified: true,
-            _markedMissing: qtyRet < (ret.quantity_booked || 1)
+            _markedMissing: !isComplete
           });
         });
       } else if (assignedItems.length > 0) {
@@ -172,8 +176,9 @@ export default function StaffEventDetails() {
           initialReturns.push({
             inventory_id: item.inventory_id?._id || item.inventory_id || null,
             name: item.name || item.inventory_id?.item_name || "Equipment Item",
-            quantity_booked: item.quantity || 1,
-            quantity_returned: item.quantity || 1,
+            quantity_booked: Number(item.quantity || 1),
+            quantity_returned: Number(item.quantity || 1),
+            quantity_damaged: 0,
             notes: "",
             _verified: false,
             _markedMissing: false
@@ -338,8 +343,10 @@ export default function StaffEventDetails() {
     setSubmittingEquipment(true);
     try {
       await StaffAPI.submitEquipmentReturns(id, {
+        returns: equipmentList,
         equipment_returns: equipmentList,
-        equipment_notes: equipmentNotes
+        note: equipmentNotes.trim() || undefined,
+        equipment_notes: equipmentNotes.trim() || undefined,
       });
       notify("Equipment return checklist submitted & logged!", "success");
       loadEvent();
@@ -381,7 +388,9 @@ export default function StaffEventDetails() {
     setCompletingEvent(true);
     try {
       await StaffAPI.completeEvent(id, {
+        note: note.trim() || undefined,
         final_notes: note.trim() || undefined,
+        returns: equipmentList,
         equipment_returns: equipmentList,
         collected_cash_balance: collectedCash,
       });

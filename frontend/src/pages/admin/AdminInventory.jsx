@@ -20,6 +20,10 @@ import {
   ExternalLink,
   Layers,
   Boxes,
+  Wrench,
+  AlertTriangle,
+  AlertCircle,
+  ShieldCheck,
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -30,6 +34,7 @@ import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import InventoryModal from "../../components/admin/ui/InventoryModal";
 import AIInventoryParserModal from "../../components/admin/ui/AIInventoryParserModal";
+import ResolveTurnoverModal from "../../components/admin/ui/ResolveTurnoverModal";
 import ItemDeleteWarningModal from "../../components/admin/common/ItemDeleteWarningModal";
 import FilterPill from "../../components/admin/table/FilterPill";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
@@ -102,6 +107,8 @@ export default function AdminInventory() {
   const [showAIModal, setShowAIModal] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [resolveTarget, setResolveTarget] = useState(null);
+  const [resolveInitialMode, setResolveInitialMode] = useState("repair_damages");
   const [drawerRow, setDrawerRow] = useState(null);
 
   const [logState, setLogState] = useState({ itemId: null, entries: [] });
@@ -109,9 +116,15 @@ export default function AdminInventory() {
   const eventLabel = {
     created: "Created",
     manual_adjustment: "Manual Adjustment",
-    reservation_allocated: "Reservation Allocated",
-    reservation_released: "Reservation Released",
+    adjustment: "Stock Adjustment",
+    reservation_allocated: "Reserved for Event",
+    reservation_released: "Turnover Returned / Released",
     retired: "Retired",
+    damage_loss: "Equipment Damage / Loss",
+    missing: "Equipment Missing",
+    repaired_restored: "Repaired & Restored",
+    recovered: "Recovered from Venue",
+    written_off: "Written Off / Disposed",
   };
 
   const loadData = async (dateParam = selectedDate) => {
@@ -266,7 +279,17 @@ export default function AdminInventory() {
         else if (threshold != null && threshold > 0 && stockOnHand <= threshold) sStatus = "low_stock";
         else sStatus = "in_stock";
       }
-      const matchStockStatus = stockStatusFilter === "all" || sStatus === stockStatusFilter;
+
+      let matchStockStatus = false;
+      if (stockStatusFilter === "all") {
+        matchStockStatus = true;
+      } else if (stockStatusFilter === "has_damaged") {
+        matchStockStatus = (Number(i.damaged_quantity) || 0) > 0;
+      } else if (stockStatusFilter === "has_missing") {
+        matchStockStatus = (Number(i.missing_quantity) || 0) > 0;
+      } else {
+        matchStockStatus = sStatus === stockStatusFilter;
+      }
 
       return matchSearch && matchCategory && matchAvailability && matchStockStatus;
     });
@@ -321,6 +344,8 @@ export default function AdminInventory() {
     let inStock = 0;
     let lowStock = 0;
     let noStock = 0;
+    let hasDamaged = 0;
+    let hasMissing = 0;
     inventory.forEach((i) => {
       const stockOnHand =
         i.available_quantity ?? Math.max(0, (i.quantity || 0) - (i.reserved_quantity || 0));
@@ -328,8 +353,18 @@ export default function AdminInventory() {
       if (stockOnHand === 0) noStock++;
       else if (threshold != null && threshold > 0 && stockOnHand <= threshold) lowStock++;
       else inStock++;
+
+      if ((Number(i.damaged_quantity) || 0) > 0) hasDamaged++;
+      if ((Number(i.missing_quantity) || 0) > 0) hasMissing++;
     });
-    return { all: inventory.length, in_stock: inStock, low_stock: lowStock, no_stock: noStock };
+    return {
+      all: inventory.length,
+      in_stock: inStock,
+      low_stock: lowStock,
+      no_stock: noStock,
+      has_damaged: hasDamaged,
+      has_missing: hasMissing,
+    };
   }, [inventory]);
 
   return (
@@ -452,6 +487,12 @@ export default function AdminInventory() {
                   { value: "in_stock", label: "In Stock", count: stockCounts.in_stock },
                   { value: "low_stock", label: "Low Stock", count: stockCounts.low_stock },
                   { value: "no_stock", label: "No Stock", count: stockCounts.no_stock },
+                  ...(stockCounts.has_damaged > 0
+                    ? [{ value: "has_damaged", label: "Has Damaged Units", count: stockCounts.has_damaged }]
+                    : []),
+                  ...(stockCounts.has_missing > 0
+                    ? [{ value: "has_missing", label: "Has Missing Units", count: stockCounts.has_missing }]
+                    : []),
                 ]}
                 onSelect={(val) => setStockStatusFilter(val)}
                 onClear={() => setStockStatusFilter("all")}
@@ -570,6 +611,22 @@ export default function AdminInventory() {
                               {i.reserved_quantity} unit{i.reserved_quantity > 1 ? "s" : ""} {selectedDate && selectedDate !== getTodayDateString() ? "in use on this date" : "in use today"}
                             </span>
                           )}
+                          {((Number(i.damaged_quantity) || 0) > 0 || (Number(i.missing_quantity) || 0) > 0) && (
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              {(Number(i.damaged_quantity) || 0) > 0 && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                  <AlertTriangle size={10} />
+                                  {i.damaged_quantity} damaged
+                                </span>
+                              )}
+                              {(Number(i.missing_quantity) || 0) > 0 && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                  <AlertCircle size={10} />
+                                  {i.missing_quantity} missing
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
 
                         <td className="px-5 py-3.5">
@@ -638,6 +695,19 @@ export default function AdminInventory() {
                                   icon: Eye,
                                   onSelect: () => setDrawerRow(i),
                                 },
+                                ...(((Number(i.damaged_quantity) || 0) > 0 || (Number(i.missing_quantity) || 0) > 0)
+                                  ? [
+                                      {
+                                        key: "resolve",
+                                        label: "Resolve turnover stock",
+                                        icon: Wrench,
+                                        onSelect: () => {
+                                          setResolveInitialMode((Number(i.damaged_quantity) || 0) > 0 ? "repair_damages" : "recover_missing");
+                                          setResolveTarget(i);
+                                        },
+                                      },
+                                    ]
+                                  : []),
                                 {
                                   key: "edit",
                                   label: "Edit item",
@@ -742,6 +812,20 @@ export default function AdminInventory() {
         />
       )}
 
+      {resolveTarget && (
+        <ResolveTurnoverModal
+          item={resolveTarget}
+          initialMode={resolveInitialMode}
+          onClose={() => setResolveTarget(null)}
+          onSuccess={(updatedItem) => {
+            loadData(selectedDate);
+            if (drawerRow && drawerRow._id === updatedItem?._id) {
+              setDrawerRow(updatedItem);
+            }
+          }}
+        />
+      )}
+
       {(() => {
         const stockOnHand = drawerRow
           ? (drawerRow.available_quantity ?? Math.max(0, (drawerRow.quantity || 0) - (drawerRow.reserved_quantity || 0)))
@@ -781,7 +865,7 @@ export default function AdminInventory() {
             }
             footer={
               drawerRow && (
-                <div className="flex items-center justify-between w-full gap-2.5">
+                <div className="flex items-center justify-between w-full gap-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -789,10 +873,24 @@ export default function AdminInventory() {
                       setDrawerRow(null);
                       setCancelTarget(row);
                     }}
-                    className="py-2 px-3.5 rounded-lg font-semibold text-xs transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 bg-rose-600 hover:bg-rose-700 text-white active:scale-[0.99]"
+                    className="py-2 px-3 rounded-lg font-semibold text-xs transition-colors shadow-2xs flex items-center justify-center gap-1 cursor-pointer shrink-0 bg-rose-600 hover:bg-rose-700 text-white active:scale-[0.99]"
                   >
                     <Trash2 size={13} /> Delete
                   </button>
+
+                  {((Number(drawerRow.damaged_quantity) || 0) > 0 || (Number(drawerRow.missing_quantity) || 0) > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResolveInitialMode((Number(drawerRow.damaged_quantity) || 0) > 0 ? "repair_damages" : "recover_missing");
+                        setResolveTarget(drawerRow);
+                      }}
+                      className="py-2 px-3 rounded-lg font-semibold text-xs transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 bg-amber-600 hover:bg-amber-700 text-white active:scale-[0.99]"
+                    >
+                      <Wrench size={13} /> Resolve Turnover
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => {
@@ -800,7 +898,7 @@ export default function AdminInventory() {
                       setDrawerRow(null);
                       handleOpenModal(row);
                     }}
-                    className="flex-1 py-2 px-4 rounded-lg font-semibold text-xs text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer bg-primary text-primary-foreground hover:bg-primary-hover active:scale-[0.99]"
+                    className="flex-1 py-2 px-3.5 rounded-lg font-semibold text-xs text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer bg-primary text-primary-foreground hover:bg-primary-hover active:scale-[0.99]"
                   >
                     <Edit3 size={13} /> Edit item
                   </button>
@@ -810,10 +908,10 @@ export default function AdminInventory() {
           >
             {drawerRow && (
               <div className="space-y-3">
-                {/* 3 Key Metric Blocks */}
-                <div className="grid grid-cols-3 gap-2">
+                {/* 5 Key Metric Blocks */}
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                   <div className="bg-slate-50/70 rounded-lg p-2 border border-slate-200/60">
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block truncate">Total Quantity</span>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block truncate">Active Stock</span>
                     <span className="font-mono font-semibold text-sm text-slate-800 block truncate mt-0.5">{drawerRow.quantity || 0}</span>
                   </div>
                   <div className="bg-slate-50/70 rounded-lg p-2 border border-slate-200/60">
@@ -826,13 +924,86 @@ export default function AdminInventory() {
                   </div>
                   <div className="bg-slate-50/90 rounded-lg p-2 border border-slate-300/70 shadow-2xs">
                     <span className="text-[10px] uppercase font-bold text-slate-600 block truncate">Stock on Hand</span>
-                    <span className={`font-mono font-extrabold text-lg leading-tight block truncate mt-0.5 ${
+                    <span className={`font-mono font-extrabold text-base sm:text-lg leading-tight block truncate mt-0.5 ${
                       stockStatus === "no_stock" ? "text-rose-600" : stockStatus === "low_stock" ? "text-amber-600" : "text-emerald-600"
                     }`}>
                       {stockOnHand}
                     </span>
                   </div>
+                  <div className={`rounded-lg p-2 border ${
+                    (Number(drawerRow.damaged_quantity) || 0) > 0 ? "bg-rose-50/80 border-rose-200/80 text-rose-800" : "bg-slate-50/70 border-slate-200/60 text-slate-400"
+                  }`}>
+                    <span className="text-[10px] uppercase font-bold block truncate">Damaged</span>
+                    <span className="font-mono font-bold text-sm block truncate mt-0.5">
+                      {drawerRow.damaged_quantity || 0}
+                    </span>
+                  </div>
+                  <div className={`rounded-lg p-2 border ${
+                    (Number(drawerRow.missing_quantity) || 0) > 0 ? "bg-amber-50/80 border-amber-200/80 text-amber-800" : "bg-slate-50/70 border-slate-200/60 text-slate-400"
+                  }`}>
+                    <span className="text-[10px] uppercase font-bold block truncate">Missing</span>
+                    <span className="font-mono font-bold text-sm block truncate mt-0.5">
+                      {drawerRow.missing_quantity || 0}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Turnover Quarantine Notice & Actions */}
+                {((Number(drawerRow.damaged_quantity) || 0) > 0 || (Number(drawerRow.missing_quantity) || 0) > 0) && (
+                  <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-900 text-xs">
+                        <AlertTriangle size={13} className="text-amber-600" />
+                        <span>Turnover Quarantine Notice</span>
+                      </div>
+                      <span className="text-[10.5px] font-semibold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded">
+                        {(Number(drawerRow.damaged_quantity) || 0) + (Number(drawerRow.missing_quantity) || 0)} Units Logged
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-amber-900/90 leading-relaxed">
+                      {(Number(drawerRow.damaged_quantity) || 0) > 0 && (
+                        <span>
+                          <strong>{drawerRow.damaged_quantity}</strong> unit{drawerRow.damaged_quantity > 1 ? "s" : ""} marked damaged from event returns.{" "}
+                        </span>
+                      )}
+                      {(Number(drawerRow.missing_quantity) || 0) > 0 && (
+                        <span>
+                          <strong>{drawerRow.missing_quantity}</strong> unit{drawerRow.missing_quantity > 1 ? "s" : ""} reported missing / unreturned.
+                        </span>
+                      )}
+                    </p>
+
+                    <div className="flex items-center gap-2 pt-0.5">
+                      {(Number(drawerRow.damaged_quantity) || 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResolveInitialMode("repair_damages");
+                            setResolveTarget(drawerRow);
+                          }}
+                          className="flex-1 py-1.5 px-2 rounded-md font-semibold text-[11px] bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50 transition-colors shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Wrench size={11} className="text-emerald-600" />
+                          Resolve Damaged ({drawerRow.damaged_quantity})
+                        </button>
+                      )}
+                      {(Number(drawerRow.missing_quantity) || 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResolveInitialMode("recover_missing");
+                            setResolveTarget(drawerRow);
+                          }}
+                          className="flex-1 py-1.5 px-2 rounded-md font-semibold text-[11px] bg-white text-amber-900 border border-amber-300 hover:bg-amber-50 transition-colors shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <RotateCcw size={11} className="text-amber-700" />
+                          Resolve Missing ({drawerRow.missing_quantity})
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Category & Low Stock Threshold Details */}
                 <div className="p-2.5 rounded-lg border border-slate-200/80 bg-slate-50/50 space-y-1.5 text-xs">
@@ -852,7 +1023,7 @@ export default function AdminInventory() {
                 <div className="px-2.5 py-2 bg-slate-50/60 rounded-md border border-slate-200/60 text-[11px] text-slate-600 space-y-0.5">
                   <span className="font-semibold text-slate-700 block text-[11px]">Stock &amp; Status Calculation:</span>
                   <p className="text-slate-600 leading-relaxed text-[11px]">
-                    <strong className="text-slate-900 font-semibold">{drawerRow.quantity || 0}</strong> (Total Quantity) −{" "}
+                    <strong className="text-slate-900 font-semibold">{drawerRow.quantity || 0}</strong> (Active Stock) −{" "}
                     <strong className="text-slate-900 font-semibold">{drawerRow.reserved_quantity || 0}</strong> (
                     {selectedDate && selectedDate !== getTodayDateString() ? "In-Use on Date" : "In-Use Today"}
                     ) ={" "}
@@ -1007,23 +1178,38 @@ export default function AdminInventory() {
                     <p className="text-[11px] text-slate-400 py-1.5 text-center italic">No stock changes recorded yet.</p>
                   ) : (
                     <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5">
-                      {logs.map((entry) => (
-                        <div key={entry._id} className="space-y-0.5 pb-2 border-b border-slate-100 last:border-b-0 last:pb-0">
-                          <div className="flex items-center gap-2">
-                            <Badge status={eventLabel[entry.event_type] || entry.event_type} />
-                            {entry.delta !== 0 && (
-                              <span className={`text-xs font-bold font-mono ${entry.delta > 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                                {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
+                      {logs.map((entry) => {
+                        const isPositive = entry.delta > 0;
+                        const isNegative = entry.delta < 0;
+                        let badgeStyle = "bg-slate-100 text-slate-700 border-slate-200/80";
+                        if (entry.event_type === "damage_loss" || entry.event_type === "written_off" || entry.event_type === "retired") {
+                          badgeStyle = "bg-rose-50 text-rose-700 border-rose-200/80";
+                        } else if (entry.event_type === "repaired_restored" || entry.event_type === "recovered" || entry.event_type === "reservation_released") {
+                          badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200/80";
+                        } else if (entry.event_type === "missing" || entry.event_type === "reservation_allocated") {
+                          badgeStyle = "bg-amber-50 text-amber-800 border-amber-200/80";
+                        }
+
+                        return (
+                          <div key={entry._id} className="space-y-0.5 pb-2 border-b border-slate-100 last:border-b-0 last:pb-0">
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-semibold border ${badgeStyle}`}>
+                                {eventLabel[entry.event_type] || entry.event_type}
                               </span>
-                            )}
+                              {entry.delta !== 0 && (
+                                <span className={`text-xs font-bold font-mono ${isPositive ? "text-emerald-600" : "text-rose-600"}`}>
+                                  {isPositive ? `+${entry.delta}` : entry.delta}
+                                </span>
+                              )}
+                            </div>
+                            {entry.reason && <p className="text-xs text-slate-800 font-medium">{entry.reason}</p>}
+                            <p className="text-[10.5px] text-slate-400">
+                              {entry.actor_id?.full_name || "System"} · {new Date(entry.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                              {entry.booking_id?.reference && ` · Booking #${entry.booking_id.reference}`}
+                            </p>
                           </div>
-                          {entry.reason && <p className="text-xs text-slate-800 font-medium">{entry.reason}</p>}
-                          <p className="text-[10.5px] text-slate-400">
-                            {entry.actor_id?.full_name || "System"} · {new Date(entry.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                            {entry.booking_id?.reference && ` · Booking ${entry.booking_id.reference}`}
-                          </p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

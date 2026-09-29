@@ -239,6 +239,26 @@ exports.update = async (req, res) => {
       });
     }
 
+    if (before && item && typeof updates.damaged_quantity === "number" && updates.damaged_quantity !== before.damaged_quantity) {
+      writeInventoryLog({
+        inventory_id: item._id,
+        event_type: "adjustment",
+        delta: 0,
+        actor_id: req.user?._id,
+        reason: reason || `Damaged count adjusted from ${before.damaged_quantity || 0} to ${updates.damaged_quantity}`,
+      });
+    }
+
+    if (before && item && typeof updates.missing_quantity === "number" && updates.missing_quantity !== before.missing_quantity) {
+      writeInventoryLog({
+        inventory_id: item._id,
+        event_type: "adjustment",
+        delta: 0,
+        actor_id: req.user?._id,
+        reason: reason || `Missing count adjusted from ${before.missing_quantity || 0} to ${updates.missing_quantity}`,
+      });
+    }
+
     return res.json(item);
   } catch (error) {
     if (error.message === "This item is already included in the inventory." || error.code === 11000) {
@@ -261,6 +281,136 @@ exports.remove = async (req, res) => {
   }
   await Inventory.findByIdAndDelete(req.params.id);
   res.json({ message: "Deleted" });
+};
+
+exports.resolveTurnoverItem = async (req, res) => {
+  try {
+    const { action, type, quantity, reason } = req.body;
+    const targetType = type || action;
+    const numQty = Number(quantity);
+
+    if (!numQty || isNaN(numQty) || numQty <= 0 || !Number.isInteger(numQty)) {
+      return res.status(400).json({ message: "Quantity must be a positive whole number greater than 0" });
+    }
+
+    const item = await Inventory.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: "Inventory item not found" });
+    }
+
+    const itemDamaged = Number(item.damaged_quantity || 0);
+    const itemMissing = Number(item.missing_quantity || 0);
+
+    let eventType = "adjustment";
+    let delta = 0;
+    let logReason = "";
+
+    switch (targetType) {
+      case "repair_damages": {
+        if (numQty > itemDamaged) {
+          return res.status(400).json({
+            message: `Cannot repair ${numQty} units: only ${itemDamaged} damaged units are recorded.`
+          });
+        }
+        item.damaged_quantity = Math.max(0, itemDamaged - numQty);
+        item.quantity = (item.quantity || 0) + numQty;
+        eventType = "repaired_restored";
+        delta = numQty;
+        logReason = reason && reason.trim()
+          ? reason.trim()
+          : `Repaired and returned ${numQty} damaged units to active inventory`;
+        break;
+      }
+
+      case "write_off_damages": {
+        if (numQty > itemDamaged) {
+          return res.status(400).json({
+            message: `Cannot write off ${numQty} units: only ${itemDamaged} damaged units are recorded.`
+          });
+        }
+        item.damaged_quantity = Math.max(0, itemDamaged - numQty);
+        eventType = "written_off";
+        delta = 0;
+        logReason = reason && reason.trim()
+          ? reason.trim()
+          : `Permanently written off / disposed ${numQty} damaged units`;
+        break;
+      }
+
+      case "recover_missing": {
+        if (numQty > itemMissing) {
+          return res.status(400).json({
+            message: `Cannot recover ${numQty} units: only ${itemMissing} missing units are recorded.`
+          });
+        }
+        item.missing_quantity = Math.max(0, itemMissing - numQty);
+        item.quantity = (item.quantity || 0) + numQty;
+        eventType = "recovered";
+        delta = numQty;
+        logReason = reason && reason.trim()
+          ? reason.trim()
+          : `Recovered ${numQty} missing units and returned to active inventory`;
+        break;
+      }
+
+      case "write_off_missing": {
+        if (numQty > itemMissing) {
+          return res.status(400).json({
+            message: `Cannot write off ${numQty} units: only ${itemMissing} missing units are recorded.`
+          });
+        }
+        item.missing_quantity = Math.max(0, itemMissing - numQty);
+        eventType = "written_off";
+        delta = 0;
+        logReason = reason && reason.trim()
+          ? reason.trim()
+          : `Written off ${numQty} unrecovered missing units as permanent loss`;
+        break;
+      }
+
+      default:
+        return res.status(400).json({
+          message: "Invalid resolution type. Must be repair_damages, write_off_damages, recover_missing, or write_off_missing."
+        });
+    }
+
+    await item.save();
+
+    await writeInventoryLog({
+      inventory_id: item._id,
+      event_type: eventType,
+      delta: delta,
+      actor_id: req.user?._id,
+      reason: logReason,
+    });
+
+    if (logAction) {
+      await logAction({
+        user_id: req.user?._id,
+        action: "inventory_turnover_resolved",
+        entity_type: "inventory",
+        entity_id: item._id,
+        details: `${item.item_name}: ${logReason}`,
+        ip_address: req.ip,
+      });
+    }
+
+    const io = req.app?.get("io");
+    if (io) {
+      io.emit("system:refresh", {
+        type: "inventory",
+        action: "turnover_resolved",
+        inventory_id: item._id
+      });
+    }
+
+    return res.json({
+      message: logReason,
+      item,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Failed to resolve turnover item" });
+  }
 };
 
 exports.getLogs = async (req, res) => {

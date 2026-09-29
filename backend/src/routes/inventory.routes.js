@@ -13,6 +13,7 @@ router.get("/", protect, authorize("admin"), ctrl.getAll);
 router.get("/:id", protect, authorize("admin"), ctrl.getById);
 router.get("/:id/logs", protect, authorize("admin"), ctrl.getLogs);
 router.get("/:id/usage", protect, authorize("admin"), ctrl.getUsage);
+router.post("/:id/resolve-stock", protect, authorize("admin"), ctrl.resolveTurnoverItem);
 router.put("/:id", protect, authorize("admin"), ctrl.update);
 router.delete("/:id", protect, authorize("admin"), ctrl.remove);
 

@@ -97,7 +97,6 @@ export default function AdminInventory() {
   const [loading, setLoading] = useState(true);
 
   // Filters & Sorting
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [availabilityFilter, setAvailabilityFilter] = useState("all");
   const [stockStatusFilter, setStockStatusFilter] = useState("all");
   const [sortField, setSortField] = useState("name"); // 'name' | 'quantity' | 'stockOnHand'
@@ -262,10 +261,6 @@ export default function AdminInventory() {
       const matchSearch =
         !search || (i.item_name && i.item_name.toLowerCase().includes(search.toLowerCase()));
 
-      const matchCategory =
-        categoryFilter === "all" ||
-        (i.category && i.category.toLowerCase() === categoryFilter.toLowerCase());
-
       const matchAvailability =
         availabilityFilter === "all" ||
         (availabilityFilter === "available" ? i.available : !i.available);
@@ -291,7 +286,7 @@ export default function AdminInventory() {
         matchStockStatus = sStatus === stockStatusFilter;
       }
 
-      return matchSearch && matchCategory && matchAvailability && matchStockStatus;
+      return matchSearch && matchAvailability && matchStockStatus;
     });
 
     list.sort((a, b) => {
@@ -315,20 +310,9 @@ export default function AdminInventory() {
     });
 
     return list;
-  }, [inventory, search, categoryFilter, availabilityFilter, stockStatusFilter, sortField, sortOrder]);
+  }, [inventory, search, availabilityFilter, stockStatusFilter, sortField, sortOrder]);
 
   const { pageRows, page, setPage, totalPages, pageSize } = usePagination(filteredAndSorted, 10);
-
-  // Filter count summaries
-  const categoryCounts = useMemo(() => {
-    let setupCount = 0;
-    let diningCount = 0;
-    inventory.forEach((i) => {
-      if (i.category === "Dining & Service Inventory") diningCount++;
-      else setupCount++;
-    });
-    return { all: inventory.length, setup: setupCount, dining: diningCount };
-  }, [inventory]);
 
   const availabilityCounts = useMemo(() => {
     let avail = 0;
@@ -449,20 +433,6 @@ export default function AdminInventory() {
                 </button>
               </div>
 
-              {/* Category Filter Pill */}
-              <FilterPill
-                label="Category"
-                value={categoryFilter}
-                defaultValue="all"
-                options={[
-                  { value: "all", label: "All Categories", count: categoryCounts.all },
-                  { value: "Event Setup & Furniture", label: "Event Setup & Furniture", count: categoryCounts.setup },
-                  { value: "Dining & Service Inventory", label: "Dining & Service Inventory", count: categoryCounts.dining },
-                ]}
-                onSelect={(val) => setCategoryFilter(val)}
-                onClear={() => setCategoryFilter("all")}
-              />
-
               {/* Availability Filter Pill */}
               <FilterPill
                 label="Availability"
@@ -508,7 +478,7 @@ export default function AdminInventory() {
           ) : pageRows.length === 0 ? (
             <div className="p-12 text-center space-y-1">
               <p className="text-sm font-semibold text-gray-700">No inventory found.</p>
-              {search || categoryFilter !== "all" || availabilityFilter !== "all" || stockStatusFilter !== "all" ? (
+              {search || availabilityFilter !== "all" || stockStatusFilter !== "all" ? (
                 <p className="text-xs text-gray-400">Try adjusting your search or filters.</p>
               ) : (
                 <p className="text-xs text-gray-400">Create an inventory item or import with Zelle AI!</p>
@@ -531,9 +501,6 @@ export default function AdminInventory() {
                           <ArrowUpDown size={11} className="text-gray-400 opacity-60" />
                         )}
                       </div>
-                    </th>
-                    <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                      Category
                     </th>
                     <th
                       onClick={() => handleSort("quantity")}
@@ -594,8 +561,6 @@ export default function AdminInventory() {
                       stockBadgeStyle = "bg-amber-50 text-amber-800 border-amber-200/80";
                     }
 
-                    const categoryLabel = i.category || "Event Setup & Furniture";
-
                     return (
                       <tr
                         key={i._id}
@@ -627,12 +592,6 @@ export default function AdminInventory() {
                               )}
                             </div>
                           )}
-                        </td>
-
-                        <td className="px-5 py-3.5">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/70 truncate max-w-[180px]">
-                            {categoryLabel}
-                          </span>
                         </td>
 
                         <td className="px-5 py-3.5 text-center">
@@ -908,8 +867,8 @@ export default function AdminInventory() {
           >
             {drawerRow && (
               <div className="space-y-3">
-                {/* 5 Key Metric Blocks */}
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                {/* Key Metric Blocks */}
+                <div className="grid grid-cols-3 gap-2">
                   <div className="bg-slate-50/70 rounded-lg p-2 border border-slate-200/60">
                     <span className="text-[10px] uppercase font-bold text-slate-500 block truncate">Active Stock</span>
                     <span className="font-mono font-semibold text-sm text-slate-800 block truncate mt-0.5">{drawerRow.quantity || 0}</span>
@@ -928,22 +887,6 @@ export default function AdminInventory() {
                       stockStatus === "no_stock" ? "text-rose-600" : stockStatus === "low_stock" ? "text-amber-600" : "text-emerald-600"
                     }`}>
                       {stockOnHand}
-                    </span>
-                  </div>
-                  <div className={`rounded-lg p-2 border ${
-                    (Number(drawerRow.damaged_quantity) || 0) > 0 ? "bg-rose-50/80 border-rose-200/80 text-rose-800" : "bg-slate-50/70 border-slate-200/60 text-slate-400"
-                  }`}>
-                    <span className="text-[10px] uppercase font-bold block truncate">Damaged</span>
-                    <span className="font-mono font-bold text-sm block truncate mt-0.5">
-                      {drawerRow.damaged_quantity || 0}
-                    </span>
-                  </div>
-                  <div className={`rounded-lg p-2 border ${
-                    (Number(drawerRow.missing_quantity) || 0) > 0 ? "bg-amber-50/80 border-amber-200/80 text-amber-800" : "bg-slate-50/70 border-slate-200/60 text-slate-400"
-                  }`}>
-                    <span className="text-[10px] uppercase font-bold block truncate">Missing</span>
-                    <span className="font-mono font-bold text-sm block truncate mt-0.5">
-                      {drawerRow.missing_quantity || 0}
                     </span>
                   </div>
                 </div>
@@ -1005,12 +948,8 @@ export default function AdminInventory() {
                   </div>
                 )}
 
-                {/* Category & Low Stock Threshold Details */}
+                {/* Low Stock Threshold Details */}
                 <div className="p-2.5 rounded-lg border border-slate-200/80 bg-slate-50/50 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Category</span>
-                    <span className="font-semibold text-slate-800">{drawerRow.category || "Event Setup & Furniture"}</span>
-                  </div>
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Low Stock Threshold</span>
                     <span className="font-semibold text-slate-800">

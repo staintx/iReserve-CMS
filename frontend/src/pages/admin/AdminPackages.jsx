@@ -34,7 +34,7 @@ import ConfirmDialog from "../../components/common/ConfirmDialog";
 import DataTable from "../../components/admin/table/DataTable";
 import Pagination from "../../components/admin/table/Pagination";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
-import { EVENT_TYPES } from "../../lib/eventTypes";
+import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
 import {
   OFFER_TYPES,
   isSpecialOffer,
@@ -116,11 +116,8 @@ export default function AdminPackages() {
   const [currentPage, setCurrentPage] = useState(1);
 
   // Filter states
-  const [filters, setFilters] = useState({
-    event_type: "",
-    available: "",
-  });
-  const [showFilters, setShowFilters] = useState(false);
+  const [availabilityFilter, setAvailabilityFilter] = useState("");
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
 
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -224,10 +221,10 @@ export default function AdminPackages() {
   };
 
   const clearFilters = () => {
-    setFilters({ event_type: "", available: "" });
+    setAvailabilityFilter("");
   };
 
-  const hasActiveFilters = filters.event_type || filters.available;
+  const hasActiveFilters = Boolean(availabilityFilter);
 
   const activeTab = TABS.find((entry) => entry.id === tab) || TABS[0];
   const isOfferTab = activeTab.id === OFFER_TYPES.SPECIAL;
@@ -256,23 +253,20 @@ export default function AdminPackages() {
       ) {
         return false;
       }
-      if (filters.event_type && pkg.event_type !== filters.event_type) {
+      if (availabilityFilter === "true" && !pkg.available) {
         return false;
       }
-      if (filters.available === "true" && !pkg.available) {
-        return false;
-      }
-      if (filters.available === "false" && pkg.available) {
+      if (availabilityFilter === "false" && pkg.available) {
         return false;
       }
       return true;
     });
-  }, [inTab, search, filters]);
+  }, [inTab, search, availabilityFilter]);
 
   // Reset page when tab/filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [tab, search, filters]);
+  }, [tab, search, availabilityFilter]);
 
   const totalItems = filteredPackages.length;
   const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
@@ -374,127 +368,155 @@ export default function AdminPackages() {
     },
   ];
 
+  const getTablePriceDisplay = (pkg) => {
+    if (isSpecialOffer(pkg)) {
+      const perPax = offerPricePerPax(pkg);
+      const pax = offerGuestCount(pkg);
+      if (!perPax) {
+        return <span className="font-bold text-foreground text-xs">Price not set</span>;
+      }
+      return (
+        <div>
+          <p className="font-bold text-foreground text-xs">{fmt(perPax)} / pax</p>
+          {pax ? (
+            <p className="text-[10.5px] text-muted-foreground">
+              {fmt(offerBaseFoodPrice(pkg))} for {pax} guests
+            </p>
+          ) : null}
+        </div>
+      );
+    }
+
+    const validScaffoldPrices = (pkg.scaffold_size_options || [])
+      .map((o) => Number(o.price || 0))
+      .filter((p) => p > 0);
+
+    if (validScaffoldPrices.length > 0) {
+      const minPrice = Math.min(...validScaffoldPrices);
+      const maxPrice = Math.max(...validScaffoldPrices);
+      const text =
+        minPrice === maxPrice
+          ? fmt(minPrice)
+          : `From ${fmt(minPrice)} – ${fmt(maxPrice)}`;
+      return (
+        <span className="font-bold text-foreground text-xs whitespace-nowrap">
+          {text}
+        </span>
+      );
+    }
+
+    if (pkg.setup_price) {
+      return (
+        <span className="font-bold text-foreground text-xs whitespace-nowrap">
+          {fmt(pkg.setup_price)}
+        </span>
+      );
+    }
+
+    return (
+      <span className="font-medium text-muted-foreground text-xs whitespace-nowrap">
+        Priced on quotation
+      </span>
+    );
+  };
+
   // Table columns for Table View
-  const tableColumns = [
-    {
-      key: "thumbnail",
-      header: "Photo",
-      width: "56px",
-      render: (pkg) =>
-        pkg.image_url ? (
-          <img
-            src={pkg.image_url}
-            alt={pkg.name}
-            className="w-10 h-8 rounded-md object-cover border border-border/70"
-          />
-        ) : (
-          <div className="w-10 h-8 rounded-md bg-muted/40 border border-border/60 flex items-center justify-center text-muted-foreground/60">
-            <PackageIcon size={14} />
+  const tableColumns = useMemo(() => {
+    return [
+      {
+        key: "thumbnail",
+        header: "Photo",
+        width: "56px",
+        render: (pkg) =>
+          pkg.image_url ? (
+            <img
+              src={pkg.image_url}
+              alt={pkg.name}
+              className="w-10 h-8 rounded-md object-cover border border-border/70"
+            />
+          ) : (
+            <div className="w-10 h-8 rounded-md bg-muted/40 border border-border/60 flex items-center justify-center text-muted-foreground/60">
+              <PackageIcon size={14} />
+            </div>
+          ),
+      },
+      {
+        key: "name",
+        header: "Package Name",
+        render: (pkg) => (
+          <div className="min-w-0 max-w-[280px]">
+            <button
+              type="button"
+              onClick={() => handleOpenModal(pkg)}
+              className="font-bold text-foreground text-left hover:text-primary transition-colors truncate block text-[13px] cursor-pointer"
+            >
+              {pkg.name}
+            </button>
+            <span className="text-[11px] text-muted-foreground block truncate">
+              {pkg.description || "No description"}
+            </span>
           </div>
         ),
-    },
-    {
-      key: "name",
-      header: "Package Name",
-      render: (pkg) => (
-        <div className="min-w-0 max-w-[280px]">
-          <button
-            type="button"
-            onClick={() => handleOpenModal(pkg)}
-            className="font-bold text-foreground text-left hover:text-primary transition-colors truncate block text-[13px] cursor-pointer"
-          >
-            {pkg.name}
-          </button>
-          <span className="text-[11px] text-muted-foreground block truncate">
-            {pkg.description || "No description"}
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: "eventType",
-      header: "Event Type",
-      render: (pkg) => (
-        <span className="text-[11px] font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-          {pkg.event_type || "All Events"}
-        </span>
-      ),
-    },
-    {
-      key: "dishes",
-      header: "Dishes Included",
-      render: (pkg) => {
-        const { dishCount } = getPackageMetrics(pkg);
-        return (
-          <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground tabular-nums">
-            <Utensils size={13} className="text-primary" />
-            {dishCount} {dishCount === 1 ? "dish" : "dishes"}
-          </span>
-        );
       },
-    },
-    {
-      key: "addons",
-      header: "Add-ons / Setup",
-      render: (pkg) => {
-        const { addonCount } = getPackageMetrics(pkg);
-        return (
-          <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground tabular-nums">
-            <Layers size={13} className="text-slate-500" />
-            {addonCount} {addonCount === 1 ? "item" : "items"}
-          </span>
-        );
+      ...(isOfferTab
+        ? [
+            {
+              key: "dishes",
+              header: "Dishes Included",
+              render: (pkg) => {
+                const { dishCount } = getPackageMetrics(pkg);
+                return (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground tabular-nums">
+                    <Utensils size={13} className="text-primary" />
+                    {dishCount} {dishCount === 1 ? "dish" : "dishes"}
+                  </span>
+                );
+              },
+            },
+          ]
+        : []),
+      {
+        key: "pricing",
+        header: "Pricing",
+        render: (pkg) => getTablePriceDisplay(pkg),
       },
-    },
-    {
-      key: "pricing",
-      header: "Pricing",
-      render: (pkg) => {
-        const p = priceLine(pkg);
-        return (
-          <div>
-            <p className="font-bold text-foreground text-xs">{p.headline}</p>
-            {p.detail && <p className="text-[10.5px] text-muted-foreground">{p.detail}</p>}
+      {
+        key: "status",
+        header: "Status",
+        render: (pkg) => <Badge status={pkg.available ? "available" : "unavailable"} dot />,
+      },
+      {
+        key: "updatedAt",
+        header: "Last Updated",
+        render: (pkg) => {
+          const d = pkg.updatedAt || pkg.createdAt;
+          return (
+            <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+              {d
+                ? new Date(d).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "—"}
+            </span>
+          );
+        },
+      },
+      {
+        key: "actions",
+        header: "",
+        width: "48px",
+        headerClassName: "text-right",
+        className: "text-right",
+        render: (pkg) => (
+          <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+            <RowActionsMenu actions={getRowActions(pkg)} />
           </div>
-        );
+        ),
       },
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (pkg) => <Badge status={pkg.available ? "available" : "unavailable"} dot />,
-    },
-    {
-      key: "updatedAt",
-      header: "Last Updated",
-      render: (pkg) => {
-        const d = pkg.updatedAt || pkg.createdAt;
-        return (
-          <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-            {d
-              ? new Date(d).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })
-              : "—"}
-          </span>
-        );
-      },
-    },
-    {
-      key: "actions",
-      header: "",
-      width: "48px",
-      headerClassName: "text-right",
-      className: "text-right",
-      render: (pkg) => (
-        <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
-          <RowActionsMenu actions={getRowActions(pkg)} />
-        </div>
-      ),
-    },
-  ];
+    ];
+  }, [isOfferTab]);
 
   return (
     <AdminLayout>
@@ -596,24 +618,110 @@ export default function AdminPackages() {
 
               {/* Filter Controls & View Switcher */}
               <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                {/* Filter Toggle Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors border cursor-pointer shadow-2xs ${
-                    hasActiveFilters || showFilters
-                      ? "bg-primary/10 border-primary text-primary"
-                      : "bg-muted/60 border-border/70 text-foreground hover:bg-muted"
-                  }`}
-                >
-                  <Filter size={13} />
-                  <span>Filters</span>
-                  {hasActiveFilters && <span className="w-1.5 h-1.5 bg-primary rounded-full" />}
-                  <ChevronDown
-                    size={13}
-                    className={`transition-transform ${showFilters ? "rotate-180" : ""}`}
-                  />
-                </button>
+                {/* Popover Filter Dropdown */}
+                <Popover open={filterDropdownOpen} onOpenChange={setFilterDropdownOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors border cursor-pointer shadow-2xs ${
+                        hasActiveFilters || filterDropdownOpen
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "bg-muted/60 border-border/70 text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      <Filter size={13} />
+                      <span>Filters</span>
+                      {hasActiveFilters && (
+                        <span className="text-[11px] font-bold text-primary">
+                          · {availabilityFilter === "true" ? "Available" : "Unavailable"}
+                        </span>
+                      )}
+                      <ChevronDown
+                        size={13}
+                        className={`transition-transform duration-200 ${
+                          filterDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                  </PopoverTrigger>
+
+                  <PopoverContent
+                    align="end"
+                    sideOffset={6}
+                    className="w-56 p-1.5 rounded-xl border border-border bg-white shadow-xl z-50 text-xs font-sans text-foreground"
+                  >
+                    <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-border/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <span>Availability</span>
+                      {hasActiveFilters && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearFilters();
+                            setFilterDropdownOpen(false);
+                          }}
+                          className="text-primary hover:underline text-[11px] font-semibold lowercase cursor-pointer"
+                        >
+                          reset
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="py-1 space-y-0.5">
+                      {[
+                        { value: "", label: "All Status", count: inTab.length },
+                        {
+                          value: "true",
+                          label: "Available",
+                          count: inTab.filter((p) => p.available).length,
+                        },
+                        {
+                          value: "false",
+                          label: "Unavailable",
+                          count: inTab.filter((p) => !p.available).length,
+                        },
+                      ].map((opt) => {
+                        const selected = availabilityFilter === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setAvailabilityFilter(opt.value);
+                              setFilterDropdownOpen(false);
+                            }}
+                            className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-left text-xs transition-colors cursor-pointer group ${
+                              selected
+                                ? "bg-primary/10 text-primary font-bold"
+                                : "text-foreground hover:bg-muted/60"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 border ${
+                                  selected
+                                    ? "border-primary bg-primary text-white"
+                                    : "border-slate-300 text-transparent"
+                                }`}
+                              >
+                                {selected && <CheckCircle2 size={10} className="text-white" />}
+                              </div>
+                              <span>{opt.label}</span>
+                            </div>
+                            <span
+                              className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
+                                selected
+                                  ? "bg-primary/20 text-primary"
+                                  : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              {opt.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
 
                 {hasActiveFilters && (
                   <button
@@ -656,50 +764,6 @@ export default function AdminPackages() {
                 </div>
               </div>
             </div>
-
-            {/* Filter Panel */}
-            {showFilters && (
-              <div className="pt-3 border-t border-border/70 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
-                {/* Event Type Filter */}
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                    Event Type
-                  </label>
-                  <select
-                    value={filters.event_type}
-                    onChange={(e) =>
-                      setFilters({ ...filters, event_type: e.target.value })
-                    }
-                    className="w-full border border-border rounded-md px-2.5 py-1.5 text-xs bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="">All Event Types</option>
-                    {EVENT_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Availability Filter */}
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                    Availability
-                  </label>
-                  <select
-                    value={filters.available}
-                    onChange={(e) =>
-                      setFilters({ ...filters, available: e.target.value })
-                    }
-                    className="w-full border border-border rounded-md px-2.5 py-1.5 text-xs bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="">All Status</option>
-                    <option value="true">Available</option>
-                    <option value="false">Unavailable</option>
-                  </select>
-                </div>
-              </div>
-            )}
           </AdminCard>
 
           {/* Results Count */}
@@ -746,7 +810,7 @@ export default function AdminPackages() {
                 rows={paginatedPackages}
                 getRowId={(pkg) => pkg._id}
                 onRowClick={(pkg) => handleOpenModal(pkg)}
-                minWidth="840px"
+                minWidth="640px"
                 pinLastColumn={true}
               />
               <Pagination

@@ -867,8 +867,8 @@ export default function AdminInventory() {
           >
             {drawerRow && (
               <div className="space-y-3">
-                {/* 5 Key Metric Blocks */}
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                {/* Key Metric Blocks */}
+                <div className="grid grid-cols-3 gap-2">
                   <div className="bg-slate-50/70 rounded-lg p-2 border border-slate-200/60">
                     <span className="text-[10px] uppercase font-bold text-slate-500 block truncate">Active Stock</span>
                     <span className="font-mono font-semibold text-sm text-slate-800 block truncate mt-0.5">{drawerRow.quantity || 0}</span>
@@ -887,22 +887,6 @@ export default function AdminInventory() {
                       stockStatus === "no_stock" ? "text-rose-600" : stockStatus === "low_stock" ? "text-amber-600" : "text-emerald-600"
                     }`}>
                       {stockOnHand}
-                    </span>
-                  </div>
-                  <div className={`rounded-lg p-2 border ${
-                    (Number(drawerRow.damaged_quantity) || 0) > 0 ? "bg-rose-50/80 border-rose-200/80 text-rose-800" : "bg-slate-50/70 border-slate-200/60 text-slate-400"
-                  }`}>
-                    <span className="text-[10px] uppercase font-bold block truncate">Damaged</span>
-                    <span className="font-mono font-bold text-sm block truncate mt-0.5">
-                      {drawerRow.damaged_quantity || 0}
-                    </span>
-                  </div>
-                  <div className={`rounded-lg p-2 border ${
-                    (Number(drawerRow.missing_quantity) || 0) > 0 ? "bg-amber-50/80 border-amber-200/80 text-amber-800" : "bg-slate-50/70 border-slate-200/60 text-slate-400"
-                  }`}>
-                    <span className="text-[10px] uppercase font-bold block truncate">Missing</span>
-                    <span className="font-mono font-bold text-sm block truncate mt-0.5">
-                      {drawerRow.missing_quantity || 0}
                     </span>
                   </div>
                 </div>

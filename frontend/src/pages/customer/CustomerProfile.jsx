@@ -3,13 +3,15 @@ import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLa
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
 import useAuth from "../../hooks/useAuth";
-import { User, Mail, Phone, MapPin, Lock, Save, Eye, EyeOff } from "lucide-react";
+import ProfileOtpModal from "../../components/auth/ProfileOtpModal";
+import { User, Mail, Phone, MapPin, Lock, Save, Eye, EyeOff, CheckCircle2, Shield } from "lucide-react";
 import PasswordRequirements from "../../components/auth/PasswordRequirements";
 import { describePasswordGap } from "../../components/auth/passwordPolicy";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { cn } from "@/lib/utils";
+import { maskEmail, maskPhone } from "@/lib/privacyMask";
 
 export default function CustomerProfile() {
   const { user, updateUser } = useAuth();
@@ -25,7 +27,22 @@ export default function CustomerProfile() {
   const [security, setSecurity] = useState({ current: "", next: "", confirm: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [isSecurityLoading, setIsSecurityLoading] = useState(false);
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [maskedEmail, setMaskedEmail] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [pendingPayload, setPendingPayload] = useState(null);
   const [visible, setVisible] = useState({ current: false, next: false, confirm: false });
+
+  // UI Privacy States
+  const [isEmailMasked, setIsEmailMasked] = useState(true);
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [isPhoneMasked, setIsPhoneMasked] = useState(true);
+  const [phoneFocused, setPhoneFocused] = useState(false);
+  const [isAltPhoneMasked, setIsAltPhoneMasked] = useState(true);
+  const [altPhoneFocused, setAltPhoneFocused] = useState(false);
+
   const { notify } = useToast();
 
   useEffect(() => {
@@ -68,35 +85,83 @@ export default function CustomerProfile() {
 
   const save = async (e) => {
     if (e) e.preventDefault();
+    if (!form.first_name.trim() && !form.full_name.trim()) {
+      return notify("First name or full name is required", "error");
+    }
+    const emailToSubmit = isEditingEmail ? newEmail.trim().toLowerCase() : form.email.trim().toLowerCase();
+    if (!emailToSubmit) {
+      return notify("Email address is required", "error");
+    }
+
+    const payload = {
+      first_name: form.first_name.trim(),
+      last_name: form.last_name.trim(),
+      full_name:
+        form.full_name.trim() ||
+        [form.first_name.trim(), form.last_name.trim()]
+          .filter(Boolean)
+          .join(" "),
+      email: emailToSubmit,
+      username: form.username.trim(),
+      phone: form.phone.trim(),
+      alt_phone: form.alt_phone.trim()
+    };
+
     setIsLoading(true);
     try {
-      const payload = {
-        first_name: form.first_name.trim(),
-        last_name: form.last_name.trim(),
-        full_name:
-          form.full_name.trim() ||
-          [form.first_name.trim(), form.last_name.trim()]
-            .filter(Boolean)
-            .join(" "),
-        email: form.email.trim().toLowerCase(),
-        username: form.username.trim(),
-        phone: form.phone.trim(),
-        alt_phone: form.alt_phone.trim()
-      };
-      const res = await CustomerAPI.updateProfile(payload);
+      const res = await CustomerAPI.requestProfileOtp();
+      setMaskedEmail(res.data?.masked_email || user?.email || "");
+      setPendingPayload(payload);
+      setOtpError("");
+      setIsOtpModalOpen(true);
+    } catch (err) {
+      const msg =
+        err.response?.data?.errors?.[0] ||
+        err.response?.data?.message ||
+        "Failed to send verification code. Please try again.";
+      notify(msg, "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (otpCode) => {
+    if (!pendingPayload) return;
+    setIsVerifyingOtp(true);
+    setOtpError("");
+    try {
+      const res = await CustomerAPI.updateProfile({
+        ...pendingPayload,
+        otp: otpCode
+      });
       if (res.data) {
         updateUser(res.data);
+        setForm((prev) => ({
+          ...prev,
+          email: res.data.email || pendingPayload.email
+        }));
+        setIsEditingEmail(false);
       }
+      setIsOtpModalOpen(false);
+      setPendingPayload(null);
       notify("Profile updated successfully!", "success");
     } catch (err) {
       const msg =
         err.response?.data?.errors?.[0] ||
         err.response?.data?.message ||
-        "Failed to update profile";
-      notify(msg, "error");
+        "Verification failed. Please check the code and try again.";
+      setOtpError(msg);
     } finally {
-      setIsLoading(false);
+      setIsVerifyingOtp(false);
     }
+  };
+
+  const handleResendOtp = async () => {
+    const res = await CustomerAPI.requestProfileOtp();
+    if (res.data?.masked_email) {
+      setMaskedEmail(res.data.masked_email);
+    }
+    notify("A new verification code was sent to your email.", "info");
   };
 
   const savePassword = async (e) => {
@@ -202,43 +267,137 @@ export default function CustomerProfile() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-[11px] font-semibold text-slate-700">
-                      Email Address
-                    </Label>
-                    <Input
-                      placeholder="jane@example.com"
-                      type="email"
-                      value={form.email || ""}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
-                    />
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] font-semibold text-slate-700">
+                        Email Address
+                      </Label>
+                      {!isEditingEmail && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewEmail(form.email);
+                            setIsEditingEmail(true);
+                          }}
+                          className="text-[11px] font-semibold text-[#2C4B8A] hover:text-[#1E3563] hover:underline cursor-pointer"
+                        >
+                          Change
+                        </button>
+                      )}
+                    </div>
+
+                    {isEditingEmail ? (
+                      <div className="space-y-1.5 animate-in fade-in-50">
+                        <div className="relative">
+                          <Input
+                            placeholder="new.email@example.com"
+                            type="email"
+                            value={newEmail}
+                            onChange={(e) => setNewEmail(e.target.value)}
+                            className="bg-white border-[#2C4B8A] text-xs text-slate-900 rounded-md h-8.5 pr-14"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingEmail(false)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 hover:text-slate-800 font-medium px-1.5 py-0.5 rounded cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                          <Shield className="w-3 h-3 text-[#2C4B8A]" />
+                          Changing email will require 2FA verification.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between h-8.5 px-2.5 rounded-md border border-slate-200 bg-slate-50/70 text-xs text-slate-900">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="font-mono text-xs text-slate-800 truncate tracking-tight">
+                            {isEmailMasked ? maskEmail(form.email) : form.email}
+                          </span>
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-full shrink-0">
+                            <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                            Verified
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsEmailMasked((prev) => !prev)}
+                          className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer shrink-0 ml-1"
+                          aria-label={isEmailMasked ? "Show full email" : "Mask email"}
+                        >
+                          {isEmailMasked ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Row 3: Primary Phone & Alternative Phone */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-[11px] font-semibold text-slate-700">
-                      Primary Phone
-                    </Label>
-                    <Input
-                      placeholder="09123456789"
-                      value={form.phone || ""}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                      className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
-                    />
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] font-semibold text-slate-700">
+                        Primary Phone
+                      </Label>
+                      {form.phone && (
+                        <button
+                          type="button"
+                          onClick={() => setIsPhoneMasked((m) => !m)}
+                          className="text-[10px] text-slate-400 hover:text-slate-700 flex items-center gap-1 font-medium cursor-pointer"
+                        >
+                          {isPhoneMasked ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                          <span>{isPhoneMasked ? "Show" : "Hide"}</span>
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <Input
+                        placeholder="09123456789"
+                        value={
+                          isPhoneMasked && !phoneFocused && form.phone
+                            ? maskPhone(form.phone)
+                            : form.phone || ""
+                        }
+                        onFocus={() => setPhoneFocused(true)}
+                        onBlur={() => setPhoneFocused(false)}
+                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                        className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5 font-mono"
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-[11px] font-semibold text-slate-700">
-                      Alternative Phone
-                    </Label>
-                    <Input
-                      placeholder="09123456789 (Optional)"
-                      value={form.alt_phone || ""}
-                      onChange={(e) => setForm({ ...form, alt_phone: e.target.value })}
-                      className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
-                    />
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] font-semibold text-slate-700">
+                        Alternative Phone
+                      </Label>
+                      {form.alt_phone && (
+                        <button
+                          type="button"
+                          onClick={() => setIsAltPhoneMasked((m) => !m)}
+                          className="text-[10px] text-slate-400 hover:text-slate-700 flex items-center gap-1 font-medium cursor-pointer"
+                        >
+                          {isAltPhoneMasked ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                          <span>{isAltPhoneMasked ? "Show" : "Hide"}</span>
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <Input
+                        placeholder="09123456789 (Optional)"
+                        value={
+                          isAltPhoneMasked && !altPhoneFocused && form.alt_phone
+                            ? maskPhone(form.alt_phone)
+                            : form.alt_phone || ""
+                        }
+                        onFocus={() => setAltPhoneFocused(true)}
+                        onBlur={() => setAltPhoneFocused(false)}
+                        onChange={(e) => setForm({ ...form, alt_phone: e.target.value })}
+                        className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5 font-mono"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -325,6 +484,23 @@ export default function CustomerProfile() {
           </div>
         </div>
       </div>
+
+      {/* 2FA OTP Confirmation Modal */}
+      <ProfileOtpModal
+        isOpen={isOtpModalOpen}
+        onClose={() => {
+          if (!isVerifyingOtp) {
+            setIsOtpModalOpen(false);
+            setOtpError("");
+          }
+        }}
+        onVerify={handleVerifyOtp}
+        onResend={handleResendOtp}
+        maskedEmail={maskedEmail}
+        loading={isVerifyingOtp}
+        error={otpError}
+        setError={setOtpError}
+      />
     </CustomerDashboardLayout>
   );
 }

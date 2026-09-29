@@ -3,6 +3,7 @@ import api from "./axios";
 export const AdminAPI = {
   // Profile
   getProfile: () => api.get("/users/me"),
+  requestProfileOtp: () => api.post("/users/me/request-otp"),
   updateProfile: (data) => api.put("/users/me", data),
   changePassword: (data) => api.put("/users/me/password", data),
 
@@ -18,6 +19,7 @@ export const AdminAPI = {
   // Inquiries
   getInquiries: () => api.get("/inquiries"),
   getInquiry: (id) => api.get(`/inquiries/${id}`),
+  createInquiry: (data) => api.post("/inquiries", data),
   updateInquiry: (id, data) => api.put(`/inquiries/${id}`, data),
   setInquiryArchived: (id, archived = true) => api.patch(`/inquiries/${id}/archive`, { archived }),
   reviewInquiry: (id) => api.patch(`/inquiries/${id}/review`),

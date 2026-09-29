@@ -532,7 +532,7 @@ export default function CustomerQuotationModal({
                       type="submit"
                       size="sm"
                       disabled={isSubmitting}
-                      className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white text-xs h-8 font-semibold"
+                      className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white text-xs h-8 font-semibold rounded-lg shadow-xs cursor-pointer"
                     >
                       {isSubmitting ? "Sending…" : "Send Change Request"}
                     </Button>
@@ -1136,7 +1136,7 @@ export default function CustomerQuotationModal({
                 <Button
                   onClick={handleAccept}
                   disabled={isSubmitting}
-                  className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs h-9 px-5 rounded-md cursor-pointer shadow-xs"
+                  className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white font-bold text-xs h-9 px-5 rounded-xl cursor-pointer shadow-xs"
                 >
                   <CheckCircle2 className="h-4 w-4 mr-1.5" />
                   {isSubmitting
@@ -1161,7 +1161,7 @@ export default function CustomerQuotationModal({
               <Button
                 onClick={handleAccept}
                 disabled={isSubmitting}
-                className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs h-9 px-5 rounded-md cursor-pointer shadow-xs"
+                className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white font-bold text-xs h-9 px-5 rounded-xl cursor-pointer shadow-xs"
               >
                 <CheckCircle2 className="h-4 w-4 mr-1.5" />
                 {isSubmitting

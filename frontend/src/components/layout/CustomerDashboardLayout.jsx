@@ -105,7 +105,7 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
                 className={({ isActive }) => cn(
                   "group relative flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-all",
                   isActive
-                    ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold"
+                    ? "bg-[#4C81E0]/10 text-[#4C81E0] font-semibold"
                     : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
                 )}
               >
@@ -114,7 +114,7 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
                     <div className="flex items-center gap-3 min-w-0">
                       <span className={cn(
                         "flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                        isActive ? "bg-[#2C4B8A] text-white shadow-xs" : "text-slate-500 group-hover:text-slate-800"
+                        isActive ? "bg-[#4C81E0] text-white shadow-xs" : "text-slate-500 group-hover:text-slate-800"
                       )}>
                         <item.icon className="w-4 h-4" />
                       </span>
@@ -122,7 +122,7 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
                     </div>
 
                     {item.hasBadge === "messages" && unreadMessages > 0 && (
-                      <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[11px] font-bold leading-none text-white bg-[#2C4B8A] rounded">
+                      <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[11px] font-bold leading-none text-white bg-[#4C81E0] rounded">
                         {unreadMessages}
                       </span>
                     )}
@@ -139,7 +139,7 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
   const profileChip = (
     <div className="p-3 border-t border-slate-200 bg-white">
       <div className="flex items-center gap-2.5 p-2 rounded-md hover:bg-slate-50 transition-colors">
-        <div className="w-8 h-8 rounded-full bg-[#2C4B8A]/10 text-[#2C4B8A] border border-slate-200 font-bold flex items-center justify-center shrink-0 text-xs">
+        <div className="w-8 h-8 rounded-full bg-[#4C81E0]/10 text-[#4C81E0] border border-slate-200 font-bold flex items-center justify-center shrink-0 text-xs">
           {initials}
         </div>
         <div className="flex-1 min-w-0">

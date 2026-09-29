@@ -771,7 +771,7 @@ export default function CustomerEventDashboard() {
     return (
       <CustomerDashboardLayout title="Reservation Details">
         <div className="flex flex-col items-center justify-center py-20 text-slate-400 animate-pulse gap-3">
-          <Utensils className="w-8 h-8 text-[#1E3563] animate-bounce" />
+          <Utensils className="w-8 h-8 text-[#4C81E0] animate-bounce" />
           <p className="font-medium text-sm">Loading reservation details...</p>
         </div>
       </CustomerDashboardLayout>
@@ -2621,7 +2621,7 @@ export default function CustomerEventDashboard() {
               </div>
               
               {additionalGuests > 0 && (
-                <div className="p-3 bg-blue-50 text-[#1E3563] rounded-lg border border-blue-200">
+                <div className="p-3 bg-blue-50 text-[#4C81E0] rounded-lg border border-blue-200">
                   <strong>Amount Due: </strong> {formatCurrency(additionalGuests * 500)}
                 </div>
               )}
@@ -2641,7 +2641,7 @@ export default function CustomerEventDashboard() {
                 type="submit" 
                 size="sm"
                 disabled={isSubmittingGuests || additionalGuests <= 0 || !canModifyBooking}
-                className="bg-[#1E3563] text-white"
+                className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white"
               >
                 {isSubmittingGuests ? "Processing..." : "Confirm & Pay"}
               </Button>
@@ -2687,7 +2687,7 @@ export default function CustomerEventDashboard() {
                 type="submit" 
                 size="sm"
                 disabled={isSubmittingUpgrade || !selectedPackageId}
-                className="bg-[#1E3563] text-white"
+                className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white"
               >
                 {isSubmittingUpgrade ? "Processing..." : "Continue to Upgrade"}
               </Button>
@@ -2752,7 +2752,7 @@ export default function CustomerEventDashboard() {
                 type="submit" 
                 size="sm"
                 disabled={isSubmittingRequest}
-                className="bg-[#1E3563] text-white"
+                className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white"
               >
                 {isSubmittingRequest ? "Submitting..." : "Submit Proposal"}
               </Button>

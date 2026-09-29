@@ -4,11 +4,8 @@ import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLa
 import { CustomerAPI } from "../../api/customer";
 import useAuth from "../../hooks/useAuth";
 import { Button } from "../../components/ui/button";
-import PortalSection from "../../components/customer/portal/PortalSection";
 import StatTile from "../../components/customer/portal/StatTile";
 import StatusPill from "../../components/customer/portal/StatusPill";
-import StateNotice from "../../components/customer/portal/StateNotice";
-import EmptyState from "../../components/customer/portal/EmptyState";
 import LoadingState from "../../components/customer/portal/LoadingState";
 import DetailGrid from "../../components/customer/portal/DetailGrid";
 import {
@@ -17,8 +14,6 @@ import {
   recordTitle,
   resolveServiceType,
 } from "../../components/customer/portal/statusMeta";
-import { TONE_ACCENT } from "../../components/customer/portal/tones";
-import { ACTION_PAY } from "../../components/customer/portal/actionStyles";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatEventDateTime, formatShortDate, formatDateToYYYYMMDD } from "../../utils/format";
 import CustomerCalendarCard from "../../components/customer/portal/CustomerCalendarCard";
@@ -34,14 +29,11 @@ import {
   CalendarCheck,
   ChevronRight,
   Sparkles,
-  X,
   CreditCard,
   Utensils,
-  Layers,
-  Phone,
-  ShieldCheck,
-  Check,
-  ChevronDown
+  ChevronDown,
+  ChevronUp,
+  AlertCircle
 } from "lucide-react";
 import { getBookingOcularActionMeta } from "../../utils/ocularStatusHelper";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
@@ -54,7 +46,7 @@ export default function CustomerDashboard() {
   const [payments, setPayments] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [showGetStarted, setShowGetStarted] = useState(true);
+  const [showAllActions, setShowAllActions] = useState(false);
 
   // Calendar State
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
@@ -98,82 +90,22 @@ export default function CustomerDashboard() {
   useRealTimeRefresh(() => loadData(true));
 
   const now = useMemo(() => new Date(), []);
+  const todayKey = useMemo(() => formatDateToYYYYMMDD(now), [now]);
 
   // Filter Active Inquiries
   const activeInquiries = useMemo(() => {
     return inquiries.filter(i => !["Converted to Booking", "Cancelled", "Quote Rejected"].includes(i.status));
   }, [inquiries]);
 
-  // Action required items: Quotations sent or bookings pending deposit
-  const actionRequiredItems = useMemo(() => {
-    const quoteSentInquiries = inquiries.filter(i => i.status === "Quotation Sent").map((i) => {
-      const status = inquiryStatusMeta(i);
-      return {
-        type: "inquiry",
-        id: i._id,
-        title: recordTitle(i),
-        date: i.event_date,
-        startTime: i.start_time,
-        status,
-        description: status.notice?.text,
-        actionText: "Review quote",
-        onAction: () => navigate(`/customer/inquiries/${i._id}`)
-      };
-    });
-
-    const depositNeededBookings = bookings.filter(b => b.status === "pending deposit" || b.status === "customer_accepted").map((b) => {
-      const status = bookingStatusMeta(b);
-      return {
-        type: "booking",
-        id: b._id,
-        title: recordTitle(b),
-        date: b.event_date,
-        startTime: b.start_time,
-        status,
-        description: status.notice?.text,
-        actionText: "Pay deposit",
-        isPayment: true,
-        onAction: () => navigate(`/customer/bookings/${b._id}`)
-      };
-    });
-
-    const ocularNeededBookings = bookings
-      .filter((b) => {
-        if (["cancelled", "completed", "refunded"].includes((b.status || "").toLowerCase())) return false;
-        const oMeta = getBookingOcularActionMeta(b);
-        return oMeta?.state === "action_required";
-      })
-      .map((b) => {
-        return {
-          type: "ocular",
-          id: `ocular-${b._id}`,
-          title: recordTitle(b),
-          date: b.event_date,
-          startTime: b.start_time,
-          status: { tone: "warning", label: "Ocular Required", icon: CalendarClock },
-          description: "Schedule venue inspection with our team",
-          actionText: "Schedule ocular",
-          isOcular: true,
-          onAction: () => navigate(`/customer/bookings/${b._id}`),
-        };
-      });
-
-    return [...quoteSentInquiries, ...depositNeededBookings, ...ocularNeededBookings];
-  }, [inquiries, bookings, navigate]);
-
   // Confirmed / Upcoming Events
   const upcomingEvents = useMemo(() => {
     return bookings.filter(b => ["confirmed", "preparing", "ongoing"].includes(b.status) && new Date(b.event_date) >= now);
   }, [bookings, now]);
 
-  const completedEvents = useMemo(() => {
-    return bookings.filter(b => b.status === "completed");
-  }, [bookings]);
-
   // Total balance calculation
   const totalBalanceDue = useMemo(() => {
     return bookings.reduce((sum, b) => {
-      if (["cancelled"].includes(b.status)) return sum;
+      if (["cancelled", "refunded"].includes(b.status)) return sum;
       const total = Number(b.total_price || 0);
       const paid = payments
         .filter((p) => String(p.booking_id?._id || p.booking_id) === String(b._id) && p.status === "approved")
@@ -182,10 +114,109 @@ export default function CustomerDashboard() {
     }, 0);
   }, [bookings, payments]);
 
-  // Total estimated volume
-  const totalEstimatedVolume = useMemo(() => {
-    return bookings.reduce((sum, b) => sum + (Number(b.total_price) || 0), 0);
-  }, [bookings]);
+  // Action required items: Prioritized customer actions
+  const actionRequiredItems = useMemo(() => {
+    const items = [];
+
+    // 1. Overdue & Balance Due Payments for Bookings
+    bookings.forEach((b) => {
+      if (["cancelled", "refunded"].includes((b.status || "").toLowerCase())) return;
+      const total = Number(b.total_price || 0);
+      const paid = payments
+        .filter((p) => String(p.booking_id?._id || p.booking_id) === String(b._id) && p.status === "approved")
+        .reduce((pSum, p) => pSum + (Number(p.amount) || 0), 0);
+      const balance = Math.max(0, total - paid);
+
+      if (balance > 0) {
+        const dueDateKey = formatDateToYYYYMMDD(b.event_date);
+        const isOverdue = dueDateKey && dueDateKey < todayKey;
+        const isDepositStage = (b.status || "").toLowerCase().includes("deposit") || paid === 0;
+
+        items.push({
+          type: "payment",
+          id: `pay-${b._id}`,
+          priority: isOverdue ? 100 : 80,
+          title: recordTitle(b),
+          date: b.event_date,
+          startTime: b.start_time,
+          status: isOverdue
+            ? { tone: "danger", label: "Overdue Payment" }
+            : { tone: "warning", label: isDepositStage ? "Deposit Due" : "Balance Due" },
+          description: isOverdue
+            ? `Past due balance of ${formatCurrency(balance)}`
+            : `${formatCurrency(balance)} remaining balance`,
+          actionText: isDepositStage ? "Pay deposit" : "Pay balance",
+          isPayment: true,
+          isOverdue,
+          onAction: () => navigate(`/customer/payments`)
+        });
+      }
+    });
+
+    // 2. Inquiries: Quotation Ready to review
+    inquiries.forEach((i) => {
+      if (i.status === "Quotation Sent") {
+        const status = inquiryStatusMeta(i);
+        items.push({
+          type: "inquiry",
+          id: `inq-${i._id}`,
+          priority: 60,
+          title: recordTitle(i),
+          date: i.event_date,
+          startTime: i.start_time,
+          status: { tone: "info", label: "Quotation Ready" },
+          description: "Review and approve your custom quote",
+          actionText: "Review quote",
+          isQuote: true,
+          onAction: () => navigate(`/customer/inquiries/${i._id}`)
+        });
+      } else if (i.status === "Revision Requested") {
+        items.push({
+          type: "inquiry_revision",
+          id: `inq-rev-${i._id}`,
+          priority: 50,
+          title: recordTitle(i),
+          date: i.event_date,
+          startTime: i.start_time,
+          status: { tone: "info", label: "Revision in Progress" },
+          description: "Our catering team is updating your quote",
+          actionText: "View request",
+          isQuote: true,
+          onAction: () => navigate(`/customer/inquiries/${i._id}`)
+        });
+      }
+    });
+
+    // 3. Ocular Needed Bookings
+    bookings.forEach((b) => {
+      if (["cancelled", "completed", "refunded"].includes((b.status || "").toLowerCase())) return;
+      const oMeta = getBookingOcularActionMeta(b);
+      if (oMeta?.state === "action_required") {
+        items.push({
+          type: "ocular",
+          id: `ocular-${b._id}`,
+          priority: 40,
+          title: recordTitle(b),
+          date: b.event_date,
+          startTime: b.start_time,
+          status: { tone: "warning", label: "Venue Inspection" },
+          description: "Select a date for site visit",
+          actionText: "Schedule ocular",
+          isOcular: true,
+          onAction: () => navigate(`/customer/bookings/${b._id}`)
+        });
+      }
+    });
+
+    // Sort by priority descending, then date
+    return items.sort((a, b) => b.priority - a.priority);
+  }, [inquiries, bookings, payments, todayKey, navigate]);
+
+  // Display top 4 actionable items unless expanded
+  const displayedActionItems = useMemo(() => {
+    if (showAllActions) return actionRequiredItems;
+    return actionRequiredItems.slice(0, 4);
+  }, [actionRequiredItems, showAllActions]);
 
   const nextEvent = upcomingEvents[0] || bookings.find(b => b.status === "confirmed");
   const nextEventStatus = nextEvent ? bookingStatusMeta(nextEvent) : null;
@@ -200,9 +231,7 @@ export default function CustomerDashboard() {
       map[dateKey].push(eventObj);
     };
 
-    const todayKey = formatDateToYYYYMMDD(now);
-
-    // 1. Inquiries (ORANGE = Inquiry / Quote Request)
+    // 1. Inquiries
     inquiries.forEach((inq) => {
       if (["Converted to Booking", "Cancelled", "Quote Rejected"].includes(inq.status)) return;
       const dateKey = formatDateToYYYYMMDD(inq.event_date);
@@ -225,7 +254,7 @@ export default function CustomerDashboard() {
       });
     });
 
-    // 2. Bookings (GREEN = Confirmed Booking, GRAY = Completed / Past Event)
+    // 2. Bookings
     bookings.forEach((b) => {
       if (["cancelled", "refunded"].includes(b.status.toLowerCase())) return;
       const dateKey = formatDateToYYYYMMDD(b.event_date);
@@ -269,7 +298,7 @@ export default function CustomerDashboard() {
       }
     });
 
-    // 2b. Ocular Visits (PURPLE = Ocular Visit)
+    // 2b. Ocular Visits
     bookings.forEach((b) => {
       if (["cancelled", "refunded"].includes(b.status.toLowerCase())) return;
       const ocularMeta = getBookingOcularActionMeta(b);
@@ -297,7 +326,7 @@ export default function CustomerDashboard() {
       });
     });
 
-    // 3. Payment Due & Overdue Payment (BLUE = Payment Due, RED = Overdue Payment)
+    // 3. Payment Due & Overdue Payment
     bookings.forEach((b) => {
       if (["cancelled", "refunded"].includes(b.status.toLowerCase())) return;
       const total = Number(b.total_price || 0);
@@ -324,233 +353,292 @@ export default function CustomerDashboard() {
             ? { tone: "danger", label: "Overdue" }
             : { tone: "warning", label: "Payment Due" },
           actionText: "View Payment",
-          onAction: () => navigate(`/customer/bookings/${b._id}?tab=financials`),
+          onAction: () => navigate(`/customer/payments`),
         });
       }
     });
 
     return map;
-  }, [inquiries, bookings, payments, now, navigate]);
+  }, [inquiries, bookings, payments, todayKey, navigate]);
 
   return (
-    <CustomerDashboardLayout>
-      <div className="space-y-5">
-        {/* ── High-Density Header ───────────────────────────────────────── */}
-        <div className="pb-1 border-b border-slate-200/60">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-sans">
-            Welcome back, {firstName}
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Overview of your catering bookings, quote requests, and event schedule.
-          </p>
+    <CustomerDashboardLayout fullBleed>
+      <div className="h-[calc(100vh-3.5rem)] w-full bg-[#F8FAFC] flex flex-col font-sans antialiased overflow-hidden">
+        {/* ── Contained Top Page Header (Matches Inquiries / Bookings Style) ── */}
+        <div className="shrink-0 bg-white border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight font-sans">
+              Welcome back, {firstName}
+            </h1>
+            <p className="text-xs text-slate-600 mt-0.5 font-medium">
+              Overview of your catering bookings, quote requests, and event schedule.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => navigate("/packages")}
+              className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white shadow-xs rounded-xl font-bold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
+            >
+              <PlusCircle className="h-4 w-4 mr-1.5" />
+              <span>New Request</span>
+            </Button>
+          </div>
         </div>
 
-        {/* ── High-Density Telemetry Metrics Grid (Exact Screenshot Card Style) ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
-          <StatTile
-            icon={Calendar}
-            label="Active Bookings"
-            value={bookings.filter(b => !["cancelled", "completed"].includes(b.status)).length}
-            hint={upcomingEvents.length > 0 ? `${upcomingEvents.length} upcoming` : "No upcoming events"}
-            onClick={() => navigate("/customer/bookings")}
-          />
-          <StatTile
-            icon={FileText}
-            label="Open Inquiries"
-            value={activeInquiries.length}
-            hint={activeInquiries.length > 0 ? "Pending quote review" : "All converted"}
-            onClick={() => navigate("/customer/inquiries")}
-          />
-          <StatTile
-            icon={CreditCard}
-            label="Balance Due"
-            value={formatCurrency(totalBalanceDue)}
-            hint={totalBalanceDue > 0 ? "Pending payment" : "All settled"}
-            onClick={() => navigate("/customer/bookings")}
-          />
-          <StatTile
-            icon={MessageSquare}
-            label="Messages"
-            value={unreadCount}
-            hint={unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
-            onClick={() => navigate("/customer/messages")}
-          />
-        </div>
+        {/* ── Main Scrollable Content Workspace ── */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1400px] mx-auto">
+          {/* ── Summary Metrics Grid ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+            <StatTile
+              icon={Calendar}
+              label="Active Bookings"
+              value={bookings.filter(b => !["cancelled", "completed"].includes(b.status)).length}
+              hint={upcomingEvents.length > 0 ? `${upcomingEvents.length} upcoming` : "No upcoming events"}
+              onClick={() => navigate("/customer/bookings")}
+            />
+            <StatTile
+              icon={FileText}
+              label="Open Inquiries"
+              value={activeInquiries.length}
+              hint={activeInquiries.length > 0 ? "Pending quote review" : "All converted"}
+              onClick={() => navigate("/customer/inquiries")}
+            />
+            <StatTile
+              icon={CreditCard}
+              label="Balance Due"
+              value={formatCurrency(totalBalanceDue)}
+              hint={totalBalanceDue > 0 ? "Pending payment" : "All settled"}
+              onClick={() => navigate("/customer/payments")}
+              className={totalBalanceDue > 0 ? "border-amber-200/90" : undefined}
+            />
+            <StatTile
+              icon={MessageSquare}
+              label="Messages"
+              value={unreadCount}
+              hint={unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
+              onClick={() => navigate("/customer/messages")}
+            />
+          </div>
 
-        {/* ── Attention Queue (Only if action required, compact high-density) ── */}
-        {!loading && actionRequiredItems.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">
-                Action Required ({actionRequiredItems.length})
-              </span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {actionRequiredItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs flex items-center justify-between gap-3 hover:border-slate-300 transition-all"
-                >
-                  <div className="min-w-0 space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">{item.title}</h3>
-                      <StatusPill tone={item.status.tone} label={item.status.label} icon={item.status.icon} />
-                    </div>
-                    <p className="text-[11px] text-slate-500 font-medium">{formatEventDateTime(item.date, item.startTime)}</p>
-                  </div>
-                  <Button
-                    onClick={item.onAction}
-                    size="sm"
+          {/* ── Attention Queue (Prioritized, max 3-5 items with View All) ── */}
+          {!loading && actionRequiredItems.length > 0 && (
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-2xs space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="text-xs sm:text-sm font-bold text-slate-900 font-sans">
+                    Action Required
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    {actionRequiredItems.length}
+                  </span>
+                </div>
+
+                {actionRequiredItems.length > 4 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllActions(prev => !prev)}
+                    className="text-xs font-semibold text-[#4C81E0] hover:text-[#3B6EC6] inline-flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <span>{showAllActions ? "Show less" : `View all (${actionRequiredItems.length})`}</span>
+                    {showAllActions ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {displayedActionItems.map((item) => (
+                  <div
+                    key={item.id}
                     className={cn(
-                      "shrink-0 font-semibold text-xs px-3.5 py-1.5 rounded-full transition-all cursor-pointer shadow-2xs",
-                      item.isPayment
-                        ? "bg-amber-600 hover:bg-amber-700 text-white"
-                        : item.isOcular
-                        ? "bg-orange-600 hover:bg-orange-700 text-white"
-                        : "bg-[#2C4B8A] hover:bg-[#1E3563] text-white"
+                      "rounded-xl border p-3.5 sm:p-4 flex items-center justify-between gap-3 transition-all",
+                      item.isOverdue
+                        ? "border-rose-200 bg-rose-50/30 hover:border-rose-300"
+                        : item.isPayment
+                        ? "border-amber-200/80 bg-amber-50/20 hover:border-amber-300"
+                        : "border-slate-200 bg-slate-50/40 hover:border-slate-300 hover:bg-white"
                     )}
                   >
-                    {item.actionText}
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate font-sans">
+                          {item.title}
+                        </h4>
+                        <StatusPill tone={item.status.tone} label={item.status.label} />
+                      </div>
+                      <p className="text-xs text-slate-500 font-medium">
+                        {item.description}
+                      </p>
+                      {item.date && (
+                        <p className="text-[11px] text-slate-400 font-medium">
+                          {formatEventDateTime(item.date, item.startTime)}
+                        </p>
+                      )}
+                    </div>
+
+                    <Button
+                      onClick={item.onAction}
+                      size="sm"
+                      className={cn(
+                        "shrink-0 font-semibold text-xs px-3.5 h-8 rounded-lg transition-all cursor-pointer shadow-2xs",
+                        item.isOverdue
+                          ? "bg-rose-600 hover:bg-rose-700 text-white"
+                          : item.isPayment
+                          ? "bg-amber-600 hover:bg-amber-700 text-white"
+                          : item.isOcular
+                          ? "bg-orange-600 hover:bg-orange-700 text-white"
+                          : "bg-[#4C81E0] hover:bg-[#3B6EC6] text-white"
+                      )}
+                    >
+                      {item.actionText}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Main Operational 2-Column Grid ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            {/* Left Column (7 cols): Next Event Card + Quick Actions */}
+            <div className="lg:col-span-7 space-y-4">
+              {/* Your Next Event Card */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <CalendarCheck className="w-4 h-4 text-slate-400 stroke-[1.75]" />
+                    <span className="text-sm sm:text-base font-bold text-slate-900 font-sans">Your Next Event</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate("/customer/bookings")}
+                    className="text-xs font-semibold text-[#4C81E0] hover:text-[#3B6EC6] hover:bg-blue-50 cursor-pointer h-7 px-2 rounded-lg"
+                  >
+                    <span>All bookings</span>
+                    <ArrowRight className="h-3 w-3 ml-1" />
                   </Button>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* ── Main Operational 2-Column Grid (High Density) ───────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* Left Column (7 cols): Next Event Card + Quick Service Shortcuts */}
-          <div className="lg:col-span-7 space-y-4">
-            {/* Your Next Event Card - Matching the exact StatTile style */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <CalendarCheck className="w-4 h-4 text-slate-400 stroke-[1.75]" />
-                  <span className="text-sm sm:text-base font-bold text-slate-800 font-sans">Your Next Event</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate("/customer/bookings")}
-                  className="text-xs font-semibold text-[#2C4B8A] hover:bg-slate-50 cursor-pointer h-7 px-2 rounded-lg"
-                >
-                  All bookings <ArrowRight className="h-3 w-3 ml-1" />
-                </Button>
-              </div>
+                {loading ? (
+                  <LoadingState rows={1} label="Loading event details..." />
+                ) : nextEvent ? (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-base font-bold text-slate-900 font-sans">{recordTitle(nextEvent)}</h3>
+                      {nextEventStatus && (
+                        <StatusPill tone={nextEventStatus.tone} label={nextEventStatus.label} icon={nextEventStatus.icon} />
+                      )}
+                    </div>
 
-              {loading ? (
-                <LoadingState rows={1} label="Loading event details..." />
-              ) : nextEvent ? (
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-base font-bold text-slate-900 font-sans">{recordTitle(nextEvent)}</h3>
-                    {nextEventStatus && (
-                      <StatusPill tone={nextEventStatus.tone} label={nextEventStatus.label} icon={nextEventStatus.icon} />
-                    )}
+                    <DetailGrid
+                      items={[
+                        { label: "Date & Time", value: formatEventDateTime(nextEvent.event_date, nextEvent.start_time) },
+                        { label: "Location", value: nextEvent.municipality || nextEvent.venue_address || "To be confirmed" },
+                        ...(nextEvent.venue_type ? [{ label: "Venue Type", value: nextEvent.venue_type }] : []),
+                        { label: "Service", value: resolveServiceType(nextEvent) },
+                        { label: "Guests", value: nextEvent.guest_count ? `${nextEvent.guest_count} guests` : "—" },
+                        { label: "Reference", value: nextEvent.reference || "—", mono: true },
+                        { label: "Total Cost", value: formatCurrency(nextEvent.total_price) },
+                      ]}
+                    />
+
+                    <div className="flex justify-end pt-2 border-t border-slate-100">
+                      <Button
+                        size="sm"
+                        className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white font-semibold text-xs rounded-xl px-4 h-8 shadow-2xs cursor-pointer gap-1"
+                        onClick={() => navigate(`/customer/bookings/${nextEvent._id}`)}
+                      >
+                        <span>View event workspace</span>
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
-
-                  <DetailGrid
-                    items={[
-                      { label: "Date & Time", value: formatEventDateTime(nextEvent.event_date, nextEvent.start_time) },
-                      { label: "Location", value: nextEvent.municipality || nextEvent.venue_address || "To be confirmed" },
-                      ...(nextEvent.venue_type ? [{ label: "Venue Type", value: nextEvent.venue_type }] : []),
-                      { label: "Service", value: resolveServiceType(nextEvent) },
-                      { label: "Guests", value: nextEvent.guest_count ? `${nextEvent.guest_count} guests` : "—" },
-                      { label: "Reference", value: nextEvent.reference || "—", mono: true },
-                      { label: "Total Cost", value: formatCurrency(nextEvent.total_price) },
-                    ]}
-                  />
-
-                  <div className="flex justify-end pt-2 border-t border-slate-100">
+                ) : (
+                  /* Tightened Empty State (Minimal vertical space) */
+                  <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#4C81E0] flex items-center justify-center shrink-0 border border-blue-100">
+                        <CalendarClock className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-slate-800 truncate">No upcoming events scheduled</h4>
+                        <p className="text-xs text-slate-500 mt-0.5 truncate">Confirmed event reservations and preparations will appear here.</p>
+                      </div>
+                    </div>
                     <Button
                       size="sm"
-                      className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs rounded-full px-4 py-1.5 shadow-2xs cursor-pointer gap-1"
-                      onClick={() => navigate(`/customer/bookings/${nextEvent._id}`)}
-                    >
-                      <span>View event workspace</span>
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <EmptyState
-                  className="border-0 py-4"
-                  icon={CalendarClock}
-                  title="No upcoming events scheduled"
-                  description="Your confirmed event preparations and details will appear here."
-                  action={
-                    <Button
-                      size="sm"
-                      className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs rounded-full px-4 py-1.5 shadow-2xs cursor-pointer gap-1"
                       onClick={() => navigate("/packages")}
+                      className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white text-xs font-semibold rounded-lg px-3.5 h-8 shrink-0 cursor-pointer shadow-2xs"
                     >
-                      <PlusCircle className="h-3.5 w-3.5 mr-1" /> Inquire now
+                      <PlusCircle className="h-3.5 w-3.5 mr-1" />
+                      <span>Inquire now</span>
                     </Button>
-                  }
-                />
-              )}
-            </div>
-
-            {/* Quick Action Cards - Transformed into the EXACT StatTile Style */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* Card 1: Custom Quote */}
-              <div
-                onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
-                className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm sm:text-base font-bold text-slate-800 font-sans">
-                      Custom Event Quote
-                    </span>
-                    <Sparkles className="h-4 w-4 text-amber-500 stroke-[1.75]" />
                   </div>
-                  <p className="mt-1.5 text-xs text-slate-400 font-medium line-clamp-2 leading-relaxed">
-                    Customize your catering menu, guest count, and setup details.
-                  </p>
-                </div>
-                <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-[#2C4B8A] group-hover:underline">
-                  <span>Build quotation</span>
-                  <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-                </div>
+                )}
               </div>
 
-              {/* Card 2: Browse Packages */}
-              <div
-                onClick={() => navigate("/packages")}
-                className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm sm:text-base font-bold text-slate-800 font-sans">
-                      Browse Packages
-                    </span>
-                    <Utensils className="h-4 w-4 text-[#2C4B8A] stroke-[1.75]" />
+              {/* Quick Actions (Positioned below Next Event) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* Card 1: Custom Quote */}
+                <div
+                  onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+                  className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm sm:text-base font-bold text-slate-900 font-sans">
+                        Custom Event Quote
+                      </span>
+                      <Sparkles className="h-4 w-4 text-amber-500 stroke-[1.75]" />
+                    </div>
+                    <p className="mt-1.5 text-xs text-slate-500 font-medium line-clamp-2 leading-relaxed">
+                      Customize your catering menu, guest count, and setup details.
+                    </p>
                   </div>
-                  <p className="mt-1.5 text-xs text-slate-400 font-medium line-clamp-2 leading-relaxed">
-                    Explore curated all-inclusive packages, menus, and inclusions.
-                  </p>
+                  <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-[#4C81E0] group-hover:text-[#3B6EC6]">
+                    <span>Build quotation</span>
+                    <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                  </div>
                 </div>
-                <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-[#2C4B8A] group-hover:underline">
-                  <span>Explore packages</span>
-                  <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+
+                {/* Card 2: Browse Packages */}
+                <div
+                  onClick={() => navigate("/packages")}
+                  className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm sm:text-base font-bold text-slate-900 font-sans">
+                        Browse Packages
+                      </span>
+                      <Utensils className="h-4 w-4 text-[#4C81E0] stroke-[1.75]" />
+                    </div>
+                    <p className="mt-1.5 text-xs text-slate-500 font-medium line-clamp-2 leading-relaxed">
+                      Explore curated all-inclusive packages, menus, and inclusions.
+                    </p>
+                  </div>
+                  <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-[#4C81E0] group-hover:text-[#3B6EC6]">
+                    <span>Explore packages</span>
+                    <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Right Column (5 cols): Compact Interactive Calendar */}
-          <div className="lg:col-span-5 flex flex-col">
-            <CustomerCalendarCard
-              eventsMap={calendarEventsMap}
-              selectedDate={selectedCalendarDate}
-              onSelectDate={(date, events) => {
-                setSelectedCalendarDate(date);
-                setSelectedDateEvents(events);
-                setIsEventsModalOpen(true);
-              }}
-            />
+            {/* Right Column (5 cols): Compact Interactive Calendar */}
+            <div className="lg:col-span-5 flex flex-col">
+              <CustomerCalendarCard
+                eventsMap={calendarEventsMap}
+                selectedDate={selectedCalendarDate}
+                onSelectDate={(date, events) => {
+                  setSelectedCalendarDate(date);
+                  setSelectedDateEvents(events);
+                  setIsEventsModalOpen(true);
+                }}
+              />
+            </div>
           </div>
         </div>
 
@@ -565,4 +653,5 @@ export default function CustomerDashboard() {
     </CustomerDashboardLayout>
   );
 }
+
 

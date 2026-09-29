@@ -438,7 +438,7 @@ export default function OcularDatePickerModal({
                 !selectedTime ||
                 !isDateValid(parseLocalDate(effectiveSelectedDate))
               }
-              className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#2C4B8A] hover:bg-[#20396c] shadow-md shadow-[#2C4B8A]/25 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none cursor-pointer"
+              className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#4C81E0] hover:bg-[#3B6EC6] shadow-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none cursor-pointer"
             >
               {isSubmittingForm ? (
                 <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>

@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
-import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable";
 import CustomerReceiptModal from "../../components/customer/portal/CustomerReceiptModal";
 import PaymentChoiceModal from "../../components/customer/PaymentChoiceModal";
 import CustomerPolicyModal from "../../components/policy/CustomerPolicyModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
 import useToast from "../../hooks/useToast";
-import { useSearchParams, useNavigate, Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import StatTile from "../../components/customer/portal/StatTile";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -22,21 +20,27 @@ import {
   RefreshCcw,
   Sparkles,
   Search,
-  Filter,
   Calendar,
   CalendarDays,
   ExternalLink,
   ChevronRight,
-  ArrowRight,
+  ChevronDown,
+  ChevronUp,
   Layers,
   Table as TableIcon,
   Receipt,
   Clock,
   AlertCircle,
+  Check,
+  ArrowRight,
+  ShieldCheck,
+  ChevronLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const formatCurrency = (value) => `₱${Number(value || 0).toLocaleString()}`;
+
+const ITEMS_PER_PAGE = 10;
 
 export default function CustomerPayments() {
   const [payments, setPayments] = useState([]);
@@ -58,11 +62,20 @@ export default function CustomerPayments() {
   const [choiceModalBooking, setChoiceModalBooking] = useState(null);
   const [choiceModalOpen, setChoiceModalOpen] = useState(false);
 
-  // Filters & View State
+  // View Mode: 'events' (By Event) | 'transactions' (All Transactions)
+  const [viewMode, setViewMode] = useState("events");
+
+  // Accordion Expand State for By Event view: Set of booking IDs
+  const [expandedEvents, setExpandedEvents] = useState(new Set());
+
+  // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBookingFilter, setSelectedBookingFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [viewMode, setViewMode] = useState("table"); // 'table' | 'cards'
+  const [sortBy, setSortBy] = useState("newest");
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchData = async () => {
     try {
@@ -85,7 +98,7 @@ export default function CustomerPayments() {
                 updated = true;
               }
             } catch {
-              // A later refresh or PayMongo webhook reconciles it
+              // Webhook or later refresh will handle
             }
           }
         }
@@ -149,6 +162,11 @@ export default function CustomerPayments() {
     fetchData();
   }, [searchParams]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedBookingFilter, statusFilter, viewMode, sortBy]);
+
   const paymentStatus = searchParams.get("status");
 
   // Helper: Total approved amount paid for a specific booking
@@ -165,13 +183,13 @@ export default function CustomerPayments() {
   // Helper: Outstanding balance for a booking
   const getBookingRemainingBalance = (booking) => {
     if (!booking) return 0;
-    if (["cancelled", "refunded"].includes(booking.status)) return 0;
+    if (["cancelled", "refunded"].includes((booking.status || "").toLowerCase())) return 0;
     const total = Number(booking.total_price || 0);
     const paid = getBookingPaidAmount(booking._id);
     return Math.max(0, total - paid);
   };
 
-  // Executive Metrics
+  // Customer-friendly summary metrics
   const totalSettled = useMemo(() => {
     return payments
       .filter((p) => p.status === "approved")
@@ -184,14 +202,14 @@ export default function CustomerPayments() {
 
   const totalContractValue = useMemo(() => {
     return bookings
-      .filter((b) => !["cancelled", "refunded"].includes(b.status))
+      .filter((b) => !["cancelled", "refunded"].includes((b.status || "").toLowerCase()))
       .reduce((sum, b) => sum + (Number(b.total_price) || 0), 0);
   }, [bookings]);
 
   // Bookings with an outstanding balance due or deposit required
   const actionableBalanceBookings = useMemo(() => {
     return bookings
-      .filter((b) => !["cancelled", "refunded"].includes(b.status))
+      .filter((b) => !["cancelled", "refunded"].includes((b.status || "").toLowerCase()))
       .map((b) => {
         const remaining = getBookingRemainingBalance(b);
         const paid = getBookingPaidAmount(b._id);
@@ -200,22 +218,23 @@ export default function CustomerPayments() {
           b.payment_status === "pending" ||
           paid === 0;
 
+        const progress = b.total_price > 0 ? Math.min(100, Math.round((paid / b.total_price) * 100)) : 0;
+
         return {
           ...b,
           paidAmount: paid,
           remainingBalance: remaining,
           isDepositStage,
+          progress,
         };
       })
       .filter((b) => b.remainingBalance > 0);
   }, [bookings, payments]);
 
-  // Total balance due across all active events
   const totalBalanceDue = useMemo(() => {
     return actionableBalanceBookings.reduce((sum, b) => sum + b.remainingBalance, 0);
   }, [actionableBalanceBookings]);
 
-  // Settlement completion percentage
   const settlementPercentage = useMemo(() => {
     if (totalContractValue <= 0) return 100;
     const pct = (totalSettled / totalContractValue) * 100;
@@ -232,7 +251,6 @@ export default function CustomerPayments() {
     }
 
     if (paymentType === "balance" || !booking.isDepositStage) {
-      // Final / remaining balance payment: open choice modal
       setChoiceModalBooking(booking);
       setChoiceModalOpen(true);
       return;
@@ -266,12 +284,109 @@ export default function CustomerPayments() {
     setReceiptBooking(booking || payment.booking_id);
   };
 
-  // Filtered Payments List
+  // Accordion toggle helper
+  const toggleEventExpand = (bookingId) => {
+    setExpandedEvents((prev) => {
+      const next = new Set(prev);
+      if (next.has(bookingId)) {
+        next.delete(bookingId);
+      } else {
+        next.add(bookingId);
+      }
+      return next;
+    });
+  };
+
+  // Payments grouped by Booking / Event
+  const paymentsByBooking = useMemo(() => {
+    const map = new Map();
+
+    // Initialize with all bookings
+    bookings.forEach((b) => {
+      map.set(String(b._id), {
+        booking: b,
+        payments: [],
+        totalPrice: Number(b.total_price || 0),
+        paidAmount: 0,
+      });
+    });
+
+    // Bucket payments into their respective booking
+    payments.forEach((p) => {
+      const bId = String(p.booking_id?._id || p.booking_id || "");
+      if (bId && map.has(bId)) {
+        const entry = map.get(bId);
+        entry.payments.push(p);
+        if (p.status === "approved") {
+          entry.paidAmount += Number(p.amount || 0);
+        }
+      } else {
+        const otherKey = p.inquiry_id?._id ? `inq-${p.inquiry_id._id}` : "unassigned";
+        if (!map.has(otherKey)) {
+          map.set(otherKey, {
+            booking: p.inquiry_id || { event_type: "Catering Request", reference: "Inquiry" },
+            payments: [],
+            totalPrice: 0,
+            paidAmount: 0,
+          });
+        }
+        const entry = map.get(otherKey);
+        entry.payments.push(p);
+        if (p.status === "approved") {
+          entry.paidAmount += Number(p.amount || 0);
+        }
+      }
+    });
+
+    // Filter by search and dropdowns
+    return Array.from(map.values()).filter((group) => {
+      const b = group.booking;
+      const bId = String(b._id || "");
+
+      // 1. Dropdown Filter
+      if (selectedBookingFilter !== "all" && bId !== String(selectedBookingFilter)) {
+        return false;
+      }
+
+      // 2. Status Filter
+      if (statusFilter !== "all") {
+        const remaining = Math.max(0, group.totalPrice - group.paidAmount);
+        if (statusFilter === "pending" && remaining <= 0) return false;
+        if (statusFilter === "approved" && remaining > 0) return false;
+      }
+
+      // 3. Search Query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const eventType = (b.event_type || "").toLowerCase();
+        const ref = (b.reference || "").toLowerCase();
+        const celebrant = (b.celebrant_name || "").toLowerCase();
+        const hasMatchingPayment = group.payments.some((p) => {
+          const pRef = (p.gateway_reference || p.reference_number || "").toLowerCase();
+          const pMethod = (p.method || p.payment_method || "").toLowerCase();
+          return pRef.includes(q) || pMethod.includes(q);
+        });
+
+        return eventType.includes(q) || ref.includes(q) || celebrant.includes(q) || hasMatchingPayment;
+      }
+
+      return true;
+    }).sort((a, b) => {
+      const dateA = new Date(a.booking?.event_date || 0);
+      const dateB = new Date(b.booking?.event_date || 0);
+      return sortBy === "newest" ? dateB - dateA : dateA - dateB;
+    });
+  }, [bookings, payments, selectedBookingFilter, statusFilter, searchQuery, sortBy]);
+
+  // All itemized transactions filtered
   const filteredPayments = useMemo(() => {
     return payments.filter((p) => {
       // 1. Status Filter
-      if (statusFilter !== "all" && String(p.status).toLowerCase() !== statusFilter) {
-        return false;
+      if (statusFilter !== "all") {
+        const pStatus = String(p.status || "").toLowerCase();
+        if (statusFilter === "approved" && pStatus !== "approved" && pStatus !== "successful") return false;
+        if (statusFilter === "pending" && pStatus !== "pending") return false;
+        if (statusFilter === "failed" && !["failed", "rejected", "cancelled"].includes(pStatus)) return false;
       }
 
       // 2. Booking Filter
@@ -302,274 +417,889 @@ export default function CustomerPayments() {
       }
 
       return true;
+    }).sort((a, b) => {
+      const dateA = new Date(a.createdAt || 0);
+      const dateB = new Date(b.createdAt || 0);
+      return sortBy === "newest" ? dateB - dateA : dateA - dateB;
     });
-  }, [payments, statusFilter, selectedBookingFilter, searchQuery]);
+  }, [payments, statusFilter, selectedBookingFilter, searchQuery, sortBy]);
 
-  // Payments grouped by Booking
-  const paymentsByBooking = useMemo(() => {
-    const map = new Map();
+  // Paginated slices
+  const totalItems = viewMode === "events" ? paymentsByBooking.length : filteredPayments.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalItems);
 
-    // Initialize map with all customer bookings
-    bookings.forEach((b) => {
-      map.set(String(b._id), {
-        booking: b,
-        payments: [],
-        totalPrice: Number(b.total_price || 0),
-        paidAmount: 0,
-      });
-    });
+  const paginatedEvents = useMemo(() => {
+    return paymentsByBooking.slice(startIndex, endIndex);
+  }, [paymentsByBooking, startIndex, endIndex]);
 
-    // Bucket payments into their respective booking
-    payments.forEach((p) => {
-      const bId = String(p.booking_id?._id || p.booking_id || "");
-      if (bId && map.has(bId)) {
-        const entry = map.get(bId);
-        entry.payments.push(p);
-        if (p.status === "approved") {
-          entry.paidAmount += Number(p.amount || 0);
-        }
-      } else {
-        // Inquiry or unmatched payment bucket
-        const otherKey = p.inquiry_id?._id ? `inq-${p.inquiry_id._id}` : "unassigned";
-        if (!map.has(otherKey)) {
-          map.set(otherKey, {
-            booking: p.inquiry_id || { event_type: "Catering Request", reference: "Inquiry" },
-            payments: [],
-            totalPrice: 0,
-            paidAmount: 0,
-          });
-        }
-        const entry = map.get(otherKey);
-        entry.payments.push(p);
-        if (p.status === "approved") {
-          entry.paidAmount += Number(p.amount || 0);
-        }
-      }
-    });
+  const paginatedTransactions = useMemo(() => {
+    return filteredPayments.slice(startIndex, endIndex);
+  }, [filteredPayments, startIndex, endIndex]);
 
-    return Array.from(map.values()).filter((group) => {
-      // Filter out if booking filter active and not matched
-      if (
-        selectedBookingFilter !== "all" &&
-        String(group.booking._id) !== String(selectedBookingFilter)
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [bookings, payments, selectedBookingFilter]);
+  // Status badge renderer
+  const renderPaymentStatusBadge = (status) => {
+    const s = String(status || "").toLowerCase();
+    if (s === "approved" || s === "successful" || s === "paid") {
+      return (
+        <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold select-none">
+          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+          <span>Successful</span>
+        </span>
+      );
+    }
+    if (s === "pending") {
+      return (
+        <span className="bg-amber-50 text-amber-800 border border-amber-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold select-none">
+          <Clock className="w-3 h-3 text-amber-600" />
+          <span>Pending</span>
+        </span>
+      );
+    }
+    return (
+      <span className="bg-rose-50 text-rose-700 border border-rose-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold select-none">
+        <XCircle className="w-3 h-3 text-rose-600" />
+        <span>Failed</span>
+      </span>
+    );
+  };
+
+  // Payment type / milestone label
+  const renderMilestoneLabel = (type) => {
+    const t = String(type || "").toLowerCase();
+    if (t === "deposit") return "Deposit";
+    if (t === "balance") return "Balance payment";
+    if (t === "full") return "Full Payment";
+    return "Payment";
+  };
+
+  // Outstanding Balances Pagination
+  const BALANCES_PER_PAGE = 5;
+  const [balancePage, setBalancePage] = useState(1);
+  const [showAllBalances, setShowAllBalances] = useState(false);
+
+  const totalBalancePages = Math.max(1, Math.ceil(actionableBalanceBookings.length / BALANCES_PER_PAGE));
+  const currentBalances = useMemo(() => {
+    if (showAllBalances) return actionableBalanceBookings;
+    const start = (balancePage - 1) * BALANCES_PER_PAGE;
+    return actionableBalanceBookings.slice(start, start + BALANCES_PER_PAGE);
+  }, [actionableBalanceBookings, balancePage, showAllBalances]);
+
+  // Payment method badge
+  const renderMethodBadge = (p) => {
+    const m = String(p.method || p.payment_method || "PayMongo").toLowerCase();
+    let label = "PayMongo";
+    if (m.includes("gcash")) label = "GCash";
+    else if (m.includes("maya")) label = "Maya";
+    else if (m.includes("card")) label = "Card";
+    else if (m.includes("cash")) label = "Cash";
+    else if (m.includes("bank")) label = "Bank Transfer";
+
+    return (
+      <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/70 px-2 py-0.5 rounded text-[11px] font-medium text-slate-700 select-none">
+        <CreditCard className="w-3 h-3 text-slate-400" />
+        {label}
+      </span>
+    );
+  };
 
   return (
-    <CustomerDashboardLayout
-      title="Payment History"
-      subtitle="Track your payments, remaining balances, and official receipts"
-    >
-      {/* PayMongo Callback Alerts */}
-      {paymentStatus === "success" && (
-        <div className="flex items-center gap-3 p-4 mb-6 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800">
-          <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+    <CustomerDashboardLayout fullBleed>
+      <div className="h-[calc(100vh-3.5rem)] w-full bg-[#F8FAFC] flex flex-col font-sans antialiased overflow-hidden">
+        {/* ── Contained Top Page Header (Consistent with Inquiries & Bookings) ── */}
+        <div className="shrink-0 bg-white border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
           <div>
-            <p className="text-sm font-semibold">Payment Successful!</p>
-            <p className="text-xs text-emerald-700 dark:text-emerald-400">
-              Your PayMongo transaction has been verified and recorded to your account.
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight font-sans">
+              Payments
+            </h1>
+            <p className="text-xs text-slate-600 mt-0.5 font-medium">
+              Track your balances, payment activity, and receipts.
             </p>
           </div>
         </div>
-      )}
 
-      {paymentStatus === "cancelled" && (
-        <div className="flex items-center gap-3 p-4 mb-6 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
-          <XCircle className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400" />
-          <div>
-            <p className="text-sm font-semibold">Checkout Cancelled</p>
-            <p className="text-xs text-amber-700 dark:text-amber-400">
-              The payment session was cancelled. No charges were made to your account.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ── High-Density Metric Cards (Exact Screenshot Card Style) ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 mb-5">
-        <StatTile
-          icon={Wallet}
-          label="Total Settled"
-          value={formatCurrency(totalSettled)}
-          hint={`${approvedCount} successful payments`}
-        />
-        <StatTile
-          icon={CreditCard}
-          label="Balance Due"
-          value={formatCurrency(totalBalanceDue)}
-          hint={
-            totalBalanceDue > 0
-              ? `${actionableBalanceBookings.length} booking${actionableBalanceBookings.length > 1 ? "s" : ""} pending`
-              : "All accounts settled"
-          }
-          className={totalBalanceDue > 0 ? "border-amber-200" : undefined}
-        />
-        <StatTile
-          icon={FileText}
-          label="Contract Value"
-          value={formatCurrency(totalContractValue)}
-          hint={`Across ${bookings.length} catering event${bookings.length !== 1 ? "s" : ""}`}
-        />
-        <StatTile
-          icon={Sparkles}
-          label="Payment Progress"
-          value={`${settlementPercentage}%`}
-          hint={`${formatCurrency(totalSettled)} of ${formatCurrency(totalContractValue)}`}
-        />
-      </div>
-
-      <div className="space-y-5">
-        {/* ── Upcoming Payments & Balance Due Section (Rendered when balances are actionable) ── */}
-        {actionableBalanceBookings.length > 0 && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-[#2C4B8A] stroke-[1.75]" />
-                <h2 className="text-sm sm:text-base font-bold text-slate-800 font-sans">
-                  Upcoming Payments & Balance Due
-                </h2>
+        {/* ── Main Scrollable Content Workspace ── */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1400px] mx-auto">
+          {/* PayMongo Callback Alerts */}
+          {paymentStatus === "success" && (
+            <div className="flex items-center gap-3 p-4 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl shadow-2xs animate-in fade-in">
+              <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600" />
+              <div>
+                <p className="text-sm font-bold">Payment Confirmed!</p>
+                <p className="text-xs text-emerald-700 mt-0.5">
+                  Your transaction has been verified with PayMongo and applied to your event balance.
+                </p>
               </div>
-              <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200 text-xs font-semibold">
-                {actionableBalanceBookings.length} Due
-              </Badge>
             </div>
-            <div className="grid grid-cols-1 gap-3">
-              {actionableBalanceBookings.map((b) => (
-                <div
-                  key={b._id}
-                  className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300 transition-colors"
-                >
-                  <div className="space-y-1.5 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-bold text-sm text-slate-900 truncate font-sans">
-                        {b.event_type || "Catering Booking"}
-                      </h4>
-                      <span className="font-mono text-[11px] font-semibold px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600">
-                        {b.reference || `BK-${b._id.slice(-6).toUpperCase()}`}
-                      </span>
-                      <Badge
-                        variant="secondary"
+          )}
+
+          {paymentStatus === "cancelled" && (
+            <div className="flex items-center gap-3 p-4 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl shadow-2xs animate-in fade-in">
+              <XCircle className="w-5 h-5 shrink-0 text-amber-600" />
+              <div>
+                <p className="text-sm font-bold">Checkout Session Cancelled</p>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  The payment process was cancelled before completion. No charges were made to your account.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Summary Metrics Grid (Customer-friendly terminology, responsive reflow) ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+            <StatTile
+              icon={Wallet}
+              label="Total Paid"
+              value={formatCurrency(totalSettled)}
+              hint={`${approvedCount} successful payment${approvedCount !== 1 ? "s" : ""}`}
+            />
+            <StatTile
+              icon={CreditCard}
+              label="Balance Due"
+              value={formatCurrency(totalBalanceDue)}
+              hint={
+                totalBalanceDue > 0
+                  ? `${actionableBalanceBookings.length} event${actionableBalanceBookings.length > 1 ? "s" : ""} pending`
+                  : "All accounts settled"
+              }
+              className={totalBalanceDue > 0 ? "border-amber-300 bg-amber-50/10" : undefined}
+            />
+            <StatTile
+              icon={CalendarDays}
+              label="Total Event Cost"
+              value={formatCurrency(totalContractValue)}
+              hint={`Across ${bookings.length} catering reservation${bookings.length !== 1 ? "s" : ""}`}
+            />
+            <StatTile
+              icon={Sparkles}
+              label="Payment Activity"
+              value={`${settlementPercentage}%`}
+              hint={`${formatCurrency(totalSettled)} of ${formatCurrency(totalContractValue)} paid`}
+            />
+          </div>
+
+          {/* ── 1. Outstanding Payments / Balance Due (FIRST SECTION) ── */}
+          {actionableBalanceBookings.length > 0 ? (
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-2xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-[#4C81E0] stroke-[1.75]" />
+                  <h2 className="text-base font-bold text-slate-900 font-sans">
+                    Outstanding Balances
+                  </h2>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 ml-1">
+                    {actionableBalanceBookings.length} Action Needed
+                  </span>
+                </div>
+
+                {/* Compact Pagination / View All Controls for Scalable Dataset */}
+                {actionableBalanceBookings.length > BALANCES_PER_PAGE && (
+                  <div className="flex items-center gap-2 self-end sm:self-auto text-xs text-slate-500">
+                    <button
+                      type="button"
+                      onClick={() => setShowAllBalances(!showAllBalances)}
+                      className="font-semibold text-[#4C81E0] hover:text-[#3B6EC6] hover:underline cursor-pointer mr-1"
+                    >
+                      {showAllBalances ? "Show paginated" : `View all balances (${actionableBalanceBookings.length})`}
+                    </button>
+
+                    {!showAllBalances && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-[11px] text-slate-400 mr-1">
+                          {(balancePage - 1) * BALANCES_PER_PAGE + 1}–{Math.min(balancePage * BALANCES_PER_PAGE, actionableBalanceBookings.length)} of {actionableBalanceBookings.length}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setBalancePage((p) => Math.max(1, p - 1))}
+                          disabled={balancePage === 1}
+                          className="h-7 w-7 rounded-lg border-slate-200 text-slate-600 disabled:opacity-30 cursor-pointer"
+                          aria-label="Previous balances"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setBalancePage((p) => Math.min(totalBalancePages, p + 1))}
+                          disabled={balancePage === totalBalancePages}
+                          className="h-7 w-7 rounded-lg border-slate-200 text-slate-600 disabled:opacity-30 cursor-pointer"
+                          aria-label="Next balances"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Outstanding Balance Cards: Customer-First Visual Hierarchy */}
+              <div className="grid grid-cols-1 gap-3.5">
+                {currentBalances.map((b) => (
+                  <div
+                    key={b._id}
+                    className="p-5 rounded-xl border border-slate-200/90 bg-white hover:border-slate-300 transition-all shadow-2xs space-y-3.5"
+                  >
+                    {/* Top: Event Name, Reference & Date, Package Name */}
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 min-w-0">
+                      <div className="space-y-0.5 min-w-0">
+                        <h3 className="font-bold text-base sm:text-lg text-slate-900 tracking-tight font-sans truncate">
+                          {b.event_type || "Catering Event"}
+                        </h3>
+                        <div className="text-xs text-slate-500 font-medium flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono text-slate-700">{b.reference || `CAZ-${b._id.slice(-6).toUpperCase()}`}</span>
+                          <span>·</span>
+                          <span>
+                            {b.event_date
+                              ? new Date(b.event_date).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })
+                              : "Date TBD"}
+                          </span>
+                          {b.celebrant_name && (
+                            <>
+                              <span>·</span>
+                              <span className="text-slate-600">For {b.celebrant_name}</span>
+                            </>
+                          )}
+                        </div>
+                        {b.package_name_snapshot && (
+                          <div className="text-xs text-slate-600 font-normal pt-0.5">
+                            {b.package_name_snapshot}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Subtle status tag */}
+                      <span
                         className={cn(
-                          "text-[10px] font-bold uppercase tracking-wider",
+                          "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border self-start",
                           b.isDepositStage
-                            ? "bg-blue-50 text-blue-700 border-blue-200"
-                            : "bg-amber-50 text-amber-700 border-amber-200"
+                            ? "bg-blue-50 text-[#4C81E0] border-blue-200"
+                            : "bg-amber-50 text-amber-800 border-amber-200"
                         )}
                       >
-                        {b.isDepositStage ? "Deposit Required" : "Remaining Balance"}
-                      </Badge>
+                        {b.isDepositStage ? "Deposit Due" : "Balance Due"}
+                      </span>
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                      {b.event_date && (
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    {/* Middle: Financial Progress */}
+                    <div className="space-y-1.5 max-w-lg">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-600 font-medium">
+                          Paid <strong className="text-emerald-700 font-bold">{formatCurrency(b.paidAmount)}</strong> of {formatCurrency(b.total_price)}
+                        </span>
+                        <span className="text-xs font-bold text-slate-500">{b.progress}%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-emerald-600 h-full rounded-full transition-all duration-300"
+                          style={{ width: `${b.progress}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Bottom: Visually Prominent Balance Due & Customer Action */}
+                    <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-xl sm:text-2xl font-black text-amber-700 tabular-nums font-sans">
+                          {formatCurrency(b.remainingBalance)}
+                        </span>
+                        <span className="text-xs font-bold text-amber-800 uppercase tracking-wide">
+                          due
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3 self-stretch sm:self-auto justify-end">
+                        <Link
+                          to={`/customer/bookings/${b._id}`}
+                          className="text-xs font-semibold text-slate-600 hover:text-[#4C81E0] hover:underline cursor-pointer px-1 py-1"
+                        >
+                          View booking
+                        </Link>
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            startPaymentForBooking(
+                              b,
+                              b.remainingBalance,
+                              b.isDepositStage ? "deposit" : "balance"
+                            )
+                          }
+                          disabled={payingTargetId === b._id}
+                          className="h-9 px-4 text-xs font-bold gap-1.5 shadow-xs rounded-xl bg-[#4C81E0] hover:bg-[#3B6EC6] text-white cursor-pointer active:scale-[0.98] transition-all"
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
                           <span>
-                            Event:{" "}
-                            {new Date(b.event_date).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
+                            {payingTargetId === b._id
+                              ? "Opening..."
+                              : b.isDepositStage
+                              ? "Pay deposit"
+                              : "Pay balance"}
                           </span>
-                        </div>
-                      )}
-                      {b.package_name_snapshot && (
-                        <div>
-                          Package: <span className="font-semibold text-slate-700">{b.package_name_snapshot}</span>
-                        </div>
-                      )}
-                      {b.celebrant_name && (
-                        <div>
-                          For: <span className="font-semibold text-slate-700">{b.celebrant_name}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Payment Breakdown */}
-                    <div className="flex items-center gap-3 text-xs pt-0.5">
-                      <span className="text-slate-500">
-                        Contract: <strong className="text-slate-900">{formatCurrency(b.total_price)}</strong>
-                      </span>
-                      <span className="text-slate-300">•</span>
-                      <span className="text-slate-500">
-                        Paid: <strong className="text-emerald-700">{formatCurrency(b.paidAmount)}</strong>
-                      </span>
+                        </Button>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Calm State: All accounts settled */
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 font-sans">
+                    All accounts are up to date
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    You have no outstanding balances or pending deposit payments due at this time.
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/customer/bookings")}
+                className="text-xs font-semibold text-[#4C81E0] border-blue-200 hover:bg-blue-50 rounded-xl cursor-pointer shrink-0 self-start sm:self-auto"
+              >
+                <span>View all bookings</span>
+                <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            </div>
+          )}
 
-                  <div className="flex items-center justify-between md:justify-end gap-3.5 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200/80 shrink-0">
-                    <div className="text-left md:text-right">
-                      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                        Amount Due
-                      </div>
-                      <div className="text-lg font-bold text-amber-700 tabular-nums">
-                        {formatCurrency(b.remainingBalance)}
-                      </div>
-                    </div>
+          {/* ── 2. Payment History (SECOND SECTION) ── */}
+          <div className="rounded-2xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
+            {/* History Header & View Switcher */}
+            <div className="py-4 px-5 sm:px-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold font-sans text-slate-900 flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-[#4C81E0] stroke-[1.75]" />
+                  Payment History
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Itemized records, transaction details, and official receipts
+                </p>
+              </div>
 
-                    <div className="flex items-center gap-2">
-                      <Link to={`/customer/bookings/${b._id}`}>
-                        <Button variant="outline" size="sm" className="h-8 text-xs rounded-md border-slate-200">
-                          View Event
-                        </Button>
-                      </Link>
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          startPaymentForBooking(
-                            b,
-                            b.remainingBalance,
-                            b.isDepositStage ? "deposit" : "balance"
-                          )
-                        }
-                        disabled={payingTargetId === b._id}
-                        className="h-8 text-xs font-semibold gap-1.5 shadow-2xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-[0.98]"
-                      >
-                        <CreditCard className="w-3.5 h-3.5" />
-                        <span>{payingTargetId === b._id ? "Opening..." : "Pay Now"}</span>
-                      </Button>
+              {/* View Mode Toggle: By Event vs All Transactions */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/70 shrink-0 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("events")}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer",
+                    viewMode === "events"
+                      ? "bg-white text-slate-900 shadow-2xs font-bold"
+                      : "text-slate-500 hover:text-slate-800"
+                  )}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>By Event</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("transactions")}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer",
+                    viewMode === "transactions"
+                      ? "bg-white text-slate-900 shadow-2xs font-bold"
+                      : "text-slate-500 hover:text-slate-800"
+                  )}
+                >
+                  <TableIcon className="w-3.5 h-3.5" />
+                  <span>Transactions</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-6 space-y-4">
+              {/* Lightweight Filter Controls */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+                {/* Search Bar */}
+                <div className="sm:col-span-6 relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search payments, event, or reference..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 h-9 text-xs rounded-lg border-slate-200 bg-white placeholder:text-slate-400 focus:border-[#4C81E0]"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {/* Event Dropdown Filter */}
+                <div className="sm:col-span-3">
+                  <select
+                    value={selectedBookingFilter}
+                    onChange={(e) => setSelectedBookingFilter(e.target.value)}
+                    className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 focus:outline-none focus:border-[#4C81E0]"
+                  >
+                    <option value="all">All Events ({bookings.length})</option>
+                    {bookings.map((b) => (
+                      <option key={b._id} value={b._id}>
+                        {b.event_type} ({b.reference || "BK"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status Filter Dropdown */}
+                <div className="sm:col-span-3">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 focus:outline-none focus:border-[#4C81E0]"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="approved">Successful</option>
+                    <option value="pending">Pending</option>
+                    <option value="failed">Failed / Cancelled</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* ── View 1: By Event (Grouped Accordions) ── */}
+              {viewMode === "events" && (
+                <div className="space-y-3">
+                  {paginatedEvents.length === 0 ? (
+                    <div className="text-center py-10 text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                      <CreditCard className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                      <p className="text-sm font-semibold text-slate-700">No matching events or payments</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Try adjusting your filters or search keywords.</p>
                     </div>
+                  ) : (
+                    paginatedEvents.map(({ booking, payments: groupPayments, totalPrice, paidAmount }) => {
+                      const bId = String(booking._id || "");
+                      const isExpanded = expandedEvents.has(bId);
+                      const eventTitle = booking.event_type || "Catering Event";
+                      const bookingRef = booking.reference || (bId ? `BK-${bId.slice(-6).toUpperCase()}` : "-");
+                      const remaining = Math.max(0, totalPrice - paidAmount);
+                      const progress = totalPrice > 0 ? Math.min(100, Math.round((paidAmount / totalPrice) * 100)) : 100;
+                      const isFullyPaid = remaining <= 0 && totalPrice > 0;
+
+                      return (
+                        <div
+                          key={bId || bookingRef}
+                          className="rounded-xl border border-slate-200/90 bg-white overflow-hidden shadow-2xs transition-all"
+                        >
+                          {/* Collapsed / Row Header */}
+                          <div
+                            onClick={() => toggleEventExpand(bId)}
+                            className="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:bg-slate-50/60 transition-colors select-none"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className={cn(
+                                  "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-colors",
+                                  isFullyPaid
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : "bg-blue-50 text-[#4C81E0] border-blue-200"
+                                )}
+                              >
+                                {isFullyPaid ? <Check className="w-4 h-4" /> : <Calendar className="w-4 h-4" />}
+                              </div>
+
+                              <div className="min-w-0 space-y-0.5">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="font-bold text-sm text-slate-900 truncate font-sans">
+                                    {eventTitle}
+                                  </h4>
+                                  <span className="font-mono text-xs font-semibold px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-slate-600">
+                                    {bookingRef}
+                                  </span>
+                                  {isFullyPaid ? (
+                                    <span className="px-2 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md">
+                                      Fully Paid
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-md">
+                                      {formatCurrency(remaining)} Due
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                                  {booking.event_date && (
+                                    <span>
+                                      {new Date(booking.event_date).toLocaleDateString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric",
+                                      })}
+                                    </span>
+                                  )}
+                                  <span>•</span>
+                                  <span>
+                                    {groupPayments.length} payment{groupPayments.length !== 1 ? "s" : ""}
+                                  </span>
+                                  {booking.package_name_snapshot && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-slate-600">{booking.package_name_snapshot}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Row Right: Progress & Toggle */}
+                            <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                              <div className="text-left sm:text-right space-y-1">
+                                <div className="text-xs text-slate-600">
+                                  Paid: <strong className="text-emerald-700 font-bold">{formatCurrency(paidAmount)}</strong>
+                                  {totalPrice > 0 && <span className="text-slate-400"> / {formatCurrency(totalPrice)}</span>}
+                                </div>
+                                <div className="w-28 bg-slate-100 rounded-full h-1.5 sm:ml-auto overflow-hidden">
+                                  <div
+                                    className="bg-emerald-600 h-full rounded-full"
+                                    style={{ width: `${progress}%` }}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                {bId && (
+                                  <Link
+                                    to={`/customer/bookings/${bId}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-xs font-semibold text-[#4C81E0] hover:text-[#3B6EC6] px-2 py-1 rounded-md hover:bg-blue-50 transition-colors inline-flex items-center gap-1"
+                                    title="View Booking Details"
+                                  >
+                                    <span>View</span>
+                                    <ExternalLink className="w-3 h-3 opacity-70" />
+                                  </Link>
+                                )}
+                                <button
+                                  type="button"
+                                  aria-label={isExpanded ? "Collapse transactions" : "Expand transactions"}
+                                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                >
+                                  {isExpanded ? (
+                                    <ChevronUp className="w-4 h-4" />
+                                  ) : (
+                                    <ChevronDown className="w-4 h-4" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Expanded Transaction Drawer */}
+                          {isExpanded && (
+                            <div className="border-t border-slate-100 bg-slate-50/40 p-3 sm:p-4">
+                              {groupPayments.length === 0 ? (
+                                <div className="p-4 text-center text-xs text-slate-500 bg-white rounded-lg border border-slate-200/80">
+                                  <p>No payments recorded yet for this event.</p>
+                                  {remaining > 0 && (
+                                    <Button
+                                      size="sm"
+                                      onClick={() =>
+                                        startPaymentForBooking(
+                                          booking,
+                                          remaining,
+                                          paidAmount === 0 ? "deposit" : "balance"
+                                        )
+                                      }
+                                      className="mt-2.5 h-8 text-xs font-semibold bg-[#4C81E0] hover:bg-[#3B6EC6] text-white rounded-lg shadow-2xs"
+                                    >
+                                      <span>Pay deposit</span>
+                                    </Button>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="bg-white rounded-lg border border-slate-200/80 divide-y divide-slate-100 overflow-hidden">
+                                  {groupPayments.map((p) => (
+                                    <div
+                                      key={p._id}
+                                      className="p-3 sm:px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+                                          <Receipt className="w-3.5 h-3.5" />
+                                        </div>
+                                        <div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-bold text-xs text-slate-900">
+                                              {renderMilestoneLabel(p.payment_type)}
+                                            </span>
+                                            {renderPaymentStatusBadge(p.status)}
+                                          </div>
+                                          <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap">
+                                            <span>
+                                              {p.createdAt
+                                                ? new Date(p.createdAt).toLocaleDateString("en-US", {
+                                                    month: "short",
+                                                    day: "numeric",
+                                                    year: "numeric",
+                                                  })
+                                                : "-"}
+                                            </span>
+                                            <span>•</span>
+                                            {renderMethodBadge(p)}
+                                            {(p.gateway_reference || p.reference_number) && (
+                                              <>
+                                                <span>•</span>
+                                                <span className="font-mono text-[10px] text-slate-400">
+                                                  Ref: {p.gateway_reference || p.reference_number}
+                                                </span>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center justify-between sm:justify-end gap-3 pl-10 sm:pl-0">
+                                        <span className="font-bold text-sm text-slate-900 tabular-nums">
+                                          {formatCurrency(p.amount)}
+                                        </span>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleOpenReceipt(p, booking)}
+                                          className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3B6EC6] hover:bg-blue-50 px-2.5 rounded-lg cursor-pointer"
+                                        >
+                                          <Receipt className="w-3.5 h-3.5" />
+                                          <span>Receipt</span>
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+
+              {/* ── View 2: All Transactions (Flat Table View) ── */}
+              {viewMode === "transactions" && (
+                <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-2xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                          <th className="py-3 px-4">Date & Time</th>
+                          <th className="py-3 px-4 min-w-[200px]">Event / Reference</th>
+                          <th className="py-3 px-4">Payment Type</th>
+                          <th className="py-3 px-4">Method</th>
+                          <th className="py-3 px-4">Amount</th>
+                          <th className="py-3 px-4">Status</th>
+                          <th className="py-3 px-4 text-right">Receipt</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {paginatedTransactions.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="py-12 text-center text-slate-400">
+                              <CreditCard className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                              <p className="text-sm font-semibold text-slate-700">No payment transactions found</p>
+                              <p className="text-xs text-slate-400 mt-0.5">Try adjusting your filters or search terms.</p>
+                            </td>
+                          </tr>
+                        ) : (
+                          paginatedTransactions.map((p) => {
+                            const b = bookings.find(
+                              (item) => String(item._id) === String(p.booking_id?._id || p.booking_id)
+                            );
+                            const eventTitle = b?.event_type || p.inquiry_id?.event_type || "Catering Event";
+                            const refCode = b?.reference || p.inquiry_id?.reference || "-";
+                            const dateStr = p.createdAt
+                              ? new Date(p.createdAt).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })
+                              : "-";
+                            const timeStr = p.createdAt
+                              ? new Date(p.createdAt).toLocaleTimeString("en-US", {
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                  hour12: true,
+                                })
+                              : "";
+
+                            return (
+                              <tr key={p._id} className="hover:bg-slate-50/60 transition-colors">
+                                <td className="py-3.5 px-4 text-xs text-slate-600">
+                                  <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>{dateStr}</span>
+                                  </div>
+                                  {timeStr && <span className="text-[10px] text-slate-400 pl-5">{timeStr}</span>}
+                                </td>
+
+                                <td className="py-3.5 px-4 text-xs">
+                                  <div className="font-bold text-slate-900">{eventTitle}</div>
+                                  <div className="flex items-center gap-1 text-[11px] text-slate-500 font-mono mt-0.5">
+                                    {b?._id ? (
+                                      <Link
+                                        to={`/customer/bookings/${b._id}`}
+                                        className="text-[#4C81E0] hover:underline inline-flex items-center gap-0.5"
+                                      >
+                                        <span>{refCode}</span>
+                                        <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                                      </Link>
+                                    ) : (
+                                      <span>{refCode}</span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                <td className="py-3.5 px-4 text-xs">
+                                  <span className="font-semibold text-slate-800">
+                                    {renderMilestoneLabel(p.payment_type)}
+                                  </span>
+                                </td>
+
+                                <td className="py-3.5 px-4 text-xs">
+                                  {renderMethodBadge(p)}
+                                </td>
+
+                                <td className="py-3.5 px-4 text-xs">
+                                  <span className="font-bold text-slate-900 tabular-nums text-sm">
+                                    {formatCurrency(p.amount)}
+                                  </span>
+                                </td>
+
+                                <td className="py-3.5 px-4 text-xs">
+                                  {renderPaymentStatusBadge(p.status)}
+                                </td>
+
+                                <td className="py-3.5 px-4 text-xs text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleOpenReceipt(p, b)}
+                                    className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3B6EC6] hover:bg-blue-50 px-2.5 rounded-lg cursor-pointer"
+                                  >
+                                    <Receipt className="w-3.5 h-3.5" />
+                                    <span>Receipt</span>
+                                  </Button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-              ))}
+              )}
+
+              {/* ── Clean Pagination Bar ── */}
+              {totalItems > 0 && (
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 border-t border-slate-100">
+                  <div>
+                    Showing <span className="font-semibold text-slate-800">{startIndex + 1}</span>–
+                    <span className="font-semibold text-slate-800">{endIndex}</span> of{" "}
+                    <span className="font-semibold text-slate-800">{totalItems}</span>{" "}
+                    {viewMode === "events" ? "events" : "transactions"}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="h-8 px-2.5 text-xs rounded-lg border-slate-200 disabled:opacity-40 cursor-pointer"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5 mr-0.5" />
+                      <span>Previous</span>
+                    </Button>
+
+                    <div className="flex items-center gap-1 px-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                        .map((page, idx, arr) => {
+                          const prevPage = arr[idx - 1];
+                          const showEllipsis = prevPage && page - prevPage > 1;
+
+                          return (
+                            <span key={page} className="flex items-center">
+                              {showEllipsis && <span className="px-1 text-slate-400">…</span>}
+                              <button
+                                type="button"
+                                onClick={() => setCurrentPage(page)}
+                                className={cn(
+                                  "w-7 h-7 rounded-lg text-xs font-semibold transition-colors cursor-pointer",
+                                  currentPage === page
+                                    ? "bg-[#4C81E0] text-white shadow-2xs"
+                                    : "text-slate-600 hover:bg-slate-100"
+                                )}
+                              >
+                                {page}
+                              </button>
+                            </span>
+                          );
+                        })}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-8 px-2.5 text-xs rounded-lg border-slate-200 disabled:opacity-40 cursor-pointer"
+                    >
+                      <span>Next</span>
+                      <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        )}
 
-        {/* ── Refunds & Cancellations Section (if applicable) ── */}
-        {refunds.length > 0 && (
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-2xs overflow-hidden">
-            <div className="py-3.5 px-5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2 font-sans">
-                <RefreshCcw className="w-3.5 h-3.5 text-[#2C4B8A]" />
-                Refunds &amp; Cancellations
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowPolicyModal(true)}
-                className="text-xs font-semibold text-[#1E3563] hover:underline cursor-pointer"
-              >
-                Policy Guidelines →
-              </button>
-            </div>
-            <div>
+          {/* ── 3. Refunds & Cancellations Section (if applicable) ── */}
+          {refunds.length > 0 && (
+            <div className="rounded-2xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
+              <div className="py-3.5 px-5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2 font-sans">
+                  <RefreshCcw className="w-3.5 h-3.5 text-[#4C81E0]" />
+                  Refunds &amp; Cancellations
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowPolicyModal(true)}
+                  className="text-xs font-semibold text-[#4C81E0] hover:text-[#3B6EC6] hover:underline cursor-pointer"
+                >
+                  Policy Guidelines →
+                </button>
+              </div>
               <div className="divide-y divide-slate-100">
                 {refunds.map((r) => (
                   <div
                     key={r.id}
-                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white"
+                    className="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white"
                   >
                     <div>
                       <h4 className="font-bold text-sm text-slate-900">{r.type}</h4>
-                      <div className="text-xs text-slate-400 mt-0.5">Ref: {r.id}</div>
-                      <div className="text-xs text-slate-500">Reason: {r.reason}</div>
+                      <div className="text-xs text-slate-400 mt-0.5 font-mono">Ref: {r.id}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">Reason: {r.reason}</div>
                     </div>
-                    <div className="flex items-center gap-5">
+                    <div className="flex items-center gap-4">
                       <div className="text-right">
                         <div className="text-[11px] text-slate-400">
                           Paid: {formatCurrency(r.deposit)}
@@ -584,7 +1314,10 @@ export default function CustomerPayments() {
                           </div>
                         )}
                       </div>
-                      <Badge variant={r.status === "refunded" ? "default" : "secondary"}>
+                      <Badge
+                        variant={r.status === "refunded" ? "default" : "secondary"}
+                        className={r.status === "refunded" ? "bg-emerald-600" : ""}
+                      >
                         {r.status === "refunded" ? "Refunded" : "Processing"}
                       </Badge>
                     </div>
@@ -592,324 +1325,44 @@ export default function CustomerPayments() {
                 ))}
               </div>
             </div>
-          </div>
+          )}
+        </div>
+
+        {/* ── Official Printable Receipt Modal ── */}
+        {receiptPayment && (
+          <CustomerReceiptModal
+            payment={receiptPayment}
+            booking={receiptBooking}
+            onClose={() => {
+              setReceiptPayment(null);
+              setReceiptBooking(null);
+            }}
+            formatCurrency={formatCurrency}
+          />
         )}
 
-        {/* ── All Payment Transactions ── */}
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-2xs overflow-hidden">
-          <div className="py-3.5 px-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold font-sans text-slate-900 flex items-center gap-2">
-                <Receipt className="w-4 h-4 text-[#2C4B8A] stroke-[1.75]" />
-                Payment Transaction History
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Itemized transaction records for your events, inquiries, and official receipts
-              </p>
-            </div>
+        {/* ── Payment Choice Modal ── */}
+        {choiceModalOpen && choiceModalBooking && (
+          <PaymentChoiceModal
+            open={choiceModalOpen}
+            onClose={() => {
+              setChoiceModalOpen(false);
+              setChoiceModalBooking(null);
+            }}
+            booking={choiceModalBooking}
+            balanceAmount={getBookingRemainingBalance(choiceModalBooking)}
+            onSuccess={() => fetchData()}
+          />
+        )}
 
-            {/* View Mode Toggle */}
-            <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-lg border border-slate-200/80 shrink-0 self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={() => setViewMode("table")}
-                className={cn(
-                  "px-2.5 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 cursor-pointer",
-                  viewMode === "table"
-                    ? "bg-white text-slate-900 shadow-2xs font-bold"
-                    : "text-slate-500 hover:text-slate-900"
-                )}
-              >
-                <TableIcon className="w-3.5 h-3.5" />
-                <span>Ledger</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("cards")}
-                className={cn(
-                  "px-2.5 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 cursor-pointer",
-                  viewMode === "cards"
-                    ? "bg-white text-slate-900 shadow-2xs font-bold"
-                    : "text-slate-500 hover:text-slate-900"
-                )}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>By Booking</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="p-4 sm:p-5 space-y-4">
-            {/* Toolbar: Search, Booking filter, Status filter */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              {/* Search */}
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search by event, reference number, or transaction ID..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9 text-xs"
-                />
-              </div>
-
-              {/* Booking filter dropdown */}
-              <div className="sm:w-56 shrink-0">
-                <select
-                  value={selectedBookingFilter}
-                  onChange={(e) => setSelectedBookingFilter(e.target.value)}
-                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                  <option value="all">All Events & Bookings ({bookings.length})</option>
-                  {bookings.map((b) => (
-                    <option key={b._id} value={b._id}>
-                      {b.event_type} ({b.reference || "BK"})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Status filter */}
-              <div className="sm:w-36 shrink-0">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="approved">Approved</option>
-                  <option value="pending">Pending</option>
-                  <option value="failed">Failed / Cancelled</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Content: Either Ledger Table or Grouped by Booking */}
-            {viewMode === "table" ? (
-              <CustomerPaymentsTable
-                payments={filteredPayments}
-                bookings={bookings}
-                formatCurrency={formatCurrency}
-                onViewReceipt={handleOpenReceipt}
-                showEventDetails={true}
-              />
-            ) : (
-              /* Grouped by Booking Card View */
-              <div className="space-y-4">
-                {paymentsByBooking.length === 0 ? (
-                  <div className="text-center py-10 text-muted-foreground bg-muted/10 rounded-xl border border-dashed border-border">
-                    <CreditCard className="w-8 h-8 mx-auto mb-2 text-muted-foreground/30" />
-                    <p className="text-sm font-semibold text-foreground">No matching events or payments</p>
-                    <p className="text-xs text-muted-foreground">Try adjusting your filters or search query.</p>
-                  </div>
-                ) : (
-                  paymentsByBooking.map(({ booking, payments: groupPayments, totalPrice, paidAmount }) => {
-                    const bId = booking._id;
-                    const eventTitle = booking.event_type || "Catering Booking";
-                    const bookingRef = booking.reference || (bId ? `BK-${bId.slice(-6).toUpperCase()}` : "-");
-                    const remaining = Math.max(0, totalPrice - paidAmount);
-                    const progress = totalPrice > 0 ? Math.min(100, Math.round((paidAmount / totalPrice) * 100)) : 100;
-
-                    return (
-                      <div
-                        key={bId || bookingRef}
-                        className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs"
-                      >
-                        {/* Event Header Banner */}
-                        <div className="p-4 bg-muted/20 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="font-bold text-sm text-foreground">{eventTitle}</h4>
-                              <span className="font-mono text-xs font-semibold px-2 py-0.5 bg-muted rounded text-muted-foreground">
-                                {bookingRef}
-                              </span>
-                              {booking.package_name_snapshot && (
-                                <span className="text-xs text-muted-foreground">
-                                  • {booking.package_name_snapshot}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                              {booking.event_date && (
-                                <span className="inline-flex items-center gap-1">
-                                  <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                                  {new Date(booking.event_date).toLocaleDateString("en-US", {
-                                    month: "short",
-                                    day: "numeric",
-                                    year: "numeric",
-                                  })}
-                                </span>
-                              )}
-                              {bId && (
-                                <Link
-                                  to={`/customer/bookings/${bId}`}
-                                  className="text-primary hover:underline inline-flex items-center gap-0.5"
-                                >
-                                  <span>View Booking</span>
-                                  <ExternalLink className="w-2.5 h-2.5 opacity-70" />
-                                </Link>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Event Progress & Balance */}
-                          <div className="text-left sm:text-right space-y-1">
-                            <div className="flex items-center sm:justify-end gap-2 text-xs">
-                              <span className="text-muted-foreground">
-                                Paid: <strong className="text-emerald-600 dark:text-emerald-400">{formatCurrency(paidAmount)}</strong>
-                              </span>
-                              {totalPrice > 0 && (
-                                <>
-                                  <span className="text-muted-foreground">/</span>
-                                  <span className="font-medium text-foreground">{formatCurrency(totalPrice)}</span>
-                                </>
-                              )}
-                            </div>
-
-                            {totalPrice > 0 && (
-                              <div className="w-36 bg-muted rounded-full h-1.5 sm:ml-auto overflow-hidden">
-                                <div
-                                  className="bg-primary h-full rounded-full"
-                                  style={{ width: `${progress}%` }}
-                                />
-                              </div>
-                            )}
-
-                            {remaining > 0 ? (
-                              <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 block">
-                                Remaining: {formatCurrency(remaining)}
-                              </span>
-                            ) : (
-                              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 block">
-                                Fully Paid (100%)
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Payments for this event */}
-                        <div className="divide-y divide-border/60">
-                          {groupPayments.length === 0 ? (
-                            <div className="p-4 text-center text-xs text-muted-foreground">
-                              No payments recorded yet for this booking.
-                            </div>
-                          ) : (
-                            groupPayments.map((p) => (
-                              <div
-                                key={p._id}
-                                className="p-3.5 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-muted/15 transition-colors"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                                    <Receipt className="w-4 h-4 text-muted-foreground" />
-                                  </div>
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-semibold text-xs text-foreground capitalize">
-                                        {p.payment_type === "deposit"
-                                          ? "Initial Deposit"
-                                          : p.payment_type === "balance"
-                                          ? "Remaining Balance"
-                                          : "Payment"}
-                                      </span>
-                                      <Badge
-                                        variant="outline"
-                                        className={cn(
-                                          "text-[10px] py-0 px-1.5 capitalize font-medium",
-                                          p.status === "approved"
-                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300"
-                                            : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300"
-                                        )}
-                                      >
-                                        {p.status}
-                                      </Badge>
-                                    </div>
-                                    <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
-                                      <span>
-                                        {p.createdAt
-                                          ? new Date(p.createdAt).toLocaleDateString("en-US", {
-                                              month: "short",
-                                              day: "numeric",
-                                              year: "numeric",
-                                            })
-                                          : "-"}
-                                      </span>
-                                      <span>•</span>
-                                      <span className="capitalize">{p.method || p.payment_method || "PayMongo"}</span>
-                                      {(p.gateway_reference || p.reference_number) && (
-                                        <>
-                                          <span>•</span>
-                                          <span className="font-mono text-[10px]">
-                                            {p.gateway_reference || p.reference_number}
-                                          </span>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center justify-between sm:justify-end gap-3 pl-11 sm:pl-0">
-                                  <span className="font-bold text-sm text-foreground tabular-nums">
-                                    {formatCurrency(p.amount)}
-                                  </span>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleOpenReceipt(p, booking)}
-                                    className="h-7 text-xs font-medium gap-1 text-primary hover:text-primary hover:bg-primary/10 px-2"
-                                  >
-                                    <Receipt className="w-3 h-3" />
-                                    <span>Receipt</span>
-                                  </Button>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        {/* ── Cancellation & Refund Policy Dialog ── */}
+        <CustomerPolicyModal
+          open={showPolicyModal}
+          onClose={() => setShowPolicyModal(false)}
+          initialPolicy="cancellation"
+          businessInfo={businessInfo}
+        />
       </div>
-
-      {/* ── Official Printable Receipt Modal ── */}
-      {receiptPayment && (
-        <CustomerReceiptModal
-          payment={receiptPayment}
-          booking={receiptBooking}
-          onClose={() => {
-            setReceiptPayment(null);
-            setReceiptBooking(null);
-          }}
-          formatCurrency={formatCurrency}
-        />
-      )}
-
-      {choiceModalOpen && choiceModalBooking && (
-        <PaymentChoiceModal
-          open={choiceModalOpen}
-          onClose={() => {
-            setChoiceModalOpen(false);
-            setChoiceModalBooking(null);
-          }}
-          booking={choiceModalBooking}
-          balanceAmount={getBookingRemainingBalance(choiceModalBooking)}
-          onSuccess={() => fetchData()}
-        />
-      )}
-
-      {/* Cancellation & Refund Policy Dialog */}
-      <CustomerPolicyModal
-        open={showPolicyModal}
-        onClose={() => setShowPolicyModal(false)}
-        initialPolicy="cancellation"
-        businessInfo={businessInfo}
-      />
     </CustomerDashboardLayout>
   );
 }

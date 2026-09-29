@@ -650,12 +650,6 @@ export default function AdminReservations() {
             >
               <RefreshCw size={13} className={loading ? "animate-spin text-primary" : ""} /> Refresh
             </button>
-            <button
-              onClick={() => setShowNewBookingModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-semibold text-xs shadow-xs hover:bg-primary/90 transition-colors cursor-pointer"
-            >
-              <Plus size={14} /> New Booking
-            </button>
           </div>
         </div>
 

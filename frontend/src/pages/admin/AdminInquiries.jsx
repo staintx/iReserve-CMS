@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { 
-  Search, Calendar, MapPin, Users, Mail, Phone, Clock, Eye, 
+import {
+  Search, Calendar, MapPin, Users, Mail, Phone, Clock, Eye,
   ChevronRight, Plus, X, MoreHorizontal, LayoutList, LayoutGrid,
   FileText, Send, Archive, ArchiveRestore, AlertCircle,
   Palette, Sparkles, Utensils, RefreshCw, ArrowUpRight, ChevronLeft, Check, Info,
@@ -20,6 +20,7 @@ import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { bookingIdentity } from "../../lib/specialOffers";
 import { resolveServiceType } from "../../components/customer/portal/statusMeta";
 import { eventSpaceLabel } from "../../lib/packageDisplay";
+import WalkInBookingModal from "../../components/admin/booking/WalkInBookingModal";
 
 /**
  * Avatar Initials component with deterministic background color
@@ -317,7 +318,10 @@ export default function AdminInquiries() {
   // State
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+  const [showNewInquiryModal, setShowNewInquiryModal] = useState(
+    searchParams.get("new") === "true" || searchParams.get("new") === "1"
+  );
+
   // Filters & Search
   const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") || "all");
@@ -639,17 +643,17 @@ export default function AdminInquiries() {
       },
       isConverted
         ? {
-            key: "reservation",
-            label: "View Reservation",
-            icon: CheckCircle2,
-            onSelect: () => navigate("/admin/bookings/reservations"),
-          }
+          key: "reservation",
+          label: "View Reservation",
+          icon: CheckCircle2,
+          onSelect: () => navigate("/admin/bookings/reservations"),
+        }
         : {
-            key: "quote",
-            label: r.latestQuote ? "Edit Quotation" : "Create Quotation",
-            icon: FileText,
-            onSelect: () => navigate(`/admin/quotes/${r._id}/details`),
-          },
+          key: "quote",
+          label: r.latestQuote ? "Edit Quotation" : "Create Quotation",
+          icon: FileText,
+          onSelect: () => navigate(`/admin/quotes/${r._id}/details`),
+        },
       {
         key: "archive",
         label: r.archived ? "Restore Inquiry" : "Archive Inquiry",
@@ -658,15 +662,15 @@ export default function AdminInquiries() {
       },
       ...(canReject
         ? [
-            { divider: true },
-            {
-              key: "reject",
-              label: "Reject Inquiry",
-              icon: X,
-              destructive: true,
-              onSelect: () => setCancelTarget(r),
-            },
-          ]
+          { divider: true },
+          {
+            key: "reject",
+            label: "Reject Inquiry",
+            icon: X,
+            destructive: true,
+            onSelect: () => setCancelTarget(r),
+          },
+        ]
         : []),
     ];
   };
@@ -684,10 +688,18 @@ export default function AdminInquiries() {
               Manage and respond to customer inquiries. Track progress from initial request to booking.
             </p>
           </div>
+
           <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
             <button
-              onClick={() => navigate("/admin/bookings/reservations?new=true")}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-semibold text-xs shadow-xs hover:bg-primary/90 transition-colors"
+              onClick={loadData}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-card border border-border/80 text-foreground rounded-lg hover:bg-muted shadow-2xs transition-colors cursor-pointer"
+              title="Refresh inquiries data"
+            >
+              <RefreshCw size={13} className={loading ? "animate-spin text-primary" : ""} /> Refresh
+            </button>
+            <button
+              onClick={() => setShowNewInquiryModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-semibold text-xs shadow-xs hover:bg-primary/90 transition-colors cursor-pointer"
             >
               <Plus size={14} /> New Inquiry
             </button>
@@ -696,541 +708,535 @@ export default function AdminInquiries() {
 
         {/* Main Content Area (Uncompressed 100% Full Width) */}
         <div className="space-y-3.5 w-full">
-            {/* Operational KPI Summary Cards Row (3 evenly-spaced cards) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <KPICard
-                title="Active Inquiries"
-                value={activeCount}
-                sub="Open leads in pipeline"
-                icon={Mail}
+          {/* Operational KPI Summary Cards Row (3 evenly-spaced cards) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <KPICard
+              title="Active Inquiries"
+              value={activeCount}
+              sub="Open leads in pipeline"
+              icon={Mail}
+            />
+            <KPICard
+              title="Quotation Sent"
+              value={quotationSentCount}
+              sub="Awaiting client decision"
+              icon={FileText}
+            />
+            <KPICard
+              title="Converted Bookings"
+              value={convertedCount}
+              sub={`${conversionPct}% conversion rate`}
+              icon={CheckCircle2}
+            />
+          </div>
+
+          {/* Single-Line Interactive Filter Bar */}
+          <div className="bg-white border border-slate-200/80 rounded-xl p-2 sm:p-2.5 shadow-2xs flex flex-wrap items-center gap-2 font-sans">
+            {/* Search Input Field */}
+            <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={13} />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search customer, event, phone, venue..."
+                className="w-full pl-8 pr-7 py-1 text-xs bg-white border border-slate-200 text-slate-800 placeholder:text-slate-400 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 h-8 transition-colors"
               />
-              <KPICard
-                title="Quotation Sent"
-                value={quotationSentCount}
-                sub="Awaiting client decision"
-                icon={FileText}
-              />
-              <KPICard
-                title="Converted Bookings"
-                value={convertedCount}
-                sub={`${conversionPct}% conversion rate`}
-                icon={CheckCircle2}
-              />
-            </div>
-
-            {/* Single-Line Interactive Filter Bar */}
-            <div className="bg-white border border-slate-200/80 rounded-xl p-2 sm:p-2.5 shadow-2xs flex flex-wrap items-center gap-2 font-sans">
-              {/* Search Input Field */}
-              <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={13} />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search customer, event, phone, venue..."
-                  className="w-full pl-8 pr-7 py-1 text-xs bg-white border border-slate-200 text-slate-800 placeholder:text-slate-400 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 h-8 transition-colors"
-                />
-                {search && (
-                  <button
-                    type="button"
-                    onClick={() => setSearch("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    title="Clear search"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-
-              <div className="h-4 w-px bg-slate-200 hidden sm:block" />
-
-              {/* Status Filter Pill with Live Pipeline Counts */}
-              <FilterPill
-                label="Status"
-                icon={Sliders}
-                value={statusFilter}
-                defaultValue="all"
-                onSelect={(val) => {
-                  setStatusFilter(val);
-                  setPage(1);
-                }}
-                options={[
-                  { value: "all", label: "All Inquiries", count: totalInquiriesCount },
-                  { value: "active", label: "Active Pipeline", count: activeCount, icon: Mail },
-                  { value: "Needs Quotations", label: "Needs Quotation", count: quotesNeededCount, icon: Sparkles },
-                  { value: "Quotation Sent", label: "Quotation Sent", count: quotationSentCount, icon: FileText },
-                  { value: "Converted to Booking", label: "Converted", count: convertedCount, icon: CheckCircle2 },
-                  { value: "Cancelled", label: "Cancelled", icon: AlertTriangle },
-                  { value: "Archived", label: "Archived", count: archivedCount, icon: Archive },
-                ]}
-              />
-
-              {/* Format / Archetype Filter Pill */}
-              <FilterPill
-                label="Format"
-                icon={Palette}
-                value={archetypeFilter}
-                defaultValue="all"
-                onSelect={(val) => {
-                  setArchetypeFilter(val);
-                  setPage(1);
-                }}
-                options={[
-                  { value: "all", label: "All Formats" },
-                  { value: "package", label: "Standard Packages", icon: Package },
-                  { value: "bespoke", label: "Custom Styling", icon: Palette },
-                  { value: "food_only", label: "Food Only", icon: Utensils },
-                ]}
-              />
-
-              {/* Event Type Filter Pill */}
-              {availableEventTypes.length > 0 && (
-                <FilterPill
-                  label="Event Type"
-                  icon={Tag}
-                  value={eventTypeFilter}
-                  defaultValue="all"
-                  onSelect={(val) => {
-                    setEventTypeFilter(val);
-                    setPage(1);
-                  }}
-                  options={[
-                    { value: "all", label: "All Event Types" },
-                    ...availableEventTypes.map((type) => ({ value: type, label: type })),
-                  ]}
-                />
-              )}
-
-              {/* Date Range Filter Pill */}
-              <FilterPill
-                label="Date Range"
-                icon={Calendar}
-                value={dateRangeFilter}
-                defaultValue="all"
-                customActive={dateRangeFilter !== "all"}
-                customLabel={
-                  dateRangeFilter === "next_7"
-                    ? "Next 7 Days"
-                    : dateRangeFilter === "next_30"
-                    ? "Next 30 Days"
-                    : dateRangeFilter === "custom" && customDateRange.from && customDateRange.to
-                    ? `${customDateRange.from} to ${customDateRange.to}`
-                    : "Custom Range"
-                }
-                onClear={() => {
-                  setDateRangeFilter("all");
-                  setCustomDateRange({ from: "", to: "" });
-                  setPage(1);
-                }}
-                renderCustomContent={(close) => (
-                  <div className="p-2 space-y-2 text-xs font-sans">
-                    <div className="space-y-1">
-                      {[
-                        { id: "all", label: "All Dates" },
-                        { id: "next_7", label: "Next 7 Days" },
-                        { id: "next_30", label: "Next 30 Days" },
-                      ].map((opt) => (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => {
-                            setDateRangeFilter(opt.id);
-                            setPage(1);
-                            close();
-                          }}
-                          className={`w-full px-2.5 py-1.5 rounded-lg text-left transition-colors cursor-pointer flex items-center justify-between ${
-                            dateRangeFilter === opt.id ? "bg-blue-50/90 text-blue-700 font-semibold" : "hover:bg-slate-50 text-slate-700 hover:text-slate-900"
-                          }`}
-                        >
-                          <span>{opt.label}</span>
-                          {dateRangeFilter === opt.id && <Check size={11} strokeWidth={2.5} className="text-blue-600" />}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Custom Date Range</span>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <div>
-                          <label className="text-[9.5px] text-slate-500 block mb-0.5 font-medium">From</label>
-                          <input
-                            type="date"
-                            value={customDateRange.from}
-                            onChange={(e) => {
-                              setCustomDateRange((prev) => ({ ...prev, from: e.target.value }));
-                              setDateRangeFilter("custom");
-                              setPage(1);
-                            }}
-                            className="w-full text-[11px] bg-white border border-slate-200 text-slate-800 rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9.5px] text-slate-500 block mb-0.5 font-medium">To</label>
-                          <input
-                            type="date"
-                            value={customDateRange.to}
-                            onChange={(e) => {
-                              setCustomDateRange((prev) => ({ ...prev, to: e.target.value }));
-                              setDateRangeFilter("custom");
-                              setPage(1);
-                            }}
-                            className="w-full text-[11px] bg-white border border-slate-200 text-slate-800 rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              />
-
-              {/* Sort By Filter Pill */}
-              <FilterPill
-                label="Sort"
-                icon={ArrowUpRight}
-                value={sortBy}
-                defaultValue="newest"
-                align="end"
-                className="sm:ml-auto"
-                onSelect={(val) => setSortBy(val)}
-                options={[
-                  { value: "newest", label: "Date Received (Newest)" },
-                  { value: "oldest", label: "Date Received (Oldest)" },
-                  { value: "event_date", label: "Event Date (Soonest)" },
-                  { value: "guests", label: "Guest Count (High-Low)" },
-                ]}
-              />
-
-              {/* Global Clear Filters */}
-              {hasActiveFilters && (
+              {search && (
                 <button
                   type="button"
-                  onClick={clearFilters}
-                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  title="Clear search"
                 >
                   <X size={12} />
-                  <span>Reset</span>
                 </button>
               )}
             </div>
 
-            {/* List Toolbar Header */}
-            <div className="flex items-center justify-between gap-2 px-0.5">
-              <div className="text-xs font-bold text-foreground">
-                {totalItems} {totalItems === 1 ? "inquiry" : "inquiries"}
-              </div>
+            <div className="h-4 w-px bg-slate-200 hidden sm:block" />
 
-              {/* View Switcher Toggle */}
-              <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border/60">
-                <button
-                  onClick={() => setViewMode("table")}
-                  className={`p-1 rounded-md transition-colors ${
-                    viewMode === "table"
-                      ? "bg-primary text-primary-foreground shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                  title="Table view"
-                >
-                  <LayoutList size={13} />
-                </button>
-                <button
-                  onClick={() => setViewMode("grid")}
-                  className={`p-1 rounded-md transition-colors ${
-                    viewMode === "grid"
-                      ? "bg-primary text-primary-foreground shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                  title="Grid view"
-                >
-                  <LayoutGrid size={13} />
-                </button>
-              </div>
-            </div>
+            {/* Status Filter Pill with Live Pipeline Counts */}
+            <FilterPill
+              label="Status"
+              icon={Sliders}
+              value={statusFilter}
+              defaultValue="all"
+              onSelect={(val) => {
+                setStatusFilter(val);
+                setPage(1);
+              }}
+              options={[
+                { value: "all", label: "All Inquiries", count: totalInquiriesCount },
+                { value: "active", label: "Active Pipeline", count: activeCount, icon: Mail },
+                { value: "Needs Quotations", label: "Needs Quotation", count: quotesNeededCount, icon: Sparkles },
+                { value: "Quotation Sent", label: "Quotation Sent", count: quotationSentCount, icon: FileText },
+                { value: "Converted to Booking", label: "Converted", count: convertedCount, icon: CheckCircle2 },
+                { value: "Cancelled", label: "Cancelled", icon: AlertTriangle },
+                { value: "Archived", label: "Archived", count: archivedCount, icon: Archive },
+              ]}
+            />
 
-            {/* Table / Grid Content */}
-            {loading ? (
-              <div className="bg-card border border-border/70 rounded-xl p-10 text-center text-xs text-muted-foreground">
-                <RefreshCw className="animate-spin mx-auto mb-2 text-primary" size={18} />
-                Loading inquiries data...
-              </div>
-            ) : sortedBookings.length === 0 ? (
-              <div className="bg-card border border-border/70 rounded-xl p-10 text-center text-xs text-muted-foreground space-y-2">
-                <AlertCircle className="mx-auto text-muted-foreground/60" size={22} />
-                <p className="font-semibold text-foreground">No inquiries found</p>
-                <p>Try adjusting your search query or filter options.</p>
-                {(search || statusFilter !== "all" || eventTypeFilter !== "all" || dateRangeFilter !== "all") && (
-                  <button onClick={clearFilters} className="text-primary hover:underline font-medium text-xs">
-                    Clear all filters
-                  </button>
-                )}
-              </div>
-            ) : viewMode === "table" ? (
-              /* COMPACT TABLE VIEW */
-              <div className="bg-card border border-border/70 rounded-xl overflow-hidden shadow-2xs">
-                <div className="w-full">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-muted/50 border-b border-border text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                        <th className="py-2.5 pl-4 pr-3 font-semibold">Customer</th>
-                        <th className="py-2.5 px-3 font-semibold">Event Details</th>
-                        <th className="py-2.5 px-3 font-semibold">Status & Next Action</th>
-                        <th className="py-2.5 px-3 font-semibold">Package Type</th>
-                        <th className="py-2.5 px-3 font-semibold">Received</th>
-                        <th className="py-2.5 pr-4 pl-1 text-right font-semibold">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/50">
-                      {paginatedRows.map((r) => {
-                        const isSelected = selectedInquiry?._id === r._id;
-                        const nextStep = getNextStepInfo(r);
-                        return (
-                          <tr
-                            key={r._id}
-                            onClick={() => setSelectedInquiry(r)}
-                            className={`group cursor-pointer transition-colors ${
-                              isSelected
-                                ? "bg-primary/5 border-l-2 border-l-primary"
-                                : "hover:bg-muted/40"
-                            }`}
-                          >
-                            {/* Customer & Reference */}
-                            <td className="py-2.5 pl-4 pr-3 min-w-[140px]">
-                              <div className="min-w-0 space-y-0.5">
-                                <div className="flex items-center gap-1.5">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      navigate(`/admin/bookings/inquiries/${r._id}`);
-                                    }}
-                                    className="font-mono text-[10.5px] font-bold text-primary hover:text-primary-hover hover:underline inline-flex items-center gap-0.5 cursor-pointer"
-                                    title="View full details of inquiry"
-                                  >
-                                    <span>#{r.id}</span>
-                                    <ExternalLink size={10} className="opacity-70" />
-                                  </button>
-                                  {r.isNew && (
-                                    <span className="w-2 h-2 rounded-full bg-primary shrink-0" title="Recent activity" />
-                                  )}
-                                </div>
-                                <p className="font-semibold text-foreground text-xs truncate max-w-[150px]">{r.customer}</p>
-                                <p className="text-xs text-muted-foreground truncate max-w-[150px]">{r.email || "—"}</p>
-                                {r.phone && r.phone !== "—" && (
-                                  <p className="text-[11px] text-muted-foreground font-mono truncate">{r.phone}</p>
-                                )}
-                              </div>
-                            </td>
+            {/* Format / Archetype Filter Pill */}
+            <FilterPill
+              label="Format"
+              icon={Palette}
+              value={archetypeFilter}
+              defaultValue="all"
+              onSelect={(val) => {
+                setArchetypeFilter(val);
+                setPage(1);
+              }}
+              options={[
+                { value: "all", label: "All Formats" },
+                { value: "package", label: "Standard Packages", icon: Package },
+                { value: "bespoke", label: "Custom Styling", icon: Palette },
+                { value: "food_only", label: "Food Only", icon: Utensils },
+              ]}
+            />
 
-                            {/* Event Details */}
-                            <td className="py-2.5 px-3">
-                              <div className="space-y-0.5">
-                                <div className="font-semibold text-foreground text-xs truncate">
-                                  {r.eventType}
-                                </div>
-                                <div className="text-xs text-muted-foreground tabular-nums truncate">
-                                  {r.eventDateFormatted} · {r.guests} pax{r.eventSpaceSize ? ` · ${r.eventSpaceSize}` : ""}
-                                </div>
-                                <div className="text-[11px] text-muted-foreground truncate max-w-[140px] flex items-center gap-1" title={r.venueFull !== "Venue TBA" ? r.venueFull : undefined}>
-                                  <MapPin size={11} className="shrink-0 text-muted-foreground" />
-                                  <span className="truncate">{r.venue}</span>
-                                </div>
-                              </div>
-                            </td>
+            {/* Event Type Filter Pill */}
+            {availableEventTypes.length > 0 && (
+              <FilterPill
+                label="Event Type"
+                icon={Tag}
+                value={eventTypeFilter}
+                defaultValue="all"
+                onSelect={(val) => {
+                  setEventTypeFilter(val);
+                  setPage(1);
+                }}
+                options={[
+                  { value: "all", label: "All Event Types" },
+                  ...availableEventTypes.map((type) => ({ value: type, label: type })),
+                ]}
+              />
+            )}
 
-                            {/* Status & Next Action (High Priority Column) */}
-                            <td className="py-2.5 px-3 whitespace-nowrap">
-                              <div className="space-y-1">
-                                <div>
-                                  <Badge status={r.status} />
-                                </div>
-                                <div>
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] border shadow-2xs ${nextStep.tone}`}>
-                                    {nextStep.icon && <nextStep.icon size={11} className="shrink-0" />}
-                                    <span>{nextStep.badge}</span>
-                                  </span>
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* Package Type */}
-                            <td className="py-2.5 px-3 whitespace-nowrap">
-                              <PackageTypeTag type={r.bookingType} label={r.bookingTypeLabel} />
-                            </td>
-
-                            {/* Received / Updated (Clean Formatted Strings) */}
-                            <td className="py-2.5 px-3 whitespace-nowrap">
-                              <div className="space-y-0.5">
-                                <p className="font-medium text-foreground text-xs tabular-nums">
-                                  {r.createdDateStr}
-                                </p>
-                                <div className="flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
-                                  <span>{r.createdTimeStr}</span>
-                                  <span>·</span>
-                                  <span className={r.isNew ? "text-primary font-semibold" : ""}>{r.updatedRelative}</span>
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* Actions (Direct 1-Click Action Button + Drawer View + More Options) */}
-                            <td className="py-2.5 pr-3 pl-1 text-right whitespace-nowrap shrink-0" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-end gap-1.5">
-                                {/* Contextual Next Step Action Button */}
-                                {nextStep.actionType === "create_quote" ? (
-                                  <button
-                                    onClick={() => navigate(`/admin/quotes/${r._id}/details`)}
-                                    title="Create quotation for customer"
-                                    className="px-2.5 py-1 text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
-                                  >
-                                    <Plus size={12} />
-                                    <span>Create Quote</span>
-                                  </button>
-                                ) : nextStep.actionType === "view_booking" ? (
-                                  <button
-                                    onClick={() => navigate('/admin/bookings/reservations')}
-                                    title="View confirmed reservation"
-                                    className="px-2.5 py-1 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
-                                  >
-                                    <CheckCircle2 size={12} />
-                                    <span>View Booking</span>
-                                  </button>
-                                ) : nextStep.actionType === "view_quote" ? (
-                                  <button
-                                    onClick={() => navigate(`/admin/quotes/${r._id}/details`)}
-                                    title="View issued quotation"
-                                    className="px-2.5 py-1 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
-                                  >
-                                    <FileText size={12} />
-                                    <span>View Quote</span>
-                                  </button>
-                                ) : null}
-
-                                <button
-                                  onClick={() => setSelectedInquiry(r)}
-                                  title="Quick View Inquiry Summary"
-                                  aria-label="Quick View Inquiry Summary"
-                                  className="px-2 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-blue-50/80 hover:text-[#4C81E0] hover:border-blue-200/80 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
-                                >
-                                  <Eye size={12} className="text-muted-foreground" />
-                                  <span>Summary</span>
-                                </button>
-
-                                <RowActionsMenu actions={buildInquiryActions(r)} />
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Pagination */}
-                <div className="px-3 py-2 bg-muted/20 border-t border-border/60 flex items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-1">
-                    <button
-                      disabled={page <= 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      className="p-1 rounded-md border border-input bg-background disabled:opacity-40 hover:bg-accent transition-colors"
-                    >
-                      <ChevronLeft size={13} />
-                    </button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            {/* Date Range Filter Pill */}
+            <FilterPill
+              label="Date Range"
+              icon={Calendar}
+              value={dateRangeFilter}
+              defaultValue="all"
+              customActive={dateRangeFilter !== "all"}
+              customLabel={
+                dateRangeFilter === "next_7"
+                  ? "Next 7 Days"
+                  : dateRangeFilter === "next_30"
+                    ? "Next 30 Days"
+                    : dateRangeFilter === "custom" && customDateRange.from && customDateRange.to
+                      ? `${customDateRange.from} to ${customDateRange.to}`
+                      : "Custom Range"
+              }
+              onClear={() => {
+                setDateRangeFilter("all");
+                setCustomDateRange({ from: "", to: "" });
+                setPage(1);
+              }}
+              renderCustomContent={(close) => (
+                <div className="p-2 space-y-2 text-xs font-sans">
+                  <div className="space-y-1">
+                    {[
+                      { id: "all", label: "All Dates" },
+                      { id: "next_7", label: "Next 7 Days" },
+                      { id: "next_30", label: "Next 30 Days" },
+                    ].map((opt) => (
                       <button
-                        key={p}
-                        onClick={() => setPage(p)}
-                        className={`w-6 h-6 rounded-md font-semibold text-[11px] transition-colors ${
-                          page === p ? "bg-primary text-primary-foreground shadow-2xs" : "border border-input bg-background hover:bg-accent"
-                        }`}
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setDateRangeFilter(opt.id);
+                          setPage(1);
+                          close();
+                        }}
+                        className={`w-full px-2.5 py-1.5 rounded-lg text-left transition-colors cursor-pointer flex items-center justify-between ${dateRangeFilter === opt.id ? "bg-blue-50/90 text-blue-700 font-semibold" : "hover:bg-slate-50 text-slate-700 hover:text-slate-900"
+                          }`}
                       >
-                        {p}
+                        <span>{opt.label}</span>
+                        {dateRangeFilter === opt.id && <Check size={11} strokeWidth={2.5} className="text-blue-600" />}
                       </button>
                     ))}
-                    <button
-                      disabled={page >= totalPages}
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                      className="p-1 rounded-md border border-input bg-background disabled:opacity-40 hover:bg-accent transition-colors"
-                    >
-                      <ChevronRight size={13} />
-                    </button>
                   </div>
-                  <div className="text-muted-foreground text-[10px]">
-                    Showing {Math.min((page - 1) * pageSize + 1, totalItems)}–{Math.min(page * pageSize, totalItems)} of {totalItems} inquiries
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* GRID VIEW */
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
-                {paginatedRows.map((r) => {
-                  const isSelected = selectedInquiry?._id === r._id;
-                  return (
-                    <div
-                      key={r._id}
-                      onClick={() => setSelectedInquiry(r)}
-                      className={`bg-card border rounded-xl p-3 space-y-2.5 transition-all cursor-pointer shadow-2xs ${
-                        isSelected ? "border-primary ring-2 ring-primary/20 bg-primary/5" : "border-border/70 hover:border-primary/50"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <AvatarInitials name={r.customer} />
-                          <div className="min-w-0">
-                            <p className="font-bold text-foreground text-xs truncate">{r.customer}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">{r.email}</p>
-                          </div>
-                        </div>
-                        <Badge status={r.status} />
+                  <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Custom Date Range</span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <div>
+                        <label className="text-[9.5px] text-slate-500 block mb-0.5 font-medium">From</label>
+                        <input
+                          type="date"
+                          value={customDateRange.from}
+                          onChange={(e) => {
+                            setCustomDateRange((prev) => ({ ...prev, from: e.target.value }));
+                            setDateRangeFilter("custom");
+                            setPage(1);
+                          }}
+                          className="w-full text-[11px] bg-white border border-slate-200 text-slate-800 rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </div>
-
-                      <div className="space-y-1 text-xs text-muted-foreground pt-1 border-t border-border/50">
-                        <div className="flex items-center justify-between font-semibold text-foreground">
-                          <span>{r.eventType}</span>
-                          <span className="text-[10px] text-muted-foreground">{r.guests} guests{r.eventSpaceSize ? ` · ${r.eventSpaceSize}` : ""}</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px]">
-                          <Calendar size={11} className="shrink-0 text-muted-foreground/70" />
-                          <span>{r.eventDateFormatted} · {r.eventTimeFormatted}</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px]" title={r.venueFull !== "Venue TBA" ? r.venueFull : undefined}>
-                          <MapPin size={11} className="shrink-0 text-muted-foreground/70" />
-                          <span className="truncate">{r.venue}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-1.5 border-t border-border/50">
-                        <span className="text-[9.5px] text-muted-foreground">
-                          Received {r.createdDateStr}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/admin/bookings/inquiries/${r._id}`);
-                            }}
-                            title="View Full Details"
-                            aria-label="View Full Details"
-                            className="px-2 py-1 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1"
-                          >
-                            <ExternalLink size={11} />
-                            <span>Full Details</span>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedInquiry(r);
-                            }}
-                            title="View Inquiry Summary"
-                            aria-label="View Inquiry Summary"
-                            className="px-2 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-muted hover:text-primary rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1"
-                          >
-                            <Eye size={12} className="text-muted-foreground" />
-                            <span>Summary</span>
-                          </button>
-                        </div>
+                      <div>
+                        <label className="text-[9.5px] text-slate-500 block mb-0.5 font-medium">To</label>
+                        <input
+                          type="date"
+                          value={customDateRange.to}
+                          onChange={(e) => {
+                            setCustomDateRange((prev) => ({ ...prev, to: e.target.value }));
+                            setDateRangeFilter("custom");
+                            setPage(1);
+                          }}
+                          className="w-full text-[11px] bg-white border border-slate-200 text-slate-800 rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                </div>
+              )}
+            />
+
+            {/* Sort By Filter Pill */}
+            <FilterPill
+              label="Sort"
+              icon={ArrowUpRight}
+              value={sortBy}
+              defaultValue="newest"
+              align="end"
+              className="sm:ml-auto"
+              onSelect={(val) => setSortBy(val)}
+              options={[
+                { value: "newest", label: "Date Received (Newest)" },
+                { value: "oldest", label: "Date Received (Oldest)" },
+                { value: "event_date", label: "Event Date (Soonest)" },
+                { value: "guests", label: "Guest Count (High-Low)" },
+              ]}
+            />
+
+            {/* Global Clear Filters */}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+              >
+                <X size={12} />
+                <span>Reset</span>
+              </button>
             )}
           </div>
+
+          {/* List Toolbar Header */}
+          <div className="flex items-center justify-between gap-2 px-0.5">
+            <div className="text-xs font-bold text-foreground">
+              {totalItems} {totalItems === 1 ? "inquiry" : "inquiries"}
+            </div>
+
+            {/* View Switcher Toggle */}
+            <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border/60">
+              <button
+                onClick={() => setViewMode("table")}
+                className={`p-1 rounded-md transition-colors ${viewMode === "table"
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                title="Table view"
+              >
+                <LayoutList size={13} />
+              </button>
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`p-1 rounded-md transition-colors ${viewMode === "grid"
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                title="Grid view"
+              >
+                <LayoutGrid size={13} />
+              </button>
+            </div>
+          </div>
+
+          {/* Table / Grid Content */}
+          {loading ? (
+            <div className="bg-card border border-border/70 rounded-xl p-10 text-center text-xs text-muted-foreground">
+              <RefreshCw className="animate-spin mx-auto mb-2 text-primary" size={18} />
+              Loading inquiries data...
+            </div>
+          ) : sortedBookings.length === 0 ? (
+            <div className="bg-card border border-border/70 rounded-xl p-10 text-center text-xs text-muted-foreground space-y-2">
+              <AlertCircle className="mx-auto text-muted-foreground/60" size={22} />
+              <p className="font-semibold text-foreground">No inquiries found</p>
+              <p>Try adjusting your search query or filter options.</p>
+              {(search || statusFilter !== "all" || eventTypeFilter !== "all" || dateRangeFilter !== "all") && (
+                <button onClick={clearFilters} className="text-primary hover:underline font-medium text-xs">
+                  Clear all filters
+                </button>
+              )}
+            </div>
+          ) : viewMode === "table" ? (
+            /* COMPACT TABLE VIEW */
+            <div className="bg-card border border-border/70 rounded-xl overflow-hidden shadow-2xs">
+              <div className="w-full">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-muted/50 border-b border-border text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <th className="py-2.5 pl-4 pr-3 font-semibold">Customer</th>
+                      <th className="py-2.5 px-3 font-semibold">Event Details</th>
+                      <th className="py-2.5 px-3 font-semibold">Status & Next Action</th>
+                      <th className="py-2.5 px-3 font-semibold">Package Type</th>
+                      <th className="py-2.5 px-3 font-semibold">Received</th>
+                      <th className="py-2.5 pr-4 pl-1 text-right font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {paginatedRows.map((r) => {
+                      const isSelected = selectedInquiry?._id === r._id;
+                      const nextStep = getNextStepInfo(r);
+                      return (
+                        <tr
+                          key={r._id}
+                          onClick={() => setSelectedInquiry(r)}
+                          className={`group cursor-pointer transition-colors ${isSelected
+                              ? "bg-primary/5 border-l-2 border-l-primary"
+                              : "hover:bg-muted/40"
+                            }`}
+                        >
+                          {/* Customer & Reference */}
+                          <td className="py-2.5 pl-4 pr-3 min-w-[140px]">
+                            <div className="min-w-0 space-y-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/admin/bookings/inquiries/${r._id}`);
+                                  }}
+                                  className="font-mono text-[10.5px] font-bold text-primary hover:text-primary-hover hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                                  title="View full details of inquiry"
+                                >
+                                  <span>#{r.id}</span>
+                                  <ExternalLink size={10} className="opacity-70" />
+                                </button>
+                                {r.isNew && (
+                                  <span className="w-2 h-2 rounded-full bg-primary shrink-0" title="Recent activity" />
+                                )}
+                              </div>
+                              <p className="font-semibold text-foreground text-xs truncate max-w-[150px]">{r.customer}</p>
+                              <p className="text-xs text-muted-foreground truncate max-w-[150px]">{r.email || "—"}</p>
+                              {r.phone && r.phone !== "—" && (
+                                <p className="text-[11px] text-muted-foreground font-mono truncate">{r.phone}</p>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Event Details */}
+                          <td className="py-2.5 px-3">
+                            <div className="space-y-0.5">
+                              <div className="font-semibold text-foreground text-xs truncate">
+                                {r.eventType}
+                              </div>
+                              <div className="text-xs text-muted-foreground tabular-nums truncate">
+                                {r.eventDateFormatted} · {r.guests} pax{r.eventSpaceSize ? ` · ${r.eventSpaceSize}` : ""}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground truncate max-w-[140px] flex items-center gap-1" title={r.venueFull !== "Venue TBA" ? r.venueFull : undefined}>
+                                <MapPin size={11} className="shrink-0 text-muted-foreground" />
+                                <span className="truncate">{r.venue}</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Status & Next Action (High Priority Column) */}
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <div className="space-y-1">
+                              <div>
+                                <Badge status={r.status} />
+                              </div>
+                              <div>
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] border shadow-2xs ${nextStep.tone}`}>
+                                  {nextStep.icon && <nextStep.icon size={11} className="shrink-0" />}
+                                  <span>{nextStep.badge}</span>
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Package Type */}
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <PackageTypeTag type={r.bookingType} label={r.bookingTypeLabel} />
+                          </td>
+
+                          {/* Received / Updated (Clean Formatted Strings) */}
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <div className="space-y-0.5">
+                              <p className="font-medium text-foreground text-xs tabular-nums">
+                                {r.createdDateStr}
+                              </p>
+                              <div className="flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
+                                <span>{r.createdTimeStr}</span>
+                                <span>·</span>
+                                <span className={r.isNew ? "text-primary font-semibold" : ""}>{r.updatedRelative}</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Actions (Direct 1-Click Action Button + Drawer View + More Options) */}
+                          <td className="py-2.5 pr-3 pl-1 text-right whitespace-nowrap shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Contextual Next Step Action Button */}
+                              {nextStep.actionType === "create_quote" ? (
+                                <button
+                                  onClick={() => navigate(`/admin/quotes/${r._id}/details`)}
+                                  title="Create quotation for customer"
+                                  className="px-2.5 py-1 text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
+                                >
+                                  <Plus size={12} />
+                                  <span>Create Quote</span>
+                                </button>
+                              ) : nextStep.actionType === "view_booking" ? (
+                                <button
+                                  onClick={() => navigate('/admin/bookings/reservations')}
+                                  title="View confirmed reservation"
+                                  className="px-2.5 py-1 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
+                                >
+                                  <CheckCircle2 size={12} />
+                                  <span>View Booking</span>
+                                </button>
+                              ) : nextStep.actionType === "view_quote" ? (
+                                <button
+                                  onClick={() => navigate(`/admin/quotes/${r._id}/details`)}
+                                  title="View issued quotation"
+                                  className="px-2.5 py-1 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
+                                >
+                                  <FileText size={12} />
+                                  <span>View Quote</span>
+                                </button>
+                              ) : null}
+
+                              <button
+                                onClick={() => setSelectedInquiry(r)}
+                                title="Quick View Inquiry Summary"
+                                aria-label="Quick View Inquiry Summary"
+                                className="px-2 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-blue-50/80 hover:text-[#4C81E0] hover:border-blue-200/80 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
+                              >
+                                <Eye size={12} className="text-muted-foreground" />
+                                <span>Summary</span>
+                              </button>
+
+                              <RowActionsMenu actions={buildInquiryActions(r)} />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <div className="px-3 py-2 bg-muted/20 border-t border-border/60 flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="p-1 rounded-md border border-input bg-background disabled:opacity-40 hover:bg-accent transition-colors"
+                  >
+                    <ChevronLeft size={13} />
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      className={`w-6 h-6 rounded-md font-semibold text-[11px] transition-colors ${page === p ? "bg-primary text-primary-foreground shadow-2xs" : "border border-input bg-background hover:bg-accent"
+                        }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                  <button
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="p-1 rounded-md border border-input bg-background disabled:opacity-40 hover:bg-accent transition-colors"
+                  >
+                    <ChevronRight size={13} />
+                  </button>
+                </div>
+                <div className="text-muted-foreground text-[10px]">
+                  Showing {Math.min((page - 1) * pageSize + 1, totalItems)}–{Math.min(page * pageSize, totalItems)} of {totalItems} inquiries
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* GRID VIEW */
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+              {paginatedRows.map((r) => {
+                const isSelected = selectedInquiry?._id === r._id;
+                return (
+                  <div
+                    key={r._id}
+                    onClick={() => setSelectedInquiry(r)}
+                    className={`bg-card border rounded-xl p-3 space-y-2.5 transition-all cursor-pointer shadow-2xs ${isSelected ? "border-primary ring-2 ring-primary/20 bg-primary/5" : "border-border/70 hover:border-primary/50"
+                      }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <AvatarInitials name={r.customer} />
+                        <div className="min-w-0">
+                          <p className="font-bold text-foreground text-xs truncate">{r.customer}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{r.email}</p>
+                        </div>
+                      </div>
+                      <Badge status={r.status} />
+                    </div>
+
+                    <div className="space-y-1 text-xs text-muted-foreground pt-1 border-t border-border/50">
+                      <div className="flex items-center justify-between font-semibold text-foreground">
+                        <span>{r.eventType}</span>
+                        <span className="text-[10px] text-muted-foreground">{r.guests} guests{r.eventSpaceSize ? ` · ${r.eventSpaceSize}` : ""}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px]">
+                        <Calendar size={11} className="shrink-0 text-muted-foreground/70" />
+                        <span>{r.eventDateFormatted} · {r.eventTimeFormatted}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px]" title={r.venueFull !== "Venue TBA" ? r.venueFull : undefined}>
+                        <MapPin size={11} className="shrink-0 text-muted-foreground/70" />
+                        <span className="truncate">{r.venue}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1.5 border-t border-border/50">
+                      <span className="text-[9.5px] text-muted-foreground">
+                        Received {r.createdDateStr}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/admin/bookings/inquiries/${r._id}`);
+                          }}
+                          title="View Full Details"
+                          aria-label="View Full Details"
+                          className="px-2 py-1 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1"
+                        >
+                          <ExternalLink size={11} />
+                          <span>Full Details</span>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedInquiry(r);
+                          }}
+                          title="View Inquiry Summary"
+                          aria-label="View Inquiry Summary"
+                          className="px-2 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-muted hover:text-primary rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1"
+                        >
+                          <Eye size={12} className="text-muted-foreground" />
+                          <span>Summary</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Slide-Over Inquiry Summary Drawer */}
         {selectedInquiry && (
@@ -1249,7 +1255,7 @@ export default function AdminInquiries() {
 
             {/* Slide-Over Panel */}
             <div className="relative w-full max-w-[460px] h-full bg-card border-l border-border/80 shadow-2xl flex flex-col z-10 text-xs animate-in slide-in-from-right duration-200">
-              
+
               {/* Pinned Drawer Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/95 backdrop-blur-xs shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
@@ -1385,8 +1391,8 @@ export default function AdminInquiries() {
                         {selectedInquiry.budgetRange && selectedInquiry.budgetRange !== "N/A"
                           ? selectedInquiry.budgetRange
                           : selectedInquiry.estimatedTotal
-                          ? `₱${Number(selectedInquiry.estimatedTotal).toLocaleString("en-PH")}`
-                          : "Custom / TBD"}
+                            ? `₱${Number(selectedInquiry.estimatedTotal).toLocaleString("en-PH")}`
+                            : "Custom / TBD"}
                       </span>
                     </div>
                     {/* Event Theme & Palette for standard inquiries */}
@@ -1428,101 +1434,101 @@ export default function AdminInquiries() {
                   selectedInquiry.inspirationImages?.length > 0 ||
                   selectedInquiry.customSetupScope?.length > 0 ||
                   selectedInquiry.customSetupNotes) && (
-                  <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/40 border border-blue-200/80 rounded-xl p-3.5 space-y-3">
-                    <div className="flex items-center justify-between gap-2 border-b border-blue-200/60 pb-2">
-                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
-                        <Palette size={12} className="text-blue-600" /> Custom Setup &amp; Moodboard Brief
-                      </h5>
-                      <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[9px] font-bold">
-                        Design from Scratch
-                      </span>
-                    </div>
+                    <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/40 border border-blue-200/80 rounded-xl p-3.5 space-y-3">
+                      <div className="flex items-center justify-between gap-2 border-b border-blue-200/60 pb-2">
+                        <h5 className="font-bold text-[10px] uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+                          <Palette size={12} className="text-blue-600" /> Custom Setup &amp; Moodboard Brief
+                        </h5>
+                        <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[9px] font-bold">
+                          Design from Scratch
+                        </span>
+                      </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      {selectedInquiry.eventTheme && (
-                        <div>
-                          <span className="text-[10px] text-blue-700/80 font-medium block">Theme &amp; Motif</span>
-                          <span className="font-semibold text-slate-900">{selectedInquiry.eventTheme}</span>
-                        </div>
-                      )}
-                      {Array.isArray(selectedInquiry.eventPalette) && selectedInquiry.eventPalette.length > 0 && (
-                        <div>
-                          <span className="text-[10px] text-blue-700/80 font-medium block">Color Palette</span>
-                          <div className="flex flex-wrap gap-1 mt-0.5">
-                            {selectedInquiry.eventPalette.map((col, idx) => (
-                              <span key={idx} className="px-1.5 py-0.2 rounded bg-white text-slate-800 text-[10px] font-medium border border-blue-200/60 shadow-2xs">
-                                {col}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {selectedInquiry.eventTheme && (
+                          <div>
+                            <span className="text-[10px] text-blue-700/80 font-medium block">Theme &amp; Motif</span>
+                            <span className="font-semibold text-slate-900">{selectedInquiry.eventTheme}</span>
+                          </div>
+                        )}
+                        {Array.isArray(selectedInquiry.eventPalette) && selectedInquiry.eventPalette.length > 0 && (
+                          <div>
+                            <span className="text-[10px] text-blue-700/80 font-medium block">Color Palette</span>
+                            <div className="flex flex-wrap gap-1 mt-0.5">
+                              {selectedInquiry.eventPalette.map((col, idx) => (
+                                <span key={idx} className="px-1.5 py-0.2 rounded bg-white text-slate-800 text-[10px] font-medium border border-blue-200/60 shadow-2xs">
+                                  {col}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {selectedInquiry.budgetRange && selectedInquiry.budgetRange !== "N/A" && (
+                          <div className="col-span-2">
+                            <span className="text-[10px] text-blue-700/80 font-medium block">Target Budget</span>
+                            <span className="font-bold text-blue-950 font-mono text-xs">{selectedInquiry.budgetRange}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Setup Scope Elements */}
+                      {Array.isArray(selectedInquiry.customSetupScope) && selectedInquiry.customSetupScope.length > 0 && (
+                        <div className="pt-1.5 border-t border-blue-200/50 space-y-1">
+                          <span className="text-[10px] text-blue-700/80 font-bold uppercase tracking-wider block">
+                            Scope Elements ({selectedInquiry.customSetupScope.length})
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {selectedInquiry.customSetupScope.map((scope, idx) => (
+                              <span key={idx} className="px-2 py-0.5 rounded-md bg-white text-blue-900 border border-blue-200 text-[11px] font-medium shadow-2xs">
+                                ✓ {scope}
                               </span>
                             ))}
                           </div>
                         </div>
                       )}
-                      {selectedInquiry.budgetRange && selectedInquiry.budgetRange !== "N/A" && (
-                        <div className="col-span-2">
-                          <span className="text-[10px] text-blue-700/80 font-medium block">Target Budget</span>
-                          <span className="font-bold text-blue-950 font-mono text-xs">{selectedInquiry.budgetRange}</span>
+
+                      {/* Stylist Notes */}
+                      {selectedInquiry.customSetupNotes && (
+                        <div className="pt-1.5 border-t border-blue-200/50 space-y-1">
+                          <span className="text-[10px] text-blue-700/80 font-bold uppercase tracking-wider block">
+                            Stylist Vision Notes
+                          </span>
+                          <p className="text-xs text-slate-800 bg-white/90 p-2.5 rounded-lg border border-blue-200/70 whitespace-pre-wrap leading-relaxed">
+                            {selectedInquiry.customSetupNotes}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Inspiration Moodboard Photos */}
+                      {Array.isArray(selectedInquiry.inspirationImages) && selectedInquiry.inspirationImages.length > 0 && (
+                        <div className="pt-2 border-t border-blue-200/50 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-blue-900 font-bold uppercase tracking-wider flex items-center gap-1">
+                              <ImageIcon size={11} /> Inspiration Pegs ({selectedInquiry.inspirationImages.length})
+                            </span>
+                            <span className="text-[9.5px] text-blue-600">Click to open</span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {selectedInquiry.inspirationImages.map((imgUrl, idx) => (
+                              <a
+                                key={idx}
+                                href={imgUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group relative aspect-square rounded-md overflow-hidden border border-blue-200/80 bg-white block shadow-2xs hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer"
+                                title="Open full resolution image"
+                              >
+                                <img src={imgUrl} alt={`Peg ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                                <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-[8px] px-1 rounded font-bold">
+                                  #{idx + 1}
+                                </span>
+                              </a>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
-
-                    {/* Setup Scope Elements */}
-                    {Array.isArray(selectedInquiry.customSetupScope) && selectedInquiry.customSetupScope.length > 0 && (
-                      <div className="pt-1.5 border-t border-blue-200/50 space-y-1">
-                        <span className="text-[10px] text-blue-700/80 font-bold uppercase tracking-wider block">
-                          Scope Elements ({selectedInquiry.customSetupScope.length})
-                        </span>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedInquiry.customSetupScope.map((scope, idx) => (
-                            <span key={idx} className="px-2 py-0.5 rounded-md bg-white text-blue-900 border border-blue-200 text-[11px] font-medium shadow-2xs">
-                              ✓ {scope}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Stylist Notes */}
-                    {selectedInquiry.customSetupNotes && (
-                      <div className="pt-1.5 border-t border-blue-200/50 space-y-1">
-                        <span className="text-[10px] text-blue-700/80 font-bold uppercase tracking-wider block">
-                          Stylist Vision Notes
-                        </span>
-                        <p className="text-xs text-slate-800 bg-white/90 p-2.5 rounded-lg border border-blue-200/70 whitespace-pre-wrap leading-relaxed">
-                          {selectedInquiry.customSetupNotes}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Inspiration Moodboard Photos */}
-                    {Array.isArray(selectedInquiry.inspirationImages) && selectedInquiry.inspirationImages.length > 0 && (
-                      <div className="pt-2 border-t border-blue-200/50 space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-blue-900 font-bold uppercase tracking-wider flex items-center gap-1">
-                            <ImageIcon size={11} /> Inspiration Pegs ({selectedInquiry.inspirationImages.length})
-                          </span>
-                          <span className="text-[9.5px] text-blue-600">Click to open</span>
-                        </div>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {selectedInquiry.inspirationImages.map((imgUrl, idx) => (
-                            <a
-                              key={idx}
-                              href={imgUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="group relative aspect-square rounded-md overflow-hidden border border-blue-200/80 bg-white block shadow-2xs hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer"
-                              title="Open full resolution image"
-                            >
-                              <img src={imgUrl} alt={`Peg ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                              <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-[8px] px-1 rounded font-bold">
-                                #{idx + 1}
-                              </span>
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  )}
 
                 {/* Special Preferences & Requirements */}
                 {(selectedInquiry.celebrantName || selectedInquiry.dietaryRestrictions || selectedInquiry.allergies || selectedInquiry.specialRequests) && (
@@ -1580,14 +1586,13 @@ export default function AdminInquiries() {
                         {selectedInquiry.createdDateStr}
                       </span>
                     </div>
-                    
+
                     <div className="flex-1 flex flex-col items-center relative z-10">
                       <div
-                        className={`w-5 h-5 rounded-full font-bold flex items-center justify-center text-[10px] ${
-                          selectedInquiry.latestQuote || selectedInquiry.status === "Quotation Sent"
+                        className={`w-5 h-5 rounded-full font-bold flex items-center justify-center text-[10px] ${selectedInquiry.latestQuote || selectedInquiry.status === "Quotation Sent"
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted text-muted-foreground border border-input"
-                        }`}
+                          }`}
                       >
                         {selectedInquiry.latestQuote ? <Check size={11} /> : "2"}
                       </div>
@@ -1596,11 +1601,10 @@ export default function AdminInquiries() {
 
                     <div className="flex-1 flex flex-col items-center relative z-10">
                       <div
-                        className={`w-5 h-5 rounded-full font-bold flex items-center justify-center text-[10px] ${
-                          selectedInquiry.convertedBookingId
+                        className={`w-5 h-5 rounded-full font-bold flex items-center justify-center text-[10px] ${selectedInquiry.convertedBookingId
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted text-muted-foreground border border-input"
-                        }`}
+                          }`}
                       >
                         3
                       </div>
@@ -1609,11 +1613,10 @@ export default function AdminInquiries() {
 
                     <div className="flex-1 flex flex-col items-center relative z-10">
                       <div
-                        className={`w-5 h-5 rounded-full font-bold flex items-center justify-center text-[10px] ${
-                          ["deposit_paid", "fully_paid"].includes(selectedInquiry.paymentStatus)
+                        className={`w-5 h-5 rounded-full font-bold flex items-center justify-center text-[10px] ${["deposit_paid", "fully_paid"].includes(selectedInquiry.paymentStatus)
                             ? "bg-emerald-600 text-white"
                             : "bg-muted text-muted-foreground border border-input"
-                        }`}
+                          }`}
                       >
                         4
                       </div>
@@ -1715,6 +1718,15 @@ export default function AdminInquiries() {
             confirmText={archiveTarget.archived ? "Restore Inquiry" : "Archive Inquiry"}
             onConfirm={() => handleArchiveToggle(archiveTarget, !archiveTarget.archived)}
             onCancel={() => setArchiveTarget(null)}
+          />
+        )}
+
+        {/* Modal: New Inquiry (Walk-In / Manual Creation) */}
+        {showNewInquiryModal && (
+          <WalkInBookingModal
+            open={showNewInquiryModal}
+            onClose={() => setShowNewInquiryModal(false)}
+            onCreated={loadData}
           />
         )}
       </div>

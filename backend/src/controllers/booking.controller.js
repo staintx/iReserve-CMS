@@ -3127,6 +3127,7 @@ exports.executeInquiryConversion = async ({
   inquiryId,
   eventManagerId = null,
   bypassDeposit = false,
+  paymentMethod = "cash",
   paymentDoc = null,
   io = null,
 }) => {
@@ -3342,8 +3343,8 @@ exports.executeInquiryConversion = async ({
     contact_method: inquiry.contact_method || "Email",
     
     total_price: totalPrice,
-    payment_status: approvedPayment ? "deposit_paid" : "pending",
-    status: approvedPayment ? "confirmed" : "pending deposit",
+    payment_status: approvedPayment ? "deposit_paid" : (bypassDeposit ? "deposit_paid" : "pending"),
+    status: approvedPayment ? "confirmed" : (bypassDeposit ? "confirmed" : "pending deposit"),
     ...(finalManagerId ? { event_manager_id: finalManagerId } : {}),
   };
 
@@ -3368,7 +3369,7 @@ exports.executeInquiryConversion = async ({
 
   inquiry.status = "Converted to Booking";
   inquiry.converted_booking_id = newBooking._id;
-  inquiry.payment_status = approvedPayment ? "deposit_paid" : inquiry.payment_status;
+  inquiry.payment_status = (approvedPayment || bypassDeposit) ? "deposit_paid" : inquiry.payment_status;
   await inquiry.save();
 
   if (quotation) {
@@ -3396,8 +3397,9 @@ exports.executeInquiryConversion = async ({
         amount: depositAmount,
         currency: "PHP",
         payment_type: "deposit",
-        status: "pending",
-        gateway: "paymongo"
+        status: bypassDeposit ? "approved" : "pending",
+        gateway: bypassDeposit ? (paymentMethod || "cash") : "paymongo",
+        paid_at: bypassDeposit ? new Date() : undefined,
       });
     }
   }
@@ -3495,6 +3497,7 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
   const inquiryId = req.params.id;
   const eventManagerId = req.body.event_manager_id || req.body.manager_id;
   const bypassDeposit = req.body.bypass_deposit === true;
+  const paymentMethod = req.body.payment_method || "cash";
 
   try {
     const io = req.app.get("io");
@@ -3502,6 +3505,7 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
       inquiryId,
       eventManagerId,
       bypassDeposit,
+      paymentMethod,
       io,
     });
     res.status(201).json({ message: "Inquiry converted to booking successfully", booking: newBooking });

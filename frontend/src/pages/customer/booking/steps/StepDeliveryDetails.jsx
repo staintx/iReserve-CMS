@@ -30,7 +30,7 @@ export default function StepDeliveryDetails({
     setForm((prev) => ({ ...prev, guest_count: String(nextValue) }));
   };
 
-  const currentCount = parseInt(form.guest_count, 10) || 1;
+  const currentCount = parseInt(form.guest_count, 10) || guestMin || 1;
   const isPickup = form.delivery_method === "pickup";
 
   const methods = [
@@ -69,7 +69,9 @@ export default function StepDeliveryDetails({
                 hint={
                   guestMax
                     ? `Guests between ${guestMin || 1} and ${guestMax} supported.`
-                    : "Dish prices are calculated per guest."
+                    : (guestMin && guestMin > 1)
+                      ? `Minimum of ${guestMin} guests required.`
+                      : "Dish prices are calculated per guest."
                 }
                 error={errors.guest_count}
               >

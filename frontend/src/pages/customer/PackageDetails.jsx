@@ -239,10 +239,10 @@ export default function PackageDetails() {
           : (activeScaffold?.price || data.setup_price || perGuestPrice(data) || 0),
         // A combo allows flexible guest count input starting from 1 or min pax
         guestMin: offer
-          ? data.guest_min || 1
+          ? data.guest_min || null
           : (activeScaffold?.guest_min || data.guest_min || null),
         guestMax: offer
-          ? data.guest_max || data.guest_count || null
+          ? data.guest_max || null
           : (activeScaffold?.guest_max || data.guest_max || null),
         selectedScaffoldOptionId: activeScaffold?._id || null,
         scaffoldWidth: activeScaffold?.width_ft || null,

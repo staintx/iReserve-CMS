@@ -53,7 +53,6 @@ import {
 import { OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
 import {
   isSpecialOffer,
-  offerGuestCount,
   offerBookingProblem,
   offerFoodByCategory,
   offerCourseRequirement,
@@ -145,8 +144,8 @@ export default function BookingWizard() {
   const initialPackageId = prefill.package_id || location.state?.packageId || null;
   const initialPackagePrice = location.state?.packagePrice || 0;
   const initialPackageName = prefill.package_name || location.state?.packageName || "";
-  const initialGuestMin = prefill.guest_count || location.state?.guestMin || null;
-  const initialGuestMax = prefill.guest_count || location.state?.guestMax || null;
+  const initialGuestMin = prefill.guest_min || location.state?.guestMin || null;
+  const initialGuestMax = prefill.guest_max || location.state?.guestMax || null;
   const initialScaffoldOptionId = location.state?.selectedScaffoldOptionId || "";
   const initialScaffoldWidth = location.state?.scaffoldWidth || undefined;
   const initialScaffoldLength = location.state?.scaffoldLength || undefined;
@@ -341,7 +340,6 @@ export default function BookingWizard() {
   //      add-ons — both of which belong to a setup package — are not asked
   //      about, not seeded, and not submitted.
   const isOffer = isSpecialOffer(packageDetails);
-  const offerPax = isOffer ? offerGuestCount(packageDetails) : 0;
 
   const { guestMin, guestMax } = useMemo(() => {
     const positive = (candidate) => {
@@ -350,8 +348,8 @@ export default function BookingWizard() {
     };
 
     if (isOffer) {
-      const pkgMin = positive(packageDetails?.guest_min) || 1;
-      const pkgMax = positive(packageDetails?.guest_max) || positive(packageDetails?.guest_count) || null;
+      const pkgMin = positive(packageDetails?.guest_min) || positive(initialGuestMin) || 1;
+      const pkgMax = positive(packageDetails?.guest_max) || positive(initialGuestMax) || null;
       return { guestMin: pkgMin, guestMax: pkgMax };
     }
 
@@ -706,10 +704,6 @@ export default function BookingWizard() {
         next.service_type = SERVICE_TYPES.FOOD_ONLY;
         changed = true;
       }
-      if (offerPax > 0 && Number(prev.guest_count) !== offerPax) {
-        next.guest_count = String(offerPax);
-        changed = true;
-      }
       // A combo decides its own dishes, so anything carried in from an earlier
       // package in the same session is not part of this order.
       if ((prev.selected_menu || []).length > 0) {
@@ -740,7 +734,7 @@ export default function BookingWizard() {
 
       return changed ? next : prev;
     });
-  }, [isOffer, offerPax]);
+  }, [isOffer]);
 
   // Sync scaffold options when regular packageDetails loads
   useEffect(() => {

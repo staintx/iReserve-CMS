@@ -769,14 +769,11 @@ function LandingComboCard({ pkg, perPax, pax, peso, navigate }) {
           </p>
         )}
 
-        <div className="ls-offer-chips">
-          {pax > 0 && (
-            <span className="ls-offer-chip">{pax} guests</span>
-          )}
-          {pkg.badge_text && (
+        {pkg.badge_text && (
+          <div className="ls-offer-chips">
             <span className="ls-offer-chip">{pkg.badge_text}</span>
-          )}
-        </div>
+          </div>
+        )}
 
         {pkg.description && (
           <p className="ls-pkg-desc">{pkg.description}</p>

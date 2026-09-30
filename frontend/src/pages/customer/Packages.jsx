@@ -532,14 +532,11 @@ function ComboCard({ offer, perPax, pax, peso, navigate }) {
           </p>
         )}
 
-        <div className="ls-offer-chips">
-          {pax > 0 && (
-            <span className="ls-offer-chip">{pax} guests</span>
-          )}
-          {offer.badge_text && (
+        {offer.badge_text && (
+          <div className="ls-offer-chips">
             <span className="ls-offer-chip">{offer.badge_text}</span>
-          )}
-        </div>
+          </div>
+        )}
 
         {offer.description && (
           <p className="ls-pkg-desc">{offer.description}</p>

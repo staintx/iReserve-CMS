@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { StaffAPI } from "../../api/staff";
 import StaffLayout from "../../components/layout/StaffLayout";
-import AdminCard from "../../components/admin/ui/AdminCard";
-import KPICard from "../../components/admin/ui/KPICard";
 import Btn from "../../components/admin/ui/Btn";
 import PageHeader from "../../components/admin/ui/PageHeader";
 import Badge from "../../components/admin/ui/Badge";
@@ -13,11 +11,8 @@ import useToast from "../../hooks/useToast";
 import { getSocket } from "../../api/socket";
 import { 
   Calendar as CalendarIcon, 
-  Clock, 
   MapPin, 
-  Users, 
   CheckCircle2, 
-  AlertCircle, 
   PackageCheck, 
   CalendarDays, 
   ArrowRight,
@@ -25,13 +20,11 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
   Phone,
   Lock,
   Sparkles
 } from "lucide-react";
 import { getEventTimingStatus } from "../../utils/format";
-
 
 const buildCalendar = (year, monthIndex) => {
   const firstDay = new Date(year, monthIndex, 1);
@@ -65,11 +58,6 @@ export default function StaffDashboard() {
   const [selectedDates, setSelectedDates] = useState(new Set());
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
 
-  /* The availability sheet is addressable. It is the crew's second recurring
-     job after reading their shifts, so the mobile tab bar links straight to
-     it — which only works if the open state lives in the URL rather than in
-     a local boolean the tab bar cannot reach. The desktop button opens the
-     same query, so both entrances are one code path. */
   const [searchParams, setSearchParams] = useSearchParams();
   const showCalendar = searchParams.get("availability") === "1";
   const setShowCalendar = (next) => {
@@ -80,19 +68,17 @@ export default function StaffDashboard() {
   };
   const [savingAvailability, setSavingAvailability] = useState(false);
 
-  const [shiftTab, setShiftTab] = useState("active"); // "active" | "completed"
-
-  const loadBookings = (tab = shiftTab) => {
+  const loadBookings = () => {
     setLoading(true);
-    StaffAPI.getBookings(tab)
+    StaffAPI.getBookings("active")
       .then((res) => setBookings(Array.isArray(res.data) ? res.data : []))
       .catch(() => notify("Failed to load assigned events.", "error"))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    loadBookings(shiftTab);
-  }, [shiftTab]);
+    loadBookings();
+  }, []);
 
   useEffect(() => {
     const socket = getSocket();
@@ -175,138 +161,62 @@ export default function StaffDashboard() {
     return match?.role || user?.position || "Crew";
   };
 
-  const nextUpcomingBooking = useMemo(() => {
-    if (bookings.length === 0) return null;
-    const now = new Date();
-    const sorted = [...bookings].sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
-    return sorted[0];
-  }, [bookings]);
-
-  // Shown in the availability sheet footer: on a phone the marked days
-  // scroll out of view above the pinned Save, so the count is the receipt.
   const offDayCount = useMemo(
     () => Array.from(selectedDates).filter((key) => !assignmentsByDate[key]).length,
     [selectedDates, assignmentsByDate]
   );
 
-  const verifiableEventsCount = useMemo(() => {
-    return bookings.filter((b) => getEventTimingStatus(b).isStarted).length;
-  }, [bookings]);
-
   return (
     <StaffLayout>
-      <div className="space-y-4">
-
-
+      <div className="space-y-5">
         <PageHeader
-          title="My Shifts"
-          description="Your assigned event schedules, briefings, and catering equipment checks"
+          title="My Events"
+          description="Your assigned catering events and shift schedules"
           actions={
             <Btn variant="secondary" size="sm" onClick={() => setShowCalendar(true)}>
-              <CalendarDays size={14} className="text-primary" />
-              My Availability Calendar
+              <CalendarDays size={14} className="text-[#4C81E0]" />
+              My Availability
             </Btn>
           }
         />
 
-        {/* Top KPI Cards (2x2 on mobile, 4-col on desktop) */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 sm:gap-3">
-          <KPICard
-            label="Active Shifts"
-            value={loading ? "..." : bookings.length || 0}
-            sub="Assigned to you"
-            icon={ClipboardList}
-            tone="info"
-          />
-          <KPICard
-            label="Next Shift"
-            value={nextUpcomingBooking?.event_date ? new Date(nextUpcomingBooking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "None"}
-            sub={nextUpcomingBooking?.start_time || "No immediate shifts"}
-            icon={CalendarIcon}
-            tone={nextUpcomingBooking ? "warning" : "neutral"}
-          />
-          <KPICard
-            label="My Position"
-            value={user?.position || "Staff Crew"}
-            sub="Active Roster"
-            icon={UserCheck}
-            tone="neutral"
-          />
-          <KPICard
-            label="Gear Check"
-            value={verifiableEventsCount > 0 ? `${verifiableEventsCount} Active` : "Locked"}
-            sub={verifiableEventsCount > 0 ? "Ready for return" : "Opens at start"}
-            icon={PackageCheck}
-            tone={verifiableEventsCount > 0 ? "success" : "neutral"}
-          />
-        </div>
-
-        {/* Assigned shifts. Each shift is one card whose body opens the
-            briefing; the gear check stays a separate control because it is a
-            different job with a different precondition — it is genuinely
-            locked until the event starts, and a lock has to be visible to
-            explain itself. Phase, venue and lead are ordered the way a crew
-            member reads them on the way to a job: when, where, who to call. */}
-        <section className="space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border rounded-md shadow-2xs w-fit">
-              <button
-                type="button"
-                onClick={() => setShiftTab("active")}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                  shiftTab === "active"
-                    ? "bg-card text-foreground shadow-2xs border border-border"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Upcoming Shifts
-              </button>
-              <button
-                type="button"
-                onClick={() => setShiftTab("completed")}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                  shiftTab === "completed"
-                    ? "bg-card text-foreground shadow-2xs border border-border"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Shift History (Completed)
-              </button>
-            </div>
-            <span className="text-xs font-semibold text-muted-foreground tabular-nums">
-              {bookings.length} {shiftTab === "active" ? "active" : "completed"} shift{bookings.length === 1 ? "" : "s"}
+        {/* Assigned Events Section */}
+        <section className="space-y-3.5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-800">
+              Assigned Shifts
+            </h2>
+            <span className="text-xs font-medium text-slate-500 tabular-nums">
+              {bookings.length} assigned event{bookings.length === 1 ? "" : "s"}
             </span>
           </div>
 
           {loading ? (
-            <AdminCard className="!p-10 text-center text-xs text-muted-foreground">
-              Loading your assigned shifts…
-            </AdminCard>
+            <div className="p-10 text-center text-xs text-slate-500 bg-white border border-slate-200/80 rounded-lg">
+              Loading your assigned events...
+            </div>
           ) : bookings.length === 0 ? (
-            <AdminCard className="!p-8 sm:!p-10 text-center space-y-2.5">
-              <CalendarIcon size={28} className="mx-auto text-muted-foreground" />
-              <h3 className="text-sm font-bold text-foreground">
-                {shiftTab === "active" ? "No active event assignments" : "No completed shifts yet"}
-              </h3>
-              <p className="mx-auto max-w-md text-xs leading-relaxed text-muted-foreground">
-                {shiftTab === "active"
-                  ? "Your Event Manager has not assigned you to an upcoming catering event yet. Once you are added to a booking crew it will appear here."
-                  : "Completed events and shifts you have worked will be archived here in your duty history."}
-              </p>
-              {shiftTab === "active" && (
-                <div className="pt-1">
-                  <Btn variant="secondary" size="sm" onClick={() => setShowCalendar(true)}>
-                    <CalendarDays size={14} className="text-primary" />
-                    Set my availability
-                  </Btn>
-                </div>
-              )}
-            </AdminCard>
+            <div className="p-8 sm:p-10 text-center space-y-3 bg-white border border-slate-200/80 rounded-lg">
+              <CalendarIcon size={32} className="mx-auto text-slate-400" />
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-900">
+                  No assigned events right now
+                </h3>
+                <p className="mx-auto max-w-md text-xs leading-relaxed text-slate-500">
+                  Your Event Manager has not assigned you to an upcoming catering event. Once assigned, your schedule, venue details, and briefing will appear here.
+                </p>
+              </div>
+              <div className="pt-1">
+                <Btn variant="secondary" size="sm" onClick={() => setShowCalendar(true)}>
+                  <CalendarDays size={14} className="text-[#4C81E0]" />
+                  Set my availability
+                </Btn>
+              </div>
+            </div>
           ) : (
-            <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2 sm:gap-4">
+            <ul className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
               {bookings.map((booking) => {
                 const role = getMyAssignedRole(booking);
-                const equipmentCount = (booking.equipment_returns || booking.inventory_items || []).length;
                 const managerName = booking.event_manager_id?.full_name || "Assigned Manager";
                 const managerPhone = booking.event_manager_id?.phone;
                 const timing = getEventTimingStatus(booking);
@@ -315,135 +225,126 @@ export default function StaffDashboard() {
                   "Location TBA";
 
                 return (
-                  <li key={booking._id}>
-                    <AdminCard className="!p-0 overflow-hidden transition-all hover:border-primary/50">
+                  <li key={booking._id} className="flex">
+                    <div className="w-full flex flex-col justify-between rounded-lg border border-slate-200/80 bg-white transition-all hover:border-[#4C81E0]/50 shadow-2xs overflow-hidden">
+                      {/* Top clickable area for event details */}
                       <button
                         type="button"
                         onClick={() => navigate(`/staff/events/${booking._id}`)}
-                        className="w-full space-y-2.5 p-3 text-left cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 sm:p-4"
+                        className="w-full p-4 text-left cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#4C81E0]/40 space-y-3"
                       >
-                        <span className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="flex flex-wrap items-center gap-1.5">
-                            <span className="flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-900">
-                              <UserCheck size={12} className="text-amber-700" />
+                        {/* Status & Role row */}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
+                              <UserCheck size={12} className="text-[#4C81E0]" />
                               {role}
                             </span>
 
                             {timing.isUpcoming && (
-                              <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10.5px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                              <span className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                                 <Lock size={11} className="text-slate-500" />
                                 Upcoming
                               </span>
                             )}
                             {timing.isStarted && !timing.isFinished && (
-                              <span className="flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10.5px] font-bold text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+                              <span className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
                                 <Sparkles size={11} className="text-emerald-600" />
-                                In progress
+                                In Progress
                               </span>
                             )}
                             {timing.isFinished && (
-                              <span className="flex items-center gap-1 rounded-md border border-blue-300 bg-blue-100 px-2 py-0.5 text-[10.5px] font-bold text-blue-900 dark:bg-blue-950 dark:text-blue-200">
+                              <span className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200">
                                 <CheckCircle2 size={11} className="text-blue-600" />
-                                Ready for return check
+                                Return Check
                               </span>
                             )}
-                          </span>
+                          </div>
                           <Badge status={booking.status || "confirmed"} />
-                        </span>
+                        </div>
 
-                        <span className="block">
-                          <span className="block text-[15px] font-bold leading-tight text-foreground sm:text-sm">
+                        {/* Event Title & Reference */}
+                        <div>
+                          <span className="block text-base font-bold leading-tight text-slate-900">
                             {booking.event_type || "Catering Event"}
                           </span>
-                          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                            {booking.customer_id?.full_name || "Valued Client"} · REF{" "}
-                            <span className="font-mono">
+                          <span className="mt-0.5 block truncate text-xs text-slate-500">
+                            Client: {booking.customer_id?.full_name || "Valued Client"} · Ref{" "}
+                            <span className="font-mono text-slate-700">
                               {booking.reference || booking._id?.slice(-6).toUpperCase()}
                             </span>
                           </span>
-                        </span>
+                        </div>
 
-                        <span className="grid grid-cols-2 gap-2 rounded-lg border border-border/80 bg-muted/20 p-2.5 text-xs shadow-2xs">
-                          <span className="block space-y-0.5">
-                            <span className="flex items-center gap-1 text-[10px] font-bold uppercase text-muted-foreground">
-                              <CalendarIcon size={11} /> Date &amp; time
-                            </span>
-                            <span className="block font-bold text-foreground">
-                              {booking.event_date
-                                ? new Date(booking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                                : "TBA"}
-                            </span>
-                            <span className="block text-[11.5px] text-muted-foreground">
-                              {booking.start_time || "Time TBA"}
-                            </span>
-                          </span>
+                        {/* Key Operational Info: When, Where, Lead */}
+                        <div className="pt-2 border-t border-slate-100 space-y-2 text-xs">
+                          <div className="flex items-start gap-2 text-slate-700">
+                            <CalendarIcon size={14} className="text-slate-400 mt-0.5 shrink-0" />
+                            <div>
+                              <span className="font-semibold text-slate-900">
+                                {booking.event_date
+                                  ? new Date(booking.event_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
+                                  : "Date TBA"}
+                              </span>
+                              <span className="text-slate-500 ml-1.5">
+                                at {booking.start_time || "Time TBA"} ({booking.duration_hours || 4} hrs)
+                              </span>
+                            </div>
+                          </div>
 
-                          <span className="block min-w-0 space-y-0.5">
-                            <span className="flex items-center gap-1 text-[10px] font-bold uppercase text-muted-foreground">
-                              <MapPin size={11} /> Venue
-                            </span>
-                            <span className="block truncate font-bold text-foreground">
-                              {booking.venue_type || "Venue TBA"}
-                            </span>
-                            <span className="block truncate text-[11.5px] text-muted-foreground">
-                              {locationAddress}
-                            </span>
-                          </span>
-                        </span>
+                          <div className="flex items-start gap-2 text-slate-700">
+                            <MapPin size={14} className="text-slate-400 mt-0.5 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="font-semibold text-slate-900 truncate block">
+                                {booking.venue_type || "Venue TBA"}
+                              </span>
+                              <span className="text-slate-500 truncate block text-[11.5px]">
+                                {locationAddress}
+                              </span>
+                            </div>
+                          </div>
 
-                        <span className="flex items-center justify-between gap-2 text-xs">
-                          <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
-                            <ShieldCheck size={13} className="shrink-0 text-amber-600" />
+                          <div className="flex items-center gap-1.5 pt-1 border-t border-slate-100 text-xs text-slate-600">
+                            <ShieldCheck size={14} className="text-[#4C81E0] shrink-0" />
                             <span className="truncate">
-                              Lead: <strong className="text-foreground">{managerName}</strong>
+                              Lead Manager: <strong className="text-slate-900">{managerName}</strong>
                             </span>
-                          </span>
-                          <span
-                            className={`flex shrink-0 items-center gap-1 text-[11.5px] font-semibold ${
-                              timing.isStarted ? "text-primary" : "text-muted-foreground"
-                            }`}
-                          >
-                            <PackageCheck size={13} />
-                            {equipmentCount} items
-                          </span>
-                        </span>
+                          </div>
+                        </div>
                       </button>
 
-                      {/* Actions live outside the card button: a link inside a
-                          button is invalid, and `tel:` has to stay a link so
-                          the phone offers it to the dialler. */}
-                      <div className="flex items-stretch gap-px border-t border-border/60 bg-border/40">
+                      {/* Card Action Footer */}
+                      <div className="flex items-stretch border-t border-slate-200/80 bg-slate-50/60 divide-x divide-slate-200/80">
                         {managerPhone && (
                           <a
                             href={`tel:${managerPhone}`}
-                            className="flex min-h-[46px] flex-1 items-center justify-center gap-1.5 bg-card text-[13px] font-semibold text-muted-foreground transition-colors hover:text-primary"
+                            className="flex min-h-[44px] flex-1 items-center justify-center gap-1.5 text-xs font-semibold text-slate-600 transition-colors hover:text-[#4C81E0] hover:bg-slate-100"
                           >
-                            <Phone size={14} />
-                            Call lead
+                            <Phone size={13} />
+                            Call Lead
                           </a>
                         )}
-                        {timing.isStarted ? (
+                        {timing.isFinished || (timing.isStarted && !timing.isFinished) ? (
                           <button
                             type="button"
-                            onClick={() => navigate(`/staff/events/${booking._id}?tab=equipment`)}
-                            className="flex min-h-[46px] flex-1 items-center justify-center gap-1.5 bg-[#4C81E0] text-[13px] font-bold text-white transition-colors hover:bg-[#3b6bc4] cursor-pointer portal-press"
+                            onClick={() => navigate(`/staff/events/${booking._id}#equipment-check`)}
+                            className="flex min-h-[44px] flex-1 items-center justify-center gap-1.5 bg-[#4C81E0] text-xs font-semibold text-white transition-colors hover:bg-[#3b6bc4] cursor-pointer"
                           >
                             <PackageCheck size={14} />
-                            Count gear
+                            Equipment Check
                           </button>
                         ) : (
                           <button
                             type="button"
-                            onClick={() => navigate(`/staff/events/${booking._id}?tab=equipment`)}
-                            title="Return counts open once the event starts"
-                            className="flex min-h-[46px] flex-1 items-center justify-center gap-1.5 bg-card text-[13px] font-semibold text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
+                            onClick={() => navigate(`/staff/events/${booking._id}`)}
+                            className="flex min-h-[44px] flex-1 items-center justify-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 cursor-pointer transition-colors"
                           >
-                            <Lock size={14} />
-                            Gear manifest
+                            <span>View Event Details</span>
+                            <ArrowRight size={13} />
                           </button>
                         )}
                       </div>
-                    </AdminCard>
+                    </div>
                   </li>
                 );
               })}
@@ -451,52 +352,46 @@ export default function StaffDashboard() {
           )}
         </section>
 
-        {/* Availability sheet.
-            Six rows of 44px day cells plus an explainer and a footer is
-            taller than a phone, and the dialog it lived in had no scroll
-            region — so on a 667px screen the Save button sat below the clip
-            and the crew could toggle days they could never commit. The sheet
-            scrolls now, and Save is pinned where it is visible from the
-            first tap and reports how many days are marked off. */}
+        {/* Availability Modal */}
         {showCalendar && (
           <Modal
             title="My Availability"
-            description="Tap a date to mark yourself off-duty. Dates you are already booked on cannot be changed here."
+            description="Tap a date to mark yourself off-duty. Dates with booked events are locked and cannot be changed."
             onClose={() => setShowCalendar(false)}
             className="sm:max-w-xl"
             footer={
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[11.5px] font-medium text-muted-foreground tabular-nums">
+                <span className="text-xs font-medium text-slate-500 tabular-nums">
                   {offDayCount === 0
-                    ? "No days marked off"
-                    : `${offDayCount} day${offDayCount === 1 ? "" : "s"} off this month`}
+                    ? "No days marked off-duty"
+                    : `${offDayCount} day${offDayCount === 1 ? "" : "s"} off-duty this month`}
                 </span>
                 <div className="flex items-center gap-2">
                   <Btn variant="secondary" size="sm" onClick={() => setShowCalendar(false)} disabled={savingAvailability}>
                     Cancel
                   </Btn>
                   <Btn variant="primary" size="sm" onClick={saveAvailability} disabled={savingAvailability}>
-                    {savingAvailability ? "Saving…" : "Save"}
+                    {savingAvailability ? "Saving..." : "Save Availability"}
                   </Btn>
                 </div>
               </div>
             }
           >
-            <div className="space-y-3.5 text-sm">
+            <div className="space-y-4 text-sm">
               <div className="flex items-center justify-between gap-2">
                 <button
                   type="button"
                   aria-label="Previous month"
-                  className="grid h-10 w-10 place-items-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
+                  className="grid h-9 w-9 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 cursor-pointer"
                   onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
                 >
                   <ChevronLeft size={16} />
                 </button>
-                <div className="text-sm font-bold text-foreground tabular-nums">{monthLabel}</div>
+                <div className="text-sm font-bold text-slate-900 tabular-nums">{monthLabel}</div>
                 <button
                   type="button"
                   aria-label="Next month"
-                  className="grid h-10 w-10 place-items-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
+                  className="grid h-9 w-9 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 cursor-pointer"
                   onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
                 >
                   <ChevronRight size={16} />
@@ -504,7 +399,7 @@ export default function StaffDashboard() {
               </div>
 
               <div>
-                <div className="grid grid-cols-7 gap-1 pb-1.5 text-center text-[11px] font-bold text-muted-foreground">
+                <div className="grid grid-cols-7 gap-1 pb-1.5 text-center text-xs font-semibold text-slate-500">
                   {"Sun Mon Tue Wed Thu Fri Sat".split(" ").map((label) => (
                     <div key={label} aria-hidden="true">
                       <span className="sm:hidden">{label.slice(0, 1)}</span>
@@ -519,11 +414,11 @@ export default function StaffDashboard() {
                     const entry = day.date ? assignmentsByDate[dateKey] : null;
                     const isUnavailable = dateKey ? selectedDates.has(dateKey) : false;
 
-                    let cellBg = "bg-card border-border/80 text-foreground hover:border-primary";
+                    let cellBg = "bg-white border-slate-200 text-slate-800 hover:border-[#4C81E0]";
                     if (entry) {
-                      cellBg = "bg-amber-100 border-amber-300 text-amber-950 font-bold cursor-not-allowed";
+                      cellBg = "bg-amber-50 border-amber-200 text-amber-900 font-bold cursor-not-allowed";
                     } else if (isUnavailable) {
-                      cellBg = "bg-red-100 border-red-300 text-red-950 font-bold";
+                      cellBg = "bg-rose-50 border-rose-200 text-rose-950 font-bold";
                     }
 
                     if (!day.date) {
@@ -539,14 +434,14 @@ export default function StaffDashboard() {
                         aria-pressed={isUnavailable}
                         aria-label={
                           day.date.toLocaleDateString("en-US", { month: "long", day: "numeric" }) +
-                          (entry ? " — assigned to an event" : isUnavailable ? " — marked off-duty" : " — available")
+                          (entry ? " - assigned to an event" : isUnavailable ? " - marked off-duty" : " - available")
                         }
-                        className={`flex min-h-[46px] flex-col items-center justify-center rounded-lg border p-1 transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${cellBg}`}
+                        className={`flex min-h-[46px] flex-col items-center justify-center rounded-md border p-1 transition-all outline-none focus-visible:ring-2 focus-visible:ring-[#4C81E0]/40 ${cellBg}`}
                       >
-                        <span className="text-[13px] font-semibold leading-none tabular-nums">{day.label}</span>
-                        {entry && <span className="mt-0.5 text-[10px] leading-none text-amber-900">Booked</span>}
+                        <span className="text-xs font-semibold leading-none tabular-nums">{day.label}</span>
+                        {entry && <span className="mt-1 text-[10px] font-semibold leading-none text-amber-800">Booked</span>}
                         {!entry && isUnavailable && (
-                          <span className="mt-0.5 text-[10px] leading-none text-red-700">Off</span>
+                          <span className="mt-1 text-[10px] font-semibold leading-none text-rose-700">Off</span>
                         )}
                       </button>
                     );
@@ -554,15 +449,19 @@ export default function StaffDashboard() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border/60 pt-3 text-[11px] text-muted-foreground">
+              {/* Legend with plain, clear indicators */}
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-200 pt-3 text-xs text-slate-600">
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2.5 w-2.5 rounded border border-border bg-card" /> Available
+                  <span className="inline-block h-3 w-3 rounded border border-slate-300 bg-white" />
+                  <span>Available</span>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2.5 w-2.5 rounded border border-red-300 bg-red-100" /> Off-duty
+                  <span className="inline-block h-3 w-3 rounded border border-rose-300 bg-rose-50" />
+                  <span>Off-duty</span>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2.5 w-2.5 rounded border border-amber-300 bg-amber-100" /> Booked (locked)
+                  <span className="inline-block h-3 w-3 rounded border border-amber-300 bg-amber-50" />
+                  <span>Booked / locked</span>
                 </span>
               </div>
             </div>
@@ -570,6 +469,5 @@ export default function StaffDashboard() {
         )}
       </div>
     </StaffLayout>
-
   );
 }

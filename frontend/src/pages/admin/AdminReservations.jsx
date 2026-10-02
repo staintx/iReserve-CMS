@@ -1236,12 +1236,12 @@ export default function AdminReservations() {
                           <div className="col-span-2 pt-1.5 border-t border-border/50 flex items-center justify-between">
                             <div>
                               <span className="text-[10px] text-muted-foreground block font-medium flex items-center gap-1">
-                                <Users size={11} className="text-primary" /> Staff Team Dispatched
+                                <Users size={11} className="text-primary" /> Staff Assignment
                               </span>
                               <span className="font-medium text-foreground block mt-0.5">
                                 {selectedBooking.staffCount > 0
-                                  ? `${selectedBooking.staffCount} crew member${selectedBooking.staffCount === 1 ? "" : "s"} assigned`
-                                  : "No staff team assigned yet"}
+                                  ? `${selectedBooking.staffCount} staff member${selectedBooking.staffCount === 1 ? "" : "s"} assigned`
+                                  : "No staff assigned yet"}
                               </span>
                             </div>
                             <button
@@ -1250,7 +1250,7 @@ export default function AdminReservations() {
                               className="text-xs font-semibold px-2.5 py-1 rounded-md border border-border bg-card hover:bg-muted text-primary cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
                             >
                               <UserCheck size={12} />
-                              {selectedBooking.staffCount > 0 ? "Edit Team" : "Assign Team"}
+                              {selectedBooking.staffCount > 0 ? "Edit Staff" : "Assign Staff"}
                             </button>
                           </div>
                           <div className="col-span-2 pt-1.5 border-t border-border/50">

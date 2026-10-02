@@ -113,13 +113,25 @@
     color: var(--color-brown-dark);
   }
 
-  /* Admin dashboard & Radix modals: all headings use Work Sans / UI font */
+  /* Admin dashboard, Staff portal & Radix modals: all headings use Work Sans / UI font */
   .admin-layout h1,
   .admin-layout h2,
   .admin-layout h3,
   .admin-layout h4,
   .admin-layout h5,
   .admin-layout h6,
+  .admin-shell h1,
+  .admin-shell h2,
+  .admin-shell h3,
+  .admin-shell h4,
+  .admin-shell h5,
+  .admin-shell h6,
+  .staff-portal h1,
+  .staff-portal h2,
+  .staff-portal h3,
+  .staff-portal h4,
+  .staff-portal h5,
+  .staff-portal h6,
   [data-radix-portal] h1,
   [data-radix-portal] h2,
   [data-radix-portal] h3,

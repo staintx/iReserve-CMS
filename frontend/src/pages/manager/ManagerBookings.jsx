@@ -64,13 +64,13 @@ const isPastDate = (dateVal) => {
 
 /**
  * Native `<select>` is deliberate for crew pickers. On a phone it opens the
- * platform's own wheel or list — searchable, one-handed, and already
- * familiar — where a custom listbox would reimplement all of that worse
- * inside a sheet that is itself already scrolling.
+ * platform native wheel or list (searchable, one-handed, and already familiar)
+ * where a custom listbox would reimplement all of that worse inside a sheet
+ * that is itself already scrolling.
  */
 const CREW_SELECT =
-  "w-full h-10 rounded-lg border border-border bg-card px-3 text-xs font-medium text-foreground outline-none transition-all " +
-  "hover:border-border/90 focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-2xs";
+  "w-full h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 outline-none transition-all " +
+  "hover:border-slate-300 focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0] shadow-2xs";
 
 /** One crew slot: a picker and, when the slot is removable, its remove button. */
 function CrewRow({ value, placeholder, options, onChange, onRemove, removeLabel, staffInfo }) {
@@ -79,6 +79,7 @@ function CrewRow({ value, placeholder, options, onChange, onRemove, removeLabel,
     staffInfo.availability_status &&
     staffInfo.availability_status !== "Available"
   );
+  const isAssigned = Boolean(value);
 
   return (
     <div className="space-y-1">
@@ -87,7 +88,13 @@ function CrewRow({ value, placeholder, options, onChange, onRemove, removeLabel,
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-label={placeholder}
-          className={`${CREW_SELECT} flex-1 min-w-0 ${isConflict ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/30" : ""}`}
+          className={`${CREW_SELECT} flex-1 min-w-0 ${
+            isConflict
+              ? "border-amber-400 ring-1 ring-amber-400/30"
+              : isAssigned
+              ? "border-[#4C81E0]/40 bg-slate-50/50"
+              : "border-slate-200"
+          }`}
         >
           <option value="">{placeholder}</option>
           {options}
@@ -97,15 +104,16 @@ function CrewRow({ value, placeholder, options, onChange, onRemove, removeLabel,
             type="button"
             onClick={onRemove}
             aria-label={removeLabel}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 cursor-pointer"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-400 transition-colors hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 cursor-pointer"
+            title={removeLabel}
           >
             <Trash2 size={14} />
           </button>
         )}
       </div>
       {isConflict && (
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300">
-          <AlertTriangle size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200 text-[11px] text-amber-800">
+          <AlertTriangle size={12} className="shrink-0 text-amber-600" />
           <span>Notice: {staffInfo.full_name} is marked as <strong>{staffInfo.availability_status}</strong> on this date.</span>
         </div>
       )}
@@ -116,20 +124,34 @@ function CrewRow({ value, placeholder, options, onChange, onRemove, removeLabel,
 /**
  * A role's group of slots with icon, hint, clean dashed add buttons, and card framing.
  */
-function CrewGroup({ label, icon: Icon, hint, addLabel, onAdd, secondaryAddLabel, onSecondaryAdd, children }) {
+function CrewGroup({ label, icon: Icon, hint, addLabel, onAdd, secondaryAddLabel, onSecondaryAdd, count, children }) {
   return (
-    <fieldset className="space-y-2.5 rounded-xl border border-border/80 bg-muted/20 p-3 sm:p-3.5">
-      <legend className="px-1 text-[11px] font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-        {Icon && <Icon size={13} className="text-primary shrink-0" />}
-        <span>{label}</span>
-        {hint && <span className="text-[10px] font-normal text-muted-foreground ml-1">({hint})</span>}
-      </legend>
-      <div className="space-y-2">{children}</div>
+    <div className="space-y-2 rounded-xl border border-slate-200/80 bg-slate-50/50 p-3 sm:p-3.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {Icon && (
+            <div className="w-6 h-6 rounded-md bg-[#D6E4F7] text-[#4C81E0] flex items-center justify-center shrink-0">
+              <Icon size={13} />
+            </div>
+          )}
+          <div>
+            <span className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">{label}</span>
+            {hint && <span className="text-[11px] font-normal text-[#64748B] ml-1.5 hidden sm:inline">{hint}</span>}
+          </div>
+        </div>
+        {count !== undefined && (
+          <span className={`text-[11px] font-semibold tabular-nums ${count > 0 ? "text-emerald-700" : "text-[#64748B]"}`}>
+            {count > 0 ? `${count} assigned` : "0 assigned"}
+          </span>
+        )}
+      </div>
+      {hint && <div className="text-[11px] text-[#64748B] sm:hidden">{hint}</div>}
+      <div className="space-y-2 pt-1">{children}</div>
       <div className="flex flex-col gap-2 pt-1 sm:flex-row">
         <button
           type="button"
           onClick={onAdd}
-          className="flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-card text-xs font-semibold text-primary transition-all hover:border-primary/50 hover:bg-primary/5 cursor-pointer shadow-2xs"
+          className="flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#4C81E0]/40 bg-white text-xs font-semibold text-[#4C81E0] transition-all hover:border-[#4C81E0] hover:bg-[#D6E4F7]/20 cursor-pointer shadow-2xs"
         >
           <Plus size={13} /> {addLabel}
         </button>
@@ -137,13 +159,13 @@ function CrewGroup({ label, icon: Icon, hint, addLabel, onAdd, secondaryAddLabel
           <button
             type="button"
             onClick={onSecondaryAdd}
-            className="flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-card text-xs font-semibold text-muted-foreground transition-all hover:border-primary/50 hover:text-foreground hover:bg-muted/40 cursor-pointer shadow-2xs"
+            className="flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-200 bg-white text-xs font-semibold text-[#64748B] transition-all hover:border-[#4C81E0] hover:text-[#1E293B] hover:bg-slate-50 cursor-pointer shadow-2xs"
           >
             <Plus size={13} /> {secondaryAddLabel}
           </button>
         )}
       </div>
-    </fieldset>
+    </div>
   );
 }
 
@@ -217,10 +239,11 @@ export default function ManagerBookings() {
         .then((res) => {
           const b = res.data;
           if (b) {
-            const hasStaff = Array.isArray(b.staff_assignments) && b.staff_assignments.length > 0;
-            if (action === "assign" || (!hasStaff && action !== "view")) {
+            if (action === "assign") {
+              setDetail(null);
               openAssign(b);
             } else {
+              setAssignTarget(null);
               setDetail(b);
               setManagerConfirmed(Boolean(b.equipment_manager_verified?.confirmed));
               setManagerEquipmentNotes(b.equipment_manager_verified?.additional_notes || "");
@@ -284,6 +307,7 @@ export default function ManagerBookings() {
 
   const openDetails = (booking) => {
     const bId = booking?._id || booking;
+    setAssignTarget(null);
     ManagerAPI.getBooking(bId).then((res) => {
       const b = res.data;
       setDetail(b);
@@ -292,6 +316,7 @@ export default function ManagerBookings() {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.set("booking_id", bId);
+        next.set("action", "view");
         return next;
       }, { replace: true });
     });
@@ -302,6 +327,7 @@ export default function ManagerBookings() {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.delete("booking_id");
+      next.delete("action");
       return next;
     }, { replace: true });
   };
@@ -376,6 +402,7 @@ export default function ManagerBookings() {
   }, [detail]);
 
   const openAssign = (booking) => {
+    setDetail(null);
     setAssignTarget(booking);
     loadStaff(booking.event_date);
     
@@ -394,6 +421,23 @@ export default function ManagerBookings() {
       assistants: assistants.length > 0 ? assistants : [""],
       extraAssistants: extraAssistants
     });
+
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("booking_id", booking._id);
+      next.set("action", "assign");
+      return next;
+    }, { replace: true });
+  };
+
+  const closeAssign = () => {
+    setAssignTarget(null);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("booking_id");
+      next.delete("action");
+      return next;
+    }, { replace: true });
   };
 
   const addAssignmentSlot = (key) => {
@@ -514,8 +558,14 @@ export default function ManagerBookings() {
     setSubmittingAssign(true);
     ManagerAPI.assignStaff(assignTarget._id, { staff_assignments: staffAssignments })
       .then(() => {
-        notify("Staff assigned and team dispatched successfully!", "success");
+        notify("Staff assignment saved successfully.", "success");
         setAssignTarget(null);
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("booking_id");
+          next.delete("action");
+          return next;
+        }, { replace: true });
         loadBookings();
       })
       .catch((err) => {
@@ -572,13 +622,17 @@ export default function ManagerBookings() {
         const isCompleted = ["completed", "Completed"].includes(b.status);
         return (
           <div>
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-bold text-foreground">
                 {recordTitle(b)}
               </span>
               {isPast && !isCompleted && (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.2 rounded border border-rose-200 dark:border-rose-800">
-                  <AlertTriangle size={10} /> Event Passed
+                <span
+                  title="Event date has passed"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-medium tracking-tight bg-rose-50 text-rose-700 border border-rose-200/80 shrink-0"
+                >
+                  <Clock size={10} className="text-rose-600" />
+                  <span>Event Passed</span>
                 </span>
               )}
             </div>
@@ -622,17 +676,17 @@ export default function ManagerBookings() {
           <div>
             {count === 0 ? (
               isPast ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800">
-                  <AlertCircle size={11} /> Unassigned (Passed)
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-700 bg-rose-50 border border-rose-200/90 px-2 py-0.5 rounded-md">
+                  <Clock size={11} className="text-rose-600" /> Unassigned (Passed)
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
-                  <AlertCircle size={11} /> Unassigned
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200/90 px-2 py-0.5 rounded-md">
+                  <AlertCircle size={11} className="text-amber-600" /> Needs Staffing
                 </span>
               )
             ) : (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                <CheckCircle2 size={11} /> {count} Staff Dispatched
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200/90 px-2 py-0.5 rounded-md">
+                <CheckCircle2 size={11} className="text-emerald-600" /> {count} Staff Dispatched
               </span>
             )}
           </div>
@@ -642,20 +696,23 @@ export default function ManagerBookings() {
     {
       key: "status",
       header: "Booking Status",
-      render: (b) => <Badge status={b.status} />
+      render: (b) => <Badge status={b.status} className="!rounded-md" />
     },
     {
       key: "actions",
       header: "Actions",
       stopRowClick: true,
+      width: "275px",
+      className: "w-[275px] min-w-[275px]",
+      headerClassName: "w-[275px] min-w-[275px]",
       render: (b) => {
         const hasStaff = Array.isArray(b.staff_assignments) && b.staff_assignments.length > 0;
         const isCompleted = ["completed", "Completed"].includes(b.status);
         const isPast = isPastDate(b.event_date);
 
         return (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Btn variant="secondary" size="xs" onClick={() => openDetails(b)} title="View full event details">
+          <div className="flex items-center gap-1.5 flex-nowrap whitespace-nowrap">
+            <Btn variant="secondary" size="xs" onClick={() => openDetails(b)} title="View full event details" className="shrink-0">
               <Eye size={13} /> View
             </Btn>
             {!isCompleted && isPast && (
@@ -663,7 +720,7 @@ export default function ManagerBookings() {
                 variant="primary"
                 size="xs"
                 onClick={() => openCompleteModal(b)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1 cursor-pointer"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1 cursor-pointer shrink-0"
                 title="Mark this event as concluded and completed"
               >
                 <CheckCircle2 size={13} /> Complete
@@ -674,17 +731,17 @@ export default function ManagerBookings() {
                 variant="secondary" 
                 size="xs" 
                 onClick={() => openAssign(b)}
-                className="text-foreground hover:bg-muted font-semibold border-border flex items-center gap-1 cursor-pointer"
-                title={isPast ? "Edit retroactive staff assignments" : "Edit dispatched staff team"}
+                className="text-foreground hover:bg-muted font-semibold border-border flex items-center gap-1 cursor-pointer shrink-0"
+                title={isPast ? "Edit retroactive staff assignments" : "Edit staff assignment"}
               >
-                <UserCheck size={13} className="text-primary" /> Edit Staff
+                <UserCheck size={13} className="text-[#4C81E0]" /> Edit Staff
               </Btn>
             ) : isPast ? (
               <Btn 
                 variant="secondary" 
                 size="xs" 
                 onClick={() => openAssign(b)}
-                className="text-foreground hover:bg-muted font-medium border-border flex items-center gap-1 cursor-pointer"
+                className="text-foreground hover:bg-muted font-medium border-border flex items-center gap-1 cursor-pointer shrink-0"
                 title="Log past staff assignments retroactively"
               >
                 <UserPlus size={13} /> Log Staff
@@ -694,8 +751,8 @@ export default function ManagerBookings() {
                 variant="primary" 
                 size="xs" 
                 onClick={() => openAssign(b)}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-bold flex items-center gap-1 cursor-pointer"
-                title="Assign Staff Team"
+                className="bg-[#4C81E0] hover:bg-[#3b6bc4] text-white font-semibold flex items-center gap-1 cursor-pointer shrink-0"
+                title="Assign Staff"
               >
                 <UserPlus size={13} /> Assign
               </Btn>
@@ -733,20 +790,12 @@ export default function ManagerBookings() {
     <ManagerLayout>
       <div className="space-y-4">
         <PageHeader
-          title="Assigned Bookings"
-          description="Review event specifications, build staff teams, and monitor execution"
-          actions={
-            <Btn variant="secondary" size="sm" onClick={() => navigate("/manager/staff")}>
-              <Users size={14} /> Staff Roster
-            </Btn>
-          }
+          title="Bookings"
+          description="Review event details, build staff teams, and monitor execution"
         />
 
-        {/* The tab strip and the search field are the two controls a manager
-            touches between every card they read, so on a phone they ride the
-            top of the scroll container instead of scrolling away with the
-            page header above them. */}
-        <div className="portal-sticky -mx-3 space-y-2.5 bg-background/95 px-3 pb-2.5 pt-0.5 backdrop-blur md:static md:mx-0 md:space-y-4 md:bg-transparent md:px-0 md:pb-0 md:backdrop-blur-none">
+        {/* Natural search and tab filter flow without awkward sticky detachment */}
+        <div className="space-y-3">
           <SegmentedTabs
             ariaLabel="Booking status"
             value={tab}
@@ -768,12 +817,8 @@ export default function ManagerBookings() {
         </div>
 
         {/* Phone and small-tablet list. A booking is one card, and the card
-            itself opens the event — the old layout spent a 50% column on a
-            "View Details" button that repeated the tap the card should
-            already have carried, leaving the actual decision (does this
-            event have a crew?) sharing the other half. Now the staffing
-            state is the loudest thing on the card, and the single action is
-            the one that state calls for. */}
+            itself opens the event. The staffing state is the clearest thing on the card,
+            and the single action is the one that state calls for. */}
         <div className="block lg:hidden space-y-2.5">
           {loading ? (
             <AdminCard className="!p-8 text-center text-xs text-muted-foreground">
@@ -803,18 +848,18 @@ export default function ManagerBookings() {
 
                 const crew = hasStaff
                   ? {
-                      className: "border-emerald-200 bg-emerald-50 text-emerald-800",
+                      className: "border-emerald-200/90 bg-emerald-50 text-emerald-800",
                       icon: CheckCircle2,
-                      text: b.staff_assignments.length + " crew dispatched",
+                      text: b.staff_assignments.length + " crew assigned",
                     }
                   : isPast
                     ? {
-                        className: "border-rose-300 bg-rose-50 text-rose-900",
+                        className: "border-rose-200/90 bg-rose-50 text-rose-800",
                         icon: AlertTriangle,
-                        text: "Unassigned — event passed",
+                        text: "Unassigned (Event passed)",
                       }
                     : {
-                        className: "border-amber-300 bg-amber-50 text-amber-900",
+                        className: "border-amber-200/90 bg-amber-50 text-amber-800",
                         icon: AlertCircle,
                         text: "Needs staffing",
                       };
@@ -835,7 +880,7 @@ export default function ManagerBookings() {
                                 {b.event_type || "Catering Event"}
                               </span>
                               {isPast && !isCompleted && (
-                                <span className="inline-flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-px text-[10px] font-bold text-rose-700 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
+                                <span className="inline-flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-px text-[10px] font-bold text-rose-700">
                                   <AlertTriangle size={9} /> Passed
                                 </span>
                               )}
@@ -848,18 +893,18 @@ export default function ManagerBookings() {
                         </span>
 
                         <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-                          <Calendar size={13} className="shrink-0 text-primary" />
+                          <Calendar size={13} className="shrink-0 text-[#4C81E0]" />
                           <span className="font-semibold text-foreground">{eventDate}</span>
                           <span>· {b.start_time || "Time TBA"}</span>
                         </span>
 
                         <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-                          <MapPin size={13} className="shrink-0" />
+                          <MapPin size={13} className="shrink-0 text-slate-400" />
                           <span className="truncate">{locationStr}</span>
                         </span>
 
                         <span className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                          <span className={"inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11.5px] font-bold " + crew.className}>
+                          <span className={"inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold " + crew.className}>
                             <CrewIcon size={12} />
                             {crew.text}
                           </span>
@@ -874,7 +919,7 @@ export default function ManagerBookings() {
                           <button
                             type="button"
                             onClick={() => openCompleteModal(b)}
-                            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-[13px] font-bold text-white shadow-2xs transition-colors hover:bg-emerald-700 cursor-pointer portal-press"
+                            className="flex min-h-[42px] w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-[13px] font-bold text-white shadow-2xs transition-colors hover:bg-emerald-700 cursor-pointer portal-press"
                           >
                             <CheckCircle2 size={15} />
                             Mark Completed
@@ -883,19 +928,19 @@ export default function ManagerBookings() {
                           <button
                             type="button"
                             onClick={() => openAssign(b)}
-                            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md border border-border bg-card px-3 text-[13px] font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted cursor-pointer portal-press"
+                            className="flex min-h-[42px] w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-[13px] font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted cursor-pointer portal-press"
                           >
-                            <UserCheck size={15} className="text-primary" />
-                            Edit Staff Team
+                            <UserCheck size={15} className="text-[#4C81E0]" />
+                            Edit Staff
                           </button>
                         ) : (
                           <button
                             type="button"
                             onClick={() => openAssign(b)}
-                            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md bg-amber-600 px-3 text-[13px] font-bold text-white shadow-2xs transition-colors hover:bg-amber-700 cursor-pointer portal-press"
+                            className="flex min-h-[42px] w-full items-center justify-center gap-1.5 rounded-lg bg-[#4C81E0] px-3 text-[13px] font-bold text-white shadow-2xs transition-colors hover:bg-[#3b6bc4] cursor-pointer portal-press"
                           >
                             <UserPlus size={15} />
-                            Dispatch Staff
+                            Assign Staff
                           </button>
                         )}
                       </div>
@@ -920,45 +965,36 @@ export default function ManagerBookings() {
             emptyTitle={`No ${tab} bookings found.`}
             emptyHint="Assigned events from Admin will appear here."
             onRowClick={(b) => openDetails(b)}
-            minWidth="750px"
+            minWidth="980px"
             /* Between 1024px and the table's own min-width the row scrolls,
-               and the actions column was the first thing pushed off screen —
-               the one column the row is being read for. */
+               and the actions column is pinned for easy access. */
             pinLastColumn
           />
           <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
         </AdminCard>
 
-        {/* Staff Assignment Modal.
-            The form is long — a head cook, then any number of servers, setup
-            crew and assistants — and its Save button used to sit at the end
-            of it inside a dialog that had no scroll region, so on a phone the
-            manager could fill the whole team in and never reach the control
-            that dispatched it. The action now lives in the sheet's pinned
-            footer, where it is visible from the first select onward and
-            reports how many people are currently selected. */}
         {/* Staff Assignment Modal */}
         {assignTarget && (
           <Modal
-            title={`Assign Staff Team — ${assignTarget.event_type || "Event"}`}
+            title={`Assign Staff: ${assignTarget.event_type || "Catering Event"}`}
             icon={UserPlus}
             badge={
-              <span className="font-mono text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-md">
+              <span className="font-mono text-xs font-semibold text-[#4C81E0] bg-[#D6E4F7]/60 border border-[#4C81E0]/20 px-2.5 py-0.5 rounded-md">
                 {assignTarget.reference || assignTarget._id?.slice(-6).toUpperCase()}
               </span>
             }
-            description="Select and dispatch kitchen, service, setup, and support crew members for this event."
-            onClose={() => setAssignTarget(null)}
+            description="Select and assign kitchen, service, setup, and support crew."
+            onClose={closeAssign}
             className="sm:max-w-2xl"
             footer={
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium text-muted-foreground tabular-nums">
+                <span className="text-xs font-medium text-[#64748B] tabular-nums">
                   {selectedCrewCount === 0
                     ? "No staff selected yet"
                     : `${selectedCrewCount} crew ${selectedCrewCount === 1 ? "member" : "members"} selected`}
                 </span>
                 <div className="flex items-center gap-2">
-                  <Btn variant="secondary" size="sm" onClick={() => setAssignTarget(null)} disabled={submittingAssign}>
+                  <Btn variant="secondary" size="sm" onClick={closeAssign} disabled={submittingAssign}>
                     Cancel
                   </Btn>
                   <Btn
@@ -966,184 +1002,204 @@ export default function ManagerBookings() {
                     size="sm"
                     onClick={submitAssignment}
                     disabled={submittingAssign}
-                    className="flex items-center gap-1.5 font-bold"
+                    className="flex items-center gap-1.5 font-bold bg-[#4C81E0] hover:bg-[#3b6bc4] text-white"
                   >
                     <UserCheck size={14} />
                     <span>
                       {submittingAssign
-                        ? "Saving…"
-                        : isPastDate(assignTarget.event_date)
-                          ? "Save Records"
-                          : "Dispatch Team"}
+                        ? "Saving..."
+                        : "Save Staff Assignment"}
                     </span>
                   </Btn>
                 </div>
               </div>
             }
           >
-            <div className="space-y-4 text-xs sm:text-sm">
+            <div className="space-y-3.5 text-xs sm:text-sm">
               {/* Event Context Pill */}
-              <div className="p-3 bg-muted/40 border border-border/80 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
+              <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-[#D6E4F7] text-[#4C81E0] border border-[#4C81E0]/20 flex items-center justify-center font-bold text-xs shrink-0">
                     {initialsOf(assignTarget.customer_id?.full_name || `${assignTarget.contact_first_name || ""} ${assignTarget.contact_last_name || ""}` || "Customer")}
                   </div>
                   <div className="min-w-0">
-                    <div className="font-bold text-foreground truncate">
+                    <div className="font-bold text-[#1E293B] truncate">
                       {assignTarget.customer_id?.full_name || `${assignTarget.contact_first_name || ""} ${assignTarget.contact_last_name || ""}`.trim() || "Customer"}
                     </div>
-                    <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                    <div className="text-[11px] text-[#64748B] flex items-center gap-2 mt-0.5">
                       <span className="flex items-center gap-1">
-                        <Calendar size={12} className="text-primary" />
+                        <Calendar size={12} className="text-[#4C81E0]" />
                         {assignTarget.event_date ? new Date(assignTarget.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBD"}
                       </span>
                       <span>•</span>
                       <span className="flex items-center gap-1">
-                        <Clock size={12} className="text-primary" />
+                        <Clock size={12} className="text-[#4C81E0]" />
                         {assignTarget.start_time || "Time TBA"}
                       </span>
                     </div>
                   </div>
                 </div>
-                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-card border border-border px-2.5 py-1 rounded-md">
+                <span className="shrink-0 text-[10.5px] font-semibold text-[#64748B] bg-white border border-slate-200 px-2.5 py-1 rounded-md">
                   {assignTarget.event_type || "Event"}
                 </span>
               </div>
 
+              {/* Past Event Warning */}
               {isPastDate(assignTarget.event_date) && (
-                <div className="flex items-start gap-2.5 rounded-xl border border-amber-300/80 bg-amber-50/80 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-200 shadow-2xs">
-                  <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                  <div className="space-y-0.5">
-                    <div className="font-bold">Past event — retroactive staff logging</div>
-                    <div className="text-[11.5px] text-amber-800 dark:text-amber-300 leading-relaxed">
-                      This event took place on{" "}
-                      <strong>
-                        {new Date(assignTarget.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                      </strong>
-                      . Assignments saved here record crew participation for historical, payroll and inventory-returns audit.
-                    </div>
+                <div className="flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow-2xs">
+                  <AlertTriangle size={15} className="shrink-0 text-amber-600 mt-0.5" />
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="font-bold text-amber-900">Past Event:</span>
+                    <span className="text-amber-800 text-[11.5px]">
+                      Staff assignments are being recorded for this completed event.
+                    </span>
                   </div>
                 </div>
               )}
 
               {/* Head Cook */}
-              <div className="space-y-1.5 p-3 sm:p-3.5 rounded-xl border border-border/80 bg-muted/20">
-                <label htmlFor="assign-head-cook" className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <ChefHat size={13} className="text-primary" />
-                    Head Cook / Executive Chef
-                  </span>
-                  <span className="text-[10px] font-normal text-muted-foreground">Kitchen lead</span>
-                </label>
-                <select
-                  id="assign-head-cook"
-                  value={assignment.headCook}
-                  onChange={(e) => setAssignment({ ...assignment, headCook: e.target.value })}
-                  className={`${CREW_SELECT} ${staffMap[assignment.headCook]?.availability_status && staffMap[assignment.headCook]?.availability_status !== "Available" ? "border-amber-400 dark:border-amber-600 ring-1 ring-amber-400/30" : ""}`}
-                >
-                  <option value="">Select head cook…</option>
-                  {staffOptions}
-                </select>
-                {staffMap[assignment.headCook]?.availability_status && staffMap[assignment.headCook]?.availability_status !== "Available" && (
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300">
-                    <AlertTriangle size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
-                    <span>Notice: {staffMap[assignment.headCook]?.full_name} is marked as <strong>{staffMap[assignment.headCook]?.availability_status}</strong> on this date.</span>
+              <div className="space-y-2 rounded-xl border border-slate-200/80 bg-slate-50/50 p-3 sm:p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-[#D6E4F7] text-[#4C81E0] flex items-center justify-center shrink-0">
+                      <ChefHat size={13} />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Head Cook</span>
+                      <span className="text-[11px] font-normal text-[#64748B] ml-1.5 hidden sm:inline">Kitchen &amp; culinary lead</span>
+                    </div>
                   </div>
-                )}
+                  <span className={`text-[11px] font-semibold tabular-nums ${assignment.headCook ? "text-emerald-700" : "text-[#64748B]"}`}>
+                    {assignment.headCook ? "1 assigned" : "Not assigned"}
+                  </span>
+                </div>
+                <div className="text-[11px] text-[#64748B] sm:hidden -mt-1">Kitchen &amp; culinary lead</div>
+                <div className="pt-1">
+                  <select
+                    id="assign-head-cook"
+                    value={assignment.headCook}
+                    onChange={(e) => setAssignment({ ...assignment, headCook: e.target.value })}
+                    className={`${CREW_SELECT} ${
+                      staffMap[assignment.headCook]?.availability_status && staffMap[assignment.headCook]?.availability_status !== "Available"
+                        ? "border-amber-400 ring-1 ring-amber-400/30"
+                        : assignment.headCook
+                        ? "border-[#4C81E0]/40 bg-slate-50/50"
+                        : "border-slate-200"
+                    }`}
+                  >
+                    <option value="">Select head cook...</option>
+                    {staffOptions}
+                  </select>
+                  {staffMap[assignment.headCook]?.availability_status && staffMap[assignment.headCook]?.availability_status !== "Available" && (
+                    <div className="mt-1.5 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200 text-[11px] text-amber-800">
+                      <AlertTriangle size={12} className="shrink-0 text-amber-600" />
+                      <span>Notice: {staffMap[assignment.headCook]?.full_name} is marked as <strong>{staffMap[assignment.headCook]?.availability_status}</strong> on this date.</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
+              {/* Service Staff */}
               <CrewGroup
-                label="Servers / Waitstaff"
+                label="Service Staff"
                 icon={UtensilsCrossed}
-                hint="Floor & banquet dining service"
-                addLabel="Add server slot"
+                hint="Floor &amp; banquet dining service"
+                addLabel="Add Service Staff"
+                count={assignment.servers.filter(Boolean).length}
                 onAdd={() => addAssignmentSlot("servers")}
               >
                 {assignment.servers.map((val, idx) => (
                   <CrewRow
                     key={idx}
                     value={val}
-                    placeholder={`Select server #${idx + 1}…`}
+                    placeholder={`Select service staff #${idx + 1}...`}
                     options={staffOptions}
                     staffInfo={staffMap[val]}
                     onChange={(next) => updateAssignment("servers", idx, next)}
                     onRemove={assignment.servers.length > 1 ? () => removeAssignmentSlot("servers", idx) : null}
-                    removeLabel={`Remove server ${idx + 1}`}
+                    removeLabel={`Remove service staff ${idx + 1}`}
                   />
                 ))}
               </CrewGroup>
 
+              {/* Setup Staff */}
               <CrewGroup
-                label="Setup & Logistics Crew"
+                label="Setup Staff"
                 icon={Wrench}
-                hint="Physical staging & gear transport"
-                addLabel="Add setup crew slot"
+                hint="Physical staging &amp; gear logistics"
+                addLabel="Add Setup Staff"
+                count={assignment.setupCrew.filter(Boolean).length}
                 onAdd={() => addAssignmentSlot("setupCrew")}
               >
                 {assignment.setupCrew.map((val, idx) => (
                   <CrewRow
                     key={idx}
                     value={val}
-                    placeholder={`Select setup crew #${idx + 1}…`}
+                    placeholder={`Select setup staff #${idx + 1}...`}
                     options={staffOptions}
                     staffInfo={staffMap[val]}
                     onChange={(next) => updateAssignment("setupCrew", idx, next)}
                     onRemove={assignment.setupCrew.length > 1 ? () => removeAssignmentSlot("setupCrew", idx) : null}
-                    removeLabel={`Remove setup crew ${idx + 1}`}
+                    removeLabel={`Remove setup staff ${idx + 1}`}
                   />
                 ))}
               </CrewGroup>
 
+              {/* Support Staff */}
               <CrewGroup
-                label="Extra Support / Assistants"
+                label="Support Staff"
                 icon={Users}
-                hint="Dishwashing, runners & on-call crew"
-                addLabel="Add assistant slot"
+                hint="Dishwashing, runners &amp; on-call crew"
+                addLabel="Add Support Staff"
+                secondaryAddLabel="Add External Staff"
+                count={assignment.assistants.filter(Boolean).length + assignment.extraAssistants.filter((e) => e.name || e.phone).length}
                 onAdd={() => addAssignmentSlot("assistants")}
-                secondaryAddLabel="Add on-call / external"
                 onSecondaryAdd={addExtraAssistant}
               >
                 {assignment.assistants.map((val, idx) => (
                   <CrewRow
                     key={idx}
                     value={val}
-                    placeholder={`Select assistant #${idx + 1}…`}
+                    placeholder={`Select support staff #${idx + 1}...`}
                     options={staffOptions}
                     staffInfo={staffMap[val]}
                     onChange={(next) => updateAssignment("assistants", idx, next)}
                     onRemove={() => removeAssignmentSlot("assistants", idx)}
-                    removeLabel={`Remove assistant ${idx + 1}`}
+                    removeLabel={`Remove support staff ${idx + 1}`}
                   />
                 ))}
 
                 {assignment.extraAssistants.map((extra, idx) => (
                   <div
                     key={`extra-${idx}`}
-                    className="space-y-2 rounded-xl border border-dashed border-border bg-card p-2.5 shadow-2xs"
+                    className="space-y-2 rounded-xl border border-dashed border-slate-300 bg-white p-2.5 shadow-2xs"
                   >
-                    <input
-                      placeholder="External assistant name"
-                      value={extra.name}
-                      onChange={(e) => updateExtraAssistant(idx, "name", e.target.value)}
-                      className="h-10 w-full rounded-lg border border-border bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    />
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-[#64748B]">
+                      <span>External Assistant #{idx + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeExtraAssistant(idx)}
+                        aria-label={`Remove external assistant ${idx + 1}`}
+                        className="text-[#64748B] hover:text-rose-600 transition-colors cursor-pointer"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        placeholder="Full name"
+                        value={extra.name}
+                        onChange={(e) => updateExtraAssistant(idx, "name", e.target.value)}
+                        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0]"
+                      />
                       <input
                         type="tel"
                         inputMode="tel"
                         placeholder="Contact phone number"
                         value={extra.phone}
                         onChange={(e) => updateExtraAssistant(idx, "phone", e.target.value)}
-                        className="h-10 flex-1 rounded-lg border border-border bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0]"
                       />
-                      <button
-                        type="button"
-                        onClick={() => removeExtraAssistant(idx)}
-                        aria-label={`Remove external assistant ${idx + 1}`}
-                        className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 cursor-pointer"
-                      >
-                        <Trash2 size={14} />
-                      </button>
                     </div>
                   </div>
                 ))}
@@ -1155,362 +1211,178 @@ export default function ManagerBookings() {
         {/* Event Detail Modal */}
         {detail && (
           <Modal 
-              title={`Event Specifications — ${detail.event_type || "Event"}`} 
-              icon={ClipboardList}
-              badge={<Badge status={detail.status || "confirmed"} />}
-              description="Full operational details, client contact, catering menu specifications, and dispatched crew."
-              onClose={closeDetails} 
-              className="sm:max-w-3xl"
-              footer={
-                <div className="flex items-center justify-between gap-2">
-                  {!['completed', 'Completed'].includes(detail.status) ? (
-                    <Btn
-                      variant="primary"
-                      size="sm"
-                      onClick={() => {
-                        const target = detail;
-                        closeDetails();
-                        openCompleteModal(target);
-                      }}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5"
-                    >
-                      <CheckCircle2 size={14} /> Mark as Completed
-                    </Btn>
-                  ) : (
-                    <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 size={13} /> Event completed
-                    </span>
-                  )}
+            title={`Event Details: ${detail.event_type || "Catering Event"}`} 
+            icon={ClipboardList}
+            badge={<Badge status={detail.status || "confirmed"} />}
+            description="Operational overview, schedule, menu specifications, and staff deployment."
+            onClose={closeDetails} 
+            className="sm:max-w-3xl lg:max-w-4xl"
+            footer={
+              <div className="flex items-center justify-between gap-2">
+                {!['completed', 'Completed'].includes(detail.status) ? (
+                  <Btn
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      const target = detail;
+                      closeDetails();
+                      openCompleteModal(target);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 size={14} /> Mark as Completed
+                  </Btn>
+                ) : (
+                  <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
+                    <CheckCircle2 size={13} /> Event Completed
+                  </span>
+                )}
+                <div className="flex items-center gap-2">
                   <Btn variant="secondary" size="sm" onClick={() => window.print()} className="flex items-center gap-1.5 cursor-pointer">
                     <Printer size={13} /> Print BEO Run Sheet
                   </Btn>
                   <Btn variant="secondary" size="sm" onClick={closeDetails}>Close</Btn>
                 </div>
-              }
-            >
-              <div className="space-y-4 text-xs sm:text-sm">
-                {/* Header Status & Reference Bar */}
-                <div className="p-3.5 bg-muted/40 border border-border/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="font-mono text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-md">
-                      REF: {detail.reference || detail._id?.slice(-6).toUpperCase()}
-                    </span>
-                    <Badge status={detail.status || "confirmed"} />
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`inline-block text-[10.5px] font-bold px-2 py-0.5 rounded-md uppercase tracking-tight ${
-                      ["fully_paid", "paid"].includes(detailPaymentStatus.toLowerCase())
-                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                        : ["deposit_paid"].includes(detailPaymentStatus.toLowerCase())
-                        ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
-                        : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
-                    }`}>
-                      {detailPaymentStatus.replace(/_/g, " ")}
-                    </span>
-                    <span className="text-muted-foreground">•</span>
-                    <span className="text-sm font-bold text-foreground font-mono">
-                      {formatMoney(detailTotalCost)}
-                    </span>
-                    {detailRemainingBalance > 0 ? (
-                      <span className="text-xs font-bold text-amber-700 dark:text-amber-400 font-mono">
-                        (Due: {formatMoney(detailRemainingBalance)})
-                      </span>
-                    ) : (
-                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 font-mono">
-                        (Settled)
-                      </span>
-                    )}
-                  </div>
+              </div>
+            }
+          >
+            <div className="space-y-4 text-xs sm:text-sm">
+              {/* 1. Event Overview */}
+              <div className="p-3 sm:p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-xs font-semibold text-[#4C81E0] bg-[#D6E4F7]/60 border border-[#4C81E0]/20 px-2.5 py-0.5 rounded-md">
+                    REF: {detail.reference || detail._id?.slice(-6).toUpperCase()}
+                  </span>
+                  <span className="text-xs font-bold text-[#1E293B]">
+                    {detail.event_type || "Catering Event"}
+                  </span>
+                  <span className="text-[#64748B]">•</span>
+                  <span className="text-xs font-medium text-[#64748B]">
+                    {detail.guest_count || 0} Guests
+                  </span>
+                  <Badge status={detail.status || "confirmed"} />
                 </div>
 
-                {/* Financial State & Payment Overview */}
-                <div className="p-4 bg-card border border-border/80 rounded-xl space-y-3.5 shadow-2xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-border/60">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                        <CreditCard size={15} />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                          Financial State &amp; Payment Overview
-                        </h4>
-                        <p className="text-[11px] text-muted-foreground">
-                          Current booking balance, client payment history, and collection status.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-muted-foreground font-semibold">Payment Status:</span>
-                      <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded-md uppercase tracking-tight ${
-                        ["fully_paid", "paid"].includes(detailPaymentStatus.toLowerCase())
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                          : ["deposit_paid"].includes(detailPaymentStatus.toLowerCase())
-                          ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
-                          : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
-                      }`}>
-                        {detailPaymentStatus.replace(/_/g, " ")}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 4 Financial Metrics: Total Cost, Amount Paid, Remaining Balance, Payment Status */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                    {/* Total Cost */}
-                    <div className="p-3 bg-muted/20 border border-border/80 rounded-xl space-y-1 shadow-2xs">
-                      <span className="text-[10.5px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1.5">
-                        <DollarSign size={12} className="text-primary" /> Total Cost
-                      </span>
-                      <div className="text-base font-bold font-mono text-foreground">
-                        {formatMoney(detailTotalCost)}
-                      </div>
-                      <div className="text-[10.5px] text-muted-foreground truncate">
-                        Contracted booking total
-                      </div>
-                    </div>
-
-                    {/* Amount Paid */}
-                    <div className="p-3 bg-muted/20 border border-border/80 rounded-xl space-y-1 shadow-2xs">
-                      <span className="text-[10.5px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1.5">
-                        <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400" /> Amount Paid
-                      </span>
-                      <div className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                        {formatMoney(detailTotalPaid)}
-                      </div>
-                      <div className="text-[10.5px] text-muted-foreground truncate">
-                        {detailApprovedPayments.length} approved payment{detailApprovedPayments.length === 1 ? "" : "s"}
-                      </div>
-                    </div>
-
-                    {/* Remaining Balance */}
-                    <div className={`p-3 border rounded-xl space-y-1 shadow-2xs ${
-                      detailRemainingBalance > 0
-                        ? "bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800"
-                        : "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800"
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <span className={`text-[10.5px] uppercase font-bold tracking-wider flex items-center gap-1.5 ${
-                          detailRemainingBalance > 0 ? "text-amber-800 dark:text-amber-300" : "text-emerald-800 dark:text-emerald-300"
-                        }`}>
-                          <Receipt size={12} /> Remaining Balance
-                        </span>
-                        <span className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-full uppercase ${
-                          detailRemainingBalance > 0
-                            ? "bg-amber-100 text-amber-900 dark:bg-amber-900/60 dark:text-amber-200"
-                            : "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-200"
-                        }`}>
-                          {detailRemainingBalance > 0 ? "Due" : "Settled"}
-                        </span>
-                      </div>
-                      <div className={`text-base font-bold font-mono ${
-                        detailRemainingBalance > 0 ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400"
-                      }`}>
-                        {formatMoney(detailRemainingBalance)}
-                      </div>
-                      <div className={`text-[10.5px] truncate ${
-                        detailRemainingBalance > 0 ? "text-amber-700/80 dark:text-amber-400/80" : "text-emerald-700/80 dark:text-emerald-400/80"
-                      }`}>
-                        {detailRemainingBalance > 0 ? "Due on event completion" : "Fully settled in full"}
-                      </div>
-                    </div>
-
-                    {/* Payment Status & Settlement */}
-                    <div className="p-3 bg-muted/20 border border-border/80 rounded-xl space-y-1 shadow-2xs">
-                      <span className="text-[10.5px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1.5">
-                        <ShieldCheck size={12} className="text-primary" /> Payment Status
-                      </span>
-                      <div className="text-sm font-bold text-foreground capitalize truncate pt-0.5">
-                        {detailPaymentStatus.replace(/_/g, " ")}
-                      </div>
-                      <div className="text-[10.5px] text-muted-foreground truncate" title={detail.balance_payment_preference === "in_person" ? "Customer elected Cash on Event Day" : "Online Gateway Settlement"}>
-                        {detail.balance_payment_preference === "in_person" ? "Cash on Event Day" : "Online Payment"}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Relevant Payment Transaction Breakdown */}
-                  <div className="space-y-2 pt-1">
-                    <div className="flex items-center justify-between">
-                      <h5 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <Receipt size={13} className="text-primary" /> Payment Transactions Breakdown
-                      </h5>
-                      <span className="text-[11px] font-mono text-muted-foreground">
-                        {detailPayments.length} {detailPayments.length === 1 ? "transaction" : "transactions"}
-                      </span>
-                    </div>
-
-                    {detailPayments.length === 0 ? (
-                      <div className="p-3 bg-muted/20 border border-border/60 rounded-xl text-xs text-muted-foreground italic text-center">
-                        No payment transactions recorded for this booking.
-                      </div>
-                    ) : (
-                      <div className="border border-border/70 rounded-xl overflow-hidden shadow-2xs divide-y divide-border/60">
-                        <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-muted/40 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
-                          <div className="col-span-4 sm:col-span-3">Reference / ID</div>
-                          <div className="col-span-3 sm:col-span-2">Type</div>
-                          <div className="hidden sm:block sm:col-span-2">Method</div>
-                          <div className="col-span-2 sm:col-span-2">Date</div>
-                          <div className="col-span-3 sm:col-span-1 text-center">Status</div>
-                          <div className="hidden sm:block sm:col-span-2 text-right">Amount</div>
-                        </div>
-                        {detailPayments.map((p, idx) => {
-                          const isApproved = ["approved", "paid", "completed"].includes(String(p.status || "").toLowerCase().trim());
-                          const isPending = String(p.status || "").toLowerCase().trim() === "pending";
-                          const refCode = p.gateway_reference || p.gateway_checkout_id || `PAY-${(p._id || "").slice(-6).toUpperCase()}`;
-                          return (
-                            <div key={p._id || idx} className="grid grid-cols-12 gap-2 px-3 py-2.5 items-center text-xs hover:bg-muted/20 transition-colors">
-                              <div className="col-span-4 sm:col-span-3 min-w-0">
-                                <span className="font-mono font-bold text-foreground block truncate" title={refCode}>
-                                  {refCode}
-                                </span>
-                                <span className="text-[10px] text-muted-foreground sm:hidden block font-mono">
-                                  {formatMoney(p.amount)}
-                                </span>
-                              </div>
-                              <div className="col-span-3 sm:col-span-2">
-                                <span className="capitalize font-semibold text-foreground text-[11px] block truncate">
-                                  {p.payment_type ? p.payment_type.replace(/_/g, " ") : "Payment"}
-                                </span>
-                              </div>
-                              <div className="hidden sm:block sm:col-span-2">
-                                <span className="text-[11px] font-medium text-muted-foreground capitalize block truncate">
-                                  {p.method || p.gateway || "Manual"}
-                                </span>
-                              </div>
-                              <div className="col-span-2 sm:col-span-2 text-[11px] text-muted-foreground">
-                                {p.paid_at || p.createdAt ? new Date(p.paid_at || p.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
-                              </div>
-                              <div className="col-span-3 sm:col-span-1 text-center">
-                                <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded capitalize ${
-                                  isApproved
-                                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                                    : isPending
-                                    ? "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
-                                    : "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
-                                }`}>
-                                  {p.status || "pending"}
-                                </span>
-                              </div>
-                              <div className="hidden sm:block sm:col-span-2 text-right font-mono font-bold">
-                                <span className={isApproved ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>
-                                  {formatMoney(p.amount)}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-              {/* Client & Contact Information */}
-              <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-3 shadow-2xs">
-                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  <Users size={14} className="text-primary" />
-                  <span>Client Information</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shrink-0">
-                      {initialsOf(`${detail.contact_first_name || ""} ${detail.contact_last_name || ""}`.trim() || "Client")}
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-muted-foreground block text-[10.5px]">Client Name</span>
-                      <div className="font-bold text-foreground truncate">{detail.contact_first_name} {detail.contact_last_name}</div>
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[10.5px]">Contact Phone</span>
-                    {detail.contact_phone ? (
-                      <a href={`tel:${detail.contact_phone}`} className="font-bold text-foreground hover:text-primary transition-colors flex items-center gap-1 mt-0.5">
-                        <Phone size={11} className="text-primary shrink-0" />
-                        <span>{detail.contact_phone}</span>
-                      </a>
-                    ) : (
-                      <div className="font-bold text-foreground mt-0.5">—</div>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-muted-foreground block text-[10.5px]">Email Address</span>
-                    {detail.contact_email ? (
-                      <a href={`mailto:${detail.contact_email}`} className="font-bold text-foreground hover:text-primary transition-colors truncate flex items-center gap-1 mt-0.5">
-                        <Mail size={11} className="text-primary shrink-0" />
-                        <span className="truncate">{detail.contact_email}</span>
-                      </a>
-                    ) : (
-                      <div className="font-bold text-foreground mt-0.5">—</div>
-                    )}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[10.5px]">Preferred Contact</span>
-                    <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-muted text-[11px] font-semibold text-foreground border border-border/60">
-                      {detail.contact_method || "Email"}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`inline-block text-[10.5px] font-bold px-2 py-0.5 rounded-md uppercase tracking-tight ${
+                    ["fully_paid", "paid"].includes(detailPaymentStatus.toLowerCase())
+                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                      : ["deposit_paid"].includes(detailPaymentStatus.toLowerCase())
+                      ? "bg-blue-50 text-blue-800 border border-blue-200"
+                      : "bg-amber-50 text-amber-800 border border-amber-200"
+                  }`}>
+                    {detailPaymentStatus.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-[#64748B]">•</span>
+                  <span className="text-xs font-bold text-[#1E293B] font-mono">
+                    {formatMoney(detailTotalCost)}
+                  </span>
+                  {detailRemainingBalance > 0 ? (
+                    <span className="text-[11px] font-semibold text-amber-700 font-mono">
+                      (Due: {formatMoney(detailRemainingBalance)})
                     </span>
-                  </div>
+                  ) : (
+                    <span className="text-[11px] font-semibold text-emerald-700 font-mono">
+                      (Settled)
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Event Schedule & Location */}
+              {/* 2. Date, Time, Venue, and Client */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Schedule */}
                 <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
-                  <div className="text-[10.5px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
-                    <Calendar size={13} className="text-primary" /> Date &amp; Time
+                  <div className="text-[11px] uppercase font-bold text-[#64748B] tracking-wider flex items-center gap-1.5">
+                    <Calendar size={13} className="text-[#4C81E0]" /> Schedule
                   </div>
-                  <div className="text-sm font-bold text-foreground">
-                    {detail.event_date ? new Date(detail.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA"}
+                  <div className="text-sm font-bold text-[#1E293B]">
+                    {detail.event_date ? new Date(detail.event_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "TBA"}
                   </div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock size={12} className="text-primary" />
+                  <div className="text-xs text-[#64748B] flex items-center gap-1">
+                    <Clock size={12} className="text-[#4C81E0]" />
                     <span>{detail.start_time || "Time TBA"} ({detail.duration_hours || 4} hrs)</span>
                   </div>
                 </div>
 
+                {/* Venue */}
                 <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
-                  <div className="text-[10.5px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
-                    <Users size={13} className="text-primary" /> Guests &amp; Package
+                  <div className="text-[11px] uppercase font-bold text-[#64748B] tracking-wider flex items-center gap-1.5">
+                    <MapPin size={13} className="text-[#4C81E0]" /> Venue
                   </div>
-                  <div className="text-sm font-bold text-foreground">{detail.guest_count || 0} Guests</div>
-                  <div className="text-xs text-muted-foreground truncate" title={detail.package_id?.name || detail.package_name_snapshot}>
-                    {detail.package_id?.name || detail.package_name_snapshot || "Custom Catering Package"}
+                  <div className="text-sm font-bold text-[#1E293B] truncate" title={detail.venue_type || "Venue"}>
+                    {detail.venue_type || "Venue"}
+                  </div>
+                  <div className="text-xs text-[#64748B] line-clamp-2" title={[detail.street, detail.barangay, detail.municipality].filter(Boolean).join(", ")}>
+                    {[detail.street, detail.barangay, detail.municipality].filter(Boolean).join(", ") || "Location TBA"}
                   </div>
                 </div>
 
+                {/* Client */}
                 <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
-                  <div className="text-[10.5px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
-                    <MapPin size={13} className="text-primary" /> Venue Location
+                  <div className="text-[11px] uppercase font-bold text-[#64748B] tracking-wider flex items-center gap-1.5">
+                    <Users size={13} className="text-[#4C81E0]" /> Client
                   </div>
-                  <div className="text-sm font-bold text-foreground">{detail.venue_type || "Venue"}</div>
-                  <div className="text-xs text-muted-foreground truncate" title={[detail.street, detail.barangay, detail.municipality].filter(Boolean).join(", ")}>
-                    {[detail.street, detail.barangay, detail.municipality].filter(Boolean).join(", ") || "Location TBA"}
+                  <div className="text-sm font-bold text-[#1E293B] truncate">
+                    {detail.contact_first_name} {detail.contact_last_name}
+                  </div>
+                  <div className="text-xs text-[#64748B] space-y-0.5">
+                    {detail.contact_phone ? (
+                      <a href={`tel:${detail.contact_phone}`} className="flex items-center gap-1 text-[#4C81E0] hover:underline font-medium">
+                        <Phone size={11} className="shrink-0" />
+                        <span>{detail.contact_phone}</span>
+                      </a>
+                    ) : (
+                      <span className="text-[#64748B]">Phone: None</span>
+                    )}
+                    {detail.contact_email ? (
+                      <a href={`mailto:${detail.contact_email}`} className="flex items-center gap-1 text-[#4C81E0] hover:underline truncate">
+                        <Mail size={11} className="shrink-0" />
+                        <span className="truncate">{detail.contact_email}</span>
+                      </a>
+                    ) : (
+                      <span className="text-[#64748B]">Email: None</span>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Menu & Selected Dishes */}
-              <div className="space-y-2.5 p-3.5 bg-card border border-border/80 rounded-xl shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Utensils size={14} className="text-primary" /> Catering Menu &amp; Selected Dishes
-                  </h4>
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    {(detail.menu_items || []).length} Dishes Selected
+              {/* 3. Package, Services & Event Requirements */}
+              <div className="space-y-3 p-3.5 bg-card border border-border/80 rounded-xl shadow-2xs">
+                <div className="flex items-center justify-between pb-2 border-b border-border/60">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-[#D6E4F7] text-[#4C81E0] flex items-center justify-center shrink-0">
+                      <Utensils size={13} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#1E293B]">
+                        Package &amp; Services
+                      </h4>
+                      <p className="text-[11px] text-[#64748B]">
+                        {detail.package_id?.name || detail.package_name_snapshot || "Custom Catering Package"}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold text-[#64748B]">
+                    {(detail.menu_items || []).length} {(detail.menu_items || []).length === 1 ? "Dish" : "Dishes"} Selected
                   </span>
                 </div>
 
+                {/* Menu Items */}
                 {(!detail.menu_items || detail.menu_items.length === 0) ? (
-                  <p className="text-xs text-muted-foreground italic py-2">
+                  <p className="text-xs text-[#64748B] italic py-1">
                     Package menu items will follow standard catering specifications or chef recommendations.
                   </p>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {detail.menu_items.map((item, idx) => (
-                      <div key={idx} className="p-2.5 bg-muted/20 border border-border/80 rounded-xl flex items-start justify-between gap-2 shadow-2xs">
+                      <div key={idx} className="p-2.5 bg-slate-50/60 border border-slate-200/80 rounded-lg flex items-start justify-between gap-2 shadow-2xs">
                         <div>
-                          <div className="font-bold text-foreground text-xs">{item.name}</div>
-                          {item.note && <div className="text-[11px] text-muted-foreground mt-0.5">{item.note}</div>}
+                          <div className="font-semibold text-[#1E293B] text-xs">{item.name}</div>
+                          {item.note && <div className="text-[11px] text-[#64748B] mt-0.5">{item.note}</div>}
                         </div>
                         {item.category && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-card border border-border/80 text-muted-foreground shrink-0">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white border border-slate-200 text-[#64748B] shrink-0">
                             {item.category}
                           </span>
                         )}
@@ -1518,39 +1390,62 @@ export default function ManagerBookings() {
                     ))}
                   </div>
                 )}
+
+                {/* Add-ons & Service items */}
+                {((detail.service_items && detail.service_items.length > 0) || (detail.additional_charges && detail.additional_charges.length > 0)) && (
+                  <div className="pt-2 border-t border-border/60 space-y-2">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-[#64748B] flex items-center gap-1.5">
+                      <Layers size={12} className="text-[#4C81E0]" /> Add-on Services &amp; Event Styling
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {(detail.service_items || []).map((srv, idx) => (
+                        <div key={`srv-${idx}`} className="p-2.5 bg-slate-50/60 border border-slate-200/80 rounded-lg flex items-center justify-between text-xs shadow-2xs">
+                          <div>
+                            <div className="font-semibold text-[#1E293B]">{srv.name}</div>
+                            {srv.note && <div className="text-[11px] text-[#64748B]">{srv.note}</div>}
+                          </div>
+                          {srv.quantity > 1 && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#D6E4F7]/60 text-[#4C81E0] border border-[#4C81E0]/20">
+                              Qty: {srv.quantity}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                      {(detail.additional_charges || []).map((chg, idx) => (
+                        <div key={`chg-${idx}`} className="p-2.5 bg-slate-50/60 border border-slate-200/80 rounded-lg flex items-center justify-between text-xs shadow-2xs">
+                          <div>
+                            <div className="font-semibold text-[#1E293B]">{chg.label}</div>
+                            {chg.reason && <div className="text-[11px] text-[#64748B]">{chg.reason}</div>}
+                          </div>
+                          <span className="text-[11px] font-bold text-[#1E293B] font-mono">
+                            {formatMoney(chg.amount)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Add-ons & Service Items */}
-              {((detail.service_items && detail.service_items.length > 0) || (detail.additional_charges && detail.additional_charges.length > 0)) && (
-                <div className="space-y-2.5 p-3.5 bg-card border border-border/80 rounded-xl shadow-2xs">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Layers size={14} className="text-primary" /> Add-on Services &amp; Event Styling
+              {/* Event Requirements & Dietary */}
+              {(detail.dietary_restrictions || detail.allergies || detail.special_requests || detail.notes) && (
+                <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-1.5 text-xs shadow-2xs">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                    <AlertCircle size={14} className="text-amber-600" /> Event Requirements &amp; Client Notes
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                    {(detail.service_items || []).map((srv, idx) => (
-                      <div key={`srv-${idx}`} className="p-2.5 bg-muted/20 border border-border/80 rounded-xl flex items-center justify-between text-xs shadow-2xs">
-                        <div>
-                          <div className="font-bold text-foreground">{srv.name}</div>
-                          {srv.note && <div className="text-[11px] text-muted-foreground">{srv.note}</div>}
-                        </div>
-                        {srv.quantity > 1 && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
-                            Qty: {srv.quantity}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                    {(detail.additional_charges || []).map((chg, idx) => (
-                      <div key={`chg-${idx}`} className="p-2.5 bg-muted/20 border border-border/80 rounded-xl flex items-center justify-between text-xs shadow-2xs">
-                        <div>
-                          <div className="font-bold text-foreground">{chg.label}</div>
-                          {chg.reason && <div className="text-[11px] text-muted-foreground">{chg.reason}</div>}
-                        </div>
-                        <span className="text-[10px] font-bold text-muted-foreground">
-                          {formatMoney(chg.amount)}
-                        </span>
-                      </div>
-                    ))}
+                  <div className="space-y-1 text-amber-950 text-[11.5px] leading-relaxed">
+                    {detail.dietary_restrictions && (
+                      <div><strong>Dietary Needs:</strong> {detail.dietary_restrictions}</div>
+                    )}
+                    {detail.allergies && (
+                      <div><strong>Allergies:</strong> {detail.allergies}</div>
+                    )}
+                    {detail.special_requests && (
+                      <div><strong>Special Requests:</strong> {detail.special_requests}</div>
+                    )}
+                    {detail.notes && (
+                      <div><strong>Client Notes:</strong> {detail.notes}</div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1559,11 +1454,21 @@ export default function ManagerBookings() {
               {mergedEquipmentList.length > 0 && (
                 <div className="space-y-3 p-3.5 bg-card border border-border/80 rounded-xl shadow-2xs">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/60">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <PackageCheck size={14} className="text-primary" /> Dispatched Equipment &amp; Staff Count Verification
-                    </h4>
-                    <span className="text-xs text-muted-foreground font-medium">
-                      {mergedEquipmentList.length} Total Gear Types
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-md bg-[#D6E4F7] text-[#4C81E0] flex items-center justify-center shrink-0">
+                        <PackageCheck size={13} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-[#1E293B]">
+                          Dispatched Equipment &amp; Verification
+                        </h4>
+                        <p className="text-[11px] text-[#64748B]">
+                          Field gear inventory counts, returns check, and manager verification.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-[#64748B] font-medium">
+                      {mergedEquipmentList.length} Gear Types
                     </span>
                   </div>
 
@@ -1571,77 +1476,72 @@ export default function ManagerBookings() {
                     {mergedEquipmentList.map((eq, idx) => (
                       <div 
                         key={idx} 
-                        className={`p-2.5 rounded-xl border flex flex-col justify-between gap-2 text-xs transition-colors shadow-2xs ${
+                        className={`p-2.5 rounded-lg border flex flex-col justify-between gap-2 text-xs transition-colors shadow-2xs ${
                           eq.missing > 0 
-                            ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800" 
+                            ? "bg-rose-50/50 border-rose-200" 
                             : eq.damaged > 0 
-                              ? "bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800" 
-                              : "bg-muted/20 border-border/80"
+                              ? "bg-amber-50/50 border-amber-200" 
+                              : "bg-slate-50/50 border-slate-200/80"
                         }`}
                       >
                         <div>
                           <div className="flex items-start justify-between gap-1.5">
-                            <span className="font-bold text-foreground truncate" title={eq.name}>
+                            <span className="font-semibold text-[#1E293B] truncate" title={eq.name}>
                               {eq.name}
                             </span>
-                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md bg-card border border-border/80 text-foreground shrink-0">
+                            <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[#1E293B] shrink-0">
                               {eq.booked} units
                             </span>
                           </div>
                           {eq.category && (
-                            <span className="text-[10px] text-muted-foreground block truncate mt-0.5">
+                            <span className="text-[10px] text-[#64748B] block truncate mt-0.5">
                               {eq.category}
                             </span>
                           )}
 
                           {eq.hasVerified ? (
                             <div className="mt-2 text-[11px] space-y-0.5">
-                              <div className="flex items-center justify-between text-muted-foreground">
-                                <span>Returned Safe:</span>
-                                <span className="font-bold text-emerald-700 dark:text-emerald-400">{eq.returned} units</span>
+                              <div className="flex items-center justify-between text-[#64748B]">
+                                <span>Returned:</span>
+                                <span className="font-semibold text-emerald-700">{eq.returned} units</span>
                               </div>
                               {eq.damaged > 0 && (
-                                <div className="flex items-center justify-between text-rose-700 dark:text-rose-400">
+                                <div className="flex items-center justify-between text-rose-700">
                                   <span>Damaged:</span>
-                                  <span className="font-bold">{eq.damaged} units</span>
+                                  <span className="font-semibold">{eq.damaged} units</span>
                                 </div>
                               )}
                               {eq.missing > 0 && (
-                                <div className="flex items-center justify-between text-rose-700 dark:text-rose-400">
-                                  <span>Missing Count:</span>
-                                  <span className="font-bold">{eq.missing} units</span>
+                                <div className="flex items-center justify-between text-rose-700">
+                                  <span>Missing:</span>
+                                  <span className="font-semibold">{eq.missing} units</span>
                                 </div>
                               )}
                             </div>
                           ) : (
-                            <div className="mt-2 text-[11px] text-muted-foreground italic">
-                              Staff return count not yet logged.
+                            <div className="mt-2 text-[11px] text-[#64748B] italic">
+                              Staff count not logged yet.
                             </div>
                           )}
                         </div>
 
-                        {/* Status & Notes row */}
                         <div className="pt-1.5 border-t border-border/60 flex items-center justify-between flex-wrap gap-1.5">
                           <div>
                             {eq.missing > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.5 rounded-md border border-rose-200 dark:border-rose-800">
-                                <AlertTriangle size={11} className="text-rose-600 dark:text-rose-400" />
-                                Missing
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                                <AlertTriangle size={11} className="text-rose-600" /> Missing
                               </span>
                             ) : eq.damaged > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 px-1.5 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
-                                <AlertTriangle size={11} className="text-amber-600 dark:text-amber-400" />
-                                Damaged
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                <AlertTriangle size={11} className="text-amber-600" /> Damaged
                               </span>
                             ) : eq.hasVerified ? (
-                              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-1.5 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
-                                <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
-                                Returned Complete
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                <CheckCircle2 size={11} className="text-emerald-600" /> Complete
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded-md border border-border">
-                                <Clock size={11} />
-                                Pending Count
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#64748B] bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                                <Clock size={11} /> Pending
                               </span>
                             )}
                           </div>
@@ -1655,60 +1555,57 @@ export default function ManagerBookings() {
                                 staffName: eq.verifiedBy,
                                 verifiedAt: eq.verifiedAt
                               })}
-                              className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20 transition-colors"
+                              className="text-[11px] font-semibold text-[#4C81E0] hover:underline flex items-center gap-1 cursor-pointer bg-[#D6E4F7]/40 px-2 py-0.5 rounded border border-[#4C81E0]/20"
                               title="View staff notes for this item"
                             >
                               <FileText size={11} />
-                              <span>View Notes</span>
+                              <span>Notes</span>
                             </button>
                           ) : (
-                            eq.missing > 0 && (
-                              <span className="text-[10px] text-muted-foreground italic">No staff note</span>
-                            )
+                            eq.missing > 0 && <span className="text-[10px] text-[#64748B] italic">No note</span>
                           )}
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  {/* Manager Confirmation Checkbox & Additional Notes */}
-                  <div className="p-3 bg-muted/20 border border-border/80 rounded-xl space-y-2.5 mt-2">
+                  {/* Manager Confirmation Checkbox & Notes */}
+                  <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2 mt-2">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <label
                         htmlFor="managerEquipmentConfirm"
-                        className="flex min-h-[44px] flex-1 cursor-pointer select-none items-center gap-3 rounded-md py-1 sm:min-h-0"
+                        className="flex min-h-[40px] flex-1 cursor-pointer select-none items-center gap-2.5 rounded-md py-1 sm:min-h-0"
                       >
                         <input
                           type="checkbox"
                           id="managerEquipmentConfirm"
                           checked={managerConfirmed}
                           onChange={(e) => setManagerConfirmed(e.target.checked)}
-                          className="h-5 w-5 shrink-0 cursor-pointer rounded border-border text-primary focus:ring-primary sm:h-4 sm:w-4"
+                          className="h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 text-[#4C81E0] focus:ring-[#4C81E0]"
                         />
-                        <span className="text-xs font-bold text-foreground">
+                        <span className="text-xs font-semibold text-[#1E293B]">
                           Double-check and confirm equipment counted by staff
                         </span>
                       </label>
 
                       {detail.equipment_manager_verified?.confirmed && (
-                        <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 shrink-0">
+                        <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shrink-0">
                           <CheckCircle2 size={11} />
-                          Confirmed by {detail.equipment_manager_verified.confirmed_by?.full_name || "Manager"}{" "}
-                          {detail.equipment_manager_verified.confirmed_at ? `on ${new Date(detail.equipment_manager_verified.confirmed_at).toLocaleDateString()}` : ""}
+                          Confirmed by {detail.equipment_manager_verified.confirmed_by?.full_name || "Manager"}
                         </span>
                       )}
                     </div>
 
                     <div className="space-y-1 pt-1">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-[#64748B] block">
                         Additional Notes
                       </label>
                       <textarea
                         rows={2}
-                        placeholder="Add manager verification remarks, supplier loss claims, or missing equipment follow-ups..."
+                        placeholder="Add manager verification remarks or missing gear follow-ups..."
                         value={managerEquipmentNotes}
                         onChange={(e) => setManagerEquipmentNotes(e.target.value)}
-                        className="w-full p-2 text-xs rounded-lg border border-border bg-card text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y outline-none"
+                        className="w-full p-2 text-xs rounded-lg border border-slate-200 bg-white text-[#1E293B] focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0] resize-y outline-none"
                       />
                     </div>
 
@@ -1718,67 +1615,221 @@ export default function ManagerBookings() {
                         size="xs"
                         onClick={handleSaveEquipmentVerification}
                         disabled={submittingVerifyEquipment}
-                        className="flex items-center gap-1.5 font-semibold cursor-pointer"
+                        className="flex items-center gap-1.5 font-semibold bg-[#4C81E0] hover:bg-[#3b6bc4] text-white cursor-pointer"
                       >
                         <PackageCheck size={13} />
-                        <span>{submittingVerifyEquipment ? "Saving Verification..." : "Save Equipment Verification"}</span>
+                        <span>{submittingVerifyEquipment ? "Saving..." : "Save Verification"}</span>
                       </Btn>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Dietary Requirements & Special Requests */}
-              {(detail.dietary_restrictions || detail.allergies || detail.special_requests || detail.notes) && (
-                <div className="p-3.5 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 rounded-xl space-y-1.5 text-xs shadow-2xs">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
-                    <AlertCircle size={14} className="text-amber-600 dark:text-amber-400" /> Dietary Restrictions &amp; Client Requests
-                  </h4>
-                  <div className="space-y-1 text-amber-950 dark:text-amber-100">
-                    {detail.dietary_restrictions && (
-                      <div><strong>Dietary Needs:</strong> {detail.dietary_restrictions}</div>
-                    )}
-                    {detail.allergies && (
-                      <div><strong>Allergies:</strong> {detail.allergies}</div>
-                    )}
-                    {detail.special_requests && (
-                      <div><strong>Special Requests:</strong> {detail.special_requests}</div>
-                    )}
-                    {detail.notes && (
-                      <div><strong>Notes:</strong> {detail.notes}</div>
-                    )}
+              {/* 4. Payment Summary */}
+              <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-3 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-border/60">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-[#D6E4F7] text-[#4C81E0] flex items-center justify-center shrink-0">
+                      <CreditCard size={13} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#1E293B]">
+                        Payment Summary
+                      </h4>
+                      <p className="text-[11px] text-[#64748B]">
+                        Booking balance, client payment history, and collection status.
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded-md uppercase tracking-tight ${
+                    ["fully_paid", "paid"].includes(detailPaymentStatus.toLowerCase())
+                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                      : ["deposit_paid"].includes(detailPaymentStatus.toLowerCase())
+                      ? "bg-blue-50 text-blue-800 border border-blue-200"
+                      : "bg-amber-50 text-amber-800 border border-amber-200"
+                  }`}>
+                    {detailPaymentStatus.replace(/_/g, " ")}
+                  </span>
+                </div>
+
+                {/* 4 Financial Metrics */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  <div className="p-2.5 bg-slate-50/60 border border-slate-200/80 rounded-lg space-y-0.5 shadow-2xs">
+                    <span className="text-[10.5px] uppercase font-bold text-[#64748B] tracking-wider flex items-center gap-1">
+                      <DollarSign size={12} className="text-[#4C81E0]" /> Total Cost
+                    </span>
+                    <div className="text-base font-bold font-mono text-[#1E293B]">
+                      {formatMoney(detailTotalCost)}
+                    </div>
+                    <div className="text-[10px] text-[#64748B] truncate">Contracted total</div>
+                  </div>
+
+                  <div className="p-2.5 bg-slate-50/60 border border-slate-200/80 rounded-lg space-y-0.5 shadow-2xs">
+                    <span className="text-[10.5px] uppercase font-bold text-[#64748B] tracking-wider flex items-center gap-1">
+                      <CheckCircle2 size={12} className="text-emerald-600" /> Amount Paid
+                    </span>
+                    <div className="text-base font-bold font-mono text-emerald-600">
+                      {formatMoney(detailTotalPaid)}
+                    </div>
+                    <div className="text-[10px] text-[#64748B] truncate">
+                      {detailApprovedPayments.length} approved payment{detailApprovedPayments.length === 1 ? "" : "s"}
+                    </div>
+                  </div>
+
+                  <div className={`p-2.5 border rounded-lg space-y-0.5 shadow-2xs ${
+                    detailRemainingBalance > 0
+                      ? "bg-amber-50/40 border-amber-200"
+                      : "bg-emerald-50/40 border-emerald-200"
+                  }`}>
+                    <span className={`text-[10.5px] uppercase font-bold tracking-wider flex items-center gap-1 ${
+                      detailRemainingBalance > 0 ? "text-amber-800" : "text-emerald-800"
+                    }`}>
+                      <Receipt size={12} /> Remaining Balance
+                    </span>
+                    <div className={`text-base font-bold font-mono ${
+                      detailRemainingBalance > 0 ? "text-amber-700" : "text-emerald-700"
+                    }`}>
+                      {formatMoney(detailRemainingBalance)}
+                    </div>
+                    <div className={`text-[10px] truncate ${
+                      detailRemainingBalance > 0 ? "text-amber-700" : "text-emerald-700"
+                    }`}>
+                      {detailRemainingBalance > 0 ? "Due upon completion" : "Fully settled"}
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 bg-slate-50/60 border border-slate-200/80 rounded-lg space-y-0.5 shadow-2xs">
+                    <span className="text-[10.5px] uppercase font-bold text-[#64748B] tracking-wider flex items-center gap-1">
+                      <ShieldCheck size={12} className="text-[#4C81E0]" /> Settlement Method
+                    </span>
+                    <div className="text-xs font-bold text-[#1E293B] truncate pt-0.5">
+                      {detail.balance_payment_preference === "in_person" ? "Cash on Event Day" : "Online Gateway"}
+                    </div>
+                    <div className="text-[10px] text-[#64748B] truncate">
+                      {detail.balance_payment_preference === "in_person" ? "Collect balance in-person" : "Direct gateway"}
+                    </div>
                   </div>
                 </div>
-              )}
 
-              {/* Staff Team */}
+                {/* Transactions Breakdown */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-[11px] font-bold uppercase tracking-wider text-[#64748B] flex items-center gap-1">
+                      <Receipt size={12} className="text-[#4C81E0]" /> Payment Transactions
+                    </h5>
+                    <span className="text-[11px] font-mono text-[#64748B]">
+                      {detailPayments.length} {detailPayments.length === 1 ? "record" : "records"}
+                    </span>
+                  </div>
+
+                  {detailPayments.length === 0 ? (
+                    <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-lg text-xs text-[#64748B] italic text-center">
+                      No payment transactions recorded for this booking.
+                    </div>
+                  ) : (
+                    <div className="border border-slate-200 rounded-lg overflow-hidden shadow-2xs divide-y divide-slate-100">
+                      <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-[#64748B]">
+                        <div className="col-span-4 sm:col-span-3">Reference / ID</div>
+                        <div className="col-span-3 sm:col-span-2">Type</div>
+                        <div className="hidden sm:block sm:col-span-2">Method</div>
+                        <div className="col-span-2 sm:col-span-2">Date</div>
+                        <div className="col-span-3 sm:col-span-1 text-center">Status</div>
+                        <div className="hidden sm:block sm:col-span-2 text-right">Amount</div>
+                      </div>
+                      {detailPayments.map((p, idx) => {
+                        const isApproved = ["approved", "paid", "completed"].includes(String(p.status || "").toLowerCase().trim());
+                        const isPending = String(p.status || "").toLowerCase().trim() === "pending";
+                        const refCode = p.gateway_reference || p.gateway_checkout_id || `PAY-${(p._id || "").slice(-6).toUpperCase()}`;
+                        return (
+                          <div key={p._id || idx} className="grid grid-cols-12 gap-2 px-3 py-2 items-center text-xs hover:bg-slate-50/50 transition-colors">
+                            <div className="col-span-4 sm:col-span-3 min-w-0">
+                              <span className="font-mono font-semibold text-[#1E293B] block truncate" title={refCode}>
+                                {refCode}
+                              </span>
+                              <span className="text-[10px] text-[#64748B] sm:hidden block font-mono">
+                                {formatMoney(p.amount)}
+                              </span>
+                            </div>
+                            <div className="col-span-3 sm:col-span-2">
+                              <span className="capitalize font-medium text-[#1E293B] text-[11px] block truncate">
+                                {p.payment_type ? p.payment_type.replace(/_/g, " ") : "Payment"}
+                              </span>
+                            </div>
+                            <div className="hidden sm:block sm:col-span-2">
+                              <span className="text-[11px] text-[#64748B] capitalize block truncate">
+                                {p.method || p.gateway || "Manual"}
+                              </span>
+                            </div>
+                            <div className="col-span-2 sm:col-span-2 text-[11px] text-[#64748B]">
+                              {p.paid_at || p.createdAt ? new Date(p.paid_at || p.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-"}
+                            </div>
+                            <div className="col-span-3 sm:col-span-1 text-center">
+                              <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded capitalize ${
+                                isApproved
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : isPending
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : "bg-rose-50 text-rose-700 border border-rose-200"
+                              }`}>
+                                {p.status || "pending"}
+                              </span>
+                            </div>
+                            <div className="hidden sm:block sm:col-span-2 text-right font-mono font-semibold">
+                              <span className={isApproved ? "text-emerald-700" : "text-[#64748B]"}>
+                                {formatMoney(p.amount)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 5. Staff Assignment */}
               <div className="space-y-3 p-3.5 bg-card border border-border/80 rounded-xl shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Users size={14} className="text-primary" /> Assigned Staff Team
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const target = detail;
-                      setDetail(null);
-                      openAssign(target);
-                    }}
-                    className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-bold text-primary transition-all hover:bg-primary/5 hover:border-primary/40 cursor-pointer shadow-2xs"
-                  >
-                    <UserCheck size={13} /> Edit team
-                  </button>
+                <div className="flex items-center justify-between pb-2 border-b border-border/60">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-[#D6E4F7] text-[#4C81E0] flex items-center justify-center shrink-0">
+                      <UserCheck size={13} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#1E293B]">
+                        Staff Assignment
+                      </h4>
+                      <p className="text-[11px] text-[#64748B]">
+                        Assigned culinary, service, setup, and support crew for this event.
+                      </p>
+                    </div>
+                  </div>
+                  {detail.staff_assignments && detail.staff_assignments.length > 0 && (
+                    <Btn
+                      variant="secondary"
+                      size="xs"
+                      onClick={() => {
+                        const target = detail;
+                        setDetail(null);
+                        openAssign(target);
+                      }}
+                      className="font-semibold flex items-center gap-1.5 cursor-pointer text-[#1E293B]"
+                    >
+                      <UserCheck size={13} className="text-[#4C81E0]" /> Edit Staff
+                    </Btn>
+                  )}
                 </div>
 
                 {(!detail.staff_assignments || detail.staff_assignments.length === 0) ? (
-                  <div className="p-4 rounded-xl border border-dashed border-primary/30 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="p-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center shrink-0">
                         <Users size={15} />
                       </div>
                       <div>
-                        <div className="font-bold text-foreground">No staff team assigned yet</div>
-                        <div className="text-[11px] text-muted-foreground">Dispatch crew members to coordinate this booking.</div>
+                        <div className="font-bold text-[#1E293B]">No Staff Assigned</div>
+                        <div className="text-[11px] text-[#64748B]">
+                          Kitchen, service, setup, and support crew have not been assigned yet.
+                        </div>
                       </div>
                     </div>
                     <Btn
@@ -1789,25 +1840,30 @@ export default function ManagerBookings() {
                         setDetail(null);
                         openAssign(target);
                       }}
-                      className="flex items-center gap-1.5 shrink-0 font-bold"
+                      className="flex items-center gap-1.5 shrink-0 font-bold bg-[#4C81E0] hover:bg-[#3b6bc4] text-white shadow-2xs"
                     >
-                      <UserPlus size={14} /> Assign Crew Now
+                      <UserPlus size={14} /> Assign Staff
                     </Btn>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {detail.staff_assignments.map((assignment, idx) => (
-                      <div key={idx} className="p-2.5 bg-muted/20 border border-border/80 rounded-xl flex items-center justify-between text-xs shadow-2xs">
+                      <div key={idx} className="p-2.5 bg-slate-50/60 border border-slate-200/80 rounded-lg flex items-center justify-between text-xs shadow-2xs">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-[#D6E4F7] text-[#4C81E0] border border-[#4C81E0]/20 flex items-center justify-center font-bold text-xs shrink-0">
                             {initialsOf(assignment.name || assignment.user_id?.full_name || "Staff")}
                           </div>
                           <div className="min-w-0">
-                            <div className="font-bold text-foreground truncate">{assignment.name || assignment.user_id?.full_name || "Staff Member"}</div>
-                            <div className="text-[11px] text-muted-foreground truncate">{assignment.role || "Staff"}</div>
+                            <div className="font-semibold text-[#1E293B] truncate">
+                              {assignment.name || assignment.user_id?.full_name || "Staff Member"}
+                            </div>
+                            <div className="text-[11px] text-[#64748B] truncate">
+                              {assignment.role || "Staff"}
+                              {assignment.phone ? ` • ${assignment.phone}` : ""}
+                            </div>
                           </div>
                         </div>
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 shrink-0">
+                        <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
                           Assigned
                         </span>
                       </div>
@@ -1816,72 +1872,95 @@ export default function ManagerBookings() {
                 )}
               </div>
 
-              {/* Field Staff Incident & Operational Reports */}
-              <div className="space-y-2.5 p-3.5 bg-card border border-border/80 rounded-xl shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <ClipboardList size={14} className="text-primary" /> Crew Field Incident &amp; Shift Reports
-                  </h4>
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    {(detail.staff_reports || []).length} {(detail.staff_reports || []).length === 1 ? "Report" : "Reports"} Logged
-                  </span>
+              {/* 6. Incident & Shift Reports and Operations Notes */}
+              <div className="space-y-3.5">
+                {/* Incident & Shift Reports */}
+                <div className="space-y-2 p-3.5 bg-card border border-border/80 rounded-xl shadow-2xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-border/60">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-md bg-[#D6E4F7] text-[#4C81E0] flex items-center justify-center shrink-0">
+                        <ClipboardList size={13} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-[#1E293B]">
+                          Incident &amp; Shift Reports
+                        </h4>
+                        <p className="text-[11px] text-[#64748B]">
+                          Field logs and incidents submitted by dispatched crew.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-semibold text-[#64748B]">
+                      {(detail.staff_reports || []).length} {(detail.staff_reports || []).length === 1 ? "Report" : "Reports"}
+                    </span>
+                  </div>
+
+                  {(!detail.staff_reports || detail.staff_reports.length === 0) ? (
+                    <p className="text-xs text-[#64748B] italic py-1">
+                      No incident reports or shift notes submitted by the crew for this event.
+                    </p>
+                  ) : (
+                    <div className="space-y-2 pt-1">
+                      {detail.staff_reports.map((rep, idx) => (
+                        <div key={idx} className="p-3 bg-slate-50/60 border border-slate-200/80 rounded-lg text-xs space-y-1.5 shadow-2xs">
+                          <div className="flex items-center justify-between text-[11px] pb-1 border-b border-slate-200/60">
+                            <div className="flex items-center gap-1.5 font-semibold text-[#1E293B]">
+                              <span>{rep.staff_id?.full_name || rep.staff_name || "Crew Member"}</span>
+                              <span className="text-[10px] font-normal text-[#64748B] px-1.5 py-0.2 bg-white rounded border border-slate-200">
+                                {rep.role || "Staff"}
+                              </span>
+                            </div>
+                            {rep.created_at && (
+                              <span className="text-[10.5px] text-[#64748B]">
+                                {new Date(rep.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-[#1E293B] whitespace-pre-wrap leading-relaxed">
+                            {rep.note}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {(!detail.staff_reports || detail.staff_reports.length === 0) ? (
-                  <p className="text-xs text-muted-foreground italic py-2">
-                    No field incident reports or operational notes have been submitted by the crew for this event.
-                  </p>
-                ) : (
-                  <div className="space-y-2 pt-1">
-                    {detail.staff_reports.map((rep, idx) => (
-                      <div key={idx} className="p-3 bg-muted/20 border border-border/80 rounded-xl text-xs space-y-1.5 shadow-2xs">
-                        <div className="flex items-center justify-between text-[11px] pb-1 border-b border-border/60">
-                          <div className="flex items-center gap-1.5 font-bold text-foreground">
-                            <span>{rep.staff_id?.full_name || rep.staff_name || "Crew Member"}</span>
-                            <span className="text-[10px] font-normal text-muted-foreground px-1.5 py-0.2 bg-muted rounded border border-border/60">
-                              {rep.role || "Staff"}
-                            </span>
-                          </div>
-                          {rep.created_at && (
-                            <span className="text-[10.5px] text-muted-foreground">
-                              {new Date(rep.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">
-                          {rep.note}
-                        </p>
+                {/* Operations Notes */}
+                <div className="space-y-2.5 p-3.5 bg-card border border-border/80 rounded-xl shadow-2xs">
+                  <div className="flex items-center gap-2 pb-2 border-b border-border/60">
+                    <div className="w-6 h-6 rounded-md bg-[#D6E4F7] text-[#4C81E0] flex items-center justify-center shrink-0">
+                      <FileText size={13} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#1E293B]">
+                        Operations Notes
+                      </h4>
+                      <p className="text-[11px] text-[#64748B]">
+                        Manager briefing notes, setup instructions, and operational log.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <textarea
+                      rows={2}
+                      placeholder="Add an operational briefing note or event log..."
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      className="w-full p-2.5 text-xs rounded-lg border border-slate-200 bg-white text-[#1E293B] focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0] outline-none shadow-2xs resize-y"
+                    />
+                    <div className="flex justify-end">
+                      <Btn variant="primary" size="xs" onClick={submitNote} disabled={!note.trim()} className="font-semibold bg-[#4C81E0] hover:bg-[#3b6bc4] text-white">
+                        Add Note
+                      </Btn>
+                    </div>
+
+                    {(detail.event_manager_notes || []).map((entry, idx) => (
+                      <div key={idx} className="p-2.5 bg-slate-50/60 border border-slate-200/80 rounded-lg text-xs space-y-1 shadow-2xs">
+                        <div className="text-[10.5px] font-medium text-[#64748B]">{new Date(entry.created_at).toLocaleString()}</div>
+                        <div className="text-[#1E293B] leading-relaxed">{entry.note}</div>
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
-
-              {/* Event Notes */}
-              <div className="space-y-2.5 pt-2 border-t border-border/60">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <FileText size={14} className="text-primary" /> Coordinator Operations Briefing Notes
-                </h4>
-                <div className="space-y-2.5">
-                  <textarea
-                    rows={2}
-                    placeholder="Log an event briefing note or update..."
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    className="w-full p-2.5 text-xs rounded-xl border border-border bg-card text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none shadow-2xs resize-y"
-                  />
-                  <div className="flex justify-end">
-                    <Btn variant="primary" size="xs" onClick={submitNote} disabled={!note.trim()} className="font-semibold">
-                      Add Note
-                    </Btn>
-                  </div>
-
-                  {(detail.event_manager_notes || []).map((entry, idx) => (
-                    <div key={idx} className="p-3 bg-muted/20 border border-border/80 rounded-xl text-xs space-y-1 shadow-2xs">
-                      <div className="text-[10.5px] font-medium text-muted-foreground">{new Date(entry.created_at).toLocaleString()}</div>
-                      <div className="text-foreground leading-relaxed">{entry.note}</div>
-                    </div>
-                  ))}
                 </div>
               </div>
 
@@ -1892,7 +1971,7 @@ export default function ManagerBookings() {
         {/* Staff Item Note Modal */}
         {staffNoteModal && (
           <Modal
-            title={`Staff Item Notes — ${staffNoteModal.itemName}`}
+            title={`Staff Item Notes: ${staffNoteModal.itemName}`}
             icon={FileText}
             onClose={() => setStaffNoteModal(null)}
             className="sm:max-w-md"
@@ -1903,14 +1982,14 @@ export default function ManagerBookings() {
             }
           >
             <div className="space-y-3 text-xs sm:text-sm">
-              <div className="p-3.5 bg-muted/30 border border-border/80 rounded-xl space-y-2 shadow-2xs">
-                <div className="flex items-center justify-between text-[11px] font-bold text-foreground pb-2 border-b border-border/60">
+              <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between text-[11px] font-bold text-[#1E293B] pb-2 border-b border-slate-200/60">
                   <span>Logged by: {staffNoteModal.staffName || "Staff Member"}</span>
                   {staffNoteModal.verifiedAt && (
-                    <span className="text-muted-foreground font-normal">{new Date(staffNoteModal.verifiedAt).toLocaleString()}</span>
+                    <span className="text-[#64748B] font-normal">{new Date(staffNoteModal.verifiedAt).toLocaleString()}</span>
                   )}
                 </div>
-                <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">
+                <p className="text-xs text-[#1E293B] whitespace-pre-wrap leading-relaxed">
                   {staffNoteModal.notes}
                 </p>
               </div>
@@ -1946,7 +2025,7 @@ export default function ManagerBookings() {
             <div className="space-y-3.5 text-xs sm:text-sm">
               <div className="p-3 bg-muted/40 border border-border/80 rounded-xl space-y-1">
                 <div className="font-bold text-foreground">
-                  {completeTarget.reference || completeTarget._id?.slice(-6).toUpperCase()} — {completeTarget.event_type || "Event"}
+                  {completeTarget.reference || completeTarget._id?.slice(-6).toUpperCase()} : {completeTarget.event_type || "Event"}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   Client: {completeTarget.customer_id?.full_name || `${completeTarget.contact_first_name || ""} ${completeTarget.contact_last_name || ""}`.trim() || "Customer"} · Date: {completeTarget.event_date ? new Date(completeTarget.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA"}

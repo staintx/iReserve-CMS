@@ -1,11 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { StaffAPI } from "../../api/staff";
 import StaffLayout from "../../components/layout/StaffLayout";
-import AdminCard from "../../components/admin/ui/AdminCard";
-import Btn from "../../components/admin/ui/Btn";
-import PageHeader from "../../components/admin/ui/PageHeader";
-import SegmentedTabs from "../../components/admin/ui/SegmentedTabs";
 import Badge from "../../components/admin/ui/Badge";
 import useToast from "../../hooks/useToast";
 import { useConfirm } from "../../components/feedback/confirmContext";
@@ -22,45 +18,30 @@ import {
   ArrowLeft,
   Phone,
   Mail,
-  ShieldCheck,
   UserCheck,
   Sparkles,
   Info,
   Check,
   AlertCircle,
-  ClipboardList,
   Lock,
   Utensils,
   Layers,
   Banknote,
-  X
+  ExternalLink
 } from "lucide-react";
 import { getEventTimingStatus } from "../../utils/format";
 
-
-/**
- * The count control for one number on the equipment checklist.
- *
- * The previous version packed a label, two 28px buttons and a 40px borderless
- * number field into a row shared with the item's action buttons. It is the
- * control this whole screen exists for and it was the smallest thing on it.
- *
- * Now: a full-width row, 44px targets, the value in a bordered field so it
- * reads as editable, `inputMode="numeric"` so a phone opens the number pad
- * rather than the full keyboard, and `tabular-nums` so the digit does not
- * shift the buttons as it changes.
- */
 function QtyStepper({ label, value, max, tone = "neutral", onStep, onChange }) {
   const danger = tone === "danger";
   return (
     <div
-      className={`flex items-center justify-between gap-2 rounded-md border p-1.5 shadow-2xs ${
-        danger ? "border-rose-200 bg-rose-50/60" : "border-border bg-card"
+      className={`flex items-center justify-between gap-2 rounded border p-1.5 ${
+        danger ? "border-rose-200 bg-rose-50/60" : "border-slate-200 bg-slate-50/60"
       }`}
     >
       <span
         className={`pl-1.5 text-[11px] font-bold uppercase tracking-wider ${
-          danger ? "text-rose-800" : "text-muted-foreground"
+          danger ? "text-rose-800" : "text-slate-600"
         }`}
       >
         {label}
@@ -72,13 +53,13 @@ function QtyStepper({ label, value, max, tone = "neutral", onStep, onChange }) {
           onClick={() => onStep(-1)}
           disabled={Number(value) <= 0}
           aria-label={`Decrease ${label.toLowerCase()}`}
-          className={`grid h-11 w-11 place-items-center rounded-md text-lg font-bold transition-colors disabled:opacity-40 cursor-pointer portal-press sm:h-9 sm:w-9 ${
+          className={`grid h-9 w-9 place-items-center rounded border border-slate-200 text-sm font-bold transition-colors disabled:opacity-40 cursor-pointer ${
             danger
-              ? "bg-rose-100 text-rose-900 hover:bg-rose-200"
-              : "bg-muted text-foreground hover:bg-border/80"
+              ? "bg-white text-rose-800 hover:bg-rose-100"
+              : "bg-white text-slate-700 hover:bg-slate-100"
           }`}
         >
-          −
+          -
         </button>
         <input
           type="number"
@@ -88,8 +69,8 @@ function QtyStepper({ label, value, max, tone = "neutral", onStep, onChange }) {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-label={label}
-          className={`h-11 w-14 rounded-md border bg-card text-center text-sm font-bold tabular-nums outline-none focus:ring-2 focus:ring-primary/40 sm:h-9 sm:w-12 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${
-            danger ? "border-rose-200 text-rose-900" : "border-border text-foreground"
+          className={`h-9 w-12 rounded border bg-white text-center text-xs font-bold tabular-nums outline-none focus:ring-1 focus:ring-[#4C81E0] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${
+            danger ? "border-rose-300 text-rose-900" : "border-slate-300 text-slate-900"
           }`}
         />
         <button
@@ -97,10 +78,10 @@ function QtyStepper({ label, value, max, tone = "neutral", onStep, onChange }) {
           onClick={() => onStep(1)}
           disabled={Number(value) >= max}
           aria-label={`Increase ${label.toLowerCase()}`}
-          className={`grid h-11 w-11 place-items-center rounded-md text-lg font-bold transition-colors disabled:opacity-40 cursor-pointer portal-press sm:h-9 sm:w-9 ${
+          className={`grid h-9 w-9 place-items-center rounded border border-slate-200 text-sm font-bold transition-colors disabled:opacity-40 cursor-pointer ${
             danger
-              ? "bg-rose-100 text-rose-900 hover:bg-rose-200"
-              : "bg-muted text-foreground hover:bg-border/80"
+              ? "bg-white text-rose-800 hover:bg-rose-100"
+              : "bg-white text-slate-700 hover:bg-slate-100"
           }`}
         >
           +
@@ -113,14 +94,13 @@ function QtyStepper({ label, value, max, tone = "neutral", onStep, onChange }) {
 export default function StaffEventDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const { user } = useAuth();
   const { notify } = useToast();
   const confirm = useConfirm();
 
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "briefing"); // "briefing" | "equipment" | "report"
 
   // Equipment Return State
   const [equipmentList, setEquipmentList] = useState([]);
@@ -134,12 +114,12 @@ export default function StaffEventDetails() {
   const [completingEvent, setCompletingEvent] = useState(false);
 
   const TAG_OPTIONS = [
-    { label: "All Smooth ✓", value: "all_smooth", color: "bg-emerald-50 text-emerald-800 border-emerald-300" },
-    { label: "Late Start ⏰", value: "late_start", color: "bg-amber-50 text-amber-800 border-amber-300" },
-    { label: "Missing Gear ⚠️", value: "missing_items", color: "bg-red-50 text-red-800 border-red-300" },
-    { label: "Damaged Items 💥", value: "damaged_gear", color: "bg-rose-50 text-rose-800 border-rose-300" },
-    { label: "Leftover Food 🍲", value: "leftover_food", color: "bg-blue-50 text-blue-800 border-blue-300" },
-    { label: "Extra Hours ⏱️", value: "extra_hours", color: "bg-purple-50 text-purple-800 border-purple-300" }
+    { label: "No issues", value: "no_issues", icon: CheckCircle2, color: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+    { label: "Late start", value: "late_start", icon: Clock, color: "bg-amber-50 text-amber-800 border-amber-200" },
+    { label: "Missing equipment", value: "missing_items", icon: PackageCheck, color: "bg-rose-50 text-rose-800 border-rose-200" },
+    { label: "Damaged gear", value: "damaged_gear", icon: AlertTriangle, color: "bg-rose-50 text-rose-800 border-rose-200" },
+    { label: "Extra hours", value: "extra_hours", icon: Clock, color: "bg-blue-50 text-blue-800 border-blue-200" },
+    { label: "Other", value: "other", icon: FileText, color: "bg-slate-100 text-slate-800 border-slate-200" }
   ];
 
   const loadEvent = async () => {
@@ -149,7 +129,6 @@ export default function StaffEventDetails() {
       const data = res.data;
       setBooking(data);
 
-      // Initialize equipment returns list
       const initialReturns = [];
       const assignedItems = data.inventory_items || [];
       const returns = data.equipment_returns || [];
@@ -185,7 +164,6 @@ export default function StaffEventDetails() {
           });
         });
       } else {
-        // Fallback default catering gear items if no specific inventory is linked
         [
           { name: "Chafing Dishes with Fuel Holders", quantity: 4 },
           { name: "Dinner Plates & Utensil Sets", quantity: data.guest_count || 50 },
@@ -218,6 +196,16 @@ export default function StaffEventDetails() {
     loadEvent();
   }, [id]);
 
+  // Handle scroll to equipment check if hash or search param exists
+  useEffect(() => {
+    if (!loading && (location.hash === "#equipment-check" || location.search.includes("tab=equipment"))) {
+      const el = document.getElementById("equipment-check");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  }, [loading, location.hash, location.search]);
+
   const toggleQuickTag = (tagLabel) => {
     setQuickTags((prev) =>
       prev.includes(tagLabel) ? prev.filter((t) => t !== tagLabel) : [...prev, tagLabel]
@@ -235,7 +223,6 @@ export default function StaffEventDetails() {
       
       next[index] = { ...next[index], quantity_returned: val };
       
-      // Auto-complete if everything is accounted for
       if (val + (next[index].quantity_damaged || 0) === next[index].quantity_booked) {
         next[index]._markedMissing = false;
         next[index]._verified = true;
@@ -255,7 +242,6 @@ export default function StaffEventDetails() {
       
       next[index] = { ...next[index], quantity_damaged: val };
       
-      // Auto-complete if everything is accounted for
       if (val + (next[index].quantity_returned || 0) === next[index].quantity_booked) {
         next[index]._markedMissing = false;
         next[index]._verified = true;
@@ -302,7 +288,7 @@ export default function StaffEventDetails() {
     setEquipmentList((prev) =>
       prev.map((item) => ({ ...item, quantity_returned: item.quantity_booked, quantity_damaged: 0, _verified: true, _markedMissing: false }))
     );
-    notify("Matched all items to booked quantity.", "success");
+    notify("All items confirmed returned.", "success");
   };
 
   const stepReturnedQty = (index, delta) => {
@@ -332,7 +318,7 @@ export default function StaffEventDetails() {
       copy[index] = { 
         ...copy[index], 
         quantity_damaged: next, 
-        _verified: true,
+        _verified: true, 
         _markedMissing: !isMatch
       };
       return copy;
@@ -348,10 +334,10 @@ export default function StaffEventDetails() {
         note: equipmentNotes.trim() || undefined,
         equipment_notes: equipmentNotes.trim() || undefined,
       });
-      notify("Equipment return checklist submitted & logged!", "success");
+      notify("Equipment check saved successfully!", "success");
       loadEvent();
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to submit equipment returns.", "error");
+      notify(err.response?.data?.message || "Failed to save equipment check.", "error");
     } finally {
       setSubmittingEquipment(false);
     }
@@ -359,7 +345,7 @@ export default function StaffEventDetails() {
 
   const handleSubmitReport = async () => {
     if (!note.trim() && quickTags.length === 0) {
-      notify("Please type a note or choose at least one quick tag.", "error");
+      notify("Please enter a note or select at least one status option.", "error");
       return;
     }
 
@@ -398,8 +384,7 @@ export default function StaffEventDetails() {
         collectedCash
           ? "Event completed and cash balance payment confirmed!"
           : "Event marked as completed",
-        "success",
-        { description: collectedCash ? "Cash balance cleared." : "Nice work." }
+        "success"
       );
       navigate("/staff/dashboard");
     } finally {
@@ -434,9 +419,9 @@ export default function StaffEventDetails() {
       tone: "confirm",
       title: "Mark this event as completed?",
       description:
-        "This closes out the shift with the notes and equipment returns recorded below. Check them before confirming — you will be taken back to your dashboard.",
-      confirmLabel: "Mark completed",
-      cancelLabel: "Not yet",
+        "This closes out the event with the notes and equipment returns recorded below. Check them before confirming - you will be taken back to your dashboard.",
+      confirmLabel: "Mark Completed",
+      cancelLabel: "Not Yet",
       onConfirm: async () => {
         await executeComplete(false);
       },
@@ -463,32 +448,19 @@ export default function StaffEventDetails() {
     return map;
   }, [booking]);
 
-  const equipmentStats = useMemo(() => {
-    let totalBooked = 0;
-    let totalReturned = 0;
-    let totalDamaged = 0;
-    equipmentList.forEach((item) => {
-      totalBooked += Number(item.quantity_booked || 0);
-      totalReturned += Number(item.quantity_returned || 0);
-      totalDamaged += Number(item.quantity_damaged || 0);
-    });
-    const discrepancy = totalBooked - totalReturned - totalDamaged;
-    return { totalBooked, totalReturned, totalDamaged, discrepancy };
-  }, [equipmentList]);
-
-  // How many manifest lines the crew has actually accounted for. Drives the
-  // pinned save bar, which is the only place on a phone where the progress
-  // through a long checklist stays visible.
-  const countedItems = useMemo(
-    () => equipmentList.filter((item) => item._verified).length,
-    [equipmentList]
-  );
+  const hasSupportingInfo = useMemo(() => {
+    if (!booking) return false;
+    const hasMenu = (booking.menu_items || []).length > 0;
+    const hasServices = (booking.service_items || []).length > 0 || (booking.additional_charges || []).length > 0;
+    const hasCrew = (booking.staff_assignments || []).length > 0;
+    return hasMenu || hasServices || hasCrew;
+  }, [booking]);
 
   if (loading) {
     return (
       <StaffLayout>
-        <div className="p-12 text-center text-xs text-muted-foreground">
-          Loading event specifications...
+        <div className="p-12 text-center text-xs text-slate-500 bg-white border border-slate-200/80 rounded-lg">
+          Loading event details...
         </div>
       </StaffLayout>
     );
@@ -497,791 +469,647 @@ export default function StaffEventDetails() {
   if (!booking) {
     return (
       <StaffLayout>
-        <AdminCard className="!p-8 text-center space-y-3">
+        <div className="p-8 text-center space-y-3 bg-white border border-slate-200/80 rounded-lg">
           <AlertCircle size={32} className="mx-auto text-amber-600" />
-          <h2 className="text-lg font-bold text-foreground">Event Not Found</h2>
-          <p className="text-xs text-muted-foreground">The assigned event could not be loaded or you are not assigned to it.</p>
-          <Btn variant="secondary" size="sm" onClick={() => navigate("/staff/dashboard")}>
+          <h2 className="text-base font-bold text-slate-900">Event Not Found</h2>
+          <p className="text-xs text-slate-500">The assigned event could not be loaded or you are not assigned to it.</p>
+          <button
+            type="button"
+            onClick={() => navigate("/staff/dashboard")}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-800 transition-colors"
+          >
             Back to Assigned Events
-          </Btn>
-        </AdminCard>
+          </button>
+        </div>
       </StaffLayout>
     );
   }
 
   const manager = booking.event_manager_id || null;
+  const locationAddress =
+    [booking.street, booking.barangay, booking.municipality, booking.province].filter(Boolean).join(", ") ||
+    "Address details will be confirmed by lead.";
+  const locationQuery = [booking.street, booking.barangay, booking.municipality, booking.province].filter(Boolean).join(", ");
 
   return (
     <StaffLayout>
       <div className="space-y-4">
-        <PageHeader
-          back={
-            <button
-              type="button"
-              onClick={() => navigate("/staff/dashboard")}
-              className="-ml-1 flex min-h-[38px] items-center gap-1.5 rounded-md px-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
-            >
-              <ArrowLeft size={14} /> Back to my shifts
-            </button>
-          }
-          title={booking.event_type || "Catering Event"}
-          description={
-            (booking.customer_id?.full_name || 'Valued Client') +
-            ' · REF ' +
-            (booking.reference || booking._id?.slice(-6).toUpperCase() || '')
-          }
-          meta={
-            <>
-              <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-950">
-                {myRole}
-              </span>
-              {timing.isUpcoming && (
-                <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10.5px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                  <Lock size={11} className="text-slate-500" />
-                  Upcoming shift
-                </span>
-              )}
-              {timing.isStarted && !timing.isFinished && (
-                <span className="flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10.5px] font-bold text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-                  <Sparkles size={11} className="text-emerald-600" />
-                  In progress
-                </span>
-              )}
-              {timing.isFinished && (
-                <span className="flex items-center gap-1 rounded-md border border-blue-300 bg-blue-100 px-2 py-0.5 text-[10.5px] font-bold text-blue-900 dark:bg-blue-950 dark:text-blue-200">
-                  <CheckCircle2 size={11} className="text-blue-600" />
-                  Ready for return check
-                </span>
-              )}
-              <Badge status={booking.status || "confirmed"} />
-            </>
-          }
-        />
-
-        {/* The three views of a shift. Sticky on a phone: the equipment tab is
-            a long checklist and losing the way back to the briefing halfway
-            down it means scrolling to the top to find it again. */}
-        <div className="portal-sticky -mx-3 bg-background/95 px-3 pb-2.5 pt-0.5 backdrop-blur md:static md:mx-0 md:bg-transparent md:px-0 md:pb-0 md:backdrop-blur-none">
-          <SegmentedTabs
-            ariaLabel="Shift views"
-            value={activeTab}
-            onChange={setActiveTab}
-            tabs={[
-              {
-                id: "briefing",
-                label: "Event Briefing & Team",
-                shortLabel: "Briefing",
-                icon: ClipboardList,
-              },
-              {
-                id: "equipment",
-                label: timing.isUpcoming ? "Dispatched Gear" : "Equipment Check",
-                shortLabel: timing.isUpcoming ? "Gear" : "Gear",
-                icon: timing.isUpcoming ? Lock : PackageCheck,
-                count: equipmentList.length,
-              },
-              {
-                id: "report",
-                label: "Incident & Completion",
-                shortLabel: "Report",
-                icon: FileText,
-              },
-            ]}
-          />
+        {/* Back navigation */}
+        <div>
+          <button
+            type="button"
+            onClick={() => navigate("/staff/dashboard")}
+            className="-ml-1 inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-colors cursor-pointer"
+          >
+            <ArrowLeft size={14} />
+            <span>Back to My Events</span>
+          </button>
         </div>
 
-        {/* TAB 1: BRIEFING & TEAM */}
-        {activeTab === "briefing" && (
-          <div className="space-y-4">
-            {/* Top Important Instructions / Briefing Alert */}
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2 shadow-2xs">
-              <div className="flex items-center gap-2 text-amber-900 dark:text-amber-300 font-bold text-xs">
-                <AlertTriangle size={15} className="text-amber-600 shrink-0" />
-                <span>Shift Briefing &amp; Key Requirements</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-amber-950 dark:text-amber-200">
-                <div className="bg-card p-2.5 rounded-md border border-amber-200/60 dark:border-amber-800 shadow-2xs">
-                  <span className="font-bold block text-amber-900 dark:text-amber-300 mb-0.5">Dress Code &amp; Arrival:</span>
-                  <span>Standard black catering uniform with apron. Arrive at least <strong>1 hour before</strong> start time.</span>
-                </div>
-                <div className="bg-card p-2.5 rounded-md border border-amber-200/60 dark:border-amber-800 shadow-2xs">
-                  <span className="font-bold block text-amber-900 dark:text-amber-300 mb-0.5">Dietary &amp; Special Requests:</span>
-                  <span>
-                    {booking.dietary_restrictions ? `Dietary: ${booking.dietary_restrictions}. ` : ""}
-                    {booking.allergies ? `Allergies: ${booking.allergies}. ` : ""}
-                    {booking.special_requests ? `Special: ${booking.special_requests}. ` : ""}
-                    {booking.notes || (!booking.dietary_restrictions && !booking.allergies && !booking.special_requests ? "Follow standard catering protocol." : "")}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Financial & Balance Settlement Overview */}
-            {Number(booking.remaining_balance || 0) > 0 ? (
-              <div className="p-3 bg-card border border-amber-300 dark:border-amber-800 rounded-lg space-y-2 shadow-2xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-amber-950 dark:text-amber-200">
-                    <Banknote size={15} className="text-amber-600 shrink-0" />
-                    <span>Client Remaining Balance: ₱{Number(booking.remaining_balance).toLocaleString()}</span>
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 w-fit">
-                    {booking.balance_payment_preference === "in_person" ? "Cash On-Site Choice" : "Pending Settlement"}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {booking.balance_payment_preference === "in_person"
-                    ? `The client elected to pay the remaining balance of ₱${Number(booking.remaining_balance).toLocaleString()} in cash to the event manager upon completion of the event.`
-                    : `Remaining balance is due the same day after event completion (payable online via portal or in cash on-site).`}
+        {/* Unified Work Document Container */}
+        <div className="rounded-lg border border-slate-200/80 bg-white shadow-2xs divide-y divide-slate-200/80 overflow-hidden">
+          
+          {/* SECTION 1: Event Name & Current Event Status */}
+          <div className="p-4 sm:p-5 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div className="space-y-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  Catering Event
+                </span>
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">
+                  {booking.event_type || "Catering Event"}
+                </h1>
+                <p className="text-xs text-slate-500">
+                  Client: <strong className="text-slate-700">{booking.customer_id?.full_name || "Valued Client"}</strong> · Reference: <span className="font-mono text-slate-700 font-semibold">{booking.reference || booking._id?.slice(-6).toUpperCase()}</span>
                 </p>
               </div>
-            ) : (
-              <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-between text-xs text-emerald-950 dark:text-emerald-200 shadow-2xs">
-                <div className="flex items-center gap-2 font-bold">
-                  <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
-                  <span>Booking Payment: Paid in Full</span>
-                </div>
-                <span className="text-[10.5px] text-emerald-800 dark:text-emerald-300 font-medium">₱{Number(booking.total_price || 0).toLocaleString()} Settled</span>
-              </div>
-            )}
 
-            {/* Event Specs & Lead Coordinator */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 sm:gap-4">
-              {/* Event Schedule & Location */}
-              <AdminCard className="space-y-3 lg:col-span-2 shadow-2xs">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Calendar size={13} className="text-primary" /> Event Schedule &amp; Venue
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                  <div className="p-2.5 bg-muted/30 rounded-lg border border-border/80 space-y-0.5 shadow-2xs">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground">Date &amp; Duration</span>
-                    <div className="text-xs font-bold text-foreground">
-                      {booking.event_date ? new Date(booking.event_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "TBD"}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">{booking.start_time || "Time TBA"} ({booking.duration_hours || 4} Hours)</div>
-                  </div>
-
-                  <div className="p-2.5 bg-muted/30 rounded-lg border border-border/80 space-y-0.5 shadow-2xs">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground">Guest Count</span>
-                    <div className="text-xs font-bold text-foreground">{booking.guest_count || 0} Guests</div>
-                    <div className="text-[11px] text-muted-foreground truncate">Package: {booking.package_id?.name || booking.package_name_snapshot || "Custom Package"}</div>
-                  </div>
-
-                  <div className="p-2.5 bg-muted/30 rounded-lg border border-border/80 sm:col-span-2 space-y-1 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground">Venue Location</span>
-                      {(() => {
-                        const locQuery = [booking.street, booking.barangay, booking.municipality, booking.province].filter(Boolean).join(", ");
-                        return locQuery ? (
-                          <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locQuery)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[10.5px] font-bold text-primary hover:underline flex items-center gap-1"
-                          >
-                            🗺️ Open in Google Maps
-                          </a>
-                        ) : null;
-                      })()}
-                    </div>
-                    <div className="text-xs font-bold text-foreground">{booking.venue_type || "Venue Location"}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {[booking.street, booking.barangay, booking.municipality].filter(Boolean).join(", ") || "Address details will be confirmed by lead."}
-                    </div>
-                  </div>
-                </div>
-              </AdminCard>
-
-              {/* Lead Coordinator Card */}
-              <AdminCard className="space-y-3 shadow-2xs">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <ShieldCheck size={14} className="text-amber-600" /> Lead Event Manager
-                </h3>
-
-                {manager ? (
-                  <div className="p-3 bg-amber-50/60 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg space-y-2.5 text-xs shadow-2xs">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-amber-200 dark:bg-amber-900 text-amber-950 dark:text-amber-200 font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs">
-                        {manager.full_name?.slice(0, 2).toUpperCase() || "MG"}
-                      </div>
-                      <div>
-                        <div className="font-bold text-foreground text-xs">{manager.full_name}</div>
-                        <div className="text-[10.5px] text-amber-800 dark:text-amber-300 font-semibold">Lead Coordinator</div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5 pt-1.5 border-t border-amber-200/80 dark:border-amber-800 text-xs">
-                      {manager.phone && (
-                        <a 
-                          href={`tel:${manager.phone}`} 
-                          className="flex items-center gap-1.5 text-foreground font-semibold hover:text-primary transition-colors"
-                          title="Tap to call lead manager"
-                        >
-                          <Phone size={12} className="text-amber-700 dark:text-amber-400 shrink-0" />
-                          <span>{manager.phone}</span>
-                          <span className="text-[10px] text-primary font-bold ml-auto bg-card px-1.5 py-0.5 rounded border border-border">📞 Call</span>
-                        </a>
-                      )}
-                      {manager.email && (
-                        <a 
-                          href={`mailto:${manager.email}`}
-                          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          <Mail size={12} className="text-amber-700 dark:text-amber-400 shrink-0" />
-                          <span className="truncate">{manager.email}</span>
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic py-3">
-                    Lead coordinator not designated yet.
-                  </p>
+              <div className="flex flex-wrap items-center gap-1.5 self-start">
+                <Badge status={booking.status || "confirmed"} />
+                {timing.isUpcoming && (
+                  <span className="inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                    <Lock size={12} className="text-slate-500" /> Upcoming
+                  </span>
                 )}
-              </AdminCard>
+                {timing.isStarted && !timing.isFinished && (
+                  <span className="inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    <Sparkles size={12} className="text-emerald-600" /> In Progress
+                  </span>
+                )}
+                {timing.isFinished && (
+                  <span className="inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                    <CheckCircle2 size={12} className="text-blue-600" /> Return Check
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 2: Date, Time, and Venue */}
+          <div className="p-4 sm:p-5 space-y-3">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Date, Time &amp; Venue
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-slate-50/70 rounded border border-slate-200/80 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                  <Calendar size={14} className="text-[#4C81E0]" />
+                  <span>Date &amp; Schedule</span>
+                </div>
+                <div className="text-sm font-bold text-slate-900">
+                  {booking.event_date
+                    ? new Date(booking.event_date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+                    : "Date TBA"}
+                </div>
+                <div className="text-slate-600 flex items-center gap-1">
+                  <Clock size={12} className="text-slate-400" />
+                  <span>{booking.start_time || "Time TBA"} ({booking.duration_hours || 4} hours duration)</span>
+                </div>
+                {booking.guest_count > 0 && (
+                  <div className="text-slate-500 text-[11px] pt-1 border-t border-slate-200/60">
+                    {booking.guest_count} guests · {booking.package_id?.name || booking.package_name_snapshot || "Standard Catering"}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3 bg-slate-50/70 rounded border border-slate-200/80 space-y-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                    <MapPin size={14} className="text-[#4C81E0]" />
+                    <span>Venue Location</span>
+                  </div>
+                  {locationQuery && (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationQuery)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] font-semibold text-[#4C81E0] hover:underline inline-flex items-center gap-1"
+                    >
+                      <ExternalLink size={11} /> Open in Google Maps
+                    </a>
+                  )}
+                </div>
+                <div className="text-sm font-bold text-slate-900 truncate">
+                  {booking.venue_type || "Venue TBA"}
+                </div>
+                <div className="text-slate-600 text-xs">
+                  {locationAddress}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 3: Staff Member's Assigned Role */}
+          <div className="p-4 sm:p-5 space-y-2">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Your Assigned Role
+            </h2>
+            <div className="flex items-center justify-between p-3 bg-slate-50/70 rounded border border-slate-200/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-[#D6E4F7] text-[#4C81E0] font-bold flex items-center justify-center shrink-0">
+                  <UserCheck size={16} />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-slate-900">{myRole}</div>
+                  <div className="text-[11px] text-slate-500">Catering Operations Roster</div>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded bg-white border border-slate-200 text-xs font-semibold text-slate-700">
+                Active Assignment
+              </span>
+            </div>
+          </div>
+
+          {/* SECTION 4: Event Lead / Manager */}
+          <div className="p-4 sm:p-5 space-y-2">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Event Lead / Manager
+            </h2>
+            {manager ? (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50/70 rounded border border-slate-200/80">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-[#D6E4F7] text-[#4C81E0] font-bold flex items-center justify-center text-xs shrink-0">
+                    {manager.full_name?.slice(0, 2).toUpperCase() || "MG"}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-slate-900">{manager.full_name}</div>
+                    <div className="text-[11px] text-slate-500">Lead Event Coordinator</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {manager.phone && (
+                    <a
+                      href={`tel:${manager.phone}`}
+                      className="inline-flex min-h-[38px] items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#4C81E0] text-white text-xs font-bold hover:bg-[#3b6bc4] transition-colors"
+                    >
+                      <Phone size={13} />
+                      <span>Call Lead ({manager.phone})</span>
+                    </a>
+                  )}
+                  {manager.email && (
+                    <a
+                      href={`mailto:${manager.email}`}
+                      className="inline-flex min-h-[38px] items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors"
+                    >
+                      <Mail size={13} />
+                      <span className="hidden sm:inline">{manager.email}</span>
+                      <span className="sm:hidden">Email</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 italic p-3 bg-slate-50/70 rounded border border-slate-200/80">
+                Lead coordinator not designated yet.
+              </p>
+            )}
+          </div>
+
+          {/* SECTION 5: Important Event Instructions and Briefing */}
+          <div className="p-4 sm:p-5 space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+              <Info size={14} className="text-[#4C81E0]" />
+              <h2>Important Event Instructions &amp; Briefing</h2>
             </div>
 
-            {/* Catering Menu & Selected Dishes */}
-            <AdminCard className="space-y-3 shadow-2xs">
-              <div className="flex items-center justify-between pb-2 border-b border-border/60">
-                <div className="flex items-center gap-2">
-                  <Utensils size={15} className="text-primary" />
-                  <h3 className="text-sm font-bold text-foreground">
-                    Catering Menu &amp; Kitchen Specifications ({(booking.menu_items || []).length} Dishes)
-                  </h3>
-                </div>
-                <span className="text-[11px] text-muted-foreground">Kitchen Prep Specs</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-slate-50/70 rounded border border-slate-200/80 space-y-1">
+                <span className="font-bold block text-slate-900">Dress Code &amp; Arrival</span>
+                <p className="text-slate-600 leading-relaxed">
+                  Standard black catering uniform with apron. Arrive at least <strong>1 hour before</strong> event start time for station setup.
+                </p>
               </div>
 
-              {(booking.menu_items || []).length === 0 ? (
-                <p className="text-xs text-muted-foreground italic py-2">No menu dishes attached yet.</p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {booking.menu_items.map((dish, idx) => (
-                    <div key={idx} className="p-2.5 bg-muted/30 rounded-lg border border-border/80 text-xs space-y-1 shadow-2xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-foreground">{dish.name || dish.dish_id?.name || "Catering Dish"}</span>
-                        <span className="text-[10px] text-muted-foreground uppercase font-semibold">{dish.category || dish.dish_id?.category || "Main"}</span>
-                      </div>
-                      {dish.special_instructions && (
-                        <div className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-1 rounded border border-amber-200 dark:border-amber-800">
-                          {dish.special_instructions}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </AdminCard>
+              <div className="p-3 bg-slate-50/70 rounded border border-slate-200/80 space-y-1">
+                <span className="font-bold block text-slate-900">Dietary &amp; Special Requests</span>
+                <p className="text-slate-600 leading-relaxed">
+                  {booking.dietary_restrictions ? `Dietary: ${booking.dietary_restrictions}. ` : ""}
+                  {booking.allergies ? `Allergies: ${booking.allergies}. ` : ""}
+                  {booking.special_requests ? `Special: ${booking.special_requests}. ` : ""}
+                  {booking.notes || (!booking.dietary_restrictions && !booking.allergies && !booking.special_requests ? "Standard catering protocol applies. No special dietary restrictions noted." : "")}
+                </p>
+              </div>
+            </div>
 
-            {/* Add-on Services & Event Setup */}
-            {((booking.service_items && booking.service_items.length > 0) || (booking.additional_charges && booking.additional_charges.length > 0)) && (
-              <AdminCard className="space-y-3 shadow-2xs">
-                <div className="flex items-center justify-between pb-2 border-b border-border/60">
-                  <div className="flex items-center gap-2">
-                    <Layers size={15} className="text-primary" />
-                    <h3 className="text-sm font-bold text-foreground">Add-on Services &amp; Event Styling</h3>
-                  </div>
-                  <span className="text-[11px] text-muted-foreground">Special service setup</span>
+            {Number(booking.remaining_balance || 0) > 0 && booking.balance_payment_preference === "in_person" && (
+              <div className="p-3 bg-amber-50/80 border border-amber-200 rounded flex items-center gap-2.5 text-xs text-amber-900">
+                <Banknote size={16} className="text-amber-600 shrink-0" />
+                <div>
+                  <strong>Cash Collection:</strong> Client elected to pay the remaining balance of <strong>₱{Number(booking.remaining_balance).toLocaleString()}</strong> in cash on-site to the event lead.
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {(booking.service_items || []).map((srv, idx) => (
-                    <div key={`srv-${idx}`} className="p-2.5 bg-muted/30 rounded-lg border border-border/80 flex items-center justify-between text-xs shadow-2xs">
-                      <div>
-                        <div className="font-bold text-foreground">{srv.name}</div>
-                        {srv.note && <div className="text-[10.5px] text-muted-foreground">{srv.note}</div>}
-                      </div>
-                      {srv.quantity > 1 && (
-                        <span className="text-[10.5px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-                          Qty: {srv.quantity}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                  {(booking.additional_charges || []).map((chg, idx) => (
-                    <div key={`chg-${idx}`} className="p-2.5 bg-muted/30 rounded-lg border border-border/80 text-xs shadow-2xs">
-                      <div className="font-bold text-foreground">{chg.label}</div>
-                      {chg.reason && <div className="text-[10.5px] text-muted-foreground">{chg.reason}</div>}
-                    </div>
-                  ))}
-                </div>
-              </AdminCard>
+              </div>
             )}
-
-            {/* Coworker Crew List */}
-            <AdminCard className="space-y-3 shadow-2xs">
-              <div className="flex items-center justify-between pb-2 border-b border-border/60">
-                <div className="flex items-center gap-2">
-                  <Users size={15} className="text-primary" />
-                  <h3 className="text-sm font-bold text-foreground">Assigned Catering Crew ({(booking.staff_assignments || []).length})</h3>
-                </div>
-                <span className="text-[11px] text-muted-foreground">On duty this shift</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                {Object.entries(teamByRole).map(([roleName, members]) => (
-                  <div key={roleName} className="p-2.5 bg-muted/30 rounded-lg border border-border/80 space-y-1.5 shadow-2xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                      {roleName} ({members.length})
-                    </span>
-                    <div className="space-y-1">
-                      {members.map((member, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-xs font-semibold text-foreground py-0.5">
-                          <span className="truncate">{member.name || member.user_id?.full_name || "Crew Member"}</span>
-                          {member.phone && (
-                            <a 
-                              href={`tel:${member.phone}`}
-                              className="text-[10px] text-primary font-bold hover:underline flex items-center gap-0.5 shrink-0"
-                            >
-                              📞 {member.phone}
-                            </a>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </AdminCard>
           </div>
-        )}
 
+          {/* SECTION 6: Equipment Check */}
+          <div id="equipment-check" className="p-4 sm:p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <PackageCheck size={16} className="text-[#4C81E0]" />
+                  <span>Equipment Check</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Did you return all assigned equipment? Confirm catering gear or report missing and damaged quantities.
+                </p>
+              </div>
 
-        {/* TAB 2: EQUIPMENT COUNTING & RETURN VERIFICATION */}
-        {activeTab === "equipment" && (
-          <div className="space-y-4">
-            {/* If event is upcoming (not yet started): Show locked info banner & read-only manifest */}
+              {!timing.isUpcoming && (
+                <button
+                  type="button"
+                  onClick={handleMatchAllQuantities}
+                  className="inline-flex min-h-[38px] items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer self-start sm:self-auto"
+                >
+                  <Check size={14} className="text-emerald-700" />
+                  <span>All items returned</span>
+                </button>
+              )}
+            </div>
+
             {timing.isUpcoming ? (
-              <div className="space-y-4">
-                {/* Informative Lock Notice Banner */}
-                <div className="p-3.5 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/70 rounded-lg space-y-1.5 shadow-2xs">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-bold text-xs">
-                      <Lock size={15} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                      <span>Equipment Return Verification is Locked</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-md bg-amber-200/80 dark:bg-amber-900 text-amber-900 dark:text-amber-200 font-bold text-[10.5px]">
-                      Opens at Event Start
-                    </span>
-                  </div>
-                  <p className="text-xs text-amber-950 dark:text-amber-200 leading-relaxed">
-                    Gear counting, condition logging, and return verification will automatically unlock when the event starts on{" "}
-                    <strong>{booking.event_date ? new Date(booking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "the event date"} at {booking.start_time || "scheduled time"}</strong>.
-                    Below is the list of catering equipment dispatched for this booking for your advance preparation.
-                  </p>
+              <div className="space-y-3">
+                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded flex items-center gap-2 text-xs text-amber-900">
+                  <Lock size={14} className="text-amber-600 shrink-0" />
+                  <span>
+                    Equipment check opens when the event starts. Below is the dispatched equipment manifest for advance preparation.
+                  </span>
                 </div>
 
-                {/* Read-Only Dispatched Gear Manifest Card */}
-                <AdminCard className="space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-border/60">
-                    <div>
-                      <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                        <PackageCheck size={15} className="text-primary" />
-                        <span>Dispatched Catering Gear Manifest</span>
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Inventory items packed and dispatched to the venue for this catering event
-                      </p>
-                    </div>
-
-                    <span className="px-2.5 py-1 rounded-md bg-muted text-muted-foreground border border-border text-xs font-semibold self-start sm:self-auto flex items-center gap-1.5">
-                      <Lock size={12} />
-                      <span>{equipmentList.length} Items Dispatched</span>
-                    </span>
-                  </div>
-
-                  <div className="space-y-2">
-                    {equipmentList.map((item, idx) => (
-                      <div 
-                        key={idx} 
-                        className="p-2.5 rounded-lg border border-border/80 bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs"
-                      >
-                        <div>
-                          <div className="font-bold text-xs text-foreground">{item.name}</div>
-                          <div className="text-[11px] text-muted-foreground mt-0.5">
-                            Expected at Venue: <strong className="text-foreground">{item.quantity_booked} units</strong>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 self-start sm:self-auto">
-                          <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border text-[11px] font-semibold flex items-center gap-1">
-                            <span>Dispatched: {item.quantity_booked}</span>
-                          </span>
-                          <span className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-semibold flex items-center gap-1">
-                            <Lock size={11} /> Return Pending
-                          </span>
-                        </div>
+                <div className="space-y-2">
+                  {equipmentList.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded border border-slate-200/80 bg-slate-50/60 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <span className="font-bold text-slate-900 block">{item.name}</span>
+                        <span className="text-[11px] text-slate-500">Expected quantity: {item.quantity_booked} units</span>
                       </div>
-                    ))}
-                  </div>
-
-                  <div className="p-2.5 bg-muted/20 rounded-lg border border-border/80 text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5 shadow-2xs">
-                    <Lock size={12} className="text-muted-foreground" />
-                    <span>Return counting and checklist submission will be enabled during the event.</span>
-                  </div>
-                </AdminCard>
+                      <span className="px-2.5 py-1 rounded bg-white border border-slate-200 text-xs font-semibold text-slate-700">
+                        Dispatched: {item.quantity_booked}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
-              /* If event has started or concluded: Show interactive verification UI */
-              <div className="space-y-4">
-                {/* Equipment Summary KPI Banner (2x2 on mobile, 4-col on desktop) */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
-                  <AdminCard className="!p-2.5 sm:!p-3 bg-card border-border/80 shadow-2xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Booked Gear</span>
-                    <div className="text-lg sm:text-xl font-bold text-foreground mt-0.5">{equipmentStats.totalBooked} Units</div>
-                    <p className="text-[10.5px] text-muted-foreground">Dispatched</p>
-                  </AdminCard>
+              <div className="space-y-3">
+                <ul className="space-y-2.5">
+                  {equipmentList.map((item, idx) => {
+                    const isMissing = item._verified && item._markedMissing;
+                    const isMatch =
+                      item._verified &&
+                      !item._markedMissing &&
+                      (item.quantity_returned || 0) + (item.quantity_damaged || 0) === item.quantity_booked;
+                    const shortfall =
+                      item.quantity_booked - (item.quantity_returned || 0) - (item.quantity_damaged || 0);
 
-                  <AdminCard className="!p-2.5 sm:!p-3 bg-card border-border/80 shadow-2xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Returned Safe</span>
-                    <div className="text-lg sm:text-xl font-bold text-emerald-700 mt-0.5">{equipmentStats.totalReturned} Units</div>
-                    <p className="text-[10.5px] text-emerald-600 font-semibold">Accounted</p>
-                  </AdminCard>
-
-                  <AdminCard className={`!p-2.5 sm:!p-3 shadow-2xs ${equipmentStats.totalDamaged > 0 ? "bg-rose-50/60 border-rose-200" : "bg-card border-border/80"}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Damaged</span>
-                    <div className={`text-lg sm:text-xl font-bold mt-0.5 ${equipmentStats.totalDamaged > 0 ? "text-rose-800" : "text-slate-600"}`}>
-                      {equipmentStats.totalDamaged > 0 ? `⚠️ ${equipmentStats.totalDamaged}` : "0"}
-                    </div>
-                    <p className="text-[10.5px] text-muted-foreground">Broken</p>
-                  </AdminCard>
-
-                  <AdminCard className={`!p-2.5 sm:!p-3 shadow-2xs ${equipmentStats.discrepancy !== 0 ? "bg-amber-50/60 border-amber-200" : "bg-card border-border/80"}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Discrepancy</span>
-                    <div className={`text-lg sm:text-xl font-bold mt-0.5 ${equipmentStats.discrepancy !== 0 ? "text-amber-800" : "text-slate-600"}`}>
-                      {equipmentStats.discrepancy > 0 
-                        ? `⚠️ ${equipmentStats.discrepancy} Short` 
-                        : equipmentStats.discrepancy < 0 
-                          ? `⚠️ ${Math.abs(equipmentStats.discrepancy)} Extra` 
-                          : "0 All In"}
-                    </div>
-                    <p className="text-[10.5px] text-muted-foreground">Missing items</p>
-                  </AdminCard>
-                </div>
-
-                {/* The return checklist.
-                    This is the one screen the crew uses standing up, in a
-                    venue, at the end of a shift — so it is the one that most
-                    needed rebuilding rather than shrinking. What changed:
-
-                    - The count steppers were 28px squares with a 40px number
-                      between them, tapped repeatedly with one hand. They are
-                      now 44px, the number is a 44px-tall field with a numeric
-                      keypad, and the pair sits on its own full-width row
-                      instead of being wedged beside the item name.
-                    - Every item's controls were visible at once, so a
-                      fifteen-item manifest was a wall of steppers. An item
-                      that is simply all-present is now one tap and collapses
-                      to a confirmed row; the steppers appear only for the
-                      items that actually need a count.
-                    - Save was at the bottom of that wall. It is now a bar
-                      pinned above the tab bar as soon as anything is
-                      unsaved, and it says how many items are still uncounted. */}
-                <AdminCard className="space-y-3 shadow-2xs !p-3 sm:!p-4.5">
-                  <div className="flex flex-col gap-2.5 border-b border-border/60 pb-2.5 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-foreground">Equipment return check</h3>
-                      <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                        Count every item before it goes back to inventory.
-                        {countedItems < equipmentList.length && (
-                          <>
-                            {" "}
-                            <span className="font-semibold text-foreground tabular-nums">
-                              {equipmentList.length - countedItems} of {equipmentList.length}
-                            </span>{" "}
-                            still to count.
-                          </>
-                        )}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleMatchAllQuantities}
-                      className="flex min-h-[44px] items-center justify-center gap-1.5 self-stretch rounded-md border border-border bg-card px-3 text-xs font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted cursor-pointer portal-press sm:min-h-9 sm:self-auto"
-                    >
-                      <Check size={14} className="text-emerald-600" />
-                      <span>All present</span>
-                    </button>
-                  </div>
-
-                  <ul className="space-y-2">
-                    {equipmentList.map((item, idx) => {
-                      const isMissing = item._verified && item._markedMissing;
-                      const isMatch =
-                        item._verified &&
-                        !item._markedMissing &&
-                        (item.quantity_returned || 0) + (item.quantity_damaged || 0) === item.quantity_booked;
-                      const shortfall =
-                        item.quantity_booked - (item.quantity_returned || 0) - (item.quantity_damaged || 0);
-
-                      return (
-                        <li
-                          key={idx}
-                          className={`space-y-2.5 rounded-lg border p-2.5 shadow-2xs transition-all sm:p-3 ${
-                            isMissing
-                              ? "border-amber-300 bg-amber-50/40"
-                              : isMatch
-                                ? "border-emerald-200 bg-emerald-50/30"
-                                : "border-border/80 bg-card"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="text-[13px] font-bold leading-snug text-foreground">{item.name}</p>
-                              <p className="mt-0.5 text-[11.5px] text-muted-foreground">
-                                Dispatched:{" "}
-                                <strong className="text-foreground tabular-nums">{item.quantity_booked}</strong>
-                              </p>
-                            </div>
-
-                            <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                              {isMatch && (
-                                <span className="flex items-center gap-0.5 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
-                                  <CheckCircle2 size={11} /> All in
-                                </span>
-                              )}
-                              {item.quantity_damaged > 0 && (
-                                <span className="flex items-center gap-0.5 rounded border border-rose-300 bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800 tabular-nums">
-                                  <AlertTriangle size={11} /> {item.quantity_damaged} broken
-                                </span>
-                              )}
-                              {isMissing && shortfall > 0 && (
-                                <span className="flex items-center gap-0.5 rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 tabular-nums">
-                                  <AlertTriangle size={11} /> {shortfall} short
-                                </span>
-                              )}
-                            </div>
+                    return (
+                      <li
+                        key={idx}
+                        className={`p-3 rounded border transition-all space-y-2.5 ${
+                          isMissing
+                            ? "border-amber-200 bg-amber-50/40"
+                            : isMatch
+                              ? "border-emerald-200 bg-emerald-50/30"
+                              : "border-slate-200/80 bg-white"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="text-xs sm:text-sm font-bold text-slate-900 block">{item.name}</span>
+                            <span className="text-xs text-slate-500">
+                              Dispatched quantity: <strong className="text-slate-800">{item.quantity_booked}</strong>
+                            </span>
                           </div>
 
-                          {/* The two-choice row. "All present" is the common
-                              case and gets the affirmative colour; "count"
-                              opens the steppers for the exception. */}
-                          {isMatch ? (
+                          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                            {isMatch && (
+                              <span className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                                <CheckCircle2 size={12} /> All returned
+                              </span>
+                            )}
+                            {item.quantity_damaged > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-800">
+                                <AlertTriangle size={12} /> {item.quantity_damaged} damaged
+                              </span>
+                            )}
+                            {isMissing && shortfall > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                <AlertTriangle size={12} /> {shortfall} missing
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        {isMatch ? (
+                          <button
+                            type="button"
+                            onClick={() => handleMarkMissing(idx)}
+                            className="flex min-h-[38px] w-full items-center justify-center gap-1.5 rounded border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer"
+                          >
+                            <AlertTriangle size={13} className="text-amber-600" />
+                            <span>Report missing or damaged</span>
+                          </button>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleMarkComplete(idx)}
+                              className="flex min-h-[38px] items-center justify-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors cursor-pointer"
+                            >
+                              <Check size={14} />
+                              <span>All returned</span>
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleMarkMissing(idx)}
-                              className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md border border-border bg-card text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground cursor-pointer sm:min-h-9"
+                              className={`flex min-h-[38px] items-center justify-center gap-1.5 rounded border text-xs font-semibold transition-colors cursor-pointer ${
+                                isMissing
+                                  ? "border-amber-300 bg-amber-100 text-amber-900"
+                                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                              }`}
                             >
-                              <AlertTriangle size={14} className="text-amber-600" />
-                              Change count
+                              <span>Change quantity</span>
                             </button>
-                          ) : (
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleMarkComplete(idx)}
-                                className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-100 cursor-pointer portal-press sm:min-h-9"
-                              >
-                                <Check size={14} /> All present
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleMarkMissing(idx)}
-                                className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border text-xs font-bold transition-colors cursor-pointer portal-press sm:min-h-9 ${
-                                  isMissing
-                                    ? "border-amber-300 bg-amber-100 text-amber-900"
-                                    : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                                }`}
-                              >
-                                <X size={14} /> Count it
-                              </button>
-                            </div>
-                          )}
+                          </div>
+                        )}
 
-                          {item._markedMissing && (
-                            <div className="space-y-2 border-t border-amber-200/60 pt-2.5">
-                              <QtyStepper
-                                label="Returned safe"
-                                value={item.quantity_returned}
-                                max={item.quantity_booked}
-                                onStep={(delta) => stepReturnedQty(idx, delta)}
-                                onChange={(value) => handleUpdateReturnedQuantity(idx, value)}
-                              />
-                              <QtyStepper
-                                label="Broken"
-                                tone="danger"
-                                value={item.quantity_damaged || 0}
-                                max={item.quantity_booked}
-                                onStep={(delta) => stepDamagedQty(idx, delta)}
-                                onChange={(value) => handleUpdateDamagedQuantity(idx, value)}
-                              />
-                              <input
-                                type="text"
-                                placeholder="What happened to the missing or broken items?"
-                                value={item.notes || ""}
-                                onChange={(e) => handleUpdateEquipmentNote(idx, e.target.value)}
-                                className="min-h-[44px] w-full rounded-md border border-border bg-card px-2.5 text-xs text-foreground placeholder:text-muted-foreground sm:min-h-0 sm:py-2"
-                              />
-                            </div>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
+                        {item._markedMissing && (
+                          <div className="space-y-2 border-t border-amber-200/80 pt-2.5">
+                            <QtyStepper
+                              label="Returned safe"
+                              value={item.quantity_returned}
+                              max={item.quantity_booked}
+                              onStep={(delta) => stepReturnedQty(idx, delta)}
+                              onChange={(value) => handleUpdateReturnedQuantity(idx, value)}
+                            />
+                            <QtyStepper
+                              label="Damaged / broken"
+                              tone="danger"
+                              value={item.quantity_damaged || 0}
+                              max={item.quantity_booked}
+                              onStep={(delta) => stepDamagedQty(idx, delta)}
+                              onChange={(value) => handleUpdateDamagedQuantity(idx, value)}
+                            />
+                            <input
+                              type="text"
+                              placeholder="Notes on missing or damaged items (optional)..."
+                              value={item.notes || ""}
+                              onChange={(e) => handleUpdateEquipmentNote(idx, e.target.value)}
+                              className="min-h-[38px] w-full rounded border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#4C81E0]"
+                            />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
 
-                  <div className="space-y-2 border-t border-border/60 pt-2.5">
-                    <label htmlFor="equipment-notes" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Additional equipment notes
-                    </label>
-                    <textarea
-                      id="equipment-notes"
-                      placeholder="Any overall observations regarding the equipment…"
-                      value={equipmentNotes}
-                      onChange={(e) => setEquipmentNotes(e.target.value)}
-                      className="min-h-[70px] w-full resize-y rounded-lg border border-border bg-background p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
+                <div className="space-y-1.5 pt-2">
+                  <label htmlFor="equipment-notes" className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Equipment Notes (Optional)
+                  </label>
+                  <textarea
+                    id="equipment-notes"
+                    rows={2}
+                    placeholder="Any observations regarding equipment condition or handover..."
+                    value={equipmentNotes}
+                    onChange={(e) => setEquipmentNotes(e.target.value)}
+                    className="w-full rounded border border-slate-200 bg-white p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#4C81E0]"
+                  />
+                </div>
 
-                  {/* Desktop keeps the action in the flow of the card; the
-                      phone gets the pinned bar below instead. */}
-                  <div className="hidden justify-end pt-1 sm:flex">
-                    <button
-                      type="button"
-                      onClick={handleSubmitEquipmentReturns}
-                      disabled={submittingEquipment}
-                      className="flex items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-2xs transition-colors hover:bg-primary/90 disabled:opacity-60 cursor-pointer"
-                    >
-                      <PackageCheck size={14} />
-                      <span>{submittingEquipment ? "Saving…" : "Save equipment verification"}</span>
-                    </button>
-                  </div>
-                </AdminCard>
-
-                {/* Pinned save bar. It rides above the tab bar so the crew can
-                    commit the count from anywhere in a long manifest instead
-                    of scrolling back to the bottom of it. */}
-                <div className="fixed inset-x-0 bottom-[var(--portal-tabbar-total)] z-30 border-t border-border bg-card/95 p-2.5 shadow-[0_-1px_12px_rgba(92,64,43,0.08)] backdrop-blur sm:hidden">
+                <div className="flex justify-end pt-1">
                   <button
                     type="button"
                     onClick={handleSubmitEquipmentReturns}
                     disabled={submittingEquipment}
-                    className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-[13px] font-bold text-primary-foreground shadow-2xs transition-colors hover:bg-primary/90 disabled:opacity-60 cursor-pointer portal-press"
+                    className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-md bg-[#4C81E0] px-4 text-xs font-bold text-white shadow-2xs transition-colors hover:bg-[#3b6bc4] disabled:opacity-60 cursor-pointer w-full sm:w-auto"
                   >
-                    <PackageCheck size={16} />
-                    <span>
-                      {submittingEquipment
-                        ? "Saving…"
-                        : countedItems < equipmentList.length
-                          ? `Save count (${countedItems}/${equipmentList.length} done)`
-                          : "Save equipment verification"}
-                    </span>
+                    <PackageCheck size={15} />
+                    <span>{submittingEquipment ? "Saving equipment check..." : "Save Equipment Check"}</span>
                   </button>
                 </div>
-                {/* Reserves the pinned bar's own height so the last line of
-                    the manifest is not parked underneath it. */}
-                <div className="h-[68px] sm:hidden" aria-hidden="true" />
               </div>
             )}
           </div>
-        )}
 
-        {/* TAB 3: INCIDENT & COMPLETION */}
-        {activeTab === "report" && (
-          <div className="space-y-4">
-            <AdminCard className="space-y-3">
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Shift Incident &amp; Handover Reporting</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Select tags and log post-event notes for the Lead Event Manager and Admin
-                </p>
-              </div>
+          {/* SECTION 7: Incident Reporting */}
+          <div className="p-4 sm:p-5 space-y-4">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                <AlertCircle size={16} className="text-[#4C81E0]" />
+                <span>Report Incident &amp; Shift Note</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Record any shift delays, equipment problems, extra hours, or client feedback.
+              </p>
+            </div>
 
-              {/* Quick Tags */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Quick Incident / Status Tags</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {TAG_OPTIONS.map((tag) => {
-                    const isSelected = quickTags.includes(tag.label);
-                    return (
-                      <button
-                        key={tag.value}
-                        type="button"
-                        onClick={() => toggleQuickTag(tag.label)}
-                        className={`px-3 py-2 sm:py-1 min-h-[38px] sm:min-h-0 rounded-md border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center ${
-                          isSelected ? `${tag.color} ring-2 ring-primary/30 shadow-2xs font-bold` : "bg-card border-border text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {tag.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Note Textarea */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Shift Report Details</label>
-                <textarea
-                  rows={3}
-                  placeholder="Describe catering execution, leftover food disposition, staff performance, or client feedback..."
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  className="w-full p-2.5 text-xs rounded-lg border border-border bg-background text-foreground focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2.5 border-t border-border/60">
-                <button 
-                  type="button"
-                  onClick={handleSubmitReport} 
-                  disabled={submittingReport || (!note.trim() && quickTags.length === 0)}
-                  className="w-full sm:w-auto py-2 px-3.5 min-h-[42px] sm:min-h-0 bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {submittingReport ? "Submitting Log..." : "Submit Incident Report"}
-                </button>
-
-                {timing.isUpcoming ? (
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    <span className="text-[11px] text-muted-foreground flex items-center justify-center gap-1 font-medium">
-                      <Lock size={12} className="text-muted-foreground" /> Shift completion opens at event start
-                    </span>
-                    <button 
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                Quick Status Options
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {TAG_OPTIONS.map((tag) => {
+                  const isSelected = quickTags.includes(tag.label);
+                  const TagIcon = tag.icon;
+                  return (
+                    <button
+                      key={tag.value}
                       type="button"
-                      disabled={true}
-                      className="w-full sm:w-auto py-2 px-4 min-h-[42px] sm:min-h-0 opacity-50 cursor-not-allowed border border-border bg-muted text-muted-foreground font-semibold text-xs rounded-md flex items-center justify-center gap-1.5"
-                      title="Shift cannot be marked completed before the event starts"
+                      onClick={() => toggleQuickTag(tag.label)}
+                      className={`px-3 py-2 min-h-[38px] rounded border text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                        isSelected
+                          ? `${tag.color} ring-2 ring-[#4C81E0]/30 font-bold`
+                          : "bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                      }`}
                     >
-                      <CheckCircle2 size={14} />
-                      <span>Mark Shift Completed</span>
+                      <TagIcon size={14} className={isSelected ? "text-current" : "text-slate-400"} />
+                      <span>{tag.label}</span>
                     </button>
-                  </div>
-                ) : (
-                  <button 
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="shift-note" className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                Incident or Note Details (Optional)
+              </label>
+              <textarea
+                id="shift-note"
+                rows={3}
+                placeholder="Describe any incidents, kitchen delays, client feedback, or shift observations..."
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="w-full rounded border border-slate-200 bg-white p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#4C81E0]"
+              />
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleSubmitReport}
+                disabled={submittingReport || (!note.trim() && quickTags.length === 0)}
+                className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50 cursor-pointer w-full sm:w-auto"
+              >
+                <FileText size={14} className="text-slate-500" />
+                <span>{submittingReport ? "Submitting Report..." : "Submit Report"}</span>
+              </button>
+
+              {timing.isUpcoming ? (
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <span className="text-xs text-slate-500 flex items-center justify-center gap-1">
+                    <Lock size={12} className="text-slate-400" /> Shift completion opens at event start
+                  </span>
+                  <button
                     type="button"
-                    onClick={handleCompleteEvent} 
-                    disabled={completingEvent}
-                    className="w-full sm:w-auto py-2 px-4 min-h-[42px] sm:min-h-0 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    disabled
+                    className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-slate-100 px-4 text-xs font-semibold text-slate-400 cursor-not-allowed opacity-60"
                   >
                     <CheckCircle2 size={14} />
-                    <span>{completingEvent ? "Completing..." : "Mark Shift Completed"}</span>
+                    <span>Mark Event Completed</span>
                   </button>
-                )}
-              </div>
-            </AdminCard>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleCompleteEvent}
+                  disabled={completingEvent}
+                  className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700 transition-colors cursor-pointer w-full sm:w-auto"
+                >
+                  <CheckCircle2 size={15} />
+                  <span>{completingEvent ? "Completing..." : "Mark Event Completed"}</span>
+                </button>
+              )}
+            </div>
 
             {/* Previously Logged Staff Reports */}
             {booking.staff_reports && booking.staff_reports.length > 0 && (
-              <AdminCard className="space-y-2.5">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Logged Shift Reports</h4>
+              <div className="space-y-2 pt-3 border-t border-slate-100">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Logged Shift Reports
+                </h3>
                 <div className="space-y-2">
                   {booking.staff_reports.map((report, idx) => (
-                    <div key={idx} className="p-2.5 bg-muted/30 rounded-lg border border-border/80 text-xs space-y-0.5 shadow-2xs">
-                      <div className="flex items-center justify-between text-muted-foreground text-[10px]">
-                        <span className="font-bold text-foreground">{report.role || "Staff Member"}</span>
+                    <div key={idx} className="p-2.5 bg-slate-50/70 rounded border border-slate-200/80 text-xs space-y-0.5">
+                      <div className="flex items-center justify-between text-slate-500 text-[10.5px]">
+                        <span className="font-bold text-slate-800">{report.role || "Staff Member"}</span>
                         <span>{new Date(report.created_at || Date.now()).toLocaleString()}</span>
                       </div>
-                      <p className="text-foreground mt-0.5">{report.note}</p>
+                      <p className="text-slate-800 mt-0.5">{report.note}</p>
                     </div>
                   ))}
                 </div>
-              </AdminCard>
+              </div>
             )}
           </div>
-        )}
+
+          {/* SECTION 8: Other Supporting Information (Only when relevant) */}
+          {hasSupportingInfo && (
+            <div className="p-4 sm:p-5 space-y-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Supporting Information
+              </h2>
+
+              {/* Menu Items */}
+              {booking.menu_items && booking.menu_items.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <Utensils size={14} className="text-[#4C81E0]" />
+                    <span>Catering Menu ({booking.menu_items.length} Dishes)</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {booking.menu_items.map((dish, idx) => (
+                      <div key={idx} className="p-2.5 bg-slate-50/70 rounded border border-slate-200/80 text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-900">{dish.name || dish.dish_id?.name || "Catering Dish"}</span>
+                          <span className="text-[10px] text-slate-500 uppercase font-semibold">{dish.category || dish.dish_id?.category || "Main"}</span>
+                        </div>
+                        {dish.special_instructions && (
+                          <div className="text-[11px] text-amber-900 bg-amber-50 p-1.5 rounded border border-amber-200">
+                            {dish.special_instructions}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add-on Services */}
+              {((booking.service_items && booking.service_items.length > 0) || (booking.additional_charges && booking.additional_charges.length > 0)) && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <Layers size={14} className="text-[#4C81E0]" />
+                    <span>Add-on Services &amp; Setup Requirements</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {(booking.service_items || []).map((srv, idx) => (
+                      <div key={`srv-${idx}`} className="p-2.5 bg-slate-50/70 rounded border border-slate-200/80 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="font-bold text-slate-900 block">{srv.name}</span>
+                          {srv.note && <span className="text-[11px] text-slate-500 block">{srv.note}</span>}
+                        </div>
+                        {srv.quantity > 1 && (
+                          <span className="text-[10.5px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                            Qty: {srv.quantity}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                    {(booking.additional_charges || []).map((chg, idx) => (
+                      <div key={`chg-${idx}`} className="p-2.5 bg-slate-50/70 rounded border border-slate-200/80 text-xs">
+                        <span className="font-bold text-slate-900 block">{chg.label}</span>
+                        {chg.reason && <span className="text-[11px] text-slate-500 block">{chg.reason}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Assigned Catering Crew */}
+              {booking.staff_assignments && booking.staff_assignments.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <Users size={14} className="text-[#4C81E0]" />
+                    <span>Assigned Crew on Duty ({booking.staff_assignments.length})</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {Object.entries(teamByRole).map(([roleName, members]) => (
+                      <div key={roleName} className="p-2.5 bg-slate-50/70 rounded border border-slate-200/80 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                          {roleName} ({members.length})
+                        </span>
+                        <div className="space-y-1">
+                          {members.map((member, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-xs font-semibold text-slate-800 py-0.5">
+                              <span className="truncate">{member.name || member.user_id?.full_name || "Crew Member"}</span>
+                              {member.phone && (
+                                <a 
+                                  href={`tel:${member.phone}`}
+                                  className="text-[11px] text-[#4C81E0] hover:underline inline-flex items-center gap-1 shrink-0"
+                                >
+                                  <Phone size={10} /> {member.phone}
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
       </div>
     </StaffLayout>
   );
 }
-

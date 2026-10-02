@@ -128,7 +128,7 @@ export default function ManagerStaff() {
       header: "Staff Member",
       render: (s) => (
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0 border border-primary/20">
+          <div className="w-8 h-8 rounded-full bg-[#D6E4F7]/50 text-[#4C81E0] flex items-center justify-center font-bold text-xs shrink-0 border border-[#4C81E0]/20">
             {initials(s.full_name)}
           </div>
           <div>
@@ -142,7 +142,7 @@ export default function ManagerStaff() {
       key: "position",
       header: "Role / Position",
       render: (s) => (
-        <span className="text-xs font-medium text-foreground bg-muted px-2 py-0.5 rounded">
+        <span className="text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/70">
           {s.position || s.role || "Staff Member"}
         </span>
       )
@@ -152,27 +152,27 @@ export default function ManagerStaff() {
       header: "Upcoming Events",
       className: "text-center",
       render: (s) => (
-        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-md ${
           (s.upcoming_count || 0) > 0 
-            ? "bg-blue-50 text-blue-800 border border-blue-200" 
-            : "bg-muted text-muted-foreground"
+            ? "bg-[#D6E4F7]/50 text-[#1E293B] border border-[#4C81E0]/25" 
+            : "bg-slate-100 text-slate-500"
         }`}>
-          {s.upcoming_count || 0} events
+          {s.upcoming_count || 0} {(s.upcoming_count === 1) ? "event" : "events"}
         </span>
       )
     },
     {
       key: "status",
       header: "Status",
-      render: (s) => <Badge status={s.is_active ? "available" : "off"} />
+      render: (s) => <Badge status={s.is_active ? "available" : "off"} className="!rounded-md" />
     },
     {
       key: "actions",
       header: "Actions",
       stopRowClick: true,
       render: (s) => (
-        <Btn variant="secondary" size="xs" onClick={() => openCalendar(s)} className="flex items-center gap-1">
-          <CalendarIcon size={12} className="text-primary" />
+        <Btn variant="secondary" size="xs" onClick={() => openCalendar(s)} className="flex items-center gap-1.5">
+          <CalendarIcon size={12} className="text-[#4C81E0]" />
           <span>View Calendar</span>
         </Btn>
       )
@@ -183,19 +183,11 @@ export default function ManagerStaff() {
     <ManagerLayout>
       <div className="space-y-4">
         <PageHeader
-          title="Staff Roster & Availability"
+          title="Staff"
           description="View team availability schedules and event workloads before dispatching"
-          actions={
-            <Btn variant="secondary" size="sm" onClick={() => navigate("/manager/dashboard")}>
-              My Dashboard
-            </Btn>
-          }
         />
 
-        {/* Same sticky rail as Assigned Bookings: the position filter is what
-            a manager changes between reads, so it stays put while the roster
-            scrolls under it. */}
-        <div className="portal-sticky -mx-3 bg-background/95 px-3 pb-2.5 pt-0.5 backdrop-blur md:static md:mx-0 md:bg-transparent md:px-0 md:pb-0 md:backdrop-blur-none">
+        {/* Natural search and position filter bar */}
         <AdminCard className="!p-2.5 sm:!p-3.5">
           <TableToolbar
             search={search}
@@ -206,7 +198,6 @@ export default function ManagerStaff() {
             onQuickFilterChange={setPositionFilter}
           />
         </AdminCard>
-        </div>
 
         {/* Phone roster. The whole row opens the schedule — it is the only
             thing a manager can do with a staff member here, so a separate
@@ -240,7 +231,7 @@ export default function ManagerStaff() {
                         onClick={() => openCalendar(s)}
                         className="flex w-full items-center gap-3 p-3 text-left cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
                       >
-                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-primary/20 bg-primary/10 text-[13px] font-bold text-primary">
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#4C81E0]/20 bg-[#D6E4F7]/40 text-[13px] font-bold text-[#4C81E0]">
                           {initials(s.full_name)}
                         </span>
                         <span className="min-w-0 flex-1">
@@ -254,7 +245,7 @@ export default function ManagerStaff() {
                             </span>
                           </span>
                         </span>
-                        <Calendar size={16} className="shrink-0 text-primary" />
+                        <Calendar size={16} className="shrink-0 text-[#4C81E0]" />
                       </button>
 
                       {(s.phone || s.email) && (
@@ -314,7 +305,7 @@ export default function ManagerStaff() {
           <Modal
             title={`Staff Schedule — ${selectedStaff.full_name}`}
             icon={CalendarDays}
-            badge={<Badge status={selectedStaff.is_active ? "available" : "off"} />}
+            badge={<Badge status={selectedStaff.is_active ? "available" : "off"} className="!rounded-md" />}
             description="Monthly roster assignments, shift availability, and duty schedule."
             onClose={() => setSelectedStaff(null)}
             className="sm:max-w-xl"
@@ -328,7 +319,7 @@ export default function ManagerStaff() {
               {/* Member Card */}
               <div className="flex items-center justify-between rounded-xl border border-border/80 bg-muted/30 p-3 sm:p-3.5 shadow-2xs">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-sm shrink-0 shadow-2xs">
+                  <div className="w-11 h-11 rounded-xl bg-[#D6E4F7]/50 text-[#4C81E0] border border-[#4C81E0]/20 flex items-center justify-center font-bold text-sm shrink-0 shadow-2xs">
                     {initialsOf(selectedStaff.full_name)}
                   </div>
                   <div className="min-w-0 space-y-0.5">

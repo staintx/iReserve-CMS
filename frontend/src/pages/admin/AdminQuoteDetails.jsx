@@ -422,6 +422,12 @@ export default function AdminQuoteDetails() {
     (Array.isArray(quote.package_id?.offer_food_items) && quote.package_id.offer_food_items.length > 0) ||
     (Array.isArray(quote.offer_food_snapshot) && quote.offer_food_snapshot.length > 0);
   const isFoodOnly = quote.service_type === "Food Only";
+  const isCustomBooking = Boolean(
+    quote.is_custom_setup ||
+    quote.booking_type === "custom" ||
+    identity.type === BOOKING_TYPES.CUSTOM ||
+    (!quote.package_id && !quote.had_package_selection)
+  );
   const offerPackage = quote.package_id && typeof quote.package_id === "object" ? quote.package_id : null;
   const offerCourses = isOffer ? offerFoodByCategory(offerFoodForDisplay(quote, offerPackage)) : [];
   const offerPerPax = isOffer ? offerPricePerPax(offerPackage) : 0;
@@ -1457,14 +1463,16 @@ export default function AdminQuoteDetails() {
             {/* 4. Preferences */}
             <SectionContainer title="Preferences" icon={HeartPulse}>
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <DataField icon={DollarSign} label="Budget">
-                    {quote.budget_range ? (
-                      <span className="text-emerald-800 font-mono font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-xs">
-                        {quote.budget_range}
-                      </span>
-                    ) : null}
-                  </DataField>
+                <div className={`grid grid-cols-1 ${isCustomBooking ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-4`}>
+                  {isCustomBooking && (
+                    <DataField icon={DollarSign} label="Budget">
+                      {quote.budget_range ? (
+                        <span className="text-emerald-800 font-mono font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-xs">
+                          {quote.budget_range}
+                        </span>
+                      ) : null}
+                    </DataField>
+                  )}
 
                   <DataField icon={ShieldAlert} label="Allergies">
                     {quote.allergies ? (

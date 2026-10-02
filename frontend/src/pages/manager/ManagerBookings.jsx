@@ -572,13 +572,17 @@ export default function ManagerBookings() {
         const isCompleted = ["completed", "Completed"].includes(b.status);
         return (
           <div>
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-bold text-foreground">
                 {recordTitle(b)}
               </span>
               {isPast && !isCompleted && (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.2 rounded border border-rose-200 dark:border-rose-800">
-                  <AlertTriangle size={10} /> Event Passed
+                <span
+                  title="Event date has passed"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-medium tracking-tight bg-rose-50 text-rose-700 border border-rose-200/80 shrink-0"
+                >
+                  <Clock size={10} className="text-rose-600" />
+                  <span>Event Passed</span>
                 </span>
               )}
             </div>
@@ -622,17 +626,17 @@ export default function ManagerBookings() {
           <div>
             {count === 0 ? (
               isPast ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800">
-                  <AlertCircle size={11} /> Unassigned (Passed)
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-700 bg-rose-50 border border-rose-200/90 px-2 py-0.5 rounded-md">
+                  <Clock size={11} className="text-rose-600" /> Unassigned (Passed)
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
-                  <AlertCircle size={11} /> Unassigned
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200/90 px-2 py-0.5 rounded-md">
+                  <AlertCircle size={11} className="text-amber-600" /> Needs Staffing
                 </span>
               )
             ) : (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                <CheckCircle2 size={11} /> {count} Staff Dispatched
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200/90 px-2 py-0.5 rounded-md">
+                <CheckCircle2 size={11} className="text-emerald-600" /> {count} Staff Dispatched
               </span>
             )}
           </div>
@@ -642,20 +646,23 @@ export default function ManagerBookings() {
     {
       key: "status",
       header: "Booking Status",
-      render: (b) => <Badge status={b.status} />
+      render: (b) => <Badge status={b.status} className="!rounded-md" />
     },
     {
       key: "actions",
       header: "Actions",
       stopRowClick: true,
+      width: "275px",
+      className: "w-[275px] min-w-[275px]",
+      headerClassName: "w-[275px] min-w-[275px]",
       render: (b) => {
         const hasStaff = Array.isArray(b.staff_assignments) && b.staff_assignments.length > 0;
         const isCompleted = ["completed", "Completed"].includes(b.status);
         const isPast = isPastDate(b.event_date);
 
         return (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Btn variant="secondary" size="xs" onClick={() => openDetails(b)} title="View full event details">
+          <div className="flex items-center gap-1.5 flex-nowrap whitespace-nowrap">
+            <Btn variant="secondary" size="xs" onClick={() => openDetails(b)} title="View full event details" className="shrink-0">
               <Eye size={13} /> View
             </Btn>
             {!isCompleted && isPast && (
@@ -663,7 +670,7 @@ export default function ManagerBookings() {
                 variant="primary"
                 size="xs"
                 onClick={() => openCompleteModal(b)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1 cursor-pointer"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1 cursor-pointer shrink-0"
                 title="Mark this event as concluded and completed"
               >
                 <CheckCircle2 size={13} /> Complete
@@ -674,17 +681,17 @@ export default function ManagerBookings() {
                 variant="secondary" 
                 size="xs" 
                 onClick={() => openAssign(b)}
-                className="text-foreground hover:bg-muted font-semibold border-border flex items-center gap-1 cursor-pointer"
+                className="text-foreground hover:bg-muted font-semibold border-border flex items-center gap-1 cursor-pointer shrink-0"
                 title={isPast ? "Edit retroactive staff assignments" : "Edit dispatched staff team"}
               >
-                <UserCheck size={13} className="text-primary" /> Edit Staff
+                <UserCheck size={13} className="text-[#4C81E0]" /> Edit Staff
               </Btn>
             ) : isPast ? (
               <Btn 
                 variant="secondary" 
                 size="xs" 
                 onClick={() => openAssign(b)}
-                className="text-foreground hover:bg-muted font-medium border-border flex items-center gap-1 cursor-pointer"
+                className="text-foreground hover:bg-muted font-medium border-border flex items-center gap-1 cursor-pointer shrink-0"
                 title="Log past staff assignments retroactively"
               >
                 <UserPlus size={13} /> Log Staff
@@ -694,7 +701,7 @@ export default function ManagerBookings() {
                 variant="primary" 
                 size="xs" 
                 onClick={() => openAssign(b)}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-bold flex items-center gap-1 cursor-pointer"
+                className="bg-[#4C81E0] hover:bg-[#3b6bc4] text-white font-bold flex items-center gap-1 cursor-pointer shrink-0"
                 title="Assign Staff Team"
               >
                 <UserPlus size={13} /> Assign
@@ -733,20 +740,12 @@ export default function ManagerBookings() {
     <ManagerLayout>
       <div className="space-y-4">
         <PageHeader
-          title="Assigned Bookings"
+          title="Bookings"
           description="Review event specifications, build staff teams, and monitor execution"
-          actions={
-            <Btn variant="secondary" size="sm" onClick={() => navigate("/manager/staff")}>
-              <Users size={14} /> Staff Roster
-            </Btn>
-          }
         />
 
-        {/* The tab strip and the search field are the two controls a manager
-            touches between every card they read, so on a phone they ride the
-            top of the scroll container instead of scrolling away with the
-            page header above them. */}
-        <div className="portal-sticky -mx-3 space-y-2.5 bg-background/95 px-3 pb-2.5 pt-0.5 backdrop-blur md:static md:mx-0 md:space-y-4 md:bg-transparent md:px-0 md:pb-0 md:backdrop-blur-none">
+        {/* Natural search and tab filter flow without awkward sticky detachment */}
+        <div className="space-y-3">
           <SegmentedTabs
             ariaLabel="Booking status"
             value={tab}
@@ -803,18 +802,18 @@ export default function ManagerBookings() {
 
                 const crew = hasStaff
                   ? {
-                      className: "border-emerald-200 bg-emerald-50 text-emerald-800",
+                      className: "border-emerald-200/90 bg-emerald-50 text-emerald-800",
                       icon: CheckCircle2,
                       text: b.staff_assignments.length + " crew dispatched",
                     }
                   : isPast
                     ? {
-                        className: "border-rose-300 bg-rose-50 text-rose-900",
+                        className: "border-rose-200/90 bg-rose-50 text-rose-800",
                         icon: AlertTriangle,
                         text: "Unassigned — event passed",
                       }
                     : {
-                        className: "border-amber-300 bg-amber-50 text-amber-900",
+                        className: "border-amber-200/90 bg-amber-50 text-amber-800",
                         icon: AlertCircle,
                         text: "Needs staffing",
                       };
@@ -835,7 +834,7 @@ export default function ManagerBookings() {
                                 {b.event_type || "Catering Event"}
                               </span>
                               {isPast && !isCompleted && (
-                                <span className="inline-flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-px text-[10px] font-bold text-rose-700 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
+                                <span className="inline-flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-px text-[10px] font-bold text-rose-700">
                                   <AlertTriangle size={9} /> Passed
                                 </span>
                               )}
@@ -848,18 +847,18 @@ export default function ManagerBookings() {
                         </span>
 
                         <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-                          <Calendar size={13} className="shrink-0 text-primary" />
+                          <Calendar size={13} className="shrink-0 text-[#4C81E0]" />
                           <span className="font-semibold text-foreground">{eventDate}</span>
                           <span>· {b.start_time || "Time TBA"}</span>
                         </span>
 
                         <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-                          <MapPin size={13} className="shrink-0" />
+                          <MapPin size={13} className="shrink-0 text-slate-400" />
                           <span className="truncate">{locationStr}</span>
                         </span>
 
                         <span className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                          <span className={"inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11.5px] font-bold " + crew.className}>
+                          <span className={"inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold " + crew.className}>
                             <CrewIcon size={12} />
                             {crew.text}
                           </span>
@@ -874,7 +873,7 @@ export default function ManagerBookings() {
                           <button
                             type="button"
                             onClick={() => openCompleteModal(b)}
-                            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-[13px] font-bold text-white shadow-2xs transition-colors hover:bg-emerald-700 cursor-pointer portal-press"
+                            className="flex min-h-[42px] w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-[13px] font-bold text-white shadow-2xs transition-colors hover:bg-emerald-700 cursor-pointer portal-press"
                           >
                             <CheckCircle2 size={15} />
                             Mark Completed
@@ -883,16 +882,16 @@ export default function ManagerBookings() {
                           <button
                             type="button"
                             onClick={() => openAssign(b)}
-                            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md border border-border bg-card px-3 text-[13px] font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted cursor-pointer portal-press"
+                            className="flex min-h-[42px] w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-[13px] font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted cursor-pointer portal-press"
                           >
-                            <UserCheck size={15} className="text-primary" />
+                            <UserCheck size={15} className="text-[#4C81E0]" />
                             Edit Staff Team
                           </button>
                         ) : (
                           <button
                             type="button"
                             onClick={() => openAssign(b)}
-                            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md bg-amber-600 px-3 text-[13px] font-bold text-white shadow-2xs transition-colors hover:bg-amber-700 cursor-pointer portal-press"
+                            className="flex min-h-[42px] w-full items-center justify-center gap-1.5 rounded-lg bg-[#4C81E0] px-3 text-[13px] font-bold text-white shadow-2xs transition-colors hover:bg-[#3b6bc4] cursor-pointer portal-press"
                           >
                             <UserPlus size={15} />
                             Dispatch Staff
@@ -920,7 +919,7 @@ export default function ManagerBookings() {
             emptyTitle={`No ${tab} bookings found.`}
             emptyHint="Assigned events from Admin will appear here."
             onRowClick={(b) => openDetails(b)}
-            minWidth="750px"
+            minWidth="980px"
             /* Between 1024px and the table's own min-width the row scrolls,
                and the actions column was the first thing pushed off screen —
                the one column the row is being read for. */

@@ -133,20 +133,20 @@ export default function ManagerSidebar() {
             )}
           </NavLink>
 
-          <NavLink to="/manager/bookings" className={linkClass} title={isCollapsed ? "Assigned Bookings" : undefined}>
+          <NavLink to="/manager/bookings" className={linkClass} title={isCollapsed ? "Bookings" : undefined}>
             {({ isActive }) => (
               <>
                 <Calendar className={iconClass(isActive)} />
-                {!isCollapsed && <span>Assigned Bookings</span>}
+                {!isCollapsed && <span>Bookings</span>}
               </>
             )}
           </NavLink>
 
-          <NavLink to="/manager/staff" className={linkClass} title={isCollapsed ? "Staff & Availability" : undefined}>
+          <NavLink to="/manager/staff" className={linkClass} title={isCollapsed ? "Staff" : undefined}>
             {({ isActive }) => (
               <>
                 <Users className={iconClass(isActive)} />
-                {!isCollapsed && <span>Staff Roster</span>}
+                {!isCollapsed && <span>Staff</span>}
               </>
             )}
           </NavLink>

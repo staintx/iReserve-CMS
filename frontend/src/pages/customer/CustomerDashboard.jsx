@@ -21,7 +21,6 @@ import CustomerDateEventsModal from "../../components/customer/portal/CustomerDa
 import {
   CalendarClock,
   CheckCircle2,
-  MessageSquare,
   PlusCircle,
   ArrowRight,
   FileText,
@@ -389,7 +388,7 @@ export default function CustomerDashboard() {
         {/* ── Main Scrollable Content Workspace ── */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1400px] mx-auto">
           {/* ── Summary Metrics Grid ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
             <StatTile
               icon={Calendar}
               label="Active Bookings"
@@ -411,13 +410,6 @@ export default function CustomerDashboard() {
               hint={totalBalanceDue > 0 ? "Pending payment" : "All settled"}
               onClick={() => navigate("/customer/payments")}
               className={totalBalanceDue > 0 ? "border-amber-200/90" : undefined}
-            />
-            <StatTile
-              icon={MessageSquare}
-              label="Messages"
-              value={unreadCount}
-              hint={unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
-              onClick={() => navigate("/customer/messages")}
             />
           </div>
 

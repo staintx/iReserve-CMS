@@ -62,6 +62,10 @@ export default function CustomerRequestStep({
     .map((c) => c.trim())
     .filter(Boolean);
 
+  const specialRequest = String(
+    details?.special_requests || inquiry?.special_requests || inquiry?.notes || inquiry?.custom_setup_notes || ""
+  ).trim();
+
   return (
     <div className="space-y-4 max-w-4xl mx-auto font-sans">
       {/* Top Banner */}
@@ -524,14 +528,14 @@ export default function CustomerRequestStep({
                 <p className="text-slate-500 italic">No extra services requested by customer.</p>
               )}
 
-              {inquiry?.notes && (
+              {Boolean(specialRequest) && (
                 <div className="pt-2 border-t border-slate-100">
-                  <span className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                    Customer Special Requests
-                  </span>
-                  <p className="p-2.5 rounded bg-slate-50 border border-slate-200 text-slate-800 text-xs leading-relaxed">
-                    “{inquiry.notes}”
-                  </p>
+                  <div className="rounded-md border border-amber-200/90 bg-amber-50/60 p-3 text-xs shadow-2xs">
+                    <span className="font-bold text-slate-900">Notes: </span>
+                    <span className="font-medium text-slate-800 whitespace-pre-wrap leading-relaxed">
+                      {specialRequest}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>

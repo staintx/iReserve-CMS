@@ -27,16 +27,17 @@ import {
 import { formatEventDate } from "../../../utils/format";
 
 const CREW_SELECT =
-  "h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 shadow-2xs font-medium";
+  "h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0] shadow-2xs font-medium";
 
 function CrewRow({ value, options, placeholder, onChange, onRemove, removeLabel }) {
+  const isAssigned = Boolean(value);
   return (
-    <div className="flex items-center gap-2">
+    <div className={`flex items-center gap-2 p-1 rounded-lg transition-colors ${isAssigned ? "bg-[#D6E4F7]/20 border border-[#4C81E0]/25" : "bg-white border border-slate-200"}`}>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={placeholder}
-        className={CREW_SELECT + " flex-1 min-w-0"}
+        className={CREW_SELECT + " flex-1 min-w-0 border-0 shadow-none bg-transparent focus:ring-0"}
       >
         <option value="">{placeholder}</option>
         {options}
@@ -46,28 +47,33 @@ function CrewRow({ value, options, placeholder, onChange, onRemove, removeLabel 
           type="button"
           onClick={onRemove}
           aria-label={removeLabel}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors cursor-pointer"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-slate-200 text-[#64748B] hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors cursor-pointer"
         >
-          <Trash2 size={14} />
+          <Trash2 size={13} />
         </button>
       )}
     </div>
   );
 }
 
-function CrewGroup({ label, icon: Icon, addLabel, onAdd, secondaryAddLabel, onSecondaryAdd, children }) {
+function CrewGroup({ label, count, icon: Icon, addLabel, onAdd, secondaryAddLabel, onSecondaryAdd, children }) {
   return (
-    <fieldset className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-      <legend className="px-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-        {Icon && <Icon size={13} className="text-amber-600 shrink-0" />}
+    <fieldset className="space-y-2.5 rounded-xl border border-slate-200 bg-[#F8FAFC] p-3.5">
+      <legend className="px-1.5 text-[11px] font-bold uppercase tracking-wider text-[#1E293B] flex items-center gap-1.5">
+        {Icon && <Icon size={13} className="text-[#4C81E0] shrink-0" />}
         <span>{label}</span>
+        {count !== undefined && (
+          <span className="text-[10px] font-semibold text-[#64748B] bg-slate-200/70 px-1.5 py-0.2 rounded">
+            {count}
+          </span>
+        )}
       </legend>
       <div className="space-y-2">{children}</div>
       <div className="flex flex-col gap-2 pt-1 sm:flex-row">
         <button
           type="button"
           onClick={onAdd}
-          className="flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white text-xs font-semibold text-amber-700 hover:border-amber-500 hover:bg-amber-50/50 transition-colors cursor-pointer shadow-2xs"
+          className="flex min-h-[34px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#4C81E0]/40 bg-white text-xs font-semibold text-[#4C81E0] hover:bg-[#D6E4F7]/25 transition-colors cursor-pointer shadow-2xs"
         >
           <Plus size={13} /> {addLabel}
         </button>
@@ -75,7 +81,7 @@ function CrewGroup({ label, icon: Icon, addLabel, onAdd, secondaryAddLabel, onSe
           <button
             type="button"
             onClick={onSecondaryAdd}
-            className="flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white text-xs font-semibold text-slate-600 hover:border-slate-400 hover:bg-slate-100 transition-colors cursor-pointer shadow-2xs"
+            className="flex min-h-[34px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white text-xs font-semibold text-[#64748B] hover:border-slate-400 hover:bg-slate-50 transition-colors cursor-pointer shadow-2xs"
           >
             <Plus size={13} /> {secondaryAddLabel}
           </button>
@@ -170,7 +176,7 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
       staffList.map((person) => (
         <option key={person._id} value={person._id}>
           {person.full_name}
-          {person.position ? ` — ${person.position}` : ""}
+          {person.position ? ` - ${person.position}` : ""}
           {person.availability_status && person.availability_status !== "Available"
             ? ` (${person.availability_status})`
             : ""}
@@ -339,35 +345,35 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
           <DialogHeader className="p-4 sm:p-5 border-b border-slate-100 bg-white">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-amber-600" />
-                  Assign Staff Team &amp; Crew
+                <DialogTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
+                  <Users className="w-5 h-5 text-[#4C81E0]" />
+                  Assign Staff: {booking.event_type || "Catering Event"}
                 </DialogTitle>
-                <DialogDescription className="text-xs text-slate-500 mt-0.5">
-                  Select and dispatch kitchen, service, setup, and support crew members for this event.
+                <DialogDescription className="text-xs text-[#64748B] mt-0.5">
+                  Select and assign kitchen, service, setup, and support crew members for this event.
                 </DialogDescription>
               </div>
-              <span className="font-mono text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md shrink-0">
+              <span className="font-mono text-xs font-bold text-[#4C81E0] bg-[#D6E4F7]/40 border border-[#4C81E0]/25 px-2.5 py-1 rounded-md shrink-0">
                 {booking.reference || `BK-${String(booking._id).slice(-6).toUpperCase()}`}
               </span>
             </div>
 
             {/* Event Context Pill */}
-            <div className="mt-2.5 p-2.5 bg-slate-50 border border-slate-200/80 rounded-lg flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
+            <div className="mt-2.5 p-2.5 bg-[#F8FAFC] border border-slate-200/80 rounded-lg flex flex-wrap items-center justify-between gap-2 text-xs text-[#1E293B]">
               <div className="flex items-center gap-3">
-                <span className="font-bold text-slate-900">{customerName}</span>
-                <span className="text-[11px] text-slate-500 flex items-center gap-1">
-                  <Calendar size={12} className="text-amber-600" />
+                <span className="font-bold text-[#1E293B]">{customerName}</span>
+                <span className="text-[11px] text-[#64748B] flex items-center gap-1">
+                  <Calendar size={12} className="text-[#4C81E0]" />
                   {booking.event_date ? formatEventDate(booking.event_date) : "TBD"}
                 </span>
                 {booking.start_time && (
-                  <span className="text-[11px] text-slate-500 flex items-center gap-1">
-                    <Clock size={12} className="text-amber-600" />
+                  <span className="text-[11px] text-[#64748B] flex items-center gap-1">
+                    <Clock size={12} className="text-[#4C81E0]" />
                     {booking.start_time}
                   </span>
                 )}
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-200/60 px-2 py-0.5 rounded">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] bg-slate-200/60 px-2 py-0.5 rounded">
                 {booking.event_type || "Event"}
               </span>
             </div>
@@ -376,20 +382,20 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
           {/* Scrollable Form Body */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
             {loading ? (
-              <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
-                <Loader2 className="w-6 h-6 animate-spin text-amber-600" />
+              <div className="py-12 flex flex-col items-center justify-center gap-2 text-[#64748B]">
+                <Loader2 className="w-6 h-6 animate-spin text-[#4C81E0]" />
                 <span className="text-xs">Loading staff roster and schedule availability...</span>
               </div>
             ) : (
               <>
                 {/* Past Event Notice */}
                 {isPast && (
-                  <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2 shadow-2xs">
+                  <div className="p-3 rounded-lg bg-amber-50/80 border border-amber-200/80 text-xs text-amber-900 flex items-start gap-2.5 shadow-2xs">
                     <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                    <div className="space-y-0.5">
-                      <p className="font-bold">Past Event — Retroactive Team Logging</p>
+                    <div>
+                      <p className="font-bold text-amber-900">Past Event</p>
                       <p className="text-[11.5px] text-amber-800">
-                        This event has concluded. Assignments saved here record crew attendance for payroll, equipment returns verification, and service audit.
+                        Staff assignments are being recorded for this completed event.
                       </p>
                     </div>
                   </div>
@@ -397,25 +403,25 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
 
                 {/* No Registered Staff Fallback Notice */}
                 {staffList.length === 0 && (
-                  <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-start gap-2 shadow-2xs">
-                    <HelpCircle size={15} className="text-blue-600 shrink-0 mt-0.5" />
+                  <div className="p-3 rounded-lg bg-[#D6E4F7]/30 border border-[#4C81E0]/30 text-xs text-[#1E293B] flex items-start gap-2.5 shadow-2xs">
+                    <HelpCircle size={15} className="text-[#4C81E0] shrink-0 mt-0.5" />
                     <div className="space-y-1">
-                      <p className="font-bold">No Staff Accounts Available</p>
-                      <p className="text-[11.5px] text-blue-800">
-                        No registered staff accounts were found. You can add external or on-call crew members using the <strong>Add on-call / external</strong> option under Extra Support below.
+                      <p className="font-bold text-[#1E293B]">No Staff Accounts Available</p>
+                      <p className="text-[11.5px] text-[#64748B]">
+                        No registered staff accounts were found. You can add external or on-call crew members using the <strong>Add External Staff</strong> option under Support Staff below.
                       </p>
                     </div>
                   </div>
                 )}
 
                 {/* 1. Head Cook / Chef */}
-                <div className="space-y-1.5 p-3 rounded-xl border border-slate-200 bg-slate-50/60">
-                  <label htmlFor="admin-assign-head-cook" className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                <div className="space-y-1.5 p-3 rounded-xl border border-slate-200 bg-[#F8FAFC]">
+                  <label htmlFor="admin-assign-head-cook" className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-[#1E293B]">
                     <span className="flex items-center gap-1.5">
-                      <ChefHat size={13} className="text-amber-600" />
-                      Head Cook / Executive Chef
+                      <ChefHat size={13} className="text-[#4C81E0]" />
+                      Head Cook
                     </span>
-                    <span className="text-[10px] font-normal text-slate-400">Kitchen &amp; Culinary Lead</span>
+                    <span className="text-[10px] font-normal text-[#64748B]">Kitchen &amp; Culinary Lead</span>
                   </label>
                   <select
                     id="admin-assign-head-cook"
@@ -423,69 +429,72 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
                     onChange={(e) => setAssignment({ ...assignment, headCook: e.target.value })}
                     className={CREW_SELECT}
                   >
-                    <option value="">Select head cook…</option>
+                    <option value="">Select head cook...</option>
                     {staffOptions}
                   </select>
                 </div>
 
-                {/* 2. Servers / Waitstaff */}
+                {/* 2. Service Staff */}
                 <CrewGroup
-                  label="Servers &amp; Waitstaff"
+                  label="Service Staff"
+                  count={assignment.servers.filter(Boolean).length}
                   icon={UtensilsCrossed}
-                  addLabel="Add server slot"
+                  addLabel="Add Service Staff"
                   onAdd={() => addSlot("servers")}
                 >
                   {assignment.servers.map((val, idx) => (
                     <CrewRow
                       key={idx}
                       value={val}
-                      placeholder={`Select server #${idx + 1}…`}
+                      placeholder={`Select service staff #${idx + 1}...`}
                       options={staffOptions}
                       onChange={(next) => updateSlot("servers", idx, next)}
                       onRemove={assignment.servers.length > 1 ? () => removeSlot("servers", idx) : null}
-                      removeLabel={`Remove server ${idx + 1}`}
+                      removeLabel={`Remove service staff ${idx + 1}`}
                     />
                   ))}
                 </CrewGroup>
 
-                {/* 3. Setup & Logistics Crew */}
+                {/* 3. Setup Staff */}
                 <CrewGroup
-                  label="Setup &amp; Logistics Crew"
+                  label="Setup Staff"
+                  count={assignment.setupCrew.filter(Boolean).length}
                   icon={Wrench}
-                  addLabel="Add setup crew slot"
+                  addLabel="Add Setup Staff"
                   onAdd={() => addSlot("setupCrew")}
                 >
                   {assignment.setupCrew.map((val, idx) => (
                     <CrewRow
                       key={idx}
                       value={val}
-                      placeholder={`Select setup crew #${idx + 1}…`}
+                      placeholder={`Select setup staff #${idx + 1}...`}
                       options={staffOptions}
                       onChange={(next) => updateSlot("setupCrew", idx, next)}
                       onRemove={assignment.setupCrew.length > 1 ? () => removeSlot("setupCrew", idx) : null}
-                      removeLabel={`Remove setup crew ${idx + 1}`}
+                      removeLabel={`Remove setup staff ${idx + 1}`}
                     />
                   ))}
                 </CrewGroup>
 
-                {/* 4. Extra Support / Assistants & On-Call */}
+                {/* 4. Support Staff */}
                 <CrewGroup
-                  label="Extra Support &amp; Assistants"
+                  label="Support Staff"
+                  count={assignment.assistants.filter(Boolean).length + assignment.extraAssistants.filter((e) => e.name || e.phone).length}
                   icon={Users}
-                  addLabel="Add staff assistant slot"
+                  addLabel="Add Support Staff"
                   onAdd={() => addSlot("assistants")}
-                  secondaryAddLabel="Add on-call / external crew"
+                  secondaryAddLabel="Add External Staff"
                   onSecondaryAdd={addExtraAssistant}
                 >
                   {assignment.assistants.map((val, idx) => (
                     <CrewRow
                       key={idx}
                       value={val}
-                      placeholder={`Select assistant #${idx + 1}…`}
+                      placeholder={`Select support staff #${idx + 1}...`}
                       options={staffOptions}
                       onChange={(next) => updateSlot("assistants", idx, next)}
                       onRemove={() => removeSlot("assistants", idx)}
-                      removeLabel={`Remove assistant ${idx + 1}`}
+                      removeLabel={`Remove support staff ${idx + 1}`}
                     />
                   ))}
 
@@ -493,31 +502,31 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
                   {assignment.extraAssistants.map((extra, idx) => (
                     <div
                       key={`extra-${idx}`}
-                      className="p-2.5 rounded-lg border border-dashed border-slate-300 bg-white space-y-2 shadow-2xs"
+                      className="p-2.5 rounded-lg border border-dashed border-[#4C81E0]/30 bg-white space-y-2 shadow-2xs"
                     >
-                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600">
-                        <span>External / On-Call Crew #{idx + 1}</span>
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-[#1E293B]">
+                        <span>External Staff Member #{idx + 1}</span>
                         <button
                           type="button"
                           onClick={() => removeExtraAssistant(idx)}
-                          className="text-slate-400 hover:text-rose-600 transition-colors"
+                          className="text-[#64748B] hover:text-rose-600 transition-colors"
                         >
                           <Trash2 size={13} />
                         </button>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <input
-                          placeholder="Crew member full name"
+                          placeholder="Staff member full name"
                           value={extra.name}
                           onChange={(e) => updateExtraAssistant(idx, "name", e.target.value)}
-                          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-[#4C81E0]"
                         />
                         <input
                           type="tel"
                           placeholder="Contact phone number"
                           value={extra.phone}
                           onChange={(e) => updateExtraAssistant(idx, "phone", e.target.value)}
-                          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-[#4C81E0]"
                         />
                       </div>
                     </div>
@@ -528,9 +537,9 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
           </div>
 
           {/* Footer */}
-          <DialogFooter className="p-3 sm:p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600 tabular-nums">
-              {selectedCrewCount === 0 ? "No crew selected yet" : `${selectedCrewCount} crew members selected`}
+          <DialogFooter className="p-3 sm:p-4 border-t border-slate-100 bg-[#F8FAFC] flex items-center justify-between">
+            <span className="text-xs font-semibold text-[#64748B] tabular-nums">
+              {selectedCrewCount === 0 ? "No staff selected yet" : `${selectedCrewCount} staff member${selectedCrewCount === 1 ? "" : "s"} selected`}
             </span>
             <div className="flex items-center gap-2">
               <Btn type="button" variant="secondary" onClick={onClose} disabled={saving}>
@@ -540,7 +549,7 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
                 type="submit"
                 variant="primary"
                 disabled={saving || selectedCrewCount === 0}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-bold gap-1.5 shadow-xs"
+                className="bg-[#4C81E0] hover:bg-[#3b6ec9] text-white font-bold gap-1.5 shadow-xs"
               >
                 {saving ? (
                   <>
@@ -548,7 +557,7 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
                   </>
                 ) : (
                   <>
-                    <UserCheck size={14} /> {isPast ? "Save Attendance" : "Dispatch Team"}
+                    <UserCheck size={14} /> Save Staff Assignment
                   </>
                 )}
               </Btn>

@@ -27,14 +27,20 @@
   --radius-2xl: 12px;
 }
 
-/* All headings in Admin use Work Sans for operational clarity and speed. */
+/* All headings in Admin and Staff use Work Sans for operational clarity and speed. */
 .admin-layout h1,
 .admin-layout h2,
 .admin-layout h3,
 .admin-layout h4,
 .admin-layout h5,
-.admin-layout h6 {
-  font-family: var(--font-sans);
+.admin-layout h6,
+.admin-shell h1,
+.admin-shell h2,
+.admin-shell h3,
+.admin-shell h4,
+.admin-shell h5,
+.admin-shell h6 {
+  font-family: var(--font-sans) !important;
   letter-spacing: -0.015em;
 }
 

@@ -28,7 +28,7 @@ const BusinessInfoSchema = new mongoose.Schema({
     default: [],
   },
   years_of_experience: { type: Number, default: 10 },
-  deposit_percentage: { type: Number, default: 20 },
+  deposit_percentage: { type: Number, default: 50 },
   custom_event_setup_price: { type: Number, default: 15000 },
   custom_food_and_event_price: { type: Number, default: 800 },
   max_bookings_per_day: { type: Number, default: 2 }

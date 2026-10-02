@@ -255,7 +255,9 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const [catalogMenuItems, setCatalogMenuItems] = useState([]);
   const [catalogAddons, setCatalogAddons] = useState([]);
   const [packagesCatalog, setPackagesCatalog] = useState([]);
-  const [depositPercentage, setDepositPercentage] = useState(20);
+  const [depositPercentage, setDepositPercentage] = useState(50);
+  const [selectedDepositPercent, setSelectedDepositPercent] = useState(50);
+  const [isCustomDepositAmount, setIsCustomDepositAmount] = useState(false);
 
   // Event & Customer Details (Step 1)
   const [details, setDetails] = useState({
@@ -619,8 +621,10 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         setCatalogAddons(addonRes.data || []);
         setPackagesCatalog(packagesRes.data || []);
         const standardDeposit = Number(businessRes.data?.deposit_percentage);
-        if (Number.isFinite(standardDeposit) && standardDeposit > 0) {
+        if (Number.isFinite(standardDeposit) && standardDeposit >= 50) {
           setDepositPercentage(standardDeposit);
+        } else {
+          setDepositPercentage(50);
         }
 
         const storedEventType = inquiry?.event_type || "";
@@ -826,7 +830,22 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
           setTaxes(latest.taxes ? String(latest.taxes) : "");
           setDiscounts(latest.discounts ? String(latest.discounts) : "");
-          setDepositAmount(latest.deposit_amount ? String(latest.deposit_amount) : "");
+          const storedDeposit = Number(latest.deposit_amount) || 0;
+          const storedTotal = Number(latest.total_cost) || 0;
+          if (storedDeposit > 0 && storedTotal > 0 && storedDeposit >= storedTotal * 0.5 - 0.01) {
+            setDepositAmount(String(storedDeposit));
+            const share = Math.round((storedDeposit / storedTotal) * 100);
+            setSelectedDepositPercent([50, 70, 80].includes(share) ? share : null);
+            setIsCustomDepositAmount(![50, 70, 80].includes(share));
+          } else {
+            setSelectedDepositPercent(50);
+            setIsCustomDepositAmount(false);
+            if (storedTotal > 0) {
+              setDepositAmount(String(Math.round((storedTotal * 50) / 100)));
+            } else {
+              setDepositAmount("");
+            }
+          }
 
           const storedExpiry = toDateInput(latest.expiration_date);
           const maxExpiry = computeMaxValidityDate(latest.event_snapshot?.event_date || inquiry?.event_date);
@@ -1021,6 +1040,19 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   // Authoritative totals from quotationPricing.js
   const totals = useMemo(() => computeQuotationTotals(pricingInput), [pricingInput]);
 
+  // Automatically calculate deposit amount when totalCost changes, unless admin typed a custom amount
+  useEffect(() => {
+    if (totals.totalCost <= 0) return;
+    if (!isCustomDepositAmount) {
+      const pct = selectedDepositPercent || 50;
+      const computed = Math.round((totals.totalCost * pct) / 100);
+      const computedStr = String(computed);
+      if (depositAmount !== computedStr) {
+        setDepositAmount(computedStr);
+      }
+    }
+  }, [totals.totalCost, isCustomDepositAmount, selectedDepositPercent, depositAmount]);
+
   const resolvedEventType =
     details.event_type === OTHER_EVENT_TYPE
       ? String(details.event_type_other || "").trim()
@@ -1189,10 +1221,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
     if (totals.totalCost <= 0) found.total_cost = "Quotation total must be greater than zero.";
 
-    if (!numberOf(depositAmount)) {
-      found.deposit_amount = "A deposit amount is required.";
-    } else if (money(depositAmount) > totals.totalCost) {
-      found.deposit_amount = `Deposit cannot exceed total cost of ${formatCurrency(totals.totalCost)}.`;
+    const minDeposit = totals.totalCost > 0 ? Math.round((totals.totalCost * 50) / 100) : 0;
+    const numDeposit = money(depositAmount);
+
+    if (!numberOf(depositAmount) || numDeposit <= 0) {
+      found.deposit_amount = `A deposit amount of at least 50% (${formatCurrency(minDeposit)}) is required.`;
+    } else if (totals.totalCost > 0 && numDeposit < totals.totalCost * 0.5 - 0.01) {
+      const pct = Math.round((numDeposit / totals.totalCost) * 100);
+      found.deposit_amount = `Minimum required deposit is 50% (${formatCurrency(minDeposit)}). Deposits below 50% are not allowed (currently ${pct}%).`;
+    } else if (numDeposit > totals.totalCost + 0.01) {
+      found.deposit_amount = `Deposit cannot exceed total cost of ${formatCurrency(totals.totalCost)} (100%).`;
     }
 
     if (!expirationDate) {
@@ -1531,6 +1569,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   };
 
   const handleSaveDraft = async () => {
+    const numDeposit = money(depositAmount);
+    if (totals.totalCost > 0 && numDeposit < totals.totalCost * 0.5 - 0.01) {
+      const minDeposit = Math.round((totals.totalCost * 50) / 100);
+      const pct = Math.round((numDeposit / totals.totalCost) * 100);
+      const msg = `Minimum required deposit is 50% (${formatCurrency(minDeposit)}). Deposits below 50% are not allowed (currently ${pct}%).`;
+      notify(msg, "error");
+      setErrors((prev) => ({ ...prev, deposit_amount: msg }));
+      setActiveStep(3);
+      return;
+    }
     try {
       await saveDraft();
       notify("Draft saved successfully", "success", {
@@ -1568,6 +1616,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   };
 
   const handleSaveDraftAndClose = async () => {
+    const numDeposit = money(depositAmount);
+    if (totals.totalCost > 0 && numDeposit < totals.totalCost * 0.5 - 0.01) {
+      const minDeposit = Math.round((totals.totalCost * 50) / 100);
+      notify(
+        `Cannot save: Minimum required deposit is 50% (${formatCurrency(minDeposit)}).`,
+        "error"
+      );
+      setActiveStep(3);
+      return;
+    }
     await saveDraft();
     setCloseIntent(null);
     notify("Draft saved", "success");
@@ -1831,6 +1889,10 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               catalogMenuItems={catalogMenuItems}
               depositAmount={depositAmount}
               setDepositAmount={setDepositAmount}
+              selectedDepositPercent={selectedDepositPercent}
+              setSelectedDepositPercent={setSelectedDepositPercent}
+              isCustomDepositAmount={isCustomDepositAmount}
+              setIsCustomDepositAmount={setIsCustomDepositAmount}
               depositPercentage={depositPercentage}
               expirationDate={expirationDate}
               setExpirationDate={setExpirationDate}

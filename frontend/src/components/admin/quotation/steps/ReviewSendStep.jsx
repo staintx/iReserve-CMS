@@ -27,7 +27,11 @@ export default function ReviewSendStep({
   catalogMenuItems = [],
   depositAmount,
   setDepositAmount,
-  depositPercentage = 20,
+  selectedDepositPercent,
+  setSelectedDepositPercent,
+  isCustomDepositAmount,
+  setIsCustomDepositAmount,
+  depositPercentage = 50,
   expirationDate,
   setExpirationDate,
   maxValidityDate,
@@ -43,14 +47,66 @@ export default function ReviewSendStep({
   onBackToPrices,
   onSaveDraft,
 }) {
+  const minRequiredDeposit =
+    totals.totalCost > 0 ? Math.round((totals.totalCost * 50) / 100) : 0;
+  const numDeposit = Number(depositAmount) || 0;
   const depositShare =
-    totals.totalCost > 0 ? Math.round((totals.depositAmount / totals.totalCost) * 100) : 0;
+    totals.totalCost > 0
+      ? Math.round((numDeposit / totals.totalCost) * 100)
+      : (selectedDepositPercent || 50);
+
+  const isDepositBelowMin =
+    totals.totalCost > 0 && numDeposit < totals.totalCost * 0.5 - 0.01;
+  const isDepositAboveMax = totals.totalCost > 0 && numDeposit > totals.totalCost + 0.01;
 
   const setDepositByPercent = (pct) => {
     if (totals.totalCost <= 0) return;
     const computed = Math.round((totals.totalCost * pct) / 100);
+    if (setSelectedDepositPercent) setSelectedDepositPercent(pct);
+    if (setIsCustomDepositAmount) setIsCustomDepositAmount(false);
     setDepositAmount(String(computed));
   };
+
+  const handleDepositAmountChange = (val) => {
+    const clean = val.replace(/[^0-9.]/g, "");
+    if (setIsCustomDepositAmount) setIsCustomDepositAmount(true);
+    const num = Number(clean);
+    if (totals.totalCost > 0 && num > 0) {
+      const share = Math.round((num / totals.totalCost) * 100);
+      if (setSelectedDepositPercent) {
+        setSelectedDepositPercent([50, 70, 80].includes(share) ? share : null);
+      }
+    } else if (setSelectedDepositPercent) {
+      setSelectedDepositPercent(null);
+    }
+    setDepositAmount(clean);
+  };
+
+  const handleDepositPercentChange = (val) => {
+    const clean = val.replace(/[^0-9]/g, "");
+    const pct = Number(clean);
+    if (setSelectedDepositPercent) {
+      setSelectedDepositPercent([50, 70, 80].includes(pct) ? pct : null);
+    }
+    if (setIsCustomDepositAmount) setIsCustomDepositAmount(true);
+    if (clean === "") {
+      setDepositAmount("");
+      return;
+    }
+    if (totals.totalCost > 0) {
+      const computed = Math.round((totals.totalCost * pct) / 100);
+      setDepositAmount(String(computed));
+    }
+  };
+
+  const depositErrorMessage =
+    errors.deposit_amount ||
+    (isDepositBelowMin
+      ? `Minimum required deposit is 50% (${formatCurrency(minRequiredDeposit)}). Deposits below 50% are not allowed.`
+      : isDepositAboveMax
+      ? `Deposit cannot exceed total cost of ${formatCurrency(totals.totalCost)} (100%).`
+      : null);
+  const hasDepositError = Boolean(depositErrorMessage);
 
   const checks = [
     {
@@ -70,10 +126,12 @@ export default function ReviewSendStep({
     },
     {
       label: "Required deposit specified",
-      passed: Number(depositAmount) > 0 && Number(depositAmount) <= totals.totalCost,
-      failMsg: Number(depositAmount) > totals.totalCost
-        ? "Deposit cannot exceed total cost"
-        : "A deposit amount is required to confirm booking",
+      passed: numDeposit > 0 && !isDepositBelowMin && !isDepositAboveMax,
+      failMsg: isDepositAboveMax
+        ? `Deposit cannot exceed total cost of ${formatCurrency(totals.totalCost)} (100%)`
+        : isDepositBelowMin
+        ? `Minimum required deposit is 50% (${formatCurrency(minRequiredDeposit)})`
+        : "A deposit amount of at least 50% is required",
     },
     {
       label: "Quote expiration date valid",
@@ -315,45 +373,82 @@ export default function ReviewSendStep({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
           {/* Deposit Amount */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-semibold text-slate-700">
-              Required Deposit Amount (₱) *
-            </label>
-
-            <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-xs text-slate-400 font-medium">
-                ₱
-              </span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value.replace(/[^0-9.]/g, ""))}
-                className={`w-full rounded-md border pl-6 pr-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
-                  errors.deposit_amount ? "border-red-400 bg-red-50/40" : "border-slate-300"
-                }`}
-              />
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-semibold text-slate-700">
+                Required Deposit Amount (₱) *
+              </label>
+              {depositShare > 0 && totals.totalCost > 0 && (
+                <span
+                  className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded border ${
+                    depositShare < 50
+                      ? "bg-red-50 text-red-700 border-red-200"
+                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  }`}
+                >
+                  {depositShare}% of total
+                </span>
+              )}
             </div>
-            {errors.deposit_amount && (
-              <p className="text-[11px] text-red-600 mt-0.5">{errors.deposit_amount}</p>
+
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-xs text-slate-400 font-medium">
+                  ₱
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={depositAmount}
+                  onChange={(e) => handleDepositAmountChange(e.target.value)}
+                  className={`w-full rounded-md border pl-6 pr-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                    hasDepositError ? "border-red-400 bg-red-50/40" : "border-slate-300"
+                  }`}
+                />
+              </div>
+
+              <div className="relative w-24 shrink-0">
+                <input
+                  type="number"
+                  min="50"
+                  max="100"
+                  step="1"
+                  placeholder="50"
+                  value={numDeposit > 0 && totals.totalCost > 0 ? depositShare : ""}
+                  onChange={(e) => handleDepositPercentChange(e.target.value)}
+                  className={`w-full rounded-md border pl-2.5 pr-6 py-1.5 text-xs font-mono font-bold text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                    hasDepositError ? "border-red-400 bg-red-50/40" : "border-slate-300"
+                  }`}
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-xs text-slate-400 font-medium">
+                  %
+                </span>
+              </div>
+            </div>
+
+            {depositErrorMessage && (
+              <p className="text-[11px] font-medium text-red-600 mt-1 flex items-start gap-1">
+                <AlertCircle size={12} className="shrink-0 text-red-500 mt-0.5" />
+                <span>{depositErrorMessage}</span>
+              </p>
             )}
 
             {/* Quick Percentage Presets */}
             <div className="flex items-center gap-1.5 pt-0.5">
               <span className="text-[10px] text-slate-500">Quick select:</span>
-              {[depositPercentage, 30, 50].map((pct) => (
+              {[50, 70, 80].map((pct) => (
                 <button
                   key={pct}
                   type="button"
                   onClick={() => setDepositByPercent(pct)}
                   className={`px-2 py-0.5 rounded text-[10.5px] font-medium border transition-colors cursor-pointer ${
                     depositShare === pct
-                      ? "bg-primary text-white border-primary"
+                      ? "bg-primary text-white border-primary font-bold shadow-xs"
                       : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
                   }`}
                 >
-                  {pct}% {pct === depositPercentage ? "(Standard)" : ""}
+                  {pct}% {pct === 50 ? "(Standard)" : ""}
                 </button>
               ))}
             </div>

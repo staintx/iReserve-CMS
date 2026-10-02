@@ -18,7 +18,6 @@ import {
   CheckCircle2,
   XCircle,
   RefreshCcw,
-  Sparkles,
   Search,
   Calendar,
   CalendarDays,
@@ -547,7 +546,7 @@ export default function CustomerPayments() {
           )}
 
           {/* ── Summary Metrics Grid (Customer-friendly terminology, responsive reflow) ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
             <StatTile
               icon={Wallet}
               label="Total Paid"
@@ -570,12 +569,6 @@ export default function CustomerPayments() {
               label="Total Event Cost"
               value={formatCurrency(totalContractValue)}
               hint={`Across ${bookings.length} catering reservation${bookings.length !== 1 ? "s" : ""}`}
-            />
-            <StatTile
-              icon={Sparkles}
-              label="Payment Activity"
-              value={`${settlementPercentage}%`}
-              hint={`${formatCurrency(totalSettled)} of ${formatCurrency(totalContractValue)} paid`}
             />
           </div>
 

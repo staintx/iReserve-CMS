@@ -64,6 +64,19 @@ export const inclusionAdjustmentsOf = (adjustments) =>
 /** How a dish line is charged. See the server copy for the reasoning. */
 export const MENU_PRICING = { PER_GUEST: "per_guest", QUANTITY: "quantity" };
 
+export const STANDARD_PORTION_UNITS = [
+  "Per Gallon",
+  "Per Tray",
+  "Per Bilao",
+  "Per Kilo",
+  "Per Piece",
+];
+
+export const findStandardPortionUnit = (unit) => {
+  const clean = String(unit || "").trim().toLowerCase();
+  return STANDARD_PORTION_UNITS.find((u) => u.toLowerCase() === clean) || null;
+};
+
 /**
  * How many units one dish line is charged for.
  *

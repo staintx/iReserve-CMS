@@ -35,8 +35,10 @@ import ManageInclusionsModal, {
   categorizeInclusion,
 } from "../ManageInclusionsModal";
 import DishThumbnail from "../DishThumbnail";
-
-const PREDEFINED_UNITS = ["Per Guest", "Per Tray", "Per Bilao", "Per Kilo", "Per Piece"];
+import {
+  STANDARD_PORTION_UNITS,
+  findStandardPortionUnit,
+} from "../../../../utils/quotationPricing";
 
 function MoneyInput({ value, onChange, placeholder = "0.00", disabled, className = "", id }) {
   const block = (e) => {
@@ -774,7 +776,7 @@ export default function PricingAdjustmentsStep({
                 <Utensils size={14} className="text-primary" /> Menu Pricing ({activeMenuItems.length} Dishes Quoted)
               </div>
               <p className="text-[11px] text-slate-500">
-                Specify unit price and portion unit (Per Guest, Per Tray, Per Bilao) for each dish.
+                Specify unit price and portion unit (Per Gallon, Per Tray, Per Bilao, etc.) for each dish.
               </p>
             </div>
 
@@ -870,7 +872,7 @@ export default function PricingAdjustmentsStep({
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                     <th className="py-2 px-3 min-w-[170px]">Dish &amp; Course</th>
-                    <th className="py-2 px-2 w-36">Portion Unit</th>
+                    <th className="py-2 px-2 w-36 min-w-[140px]">Portion Unit</th>
                     <th className="py-2 px-2 w-20 text-center">Quantity</th>
                     <th className="py-2 px-2 w-28 text-right">Price per Unit</th>
                     <th className="py-2 px-2 w-28 text-right">Line Total</th>
@@ -896,7 +898,7 @@ export default function PricingAdjustmentsStep({
                         }`}
                       >
                         {/* Name */}
-                        <td className="py-2 px-3">
+                        <td className="py-2 px-3 align-top">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <DishThumbnail
                               name={item.name}
@@ -916,48 +918,72 @@ export default function PricingAdjustmentsStep({
                         </td>
 
                         {/* Portion Unit Select */}
-                        <td className="py-2 px-2">
-                          <select
-                            disabled={item.removed}
-                            value={
-                              PREDEFINED_UNITS.includes(item.unit)
-                                ? item.unit
-                                : item.unit
-                                ? "custom"
-                                : "Per Guest"
-                            }
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === "custom") {
-                                handleMenuChange(index, "unit", "");
-                                handleMenuChange(index, "isCustomUnit", true);
-                              } else {
-                                handleMenuChange(index, "unit", val);
-                                handleMenuChange(index, "isCustomUnit", false);
-                              }
-                            }}
-                            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
-                          >
-                            {PREDEFINED_UNITS.map((u) => (
-                              <option key={u} value={u}>
-                                {u}
-                              </option>
-                            ))}
-                            <option value="custom">Custom...</option>
-                          </select>
-                          {item.isCustomUnit && (
-                            <input
-                              type="text"
-                              placeholder="Specify unit..."
-                              value={item.unit}
-                              onChange={(e) => handleMenuChange(index, "unit", e.target.value)}
-                              className="w-full rounded border border-slate-300 px-2 py-0.5 text-xs mt-1 placeholder:text-slate-400"
-                            />
-                          )}
+                        <td className="py-2 px-2 align-top">
+                          {(() => {
+                            const standardUnit = findStandardPortionUnit(item.unit);
+                            const rawUnit = String(item.unit || "").trim();
+                            const isLegacyPax = rawUnit.toLowerCase() === "pax";
+                            const isOthers = Boolean(
+                              item.isCustomUnit || (!standardUnit && rawUnit && !isLegacyPax)
+                            );
+                            const dropdownValue = isOthers
+                              ? "Others"
+                              : standardUnit || "";
+
+                            return (
+                              <div className="space-y-1">
+                                <select
+                                  disabled={item.removed}
+                                  value={dropdownValue}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === "Others") {
+                                      handleMenuChange(index, {
+                                        isCustomUnit: true,
+                                        unit: standardUnit || isLegacyPax ? "" : item.unit || "",
+                                      });
+                                    } else if (val === "") {
+                                      handleMenuChange(index, {
+                                        unit: "",
+                                        isCustomUnit: false,
+                                      });
+                                    } else {
+                                      handleMenuChange(index, {
+                                        unit: val,
+                                        isCustomUnit: false,
+                                      });
+                                    }
+                                  }}
+                                  className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                >
+                                  <option value="">Select</option>
+                                  {STANDARD_PORTION_UNITS.map((u) => (
+                                    <option key={u} value={u}>
+                                      {u}
+                                    </option>
+                                  ))}
+                                  <option value="Others">Others</option>
+                                </select>
+                                {isOthers && (
+                                  <input
+                                    type="text"
+                                    disabled={item.removed}
+                                    placeholder="e.g. Per Tub"
+                                    value={item.unit || ""}
+                                    onChange={(e) =>
+                                      handleMenuChange(index, "unit", e.target.value)
+                                    }
+                                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-slate-100"
+                                    autoFocus={item.isCustomUnit && !item.unit}
+                                  />
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         {/* Quantity */}
-                        <td className="py-2 px-2 text-center">
+                        <td className="py-2 px-2 text-center align-top">
                           <input
                             type="number"
                             min="1"
@@ -969,7 +995,7 @@ export default function PricingAdjustmentsStep({
                         </td>
 
                         {/* Unit Price */}
-                        <td className="py-2 px-2 text-right">
+                        <td className="py-2 px-2 text-right align-top">
                           <MoneyInput
                             value={item.price}
                             disabled={item.removed}
@@ -980,12 +1006,12 @@ export default function PricingAdjustmentsStep({
                         </td>
 
                         {/* Line Total */}
-                        <td className="py-2 px-2 text-right font-mono font-semibold text-slate-900 tabular-nums">
+                        <td className="py-2 px-2 text-right font-mono font-semibold text-slate-900 tabular-nums align-top">
                           {item.removed ? "—" : formatCurrency(lineTotal)}
                         </td>
 
                         {/* Action */}
-                        <td className="py-2 px-2 text-center">
+                        <td className="py-2 px-2 text-center align-top">
                           <button
                             type="button"
                             onClick={() => toggleMenuRemoved(index)}

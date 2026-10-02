@@ -16,9 +16,11 @@ import {
 import {
   computeQuotationTotals,
   derivePackageStartingPrice,
+  findStandardPortionUnit,
   inclusionAdjustmentAmount,
   MENU_PRICING,
   money,
+  STANDARD_PORTION_UNITS,
 } from "../../../utils/quotationPricing";
 import { diffQuotationVersions } from "../../../utils/quotationDiff";
 import {
@@ -762,12 +764,17 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               Array.isArray(latest.menu_items)
                 ? latest.menu_items.map((m) => {
                     const perGuest = m?.pricing_type !== MENU_PRICING.QUANTITY;
+                    const rawUnit = String(m?.unit || "").trim();
+                    const isLegacyPax = rawUnit.toLowerCase() === "pax";
+                    const standardUnit = findStandardPortionUnit(rawUnit);
+                    const isCustom = Boolean(rawUnit && !isLegacyPax && !standardUnit);
                     return menuRow({
                       name: m?.name || "",
                       category: m?.category || "",
                       note: m?.note || "",
                       quantity: perGuest ? restoredGuests : Number(m?.quantity) > 0 ? Number(m.quantity) : 1,
-                      unit: m?.unit || (perGuest ? "Pax" : ""),
+                      unit: isLegacyPax ? "" : rawUnit,
+                      isCustomUnit: isCustom,
                       price: m?.price ? String(m.price) : "",
                       image_url: m?.image_url || resolveDishImageUrl({ name: m?.name }, menuRes.data || []),
                     });
@@ -879,17 +886,24 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               ? []
               : (Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : []).map((item) => {
                   if (item && typeof item === "object") {
+                    const rawUnit = String(item.unit || "").trim();
+                    const isLegacyPax = rawUnit.toLowerCase() === "pax";
+                    const standardUnit = findStandardPortionUnit(rawUnit);
+                    const isCustom = Boolean(rawUnit && !isLegacyPax && !standardUnit);
                     return menuRow({
                       name: item.name || "",
                       category: item.category || "",
                       note: item.note || "",
-                      unit: item.unit || "Pax",
+                      unit: isLegacyPax ? "" : rawUnit,
+                      isCustomUnit: isCustom,
                       price: item.price ? String(item.price) : "",
                       image_url: item.image_url || resolveDishImageUrl({ name: item.name }, menuRes.data || []),
                     });
                   }
                   return menuRow({
                     name: String(item || ""),
+                    unit: "",
+                    isCustomUnit: false,
                     image_url: resolveDishImageUrl({ name: String(item || "") }, menuRes.data || []),
                   });
                 })
@@ -1058,16 +1072,24 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             price: 0,
             image_url: String(item.image_url || resolveDishImageUrl(item, catalogMenuItems) || ""),
           }))
-        : chargeableMenuItems.map((item) => ({
-            name: String(item.name || "").trim(),
-            category: String(item.category || "").trim(),
-            note: String(item.note || "").trim(),
-            pricing_type: MENU_PRICING.QUANTITY,
-            quantity: Math.max(1, Number(item.quantity) || 1),
-            unit: String(item.unit || "").trim(),
-            price: money(item.price),
-            image_url: String(item.image_url || resolveDishImageUrl(item, catalogMenuItems) || ""),
-          })),
+        : chargeableMenuItems.map((item) => {
+            const raw = String(item.unit || "").trim();
+            const resolvedUnit = item.isCustomUnit
+              ? raw
+              : raw.toLowerCase() === "pax"
+              ? ""
+              : raw;
+            return {
+              name: String(item.name || "").trim(),
+              category: String(item.category || "").trim(),
+              note: String(item.note || "").trim(),
+              pricing_type: MENU_PRICING.QUANTITY,
+              quantity: Math.max(1, Number(item.quantity) || 1),
+              unit: resolvedUnit,
+              price: money(item.price),
+              image_url: String(item.image_url || resolveDishImageUrl(item, catalogMenuItems) || ""),
+            };
+          }),
       add_ons: chargeableAddOns.map((item) => ({
         name: String(item.name || "").trim(),
         price: money(item.price),
@@ -1252,9 +1274,19 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   /* --- Menu Handlers --- */
   const handleMenuChange = (index, field, value) => {
     setMenuItems((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        if (typeof field === "object" && field !== null) {
+          return { ...item, ...field };
+        }
+        return { ...item, [field]: value };
+      })
     );
-    clearError(`menu_items.${index}.${field}`);
+    if (typeof field === "string") {
+      clearError(`menu_items.${index}.${field}`);
+    } else if (typeof field === "object" && field !== null) {
+      Object.keys(field).forEach((k) => clearError(`menu_items.${index}.${k}`));
+    }
   };
 
   const toggleMenuRemoved = (index) => {
@@ -1268,13 +1300,18 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   };
 
   const handleAddCatalogDish = (dish) => {
+    const rawUnit = String(dish.unit || "").trim();
+    const isLegacyPax = rawUnit.toLowerCase() === "pax";
+    const standardUnit = findStandardPortionUnit(rawUnit);
+    const isCustom = Boolean(rawUnit && !isLegacyPax && !standardUnit);
     setMenuItems((prev) => [
       ...prev,
       menuRow({
         name: dish.name,
         category: dish.category || "",
         price: dish.price ? String(dish.price) : "",
-        unit: dish.unit || "Pax",
+        unit: isLegacyPax ? "" : rawUnit,
+        isCustomUnit: isCustom,
         quantity: 1,
         image_url: dish.image_url || "",
       }),
@@ -1289,7 +1326,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         name: name.trim(),
         category: "Custom",
         price: "",
-        unit: "Pax",
+        unit: "",
+        isCustomUnit: false,
         quantity: 1,
       }),
     ]);

@@ -189,7 +189,7 @@ export default function ReviewSendStep({
                       <span className="font-medium text-slate-800">{dish.name}</span>
                       {dish.quantity && (
                         <span className="text-[10px] text-slate-400 font-mono">
-                          ({dish.quantity} {dish.unit || "Pax"})
+                          ({dish.unit ? `${dish.quantity} ${dish.unit}` : `×${dish.quantity}`})
                         </span>
                       )}
                     </span>

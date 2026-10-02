@@ -196,8 +196,13 @@ function validateQuotationPayload(body, totals) {
 
   // The deposit is what reserves the date. A quotation the customer can accept
   // without paying anything is the one case this endpoint must never store.
+  const minDeposit = Math.round((totals.totalCost * 50) / 100);
   if (!Number(body.deposit_amount) || Number(body.deposit_amount) <= 0) {
     errors.deposit_amount = "Set the deposit the customer must pay to confirm this booking.";
+  } else if (money(body.deposit_amount) < totals.totalCost * 0.5 - 0.01) {
+    errors.deposit_amount = `The minimum required deposit is 50% (${peso(
+      minDeposit
+    )}). Deposits below 50% are not allowed.`;
   } else if (money(body.deposit_amount) > totals.totalCost) {
     errors.deposit_amount = `The deposit cannot be more than the total of ${peso(
       totals.totalCost

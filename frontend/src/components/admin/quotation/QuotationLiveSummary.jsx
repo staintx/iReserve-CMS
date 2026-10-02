@@ -248,9 +248,9 @@ export default function QuotationLiveSummary({
           <div className="border-t border-white/10 pt-2 space-y-1">
             <div className="flex items-baseline justify-between text-xs">
               <span className="text-slate-300">
-                Deposit {depositShare > 0 && `(${depositShare}%)`}
+                Deposit {totals.totalCost > 0 && `(${depositShare}%)`}
               </span>
-              <span className="font-semibold font-mono text-sky-300 tabular-nums">
+              <span className={`font-semibold font-mono tabular-nums ${depositShare < 50 && totals.totalCost > 0 ? "text-amber-300" : "text-sky-300"}`}>
                 {formatCurrency(totals.depositAmount)}
               </span>
             </div>

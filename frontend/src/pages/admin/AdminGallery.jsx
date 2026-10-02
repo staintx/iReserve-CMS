@@ -75,17 +75,32 @@ export default function AdminGallery() {
     setActiveItem(null);
   };
 
-  const handleDelete = (id) => {
-    AdminAPI.deleteGallery(id)
-      .then(() => {
-        notify("Photo deleted from website gallery", "success");
+  const handleDelete = async (id) => {
+    if (!id) {
+      notify("Invalid photo identifier", "error");
+      return;
+    }
+    try {
+      await AdminAPI.deleteGallery(id);
+      notify("Photo deleted from website gallery", "success");
+      setCancelTarget(null);
+      if (drawerItem && (drawerItem._id === id || drawerItem.id === id)) {
+        setDrawerItem(null);
+      }
+      await loadData();
+    } catch (err) {
+      if (err.response?.status === 404) {
+        notify("Photo was already removed from the gallery", "info");
         setCancelTarget(null);
-        if (drawerItem && drawerItem._id === id) setDrawerItem(null);
-        loadData();
-      })
-      .catch((err) =>
-        notify(err.response?.data?.message || "Failed to delete photo", "error")
-      );
+        if (drawerItem && (drawerItem._id === id || drawerItem.id === id)) {
+          setDrawerItem(null);
+        }
+        await loadData();
+      } else {
+        notify(err.response?.data?.message || "Failed to delete photo", "error");
+        throw err;
+      }
+    }
   };
 
   // Filter items based on search and album category
@@ -384,7 +399,7 @@ export default function AdminGallery() {
         <ConfirmDialog
           title="Delete Gallery Photo"
           message={`Are you sure you want to delete "${cancelTarget.title || "this photo"}"? This will permanently remove it from the customer-facing website gallery.`}
-          onConfirm={() => handleDelete(cancelTarget._id)}
+          onConfirm={() => handleDelete(cancelTarget._id || cancelTarget.id)}
           onCancel={() => setCancelTarget(null)}
           confirmText="Delete Photo"
           confirmVariant="danger"

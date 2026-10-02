@@ -4,11 +4,11 @@ const upload = require("../middleware/upload.middleware");
 const { protect } = require("../middleware/auth.middleware");
 const { authorize } = require("../middleware/role.middleware");
 
-router.post("/", protect, authorize("admin"), upload.single("image"), ctrl.create);
-router.post("/bulk", protect, authorize("admin"), upload.array("images", 50), ctrl.createBulk);
+router.post("/", protect, authorize("admin", "manager"), upload.single("image"), ctrl.create);
+router.post("/bulk", protect, authorize("admin", "manager"), upload.array("images", 50), ctrl.createBulk);
 router.get("/", ctrl.getAll);
 router.get("/:id", ctrl.getById);
-router.put("/:id", protect, authorize("admin"), upload.single("image"), ctrl.update);
-router.delete("/:id", protect, authorize("admin"), ctrl.remove);
+router.put("/:id", protect, authorize("admin", "manager"), upload.single("image"), ctrl.update);
+router.delete("/:id", protect, authorize("admin", "manager"), ctrl.remove);
 
 module.exports = router;

@@ -12,6 +12,7 @@ export const CustomerAPI = {
   submitRating: (data) => api.post("/ratings", data),
   getBusinessInfo: () => api.get("/business-info/public"),
   getAddons: () => api.get("/addons"),
+  getServices: () => api.get("/services"),
 
   // auth
   register: (data) => api.post("/auth/register", data),

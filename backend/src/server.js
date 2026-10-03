@@ -40,6 +40,7 @@ const messageRoutes = require("./routes/message.routes");
 const notificationRoutes = require("./routes/notification.routes");
 const blockedDateRoutes = require("./routes/blockedDate.routes");
 const addonRoutes = require("./routes/addonRoutes");
+const serviceRoutes = require("./routes/service.routes");
 const zelleRoutes = require("./routes/zelle.routes");
 const startCronJobs = require("./jobs/cron");
 
@@ -149,6 +150,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/blocked-dates", blockedDateRoutes);
 app.use("/api/addons", addonRoutes);
+app.use("/api/services", serviceRoutes);
 app.use("/api/zelle", zelleRoutes);
 
 app.use(errorHandler);

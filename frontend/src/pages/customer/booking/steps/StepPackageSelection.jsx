@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Check,
   CheckCircle2,
@@ -30,16 +30,6 @@ import EstimateSummary from "../components/EstimateSummary";
 import ThemePicker, { ColorPalettePicker } from "../components/ThemePicker";
 import { CustomerAPI } from "@/api/customer";
 import useToast from "@/hooks/useToast";
-
-const SETUP_SCOPE_OPTIONS = [
-  { id: "stage_backdrop", label: "Stage / Backdrop Styling", desc: "Main stage, lighted arch, or floral backdrop" },
-  { id: "vip_tables", label: "VIP / Presidential Table Styling", desc: "Special centerpieces, chargers, and luxury seating" },
-  { id: "guest_tables", label: "Guest Tables & Chairs Styling", desc: "Linens, Tiffany / covered chairs, and centerpieces" },
-  { id: "buffet_station", label: "Buffet Station & Dessert Bar", desc: "Themed skirtings, food warmers, and dessert tier risers" },
-  { id: "ceiling_draping", label: "Ceiling Draping & Fairy Lights", desc: "Overhead fabrics, warm ambient fairy lights & festoons" },
-  { id: "entrance_arch", label: "Entrance Arch / Photo Wall Area", desc: "Welcome signage, photo spot for guest arrivals" },
-  { id: "sound_lights", label: "Sound System, Mood Lights & Trussing", desc: "Speakers, wireless mics, moving heads & stage lights" },
-];
 
 const BUDGET_PRESETS = [
   "Below ₱30,000",
@@ -189,6 +179,27 @@ export default function StepPackageSelection({
   const { notify } = useToast();
   const fileInputRef = useRef(null);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [services, setServices] = useState([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    CustomerAPI.getServices()
+      .then((res) => {
+        if (!mounted) return;
+        const data = Array.isArray(res.data) ? res.data : [];
+        setServices(data.filter((s) => s.available !== false && s.is_active !== false));
+      })
+      .catch((err) => {
+        console.error("Failed to load services for customer setup scope:", err);
+      })
+      .finally(() => {
+        if (mounted) setLoadingServices(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const isCustomSetup = Boolean(form.is_custom_setup);
 
@@ -608,35 +619,50 @@ export default function StepPackageSelection({
                   Setup scope elements
                 </label>
                 <div className="grid grid-cols-1 gap-1.5">
-                  {SETUP_SCOPE_OPTIONS.map((item) => {
-                    const isChecked = (form.custom_setup_scope || []).includes(item.label);
-                    return (
-                      <label
-                        key={item.id}
-                        className={cn(
-                          "flex items-start gap-2.5 rounded-lg border p-2 text-left transition-all cursor-pointer",
-                          isChecked
-                            ? "border-[#4C81E0] bg-[#4C81E0]/5"
-                            : "border-slate-200 bg-white hover:border-slate-300",
-                        )}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleScopeItem(item.label)}
-                          className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-[#4C81E0] focus:ring-[#4C81E0]"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <span className="block text-xs font-bold text-slate-800 leading-tight">
-                            {item.label}
-                          </span>
-                          <span className="block text-[11px] text-slate-500 leading-tight">
-                            {item.desc}
-                          </span>
-                        </div>
-                      </label>
-                    );
-                  })}
+                  {loadingServices && services.length === 0 ? (
+                    <div className="p-3 text-center text-xs text-slate-400">
+                      Loading available setup services...
+                    </div>
+                  ) : services.length === 0 ? (
+                    <div className="p-3 text-center text-xs text-slate-400 border border-dashed rounded-lg">
+                      No setup elements currently available.
+                    </div>
+                  ) : (
+                    services.map((item) => {
+                      const serviceId = item._id || item.id || item.name;
+                      const serviceName = item.name || item.label;
+                      const serviceDesc = item.description || item.desc || "";
+                      const isChecked = (form.custom_setup_scope || []).includes(serviceName);
+                      return (
+                        <label
+                          key={serviceId}
+                          className={cn(
+                            "flex items-start gap-2.5 rounded-lg border p-2 text-left transition-all cursor-pointer",
+                            isChecked
+                              ? "border-[#4C81E0] bg-[#4C81E0]/5"
+                              : "border-slate-200 bg-white hover:border-slate-300",
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleScopeItem(serviceName)}
+                            className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-[#4C81E0] focus:ring-[#4C81E0]"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <span className="block text-xs font-bold text-slate-800 leading-tight">
+                              {serviceName}
+                            </span>
+                            {serviceDesc ? (
+                              <span className="block text-[11px] text-slate-500 leading-tight">
+                                {serviceDesc}
+                              </span>
+                            ) : null}
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>

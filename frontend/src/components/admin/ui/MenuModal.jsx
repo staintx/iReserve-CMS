@@ -4,6 +4,7 @@ import Btn from "./Btn";
 import SingleImageField from "./SingleImageField";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
+import { validateCatalogName, validateSafeText } from "@/lib/validationRules";
 
 import { DEFAULT_FOOD_CATEGORIES } from "../../../utils/menuCategories";
 
@@ -63,18 +64,30 @@ export default function MenuModal({ item, onClose, onSave }) {
     e.preventDefault();
 
     const trimmedName = formData.name?.trim();
-    if (!trimmedName) {
-      notify("Please enter an item name", "error");
+    const nameErr = validateCatalogName(trimmedName, "Item name", { min: 2, max: 100, required: true });
+    if (nameErr) {
+      notify(nameErr, "error");
       return;
+    }
+
+    if (formData.description?.trim()) {
+      const descErr = validateSafeText(formData.description, "Description", { max: 1000, required: false });
+      if (descErr) {
+        notify(descErr, "error");
+        return;
+      }
     }
 
     const finalCategory = isOtherCategory
       ? customCategory.trim()
       : formData.category;
 
-    if (isOtherCategory && !finalCategory) {
-      notify("Please enter a custom category", "error");
-      return;
+    if (isOtherCategory) {
+      const catErr = validateSafeText(finalCategory, "Custom category", { max: 50, required: true });
+      if (catErr) {
+        notify(catErr, "error");
+        return;
+      }
     }
 
     setLoading(true);

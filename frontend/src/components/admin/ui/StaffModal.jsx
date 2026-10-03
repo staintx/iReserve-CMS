@@ -4,6 +4,8 @@ import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
+import { validateName, validatePhone, validateUsername } from "@/lib/validationRules";
+
 export const STAFF_POSITIONS = [
   "Head Cook",
   "Server",
@@ -51,10 +53,33 @@ export default function StaffModal({ staff, defaultRole = "staff", onClose, onSa
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.full_name.trim() || !formData.email.trim()) {
-      notify("Please provide a name and email", "error");
+    const nameErr = validateName(formData.full_name, "Full name");
+    if (nameErr) {
+      notify(nameErr, "error");
       return;
     }
+
+    if (!formData.email.trim()) {
+      notify("Please provide an email address", "error");
+      return;
+    }
+
+    if (formData.phone?.trim()) {
+      const phoneErr = validatePhone(formData.phone, "Phone number", false);
+      if (phoneErr) {
+        notify(phoneErr, "error");
+        return;
+      }
+    }
+
+    if (formData.username?.trim()) {
+      const userErr = validateUsername(formData.username, "Username", false);
+      if (userErr) {
+        notify(userErr, "error");
+        return;
+      }
+    }
+
     if (!staff && !formData.password.trim()) {
       notify("Please provide a password for the new account", "error");
       return;

@@ -1,7 +1,11 @@
 const Joi = require("joi");
-
-const PH_MOBILE_REGEX = /^09\d{9}$/;
-const PH_ZIP_REGEX = /^\d{4}$/;
+const {
+  nameRule,
+  phoneRule,
+  addressRule,
+  safeTextRule,
+  PH_ZIP_REGEX
+} = require("./rules.common");
 
 const noPastDate = (value, helpers) => {
   const date = new Date(value);
@@ -15,17 +19,10 @@ const noPastDate = (value, helpers) => {
 exports.inquirySchema = Joi.object({
   package_id: Joi.string().allow("").optional(),
   customer_id: Joi.string().allow("").optional(),
-  event_type: Joi.string().trim().max(50).required().messages({
-    "string.empty": "Event type is required.",
-    "string.max": "Event type cannot exceed 50 characters."
-  }),
+  event_type: safeTextRule("Event type", { max: 50, required: true, allowEmpty: false }),
   booking_for: Joi.string().valid("myself", "someone_else").optional(),
-  celebrant_name: Joi.string().trim().max(80).allow("").optional().messages({
-    "string.max": "Celebrant name cannot exceed 80 characters."
-  }),
-  event_theme: Joi.string().trim().max(100).allow("").optional().messages({
-    "string.max": "Event theme cannot exceed 100 characters."
-  }),
+  celebrant_name: nameRule("Celebrant name", { min: 2, max: 80, required: false, allowEmpty: true }),
+  event_theme: safeTextRule("Event theme", { max: 100, required: false, allowEmpty: true }),
   event_palette: Joi.array().items(Joi.string().trim().max(30)).max(6).optional().messages({
     "array.max": "You can select up to 6 colors."
   }),
@@ -50,63 +47,36 @@ exports.inquirySchema = Joi.object({
   service_type: Joi.string().valid("Food Only", "Event Setup Only", "Food and Event Setup").allow("").optional(),
   delivery_method: Joi.string().valid("delivery", "pickup", "setup").allow("").optional(),
   include_food: Joi.boolean().optional(),
-  venue_type: Joi.string().trim().max(60).allow("").optional(),
-  province: Joi.string().trim().max(50).allow("").optional(),
-  municipality: Joi.string().trim().max(50).allow("").optional(),
-  barangay: Joi.string().trim().max(50).allow("").optional(),
-  street: Joi.string().trim().max(150).allow("").optional().messages({
-    "string.max": "Street address cannot exceed 150 characters."
-  }),
-  landmark: Joi.string().trim().max(100).allow("").optional().messages({
-    "string.max": "Landmark cannot exceed 100 characters."
-  }),
+  venue_type: safeTextRule("Venue type", { max: 60, required: false, allowEmpty: true }),
+  province: safeTextRule("Province", { max: 50, required: false, allowEmpty: true }),
+  municipality: safeTextRule("Municipality", { max: 50, required: false, allowEmpty: true }),
+  barangay: safeTextRule("Barangay", { max: 50, required: false, allowEmpty: true }),
+  street: addressRule("Street address", { max: 150, required: false, allowEmpty: true }),
+  landmark: addressRule("Landmark", { max: 100, required: false, allowEmpty: true }),
   zip_code: Joi.string().trim().pattern(PH_ZIP_REGEX).allow("").optional().messages({
     "string.pattern.base": "ZIP code must be a 4-digit number (e.g. 4200)."
   }),
   selected_menu: Joi.array().optional(),
-  dietary_requirements: Joi.string().trim().max(300).allow("").optional().messages({
-    "string.max": "Dietary requirements cannot exceed 300 characters."
-  }),
-  dietary_restrictions: Joi.string().trim().max(300).allow("").optional().messages({
-    "string.max": "Dietary restrictions cannot exceed 300 characters."
-  }),
-  allergies: Joi.string().trim().max(300).allow("").optional().messages({
-    "string.max": "Allergies note cannot exceed 300 characters."
-  }),
-  special_requests: Joi.string().trim().max(500).allow("").optional().messages({
-    "string.max": "Special requests cannot exceed 500 characters."
-  }),
-  custom_setup_notes: Joi.string().trim().max(1000).allow("").optional().messages({
-    "string.max": "Custom setup notes cannot exceed 1,000 characters."
-  }),
-  custom_setup_scope: Joi.array().items(Joi.string().trim().max(100)).max(15).optional(),
+  dietary_requirements: safeTextRule("Dietary requirements", { max: 300, required: false, allowEmpty: true }),
+  dietary_restrictions: safeTextRule("Dietary restrictions", { max: 300, required: false, allowEmpty: true }),
+  allergies: safeTextRule("Allergies", { max: 300, required: false, allowEmpty: true }),
+  special_requests: safeTextRule("Special requests", { max: 500, required: false, allowEmpty: true }),
+  custom_setup_notes: safeTextRule("Custom setup notes", { max: 1000, required: false, allowEmpty: true }),
+  custom_setup_scope: Joi.array().items(safeTextRule("Custom setup scope", { max: 100, required: false, allowEmpty: true })).max(15).optional(),
   inspiration_images: Joi.array().items(Joi.string()).max(5).optional().messages({
     "array.max": "You can upload a maximum of 5 inspiration photos."
   }),
   budget_range: Joi.string().trim().max(50).allow("").optional(),
   estimated_budget: Joi.alternatives().try(Joi.string().trim().max(50), Joi.number().min(0).max(10000000)).allow("").optional(),
-  contact_first_name: Joi.string().trim().min(2).max(50).required().messages({
-    "string.empty": "Contact first name is required.",
-    "string.min": "Contact first name must be at least 2 characters.",
-    "string.max": "Contact first name cannot exceed 50 characters."
-  }),
-  contact_last_name: Joi.string().trim().min(2).max(50).required().messages({
-    "string.empty": "Contact last name is required.",
-    "string.min": "Contact last name must be at least 2 characters.",
-    "string.max": "Contact last name cannot exceed 50 characters."
-  }),
+  contact_first_name: nameRule("Contact first name", { min: 2, max: 50, required: true, allowEmpty: false }),
+  contact_last_name: nameRule("Contact last name", { min: 2, max: 50, required: true, allowEmpty: false }),
   contact_email: Joi.string().trim().email().max(100).required().messages({
     "string.empty": "Contact email is required.",
     "string.email": "Contact email must be a valid email address.",
     "string.max": "Contact email cannot exceed 100 characters."
   }),
-  contact_phone: Joi.string().trim().pattern(PH_MOBILE_REGEX).required().messages({
-    "string.empty": "Contact phone number is required.",
-    "string.pattern.base": "Contact phone must be an 11-digit Philippine mobile number starting with 09 (e.g. 09123456789)."
-  }),
-  contact_alt_phone: Joi.string().trim().pattern(PH_MOBILE_REGEX).allow("").optional().messages({
-    "string.pattern.base": "Alternate phone must be an 11-digit Philippine mobile number starting with 09."
-  }),
+  contact_phone: phoneRule("Contact phone", { required: true, allowEmpty: false }),
+  contact_alt_phone: phoneRule("Alternate phone", { required: false, allowEmpty: true }),
   cf_turnstile_token: Joi.string().allow("").optional(),
 }).unknown(true);
 

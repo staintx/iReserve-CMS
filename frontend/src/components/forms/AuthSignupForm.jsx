@@ -16,6 +16,7 @@ import { focusFirstError } from "../auth/authFocus";
 import PasswordRequirements from "../auth/PasswordRequirements";
 import { describePasswordGap } from "../auth/passwordPolicy";
 import { isEmail } from "@/lib/authErrors";
+import { validateName } from "@/lib/validationRules";
 import { cn } from "@/lib/utils";
 import CustomerPolicyModal from "../policy/CustomerPolicyModal";
 
@@ -64,13 +65,9 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
   const validate = (field, value, all = values) => {
     switch (field) {
       case "first_name":
-        if (!value.trim()) return "Enter your first name.";
-        return "";
+        return validateName(value, "First name", { min: 2, max: 50, required: true });
       case "last_name":
-        // Captured separately so the booking flow can prefill a real surname
-        // instead of guessing one out of a single string.
-        if (!value.trim()) return "Enter your last name.";
-        return "";
+        return validateName(value, "Last name", { min: 2, max: 50, required: true });
       case "email":
         if (!value.trim()) return "Enter your email address.";
         if (!isEmail(value)) return "Enter a valid email address.";

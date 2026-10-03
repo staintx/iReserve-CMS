@@ -1,13 +1,14 @@
 const Joi = require("joi");
 const { passwordRule } = require("./password.rule");
+const { nameRule } = require("./rules.common");
 
 exports.registerSchema = Joi.object({
   // The signup form now sends first/last name. full_name stays accepted, not
   // required, for any caller still posting the old single-field shape — the
   // controller and the User model both already derive one from the other.
-  first_name: Joi.string().trim().optional(),
-  last_name: Joi.string().trim().allow("").optional(),
-  full_name: Joi.string().trim().optional(),
+  first_name: nameRule("First name", { min: 2, max: 50, required: false, allowEmpty: false }),
+  last_name: nameRule("Last name", { min: 2, max: 50, required: false, allowEmpty: true }),
+  full_name: nameRule("Full name", { min: 2, max: 100, required: false, allowEmpty: false }),
   email: Joi.string().email().required(),
   password: passwordRule,
   accepted_terms: Joi.boolean().optional(),

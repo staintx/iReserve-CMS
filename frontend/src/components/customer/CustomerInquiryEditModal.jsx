@@ -47,6 +47,7 @@ import {
   contactFieldError,
   SERVICE_TYPES,
 } from "../../pages/customer/booking/lib/bookingRules";
+import { validateName, validateAddress, validateSafeText } from "@/lib/validationRules";
 import { EVENT_TYPES, OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../lib/eventTypes";
 import { getBatangasMunicipalities, getBatangasBarangays, BATANGAS_PROVINCE } from "../../utils/batangas";
 import { eventSpaceLabel } from "../../lib/packageDisplay";
@@ -764,10 +765,14 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
   // Validate form
   const validate = () => {
     const next = {};
-    if (form.booking_for === "someone_else" && !form.celebrant_name?.trim()) {
-      next.celebrant_name = "Enter the celebrant or honoree's name.";
+    if (form.booking_for === "someone_else") {
+      const celErr = validateName(form.celebrant_name, "Celebrant name", { min: 2, max: 80, required: true });
+      if (celErr) next.celebrant_name = celErr;
     }
-    if (!form.event_type || (form.event_type === OTHER_EVENT_TYPE && !form.event_type_other.trim())) {
+    if (form.event_type === OTHER_EVENT_TYPE) {
+      const etErr = validateSafeText(form.event_type_other, "Event type", { max: 50, required: true });
+      if (etErr) next.event_type = etErr;
+    } else if (!form.event_type) {
       next.event_type = "Select or describe your event type.";
     }
     if (!form.event_date) next.event_date = "Pick your event date.";
@@ -778,6 +783,22 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
     if (!isPickup) {
       if (!form.municipality) next.municipality = "Choose the municipality of the venue.";
       if (!form.barangay) next.barangay = "Choose the barangay of the venue.";
+      if (form.street?.trim()) {
+        const stErr = validateAddress(form.street, "Street address", { max: 150, required: false });
+        if (stErr) next.street = stErr;
+      }
+      if (form.landmark?.trim()) {
+        const lmErr = validateAddress(form.landmark, "Landmark", { max: 100, required: false });
+        if (lmErr) next.landmark = lmErr;
+      }
+    }
+    if (form.allergies?.trim()) {
+      const alErr = validateSafeText(form.allergies, "Allergies note", { max: 300, required: false });
+      if (alErr) next.allergies = alErr;
+    }
+    if (form.dietary_restrictions?.trim()) {
+      const drErr = validateSafeText(form.dietary_restrictions, "Dietary restrictions", { max: 300, required: false });
+      if (drErr) next.dietary_restrictions = drErr;
     }
 
     if (

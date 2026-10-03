@@ -3,6 +3,7 @@ import { X, Plus, AlertCircle, Layers, PackagePlus } from "lucide-react";
 import Btn from "../ui/Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
+import { validateCatalogName, validateSafeText } from "@/lib/validationRules";
 
 
 const normalizeIdentifier = (name) => {
@@ -89,9 +90,18 @@ export default function QuickInventoryCreateDrawer({
     if (isSubmittingRef.current || loading) return;
 
     const trimmedName = formData.item_name.trim();
-    if (!trimmedName) {
-      notify(isAddon ? "Add-on name is required." : "Item name is required.", "error");
+    const nameErr = validateCatalogName(trimmedName, isAddon ? "Add-on name" : "Item name", { min: 2, max: 100, required: true });
+    if (nameErr) {
+      notify(nameErr, "error");
       return;
+    }
+
+    if (isAddon && formData.description?.trim()) {
+      const descErr = validateSafeText(formData.description, "Description", { max: 1000, required: false });
+      if (descErr) {
+        notify(descErr, "error");
+        return;
+      }
     }
 
     if (isDuplicate) {

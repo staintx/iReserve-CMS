@@ -9,9 +9,9 @@ import PasswordRequirements from "../../components/auth/PasswordRequirements";
 import { describePasswordGap } from "../../components/auth/passwordPolicy";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
 import { cn } from "@/lib/utils";
 import { maskEmail, maskPhone } from "@/lib/privacyMask";
+import { validateName, validatePhone, validateUsername } from "@/lib/validationRules";
 
 export default function CustomerProfile() {
   const { user, updateUser } = useAuth();
@@ -88,6 +88,32 @@ export default function CustomerProfile() {
     if (!form.first_name.trim() && !form.full_name.trim()) {
       return notify("First name or full name is required", "error");
     }
+
+    if (form.first_name.trim()) {
+      const fnErr = validateName(form.first_name, "First name", { min: 2, max: 50, required: true });
+      if (fnErr) return notify(fnErr, "error");
+    }
+
+    if (form.last_name?.trim()) {
+      const lnErr = validateName(form.last_name, "Last name", { min: 2, max: 50, required: false });
+      if (lnErr) return notify(lnErr, "error");
+    }
+
+    if (form.username?.trim()) {
+      const uErr = validateUsername(form.username, { required: false });
+      if (uErr) return notify(uErr, "error");
+    }
+
+    if (form.phone?.trim()) {
+      const pErr = validatePhone(form.phone, "Phone number", { required: false });
+      if (pErr) return notify(pErr, "error");
+    }
+
+    if (form.alt_phone?.trim()) {
+      const apErr = validatePhone(form.alt_phone, "Alternate phone number", { required: false });
+      if (apErr) return notify(apErr, "error");
+    }
+
     const emailToSubmit = isEditingEmail ? newEmail.trim().toLowerCase() : form.email.trim().toLowerCase();
     if (!emailToSubmit) {
       return notify("Email address is required", "error");

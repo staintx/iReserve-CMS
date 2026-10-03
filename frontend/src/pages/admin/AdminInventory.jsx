@@ -33,6 +33,7 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import InventoryModal from "../../components/admin/ui/InventoryModal";
+import ServicesModal from "../../components/admin/ui/ServicesModal";
 import AIInventoryParserModal from "../../components/admin/ui/AIInventoryParserModal";
 import ResolveTurnoverModal from "../../components/admin/ui/ResolveTurnoverModal";
 import ItemDeleteWarningModal from "../../components/admin/common/ItemDeleteWarningModal";
@@ -103,6 +104,7 @@ export default function AdminInventory() {
   const [sortOrder, setSortOrder] = useState("asc"); // 'asc' | 'desc'
 
   const [showModal, setShowModal] = useState(false);
+  const [showServicesModal, setShowServicesModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
@@ -373,6 +375,9 @@ export default function AdminInventory() {
             </button>
             <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>
               <Plus size={13} /> Add Item
+            </Btn>
+            <Btn variant="primary" size="sm" onClick={() => setShowServicesModal(true)}>
+              <Plus size={13} /> Add Services
             </Btn>
           </div>
         </div>
@@ -747,6 +752,13 @@ export default function AdminInventory() {
             loadData(selectedDate);
             setDrawerRow(null);
           }}
+        />
+      )}
+
+      {showServicesModal && (
+        <ServicesModal
+          isOpen={showServicesModal}
+          onClose={() => setShowServicesModal(false)}
         />
       )}
 

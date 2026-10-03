@@ -107,6 +107,12 @@ export const AdminAPI = {
   updateAddon: (id, data) => api.put(`/addons/${id}`, data),
   deleteAddon: (id) => api.delete(`/addons/${id}`),
 
+  // Services
+  getServices: (params) => api.get("/services", { params }),
+  createService: (data) => api.post("/services", data),
+  updateService: (id, data) => api.put(`/services/${id}`, data),
+  deleteService: (id) => api.delete(`/services/${id}`),
+
   // Gallery
   getGallery: () => api.get("/gallery"),
   createGallery: (data) => api.post("/gallery", data),

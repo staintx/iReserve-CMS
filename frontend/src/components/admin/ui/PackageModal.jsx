@@ -32,6 +32,7 @@ import { resolveGroup, CATEGORY_GROUPS } from "../../../lib/menuCategories";
 import { DEFAULT_FOOD_CATEGORIES } from "../../../utils/menuCategories";
 import QuickInventoryCreateDrawer from "../packages/QuickInventoryCreateDrawer";
 import QuickFoodCreateModal from "../packages/QuickFoodCreateModal";
+import QuickServiceCreateModal from "../packages/QuickServiceCreateModal";
 import { validateCatalogName, validateSafeText } from "@/lib/validationRules";
 
 const getDishesForCategory = (menuItems, categoryName) => {
@@ -396,6 +397,7 @@ function AutocompleteInput({
   };
 
   const isAddonSource = sourceLabel.toLowerCase().includes("addon");
+  const isServiceSource = sourceLabel.toLowerCase().includes("service");
   const trimmedValue = String(value || "").trim();
   const hasExactMatch = candidates.some(
     (c) => c.toLowerCase() === trimmedValue.toLowerCase()
@@ -428,7 +430,7 @@ function AutocompleteInput({
               <p className="mb-2 text-gray-600">
                 {trimmedValue ? (
                   <>
-                    No {isAddonSource ? "add-on" : "inventory item"} found for{" "}
+                    No {isAddonSource ? "add-on" : isServiceSource ? "service" : "inventory item"} found for{" "}
                     <strong className="text-gray-900 font-semibold">"{trimmedValue}"</strong>
                   </>
                 ) : (
@@ -449,6 +451,8 @@ function AutocompleteInput({
                   {createActionLabel ||
                     (isAddonSource
                       ? "+ Create New Add-on"
+                      : isServiceSource
+                      ? "+ Create New Service"
                       : "+ Create New Inventory Item")}
                 </button>
               )}
@@ -494,6 +498,8 @@ function AutocompleteInput({
                     {createActionLabel ||
                       (isAddonSource
                         ? "+ Create New Add-on"
+                        : isServiceSource
+                        ? "+ Create New Service"
                         : "+ Create New Inventory Item")}{" "}
                     for "{trimmedValue}"
                   </button>
@@ -521,17 +527,23 @@ export default function PackageModal({
   // Dynamic items loaded from actual records
   const [inventoryItems, setInventoryItems] = useState([]);
   const [addonItems, setAddonItems] = useState([]);
+  const [serviceItems, setServiceItems] = useState([]);
 
   useEffect(() => {
     let mounted = true;
-    Promise.all([AdminAPI.getInventory(), AdminAPI.getAddons()])
-      .then(([invRes, addRes]) => {
+    Promise.all([
+      AdminAPI.getInventory(),
+      AdminAPI.getAddons(),
+      AdminAPI.getServices().catch(() => ({ data: [] })),
+    ])
+      .then(([invRes, addRes, srvRes]) => {
         if (!mounted) return;
         setInventoryItems(invRes.data || []);
         setAddonItems(addRes.data || []);
+        setServiceItems(srvRes.data || []);
       })
       .catch((err) => {
-        console.error("Failed to load inventory or addons:", err);
+        console.error("Failed to load inventory, addons, or services:", err);
       });
     return () => {
       mounted = false;
@@ -557,6 +569,12 @@ export default function PackageModal({
       .filter((item) => item.name)
       .map((item) => item.name.trim());
   }, [addonItems]);
+
+  const allServiceNames = useMemo(() => {
+    return serviceItems
+      .filter((item) => item && item.name && item.available !== false && item.is_active !== false)
+      .map((item) => item.name.trim());
+  }, [serviceItems]);
 
   // ============ FORM STATE ============
   const [formData, setFormData] = useState({
@@ -607,6 +625,7 @@ export default function PackageModal({
     inventory: true,
     dining: true,
     addons: true,
+    services: true,
   });
   const [showItemsList, setShowItemsList] = useState({
     setup: true,
@@ -639,7 +658,30 @@ export default function PackageModal({
   const [editingComboInclusionIdx, setEditingComboInclusionIdx] = useState(null);
   const [editComboInclusionValue, setEditComboInclusionValue] = useState("");
 
+  // Quick In-Place Creation Modal state for missing services
+  const [quickServiceModal, setQuickServiceModal] = useState({
+    isOpen: false,
+    initialName: "",
+  });
 
+  const handleOpenQuickCreateService = (name = "") => {
+    setQuickServiceModal({
+      isOpen: true,
+      initialName: name || "",
+    });
+  };
+
+  const handleQuickCreateServiceSuccess = (createdEntity) => {
+    const sName = createdEntity?.name || createdEntity;
+    setServiceItems((prev) => {
+      const exists = prev.some(
+        (s) => (s?.name || s).toLowerCase() === String(sName).toLowerCase()
+      );
+      if (exists) return prev;
+      return [...prev, createdEntity];
+    });
+    handleAddSetupInclusion(sName);
+  };
 
   // Quick In-Place Creation Drawer state for missing inventory / add-ons
   const [quickDrawer, setQuickDrawer] = useState({
@@ -3311,22 +3353,21 @@ export default function PackageModal({
                       Stage, backdrops, decorations & venue setup items shown to customers.
                     </p>
 
-                    {/* Add Setup Item Form (Display-only, manual text input) */}
+                    {/* Add Setup Item Form (Connected to Central Services with Autocomplete and Create New) */}
                     <div className="flex gap-2 mb-2 items-center w-full">
-                      <input
-                        type="text"
+                      <AutocompleteInput
                         placeholder="Enter setup item name (e.g. Stage Setup, Venue Decoration, Backdrop Setup)"
                         value={setupInput.name}
-                        onChange={(e) =>
-                          setSetupInput((prev) => ({ ...prev, name: e.target.value }))
+                        onChange={(val) =>
+                          setSetupInput((prev) => ({ ...prev, name: val }))
                         }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddSetupInclusion();
-                          }
-                        }}
-                        className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                        candidates={allServiceNames}
+                        sourceLabel="Services"
+                        onSubmit={() => handleAddSetupInclusion()}
+                        onCreateNew={(name) =>
+                          handleOpenQuickCreateService(name)
+                        }
+                        createActionLabel="+ Create New Service"
                       />
                       <Btn
                         variant="primary"
@@ -3337,6 +3378,55 @@ export default function PackageModal({
                       >
                         <Plus size={14} className="mr-1" /> Add
                       </Btn>
+                    </div>
+
+                    {/* Quick Presets Chips for Services */}
+                    <div className="mb-3">
+                      <button
+                        type="button"
+                        onClick={() => togglePresets("services")}
+                        className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors mb-2 select-none group"
+                      >
+                        <span>Quick add Presets from Services</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-normal group-hover:bg-gray-200">
+                          {allServiceNames.length}
+                        </span>
+                        {showPresets.services ? (
+                          <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        ) : (
+                          <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        )}
+                      </button>
+                      {showPresets.services && (
+                        allServiceNames.length === 0 ? (
+                          <p className="text-xs text-gray-400 italic py-1">
+                            No services found in Services database.
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                            {allServiceNames.map((preset, idx) => {
+                              const isAdded = setupInclusions.some(
+                                (inc) => parseInclusion(inc).name.toLowerCase() === preset.toLowerCase()
+                              );
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => handleAddSetupInclusion(preset)}
+                                  className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 cursor-pointer ${
+                                    isAdded
+                                      ? "bg-blue-50 border-blue-200 text-blue-700 font-medium"
+                                      : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
+                                  }`}
+                                >
+                                  {isAdded ? <Check size={10} className="text-blue-600" /> : <Plus size={10} />}
+                                  {preset}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )
+                      )}
                     </div>
 
                     {/* Added Items */}
@@ -4138,6 +4228,18 @@ export default function PackageModal({
           setQuickFoodModal({ isOpen: false, initialName: "", category: "" })
         }
         onCreateSuccess={handleQuickCreateFoodSuccess}
+      />
+    )}
+
+    {quickServiceModal.isOpen && (
+      <QuickServiceCreateModal
+        isOpen={quickServiceModal.isOpen}
+        initialName={quickServiceModal.initialName}
+        existingServices={serviceItems}
+        onClose={() =>
+          setQuickServiceModal({ isOpen: false, initialName: "" })
+        }
+        onCreateSuccess={handleQuickCreateServiceSuccess}
       />
     )}
     </>

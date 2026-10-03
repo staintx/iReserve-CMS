@@ -1605,7 +1605,7 @@ export default function ManagerBookings() {
                         placeholder="Add manager verification remarks or missing gear follow-ups..."
                         value={managerEquipmentNotes}
                         onChange={(e) => setManagerEquipmentNotes(e.target.value)}
-                        className="w-full p-2 text-xs rounded-lg border border-slate-200 bg-white text-[#1E293B] focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0] resize-y outline-none"
+                        className="w-full p-2 text-xs rounded-lg border border-slate-200 bg-white text-[#1E293B] focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0] resize-none outline-none"
                       />
                     </div>
 
@@ -1946,7 +1946,7 @@ export default function ManagerBookings() {
                       placeholder="Add an operational briefing note or event log..."
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
-                      className="w-full p-2.5 text-xs rounded-lg border border-slate-200 bg-white text-[#1E293B] focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0] outline-none shadow-2xs resize-y"
+                      className="w-full p-2.5 text-xs rounded-lg border border-slate-200 bg-white text-[#1E293B] focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0] outline-none shadow-2xs resize-none"
                     />
                     <div className="flex justify-end">
                       <Btn variant="primary" size="xs" onClick={submitNote} disabled={!note.trim()} className="font-semibold bg-[#4C81E0] hover:bg-[#3b6bc4] text-white">

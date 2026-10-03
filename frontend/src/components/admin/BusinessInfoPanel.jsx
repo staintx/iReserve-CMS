@@ -501,7 +501,7 @@ export default function BusinessInfoPanel() {
                   value={form.address}
                   onChange={updateField("address")}
                   placeholder="e.g. 143 Feast Avenue, Brgy. San Antonio, Pasig City, Metro Manila"
-                  className="bg-background resize-y text-xs border-border/80 focus-visible:ring-1 focus-visible:ring-[#4C81E0] focus-visible:border-[#4C81E0] leading-relaxed"
+                  className="bg-background resize-none text-xs border-border/80 focus-visible:ring-1 focus-visible:ring-[#4C81E0] focus-visible:border-[#4C81E0] leading-relaxed"
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Displayed in the public landing page footer, quotation sheets, and official receipts.

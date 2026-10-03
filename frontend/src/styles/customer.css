@@ -8,7 +8,11 @@
    admin portal's Royal Blue + Powder Blue + Charcoal Slate language,
    while public marketing pages (Landing, packages, etc.) keep the
    warmer boutique palette below untouched.
-   ═══════════════════════════════════════════════════════════════ */
+/* Universal textarea styling: disable manual browser resize handle */
+textarea {
+  resize: none;
+}
+
 .customer-shell {
   --color-primary: #2C4B8A;
   --color-primary-foreground: #FFFFFF;
@@ -286,6 +290,7 @@
   padding: 8px;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
+  resize: none;
 }
 
 /* Booking wizard */
@@ -447,7 +452,7 @@
 
 .field textarea {
   min-height: 96px;
-  resize: vertical;
+  resize: none;
 }
 
 .booking-toggle {

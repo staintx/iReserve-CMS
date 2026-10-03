@@ -211,6 +211,10 @@
   input, select, textarea, button {
     font-family: inherit;
   }
+
+  textarea {
+    resize: none;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1040,6 +1044,7 @@
     font-size: 0.875rem;
     border: 1px solid rgba(92, 64, 43, 0.15);
     border-radius: var(--radius-md);
+    resize: none;
   }
 
   .btn-close {
@@ -4002,6 +4007,7 @@
     border: 1px solid rgba(92, 64, 43, 0.15);
     border-radius: var(--radius-lg);
     transition: border-color 0.2s ease;
+    resize: none;
   }
 
   .form-field input:focus, .form-field textarea:focus, .form-field select:focus {
@@ -4554,4 +4560,10 @@
   pointer-events: none;
 }
 
-
+/* ═══════════════════════════════════════════════════════════════
+   Universal Textarea Styling — Suppress Browser Native Resize Handle
+   Preserves full text wrapping, scrolling, editing, and layout dimensions
+   ═══════════════════════════════════════════════════════════════ */
+textarea {
+  resize: none;
+}

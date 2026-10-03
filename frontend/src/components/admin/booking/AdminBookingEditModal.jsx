@@ -3030,7 +3030,7 @@ export default function AdminBookingEditModal({
                       value={revisionNote}
                       onChange={(e) => setRevisionNote(e.target.value)}
                       placeholder="e.g. Client requested 20 additional guests and adjusted dessert inclusions"
-                      className={`${inputClass(false)} resize-y text-xs`}
+                      className={`${inputClass(false)} resize-none text-xs`}
                     />
                   </Field>
                 </div>

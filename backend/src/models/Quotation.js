@@ -242,6 +242,10 @@ const QuotationSchema = new mongoose.Schema(
     // updatedAt, which moves on any later write to this quotation.
     revision_requested_at: { type: Date },
 
+    payment_method: {
+      type: String,
+      default: "cash",
+    },
     status: {
       type: String,
       enum: [

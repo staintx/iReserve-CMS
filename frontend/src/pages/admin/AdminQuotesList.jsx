@@ -384,6 +384,8 @@ export default function AdminQuotesList() {
         additionalFees: Array.isArray(latest.additional_fees) ? latest.additional_fees : [],
         history: versionList,
         rawInquiry: inq,
+        paymentMethod: latest.payment_method || inq.payment_method || "cash",
+        payment_method: latest.payment_method || inq.payment_method || "cash",
         isAwaitingDeposit: isAwaitingDeposit(latest),
         convertedBookingId: inq.converted_booking_id || null,
         createdAt: latest.createdAt || inq.createdAt,
@@ -894,8 +896,21 @@ export default function AdminQuotesList() {
                               </td>
 
                               {/* 4. Amount */}
-                              <td className="py-2.5 px-3.5 font-bold font-mono text-foreground text-xs whitespace-nowrap tabular-nums">
-                                {formatPeso(item.totalCost)}
+                              <td className="py-2.5 px-3.5 whitespace-nowrap">
+                                <div className="font-bold font-mono text-foreground text-xs tabular-nums">
+                                  {formatPeso(item.totalCost)}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 font-medium capitalize">
+                                  {item.paymentMethod === "cash" ? (
+                                    <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200/80 px-1.5 py-0.2 rounded font-semibold text-[9.5px]">
+                                      Cash
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-blue-700 bg-blue-50 border border-blue-200/80 px-1.5 py-0.2 rounded font-semibold text-[9.5px]">
+                                      Online
+                                    </span>
+                                  )}
+                                </div>
                               </td>
 
                               {/* 5. Status & Data-Driven Next Action Indicator */}
@@ -1358,6 +1373,12 @@ export default function AdminQuotesList() {
                       <span className="text-foreground">Total Quoted</span>
                       <span className="font-mono text-primary text-sm">{formatPeso(selectedQuotation.totalCost)}</span>
                     </div>
+                    <div className="flex justify-between pt-1 text-xs">
+                      <span className="text-muted-foreground">Payment Method</span>
+                      <span className="font-semibold text-foreground capitalize flex items-center gap-1">
+                        {selectedQuotation.paymentMethod === "cash" ? "Cash" : "Online Payment"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1502,11 +1523,13 @@ export default function AdminQuotesList() {
             isDepositPaidProp={!convertTarget.isAwaitingDeposit}
             submitting={submittingConvert}
             onClose={() => setConvertTarget(null)}
-            onConfirm={(managerId, bypassDeposit = false) => {
+            onConfirm={(managerId, bypassDeposit = false, paymentMethod = null, markDepositPaid = false) => {
               setSubmittingConvert(true);
               AdminAPI.createBookingFromInquiry(convertTarget.inquiryId, {
                 event_manager_id: managerId,
                 bypass_deposit: bypassDeposit,
+                payment_method: paymentMethod || convertTarget.payment_method || convertTarget.paymentMethod || "cash",
+                mark_deposit_as_paid: markDepositPaid,
               })
                 .then(() => {
                   notify("Quotation successfully converted to booking!", "success");

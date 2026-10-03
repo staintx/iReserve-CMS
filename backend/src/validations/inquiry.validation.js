@@ -77,6 +77,7 @@ exports.inquirySchema = Joi.object({
   }),
   contact_phone: phoneRule("Contact phone", { required: true, allowEmpty: false }),
   contact_alt_phone: phoneRule("Alternate phone", { required: false, allowEmpty: true }),
+  payment_method: Joi.string().valid("cash", "online", "paymongo", "unselected").allow("").optional(),
   cf_turnstile_token: Joi.string().allow("").optional(),
 }).unknown(true);
 

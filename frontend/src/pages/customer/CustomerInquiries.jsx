@@ -37,6 +37,7 @@ import {
   FileText,
   Plus,
   CreditCard,
+  Banknote,
   FileCheck2,
   XCircle,
   MapPin,
@@ -354,6 +355,11 @@ export default function CustomerInquiries() {
         return;
       }
 
+      if (inq.payment_method === "cash") {
+        openQuotationView(inq);
+        return;
+      }
+
       if (inq.status === "Revision Requested" || inq.quotation_status === "Revision Requested") {
         notify("This quotation is currently being revised. You cannot pay deposit until the updated quotation is submitted.", "warning");
         return;
@@ -485,19 +491,32 @@ export default function CustomerInquiries() {
       );
     }
 
-    // Pay Deposit appears ONLY when quotation has been accepted and deposit is pending
     if (isQuoteAcceptedAwaitingPayment) {
+      const isCash = inq.payment_method === "cash";
       return (
         <Button
           size="sm"
           onClick={(e) => {
             e.stopPropagation();
-            startInquiryCheckout(inq);
+            if (isCash) {
+              openQuotationView(inq);
+            } else {
+              startInquiryCheckout(inq);
+            }
           }}
           className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-4 rounded-xl shrink-0 cursor-pointer shadow-xs gap-1.5 active:scale-[0.98] transition-all"
         >
-          <CreditCard className="w-3.5 h-3.5" />
-          <span>Pay Deposit</span>
+          {isCash ? (
+            <>
+              <Banknote className="w-3.5 h-3.5" />
+              <span>Cash Details</span>
+            </>
+          ) : (
+            <>
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Pay Deposit</span>
+            </>
+          )}
           <ChevronRight className="w-3.5 h-3.5 opacity-70" />
         </Button>
       );
@@ -620,6 +639,19 @@ export default function CustomerInquiries() {
                 <span className="flex items-center gap-1 font-mono text-[11px] text-slate-500">
                   <Tag className="w-3 h-3 text-slate-400 shrink-0" />
                   <span>#{refCode}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 capitalize">
+                  {inq.payment_method === "cash" ? (
+                    <>
+                      <Banknote className="w-3 h-3 text-amber-600 shrink-0" />
+                      <span>Cash</span>
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="w-3 h-3 text-blue-600 shrink-0" />
+                      <span>Online</span>
+                    </>
+                  )}
                 </span>
               </div>
             </div>

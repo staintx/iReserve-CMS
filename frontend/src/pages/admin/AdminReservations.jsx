@@ -4,6 +4,7 @@ import {
   Clock, 
   Users, 
   CreditCard, 
+  Banknote,
   CheckCircle2, 
   AlertCircle, 
   Send,
@@ -308,6 +309,7 @@ export default function AdminReservations() {
           depositPaid: depositPaidBool,
           isFullyPaid,
           quotationBacked: quotationBackedIds.has(String(b._id)),
+          paymentMethod: b.payment_method || "cash",
           basePackagePrice,
           addOnsPrice,
           discountAmount: Number(b.discount_amount || 0),
@@ -894,8 +896,21 @@ export default function AdminReservations() {
                             </td>
 
                             {/* Total Cost */}
-                            <td className="py-2.5 px-3 font-bold font-mono text-foreground text-xs whitespace-nowrap tabular-nums">
-                              {fmt(r.total)}
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <div className="font-bold font-mono text-foreground text-xs tabular-nums">
+                                {fmt(r.total)}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 font-medium capitalize">
+                                {r.paymentMethod === "cash" ? (
+                                  <span className="inline-flex items-center gap-0.5 text-amber-700 bg-amber-50 border border-amber-200/80 px-1 py-0.1 rounded font-semibold text-[9px]">
+                                    Cash
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-0.5 text-blue-700 bg-blue-50 border border-blue-200/80 px-1 py-0.1 rounded font-semibold text-[9px]">
+                                    Online
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             {/* Status Badge */}
@@ -1199,6 +1214,22 @@ export default function AdminReservations() {
                           <div className="flex justify-between pt-1.5 border-t border-border/60 font-bold text-xs">
                             <span className="text-foreground">Grand Total</span>
                             <span className="font-mono text-primary text-sm">{fmt(selectedBooking.total)}</span>
+                          </div>
+                          <div className="flex justify-between pt-1 text-xs">
+                            <span className="text-muted-foreground">Payment Method</span>
+                            <span className="font-semibold text-foreground capitalize flex items-center gap-1">
+                              {selectedBooking.paymentMethod === "cash" ? (
+                                <>
+                                  <Banknote size={12} className="text-amber-600" />
+                                  Cash
+                                </>
+                              ) : (
+                                <>
+                                  <CreditCard size={12} className="text-blue-600" />
+                                  Online Payment
+                                </>
+                              )}
+                            </span>
                           </div>
                         </div>
                       </div>

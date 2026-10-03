@@ -257,6 +257,7 @@ export default function BookingWizard() {
       special_requests: prefill.special_requests || "",
       additional_services: [],
       selected_package_addons: [],
+      payment_method: prefill.payment_method || "cash",
       contact_first_name: (user?.first_name || parseName(user?.full_name || "").firstName || "").trim(),
       contact_last_name: (user?.last_name || parseName(user?.full_name || "").lastName || "").trim(),
       contact_email: user?.email || "",
@@ -1431,6 +1432,7 @@ export default function BookingWizard() {
 
     const payload = {
       ...form,
+      payment_method: form.payment_method || "cash",
       "cf-turnstile-response": turnstileToken,
       include_food: includeFood,
       service_type: isOffer ? form.service_type : serviceTypeForRequest(form),
@@ -1733,6 +1735,7 @@ export default function BookingWizard() {
         return (
           <StepReviewBooking
             form={form}
+            setForm={setForm}
             packageName={packageDetails?.name || initialPackageName}
             pickupAddress={businessInfo?.pickup_address || businessInfo?.address}
             estimate={estimate}

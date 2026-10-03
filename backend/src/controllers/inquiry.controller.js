@@ -37,6 +37,7 @@ exports.createInquiry = asyncHandler(async (req, res) => {
   const payload = {
     ...req.body,
     customer_id: isStaffOrAdmin ? (req.body.customer_id || req.user?._id) : req.user?._id,
+    payment_method: req.body.payment_method || "cash",
     status: "Pending Review",
   };
 
@@ -349,6 +350,8 @@ exports.getInquiries = asyncHandler(async (req, res) => {
     const hasApprovedPayment = approvedInquiryMap.has(String(inquiry._id)) || (booking && approvedInquiryMap.has(String(booking._id)));
     const bookingIsPaid = booking && ["deposit_paid", "fully_paid"].includes(booking.payment_status);
 
+    inquiry.payment_method = inquiry.payment_method || (latestQuote && latestQuote.payment_method) || "cash";
+
     if (hasApprovedPayment || bookingIsPaid || inquiry.payment_status === "deposit_paid" || inquiry.payment_status === "fully_paid") {
       inquiry.payment_status = (booking && booking.payment_status === "fully_paid") ? "fully_paid" : (inquiry.payment_status === "fully_paid" ? "fully_paid" : "deposit_paid");
       inquiry.is_deposit_paid = true;
@@ -432,6 +435,8 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
     inquiryObj.quotation_expiration_date = latestQuote.expiration_date || null;
     inquiryObj.quotation_status = latestQuote.status || null;
   }
+
+  inquiryObj.payment_method = inquiry.payment_method || (latestQuote && latestQuote.payment_method) || "cash";
 
   if (approvedPayment || inquiry.payment_status === "deposit_paid" || inquiry.payment_status === "fully_paid") {
     inquiryObj.payment_status = inquiry.payment_status === "fully_paid" ? "fully_paid" : "deposit_paid";

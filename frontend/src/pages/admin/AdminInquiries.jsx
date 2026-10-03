@@ -431,6 +431,7 @@ export default function AdminInquiries() {
         latestQuote: b.latestQuote || null,
         convertedBookingId: b.converted_booking_id || null,
         paymentStatus: b.payment_status || "unpaid",
+        paymentMethod: b.payment_method || "cash",
         celebrantName: b.celebrant_name || "",
         eventTheme: b.event_theme || "",
         eventPalette: b.event_palette || [],
@@ -1057,9 +1058,20 @@ export default function AdminInquiries() {
                             </div>
                           </td>
 
-                          {/* Package Type */}
+                          {/* Package Type & Intended Payment */}
                           <td className="py-2.5 px-3 whitespace-nowrap">
                             <PackageTypeTag type={r.bookingType} label={r.bookingTypeLabel} />
+                            <div className="mt-1">
+                              {r.paymentMethod === "cash" ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200/80 px-1.5 py-0.5 rounded">
+                                  Cash Intended
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200/80 px-1.5 py-0.5 rounded">
+                                  Online Intended
+                                </span>
+                              )}
+                            </div>
                           </td>
 
                           {/* Received / Updated (Clean Formatted Strings) */}
@@ -1393,6 +1405,12 @@ export default function AdminInquiries() {
                           : selectedInquiry.estimatedTotal
                             ? `₱${Number(selectedInquiry.estimatedTotal).toLocaleString("en-PH")}`
                             : "Custom / TBD"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block font-medium">Intended Payment</span>
+                      <span className="font-semibold text-foreground capitalize">
+                        {selectedInquiry.paymentMethod === "cash" ? "Cash" : "Online Payment"}
                       </span>
                     </div>
                     {/* Event Theme & Palette for standard inquiries */}

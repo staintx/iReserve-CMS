@@ -182,6 +182,10 @@ const InquirySchema = new mongoose.Schema(
       enum: ["unpaid", "pending", "deposit_paid", "fully_paid"],
       default: "unpaid",
     },
+    payment_method: {
+      type: String,
+      default: "cash",
+    },
 
     revision_count: { type: Number, default: 0 },
     

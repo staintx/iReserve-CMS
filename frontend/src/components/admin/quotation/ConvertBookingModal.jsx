@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { CheckCircle2, Calendar, User, Package as PackageIcon, DollarSign, AlertTriangle, X, UserCheck } from "lucide-react";
+import { CheckCircle2, Calendar, User, Package as PackageIcon, DollarSign, AlertTriangle, X, UserCheck, Banknote, CreditCard } from "lucide-react";
 import Modal from "../../common/Modal";
 import { AdminAPI } from "../../../api/admin";
 
@@ -8,8 +8,18 @@ export default function ConvertBookingModal({ quote, isDepositPaidProp = false, 
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [loadingManagers, setLoadingManagers] = useState(true);
   const [bypassDeposit, setBypassDeposit] = useState(false);
+  const [markCashPaid, setMarkCashPaid] = useState(false);
   const [syncingPayment, setSyncingPayment] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
+
+  const intendedPaymentMethod = String(
+    quote?.payment_method || 
+    quote?.inquiry_id?.payment_method || 
+    quote?.rawInquiry?.payment_method || 
+    quote?.intended_payment_method || 
+    "cash"
+  ).toLowerCase();
+  const isCash = intendedPaymentMethod === "cash";
 
   const [depositPaid, setDepositPaid] = useState(
     Boolean(
@@ -78,7 +88,7 @@ export default function ConvertBookingModal({ quote, isDepositPaidProp = false, 
 
   const totalAmount = quote.total_price || quote.total_cost || quote.subtotal || 0;
 
-  const canSubmit = (depositPaid || bypassDeposit) && Boolean(selectedManagerId);
+  const canSubmit = Boolean(selectedManagerId) && (depositPaid || isCash || bypassDeposit);
 
   return (
     <Modal onClose={onClose} bodyClassName="p-0" className="max-w-lg w-full p-0 overflow-hidden rounded-lg shadow-2xl border-0">
@@ -99,14 +109,13 @@ export default function ConvertBookingModal({ quote, isDepositPaidProp = false, 
           <CheckCircle2 size={26} />
         </div>
 
-
         {/* Title & Message */}
         <div className="space-y-2 max-w-md">
           <h3 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-snug">
-            Convert Quotation to Confirmed Booking
+            Convert Quotation to Booking
           </h3>
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-            Finalize this accepted quotation, verify the down payment, and convert it into an active confirmed reservation.
+            Convert this inquiry/quotation into an active reservation with an assigned event manager.
           </p>
         </div>
 
@@ -142,6 +151,31 @@ export default function ConvertBookingModal({ quote, isDepositPaidProp = false, 
               <span className="font-semibold text-slate-900 truncate">{packageName}</span>
             </div>
 
+            <div className="flex items-center justify-between text-slate-700 sm:col-span-2 pt-1 border-t border-slate-200/40">
+              <div className="flex items-center gap-1.5">
+                {isCash ? (
+                  <Banknote size={14} className="text-amber-600 shrink-0" />
+                ) : (
+                  <CreditCard size={14} className="text-blue-600 shrink-0" />
+                )}
+                <span className="text-slate-400">Payment Method:</span>
+                <span className="font-bold text-slate-900 capitalize">
+                  {isCash ? "Cash" : "Online Payment (PayMongo)"}
+                </span>
+              </div>
+              <div>
+                {depositPaid ? (
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                    <CheckCircle2 size={11} className="text-emerald-600" /> Deposit Paid ✓
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-200">
+                    Deposit Unpaid
+                  </span>
+                )}
+              </div>
+            </div>
+
             {totalAmount > 0 && (
               <div className="flex items-center justify-between text-slate-700 sm:col-span-2 pt-1 border-t border-slate-200/40">
                 <div className="flex items-center gap-1.5">
@@ -149,24 +183,39 @@ export default function ConvertBookingModal({ quote, isDepositPaidProp = false, 
                   <span className="text-slate-400">Quoted Total:</span>
                   <span className="font-bold text-slate-900">₱{Number(totalAmount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div>
-                  {depositPaid ? (
-                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
-                      <CheckCircle2 size={11} className="text-emerald-600" /> Deposit Paid ✓
-                    </span>
-                  ) : (
-                    <span className="text-[11px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-200">
-                      Deposit Unpaid
-                    </span>
-                  )}
-                </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Offline Deposit Bypass & Optional Gateway Check if Unpaid */}
-        {!depositPaid && (
+        {/* Cash Payment Handling */}
+        {!depositPaid && isCash && (
+          <div className="w-full space-y-2.5">
+            <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-left text-xs text-amber-950 space-y-2">
+              <div className="flex items-center gap-2 font-bold text-amber-900">
+                <Banknote size={16} className="text-amber-600 shrink-0" />
+                <span>Customer Selected Cash Payment</span>
+              </div>
+              <p className="text-[11.5px] leading-relaxed text-amber-800">
+                You can convert this inquiry to an active reservation immediately. By default, it will be marked as <strong>Deposit Pending</strong> until cash is received and recorded.
+              </p>
+              <label className="flex items-start gap-2.5 pt-1.5 border-t border-amber-200/80 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={markCashPaid}
+                  onChange={(e) => setMarkCashPaid(e.target.checked)}
+                  className="mt-0.5 rounded border-amber-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                />
+                <span className="leading-snug text-xs text-amber-950">
+                  <strong>Cash deposit already received in full:</strong> Record deposit as Paid now and immediately set reservation to <em>Confirmed</em>.
+                </span>
+              </label>
+            </div>
+          </div>
+        )}
+
+        {/* Online Payment Bypass & Gateway Check */}
+        {!depositPaid && !isCash && (
           <div className="w-full space-y-2.5">
             <label className="w-full flex items-start gap-2.5 p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl text-left text-xs text-amber-950 cursor-pointer">
               <input
@@ -176,7 +225,7 @@ export default function ConvertBookingModal({ quote, isDepositPaidProp = false, 
                 className="mt-0.5 rounded border-amber-300 text-primary focus:ring-primary h-4 w-4"
               />
               <span className="leading-snug">
-                <strong>Offline Deposit Verified:</strong> Customer has paid the deposit offline via Cash or Bank Transfer. Allow immediate conversion.
+                <strong>Offline Deposit Verified:</strong> Customer has paid the deposit offline via Bank Transfer / Cash. Allow immediate conversion.
               </span>
             </label>
 
@@ -251,7 +300,7 @@ export default function ConvertBookingModal({ quote, isDepositPaidProp = false, 
           </button>
           <button
             type="button"
-            onClick={() => onConfirm(selectedManagerId, bypassDeposit)}
+            onClick={() => onConfirm(selectedManagerId, isCash ? markCashPaid : bypassDeposit, isCash ? "cash" : "online", isCash ? markCashPaid : bypassDeposit)}
             disabled={submitting || !canSubmit}
             className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
@@ -262,8 +311,10 @@ export default function ConvertBookingModal({ quote, isDepositPaidProp = false, 
             )}
             {submitting
               ? "Converting..."
-              : !depositPaid && !bypassDeposit
+              : !depositPaid && !isCash && !bypassDeposit
               ? "Deposit Verification Required"
+              : isCash && !depositPaid && !markCashPaid
+              ? "Convert as Deposit Pending"
               : "Confirm & Convert to Booking"}
           </button>
         </div>

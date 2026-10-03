@@ -3,6 +3,7 @@ import { X, AlertCircle } from "lucide-react";
 import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
+import { validateCatalogName, validateSafeText } from "@/lib/validationRules";
 
 // Canonical identifier normalizer for duplicate checks
 const normalizeIdentifier = (name) => {
@@ -93,9 +94,18 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
     // Guard against rapid duplicate clicks
     if (isSubmittingRef.current || loading) return;
 
-    if (!formData.item_name.trim()) {
-      notify("Item name is required", "error");
+    const nameErr = validateCatalogName(formData.item_name, "Item name", { min: 2, max: 100, required: true });
+    if (nameErr) {
+      notify(nameErr, "error");
       return;
+    }
+
+    if (formData.reason?.trim()) {
+      const reasonErr = validateSafeText(formData.reason, "Adjustment reason", { max: 200, required: false });
+      if (reasonErr) {
+        notify(reasonErr, "error");
+        return;
+      }
     }
 
     if (isDuplicate) {

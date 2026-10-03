@@ -5,6 +5,7 @@ import SingleImageField from "../ui/SingleImageField";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 import { DEFAULT_FOOD_CATEGORIES } from "../../../utils/menuCategories";
+import { validateCatalogName, validateSafeText } from "@/lib/validationRules";
 
 export const PREDEFINED_CATEGORIES = DEFAULT_FOOD_CATEGORIES;
 
@@ -88,8 +89,9 @@ export default function QuickFoodCreateModal({
     if (e) e.preventDefault();
     if (isSubmittingRef.current || loading) return;
 
-    if (!trimmedName) {
-      notify("Please enter an item name", "error");
+    const nameErr = validateCatalogName(trimmedName, "Food item name", { min: 2, max: 100, required: true });
+    if (nameErr) {
+      notify(nameErr, "error");
       return;
     }
 
@@ -97,9 +99,20 @@ export default function QuickFoodCreateModal({
       ? customCategory.trim()
       : formData.category;
 
-    if (isOtherCategory && !finalCategory) {
-      notify("Please enter a custom category", "error");
-      return;
+    if (isOtherCategory) {
+      const catErr = validateCatalogName(finalCategory, "Custom category", { min: 2, max: 50, required: true });
+      if (catErr) {
+        notify(catErr, "error");
+        return;
+      }
+    }
+
+    if (formData.description?.trim()) {
+      const descErr = validateSafeText(formData.description, "Description", { max: 1000, required: false });
+      if (descErr) {
+        notify(descErr, "error");
+        return;
+      }
     }
 
     if (isDuplicate) {

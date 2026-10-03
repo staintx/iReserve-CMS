@@ -51,6 +51,7 @@ import {
   resolveVenueType,
 } from "./lib/bookingRules";
 import { OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
+import { validateName, validateAddress, validateSafeText } from "@/lib/validationRules";
 import {
   isSpecialOffer,
   offerBookingProblem,
@@ -1055,56 +1056,74 @@ export default function BookingWizard() {
               if (!form.municipality)
                 errors.municipality = "Select the delivery municipality.";
               if (!form.barangay) errors.barangay = "Select the delivery barangay.";
-              if (!String(form.street || "").trim())
+              if (!String(form.street || "").trim()) {
                 errors.street = "Enter the delivery street address.";
+              } else {
+                const stErr = validateAddress(form.street, "Street address", { max: 150, required: true });
+                if (stErr) errors.street = stErr;
+              }
+              if (form.landmark?.trim()) {
+                const lmErr = validateAddress(form.landmark, "Landmark", { max: 100, required: false });
+                if (lmErr) errors.landmark = lmErr;
+              }
             } else {
               // With Event Setup
-              const eventType =
-                form.event_type === OTHER_EVENT_TYPE
-                  ? String(form.event_type_other || "").trim()
-                  : form.event_type;
-              if (!eventType) {
-                errors[form.event_type === OTHER_EVENT_TYPE ? "event_type_other" : "event_type"] =
-                  "Tell us what kind of event this is.";
+              if (form.event_type === OTHER_EVENT_TYPE) {
+                const etErr = validateSafeText(form.event_type_other, "Event type", { max: 50, required: true });
+                if (etErr) errors.event_type_other = etErr;
+              } else if (!form.event_type) {
+                errors.event_type = "Tell us what kind of event this is.";
               }
               if (!form.municipality)
                 errors.municipality = "Select the municipality of your venue.";
               if (!form.barangay) errors.barangay = "Select the barangay.";
-              if (
-                form.venue_type === OTHER_VENUE_TYPE &&
-                !String(form.venue_type_other || "").trim()
-              ) {
-                errors.venue_type_other = "Tell us what kind of venue this is.";
+              if (form.street?.trim()) {
+                const stErr = validateAddress(form.street, "Street address", { max: 150, required: false });
+                if (stErr) errors.street = stErr;
+              }
+              if (form.landmark?.trim()) {
+                const lmErr = validateAddress(form.landmark, "Landmark", { max: 100, required: false });
+                if (lmErr) errors.landmark = lmErr;
+              }
+              if (form.venue_type === OTHER_VENUE_TYPE) {
+                const vtErr = validateSafeText(form.venue_type_other, "Venue type", { max: 60, required: true });
+                if (vtErr) errors.venue_type_other = vtErr;
               }
             }
             break;
           }
 
-          if (
-            form.booking_for === "someone_else" &&
-            !String(form.celebrant_name || "").trim()
-          ) {
-            errors.celebrant_name = "Enter the celebrant or honoree's name.";
+          if (form.booking_for === "someone_else") {
+            const celErr = validateName(form.celebrant_name, "Celebrant name", { min: 2, max: 80, required: true });
+            if (celErr) errors.celebrant_name = celErr;
           }
 
-          const eventType =
-            form.event_type === OTHER_EVENT_TYPE
-              ? String(form.event_type_other || "").trim()
-              : form.event_type;
-          if (!eventType) {
-            errors[form.event_type === OTHER_EVENT_TYPE ? "event_type_other" : "event_type"] =
-              "Tell us what kind of event this is.";
+          if (form.event_type === OTHER_EVENT_TYPE) {
+            const etErr = validateSafeText(form.event_type_other, "Event type", { max: 50, required: true });
+            if (etErr) errors.event_type_other = etErr;
+          } else if (!form.event_type) {
+            errors.event_type = "Tell us what kind of event this is.";
           }
           if (!form.municipality)
             errors.municipality = "Select the municipality of your venue.";
           if (!form.barangay) errors.barangay = "Select the barangay.";
+          if (form.street?.trim()) {
+            const stErr = validateAddress(form.street, "Street address", { max: 150, required: false });
+            if (stErr) errors.street = stErr;
+          }
+          if (form.landmark?.trim()) {
+            const lmErr = validateAddress(form.landmark, "Landmark", { max: 100, required: false });
+            if (lmErr) errors.landmark = lmErr;
+          }
+          if (form.event_theme?.trim()) {
+            const thErr = validateSafeText(form.event_theme, "Event theme", { max: 100, required: false });
+            if (thErr) errors.event_theme = thErr;
+          }
           // Venue type is optional, but "Other" is a question rather than an
           // answer: having chosen it, the customer has to say what the venue is.
-          if (
-            form.venue_type === OTHER_VENUE_TYPE &&
-            !String(form.venue_type_other || "").trim()
-          ) {
-            errors.venue_type_other = "Tell us what kind of venue this is.";
+          if (form.venue_type === OTHER_VENUE_TYPE) {
+            const vtErr = validateSafeText(form.venue_type_other, "Venue type", { max: 60, required: true });
+            if (vtErr) errors.venue_type_other = vtErr;
           }
 
           if (guests <= 0) {
@@ -1130,8 +1149,28 @@ export default function BookingWizard() {
             if (!form.municipality)
               errors.municipality = "Select the delivery municipality.";
             if (!form.barangay) errors.barangay = "Select the delivery barangay.";
-            if (!String(form.street || "").trim())
+            if (!String(form.street || "").trim()) {
               errors.street = "Enter the street and building so we can find you.";
+            } else {
+              const stErr = validateAddress(form.street, "Street and building", { max: 150, required: true });
+              if (stErr) errors.street = stErr;
+            }
+            if (form.landmark?.trim()) {
+              const lmErr = validateAddress(form.landmark, "Landmark", { max: 100, required: false });
+              if (lmErr) errors.landmark = lmErr;
+            }
+          }
+          break;
+        }
+
+        case "DietaryNeeds": {
+          if (form.allergies?.trim()) {
+            const alErr = validateSafeText(form.allergies, "Allergies note", { max: 300, required: false });
+            if (alErr) errors.allergies = alErr;
+          }
+          if (form.dietary_restrictions?.trim()) {
+            const drErr = validateSafeText(form.dietary_restrictions, "Dietary restrictions", { max: 300, required: false });
+            if (drErr) errors.dietary_restrictions = drErr;
           }
           break;
         }

@@ -5,6 +5,7 @@ import Modal from "../../components/common/Modal";
 import AdminManagersTable from "../../components/tables/AdminManagersTable";
 import AdminManagersForm from "../../components/forms/AdminManagersForm";
 import useToast from "../../hooks/useToast";
+import { validateName, validatePhone, validateUsername } from "@/lib/validationRules";
 
 export default function AdminManagers({ defaultTab = "managers" }) {
   const [staff, setStaff] = useState([]);
@@ -34,6 +35,18 @@ export default function AdminManagers({ defaultTab = "managers" }) {
   }, []);
 
   const submit = async () => {
+    const nameErr = validateName(form.full_name, "Full name", { min: 2, max: 100, required: true });
+    if (nameErr) return notify(nameErr, "error");
+    if (!form.email?.trim()) return notify("Email is required.", "error");
+    if (form.phone?.trim()) {
+      const pErr = validatePhone(form.phone, "Phone number", { required: false });
+      if (pErr) return notify(pErr, "error");
+    }
+    if (form.username?.trim()) {
+      const uErr = validateUsername(form.username, { required: false });
+      if (uErr) return notify(uErr, "error");
+    }
+
     const payload = {
       full_name: form.full_name,
       email: form.email,

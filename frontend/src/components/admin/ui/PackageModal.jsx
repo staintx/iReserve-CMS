@@ -32,6 +32,7 @@ import { resolveGroup, CATEGORY_GROUPS } from "../../../lib/menuCategories";
 import { DEFAULT_FOOD_CATEGORIES } from "../../../utils/menuCategories";
 import QuickInventoryCreateDrawer from "../packages/QuickInventoryCreateDrawer";
 import QuickFoodCreateModal from "../packages/QuickFoodCreateModal";
+import { validateCatalogName, validateSafeText } from "@/lib/validationRules";
 
 const getDishesForCategory = (menuItems, categoryName) => {
   if (!Array.isArray(menuItems) || !categoryName) return [];
@@ -1752,24 +1753,40 @@ export default function PackageModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Both types need a name. What they need beyond that
-    // differs, because what they are priced on differs: an offer is sold at a
-    // fixed rate per pax against its own guest count, a regular package at a
-    // base setup price.
-    if (!formData.name.trim()) {
-      notify(isOffer ? "Combo name is required." : "Package name is required.", "error");
+    const nameErr = validateCatalogName(formData.name, isOffer ? "Combo name" : "Package name", { min: 2, max: 100, required: true });
+    if (nameErr) {
+      notify(nameErr, "error");
       return;
     }
 
-    // A description is stored and shown on every customer-facing card, so it is
-    // genuinely required. It used to be enforced only by the server, which
-    // answered a blank one with a raw validation error.
-    if (!formData.description.trim()) {
-      notify(
-        `Add a short description. Customers see it on the ${isOffer ? "offer" : "package"} card.`,
-        "error",
-      );
+    const descErr = validateSafeText(formData.description, "Description", { max: 2000, required: true });
+    if (descErr) {
+      notify(descErr, "error");
       return;
+    }
+
+    if (formData.fullDescription?.trim()) {
+      const fullDescErr = validateSafeText(formData.fullDescription, "Full description", { max: 5000, required: false });
+      if (fullDescErr) {
+        notify(fullDescErr, "error");
+        return;
+      }
+    }
+
+    if (formData.price_label?.trim()) {
+      const labelErr = validateSafeText(formData.price_label, "Price label", { max: 100, required: false });
+      if (labelErr) {
+        notify(labelErr, "error");
+        return;
+      }
+    }
+
+    if (formData.badge_text?.trim()) {
+      const badgeErr = validateSafeText(formData.badge_text, "Badge text", { max: 50, required: false });
+      if (badgeErr) {
+        notify(badgeErr, "error");
+        return;
+      }
     }
 
     if (isOffer && !(Number(formData.price_per_guest) >= 0)) {

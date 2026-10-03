@@ -17,6 +17,7 @@ import AppButton from "../../components/common/AppButton";
 import { useAuth } from "../../context/AuthContext";
 
 import { evaluatePassword, describePasswordGap } from "../../utils/passwordPolicy";
+import { validateName } from "../../utils/validationRules";
 
 export const RegisterScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -38,12 +39,14 @@ export const RegisterScreen = ({ navigation }) => {
   const confirmPasswordRef = useRef(null);
 
   const handleRegister = async () => {
-    if (!firstName.trim()) {
-      setError("First name is required.");
+    const firstNameErr = validateName(firstName, "First name", { min: 2, max: 50, required: true });
+    if (firstNameErr) {
+      setError(firstNameErr);
       return;
     }
-    if (!lastName.trim()) {
-      setError("Last name is required.");
+    const lastNameErr = validateName(lastName, "Last name", { min: 2, max: 50, required: true });
+    if (lastNameErr) {
+      setError(lastNameErr);
       return;
     }
     if (!email.trim() || !email.includes("@")) {

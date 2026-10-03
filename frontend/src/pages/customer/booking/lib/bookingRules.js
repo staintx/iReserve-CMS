@@ -1,4 +1,5 @@
 import { packageScaffoldSize } from "@/lib/packageDisplay";
+import { validateName, hasEmoji } from "@/lib/validationRules";
 import {
   isSpecialOffer,
   offerBaseFoodPrice,
@@ -220,15 +221,9 @@ export function contactFieldError(field, value) {
 
   switch (field) {
     case "contact_first_name":
-      if (!trimmed) return "Enter the first name of the person we should contact.";
-      if (trimmed.length < 2) return "First name must be at least 2 characters.";
-      if (trimmed.length > 50) return "First name cannot exceed 50 characters.";
-      return "";
+      return validateName(trimmed, "First name", { min: 2, max: 50, required: true });
     case "contact_last_name":
-      if (!trimmed) return "Enter the last name of the person we should contact.";
-      if (trimmed.length < 2) return "Last name must be at least 2 characters.";
-      if (trimmed.length > 50) return "Last name cannot exceed 50 characters.";
-      return "";
+      return validateName(trimmed, "Last name", { min: 2, max: 50, required: true });
     case "contact_email":
       if (!trimmed) return "Enter an email address. Your quotation is sent here.";
       if (trimmed.length > 100) return "Email address cannot exceed 100 characters.";
@@ -237,9 +232,11 @@ export function contactFieldError(field, value) {
         : "That email address is missing an @ or a domain. Example: maria@gmail.com";
     case "contact_phone":
       if (!trimmed) return "Enter a mobile number we can reach you on.";
+      if (hasEmoji(trimmed)) return "Mobile number cannot contain emojis.";
       return isValidPhone(trimmed) ? "" : PHONE_HELP;
     case "contact_alt_phone":
       if (!trimmed) return "";
+      if (hasEmoji(trimmed)) return "Alternate mobile number cannot contain emojis.";
       return isValidPhone(trimmed) ? "" : PHONE_HELP;
     default:
       return "";

@@ -68,6 +68,7 @@ import {
 import { resolveServiceType } from "../../customer/portal/statusMeta";
 import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
 import { formatCurrency, formatShortDate } from "../../../utils/format";
+import { validateName, validatePhone, validateAddress, validateSafeText } from "@/lib/validationRules";
 import FeedbackDialog from "../../feedback/FeedbackDialog";
 import InlineMessage from "../../feedback/InlineMessage";
 
@@ -458,10 +459,18 @@ export default function AdminBookingEditModal({
     setDetails({
       booking_for: booking.booking_for || "myself",
       celebrant_name: booking.celebrant_name || "",
-      contact_first_name: booking.contact_first_name || "",
-      contact_last_name: booking.contact_last_name || "",
-      contact_email: booking.contact_email || "",
-      contact_phone: booking.contact_phone || "",
+      contact_first_name:
+        booking.contact_first_name ||
+        booking.customer_id?.first_name ||
+        booking.customer_id?.full_name?.split(" ")[0] ||
+        "",
+      contact_last_name:
+        booking.contact_last_name ||
+        booking.customer_id?.last_name ||
+        (booking.customer_id?.full_name ? booking.customer_id.full_name.split(" ").slice(1).join(" ") : "") ||
+        "",
+      contact_email: booking.contact_email || booking.customer_id?.email || "",
+      contact_phone: booking.contact_phone || booking.customer_id?.phone || "",
       contact_alt_phone: booking.contact_alt_phone || "",
       event_type: eventTypeIsOther ? OTHER_EVENT_TYPE : matchEventType(rawEventType) || rawEventType,
       event_type_other: eventTypeIsOther ? rawEventType : "",
@@ -1153,22 +1162,68 @@ export default function AdminBookingEditModal({
     if (!details.event_type) {
       newErrors.event_type = "Event type is required";
     }
-    if (details.event_type === OTHER_EVENT_TYPE && !details.event_type_other.trim()) {
-      newErrors.event_type_other = "Please specify the custom event type";
+    if (details.event_type === OTHER_EVENT_TYPE) {
+      const etErr = validateSafeText(details.event_type_other, "Event type", { max: 50, required: true });
+      if (etErr) newErrors.event_type_other = etErr;
     }
-    if (!details.contact_first_name.trim()) {
-      newErrors.contact_first_name = "First name is required";
+    const fnErr = validateName(details.contact_first_name, "Contact first name", { min: 2, max: 50, required: true });
+    if (fnErr) newErrors.contact_first_name = fnErr;
+
+    const lnErr = validateName(details.contact_last_name, "Contact last name", { min: 2, max: 50, required: true });
+    if (lnErr) newErrors.contact_last_name = lnErr;
+
+    if (details.booking_for === "someone_else") {
+      const celErr = validateName(details.celebrant_name, "Celebrant name", { min: 2, max: 80, required: true });
+      if (celErr) newErrors.celebrant_name = celErr;
     }
-    if (!details.contact_last_name.trim()) {
-      newErrors.contact_last_name = "Last name is required";
+
+    if (details.contact_phone?.trim()) {
+      const pErr = validatePhone(details.contact_phone, "Contact phone", { required: true });
+      if (pErr) newErrors.contact_phone = pErr;
     }
-    if (details.booking_for === "someone_else" && !details.celebrant_name.trim()) {
-      newErrors.celebrant_name = "Honoree / celebrant name is required";
+
+    if (details.contact_alt_phone?.trim()) {
+      const apErr = validatePhone(details.contact_alt_phone, "Alternate phone", { required: false });
+      if (apErr) newErrors.contact_alt_phone = apErr;
+    }
+
+    if (details.street?.trim()) {
+      const stErr = validateAddress(details.street, "Street address", { max: 150, required: false });
+      if (stErr) newErrors.street = stErr;
+    }
+
+    if (details.landmark?.trim()) {
+      const lmErr = validateAddress(details.landmark, "Landmark", { max: 100, required: false });
+      if (lmErr) newErrors.landmark = lmErr;
+    }
+
+    if (details.event_theme?.trim()) {
+      const thErr = validateSafeText(details.event_theme, "Event theme", { max: 100, required: false });
+      if (thErr) newErrors.event_theme = thErr;
+    }
+
+    if (details.allergies?.trim()) {
+      const alErr = validateSafeText(details.allergies, "Allergies", { max: 300, required: false });
+      if (alErr) newErrors.allergies = alErr;
+    }
+
+    if (details.dietary_restrictions?.trim()) {
+      const drErr = validateSafeText(details.dietary_restrictions, "Dietary restrictions", { max: 300, required: false });
+      if (drErr) newErrors.dietary_restrictions = drErr;
+    }
+
+    if (details.special_requests?.trim()) {
+      const srErr = validateSafeText(details.special_requests, "Special requests", { max: 500, required: false });
+      if (srErr) newErrors.special_requests = srErr;
     }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      notify("Please resolve the required fields before saving.", "error");
+      if (newErrors.contact_first_name || newErrors.contact_last_name || newErrors.celebrant_name) {
+        setShowFullCustomerForm(true);
+      }
+      const firstErrorMessage = Object.values(newErrors)[0];
+      notify(`Please resolve required fields: ${firstErrorMessage}`, "error");
       scrollToSection("qb-section-details");
       return;
     }
@@ -1291,6 +1346,7 @@ export default function AdminBookingEditModal({
       onClose();
     } catch (err) {
       notify(err.response?.data?.message || "Failed to update booking.", "error");
+      throw err;
     } finally {
       setSubmitting(false);
     }
@@ -1324,6 +1380,7 @@ export default function AdminBookingEditModal({
         className="max-w-7xl w-[96vw] h-[90vh]"
       >
         <form
+          noValidate
           onSubmit={handleInitiateSubmit}
           className="flex h-full flex-col gap-4 overflow-hidden lg:flex-row lg:gap-6"
         >
@@ -3141,7 +3198,8 @@ export default function AdminBookingEditModal({
             {/* Action Footer */}
             <div className="border-t border-white/10 bg-[#16264A] p-4 flex flex-col gap-2 shrink-0">
               <button
-                type="submit"
+                type="button"
+                onClick={handleInitiateSubmit}
                 disabled={submitting}
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary hover:bg-primary/90 px-4 py-2.5 text-xs font-bold text-white shadow-md transition-colors cursor-pointer disabled:opacity-50"
               >
@@ -3171,6 +3229,8 @@ export default function AdminBookingEditModal({
       {/* Pre-save confirmation dialog */}
       {showConfirmDialog && (
         <FeedbackDialog
+          open={showConfirmDialog}
+          onOpenChange={setShowConfirmDialog}
           tone="warning"
           title="Confirm Booking Update"
           description="Are you sure you want to apply these updates to this booking? A revision entry will be created."

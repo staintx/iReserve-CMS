@@ -5,6 +5,8 @@ import { Switch } from "../../ui/switch";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
+import { validateCatalogName, validateSafeText } from "@/lib/validationRules";
+
 // Canonical identifier normalizer for duplicate checks
 const normalizeIdentifier = (name) => {
   if (!name || typeof name !== "string") return "";
@@ -87,9 +89,18 @@ export default function AddonModal({ addon, onClose, onSave, existingAddons = []
     if (e) e.preventDefault();
     if (isSubmittingRef.current || loading) return;
 
-    if (!formData.name.trim()) {
-      notify("Please provide an addon name", "error");
+    const nameErr = validateCatalogName(formData.name, "Addon name", { min: 2, max: 100, required: true });
+    if (nameErr) {
+      notify(nameErr, "error");
       return;
+    }
+
+    if (formData.description?.trim()) {
+      const descErr = validateSafeText(formData.description, "Description", { max: 1000, required: false });
+      if (descErr) {
+        notify(descErr, "error");
+        return;
+      }
     }
 
     if (isDuplicate) {

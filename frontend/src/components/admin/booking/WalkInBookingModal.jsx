@@ -78,6 +78,7 @@ import {
 } from "../../../lib/packageDisplay";
 import { formatCurrency, formatEventDate } from "../../../utils/format";
 import { cn } from "@/lib/utils";
+import { validateName, validatePhone, validateAddress, validateSafeText } from "@/lib/validationRules";
 
 // Step components from Customer flow
 import StepServiceType from "../../../pages/customer/booking/steps/StepServiceType";
@@ -2823,29 +2824,35 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         }
 
         // Regular Package or Custom Setup
-        if (
-          form.booking_for === "someone_else" &&
-          !String(form.celebrant_name || "").trim()
-        ) {
-          errs.celebrant_name = "Enter the celebrant or honoree's name.";
+        if (form.booking_for === "someone_else") {
+          const celErr = validateName(form.celebrant_name, "Celebrant name", { min: 2, max: 80, required: true });
+          if (celErr) errs.celebrant_name = celErr;
         }
 
-        const eventType =
-          form.event_type === OTHER_EVENT_TYPE
-            ? String(form.event_type_other || "").trim()
-            : form.event_type;
-        if (!eventType) {
-          errs[form.event_type === OTHER_EVENT_TYPE ? "event_type_other" : "event_type"] =
-            "Tell us what kind of event this is.";
+        if (form.event_type === OTHER_EVENT_TYPE) {
+          const etErr = validateSafeText(form.event_type_other, "Event type", { max: 50, required: true });
+          if (etErr) errs.event_type_other = etErr;
+        } else if (!form.event_type) {
+          errs.event_type = "Tell us what kind of event this is.";
         }
         if (!form.municipality)
           errs.municipality = "Select the municipality of your venue.";
         if (!form.barangay) errs.barangay = "Select the barangay.";
-        if (
-          form.venue_type === OTHER_VENUE_TYPE &&
-          !String(form.venue_type_other || "").trim()
-        ) {
-          errs.venue_type_other = "Tell us what kind of venue this is.";
+        if (form.street?.trim()) {
+          const stErr = validateAddress(form.street, "Street address", { max: 150, required: false });
+          if (stErr) errs.street = stErr;
+        }
+        if (form.landmark?.trim()) {
+          const lmErr = validateAddress(form.landmark, "Landmark", { max: 100, required: false });
+          if (lmErr) errs.landmark = lmErr;
+        }
+        if (form.event_theme?.trim()) {
+          const thErr = validateSafeText(form.event_theme, "Event theme", { max: 100, required: false });
+          if (thErr) errs.event_theme = thErr;
+        }
+        if (form.venue_type === OTHER_VENUE_TYPE) {
+          const vtErr = validateSafeText(form.venue_type_other, "Venue type", { max: 60, required: true });
+          if (vtErr) errs.venue_type_other = vtErr;
         }
 
         if (guests <= 0) {
@@ -2874,11 +2881,31 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
           if (!form.municipality)
             errs.municipality = "Select the delivery municipality.";
           if (!form.barangay) errs.barangay = "Select the delivery barangay.";
-          if (!String(form.street || "").trim())
+          if (!String(form.street || "").trim()) {
             errs.street = "Enter the street and building so we can find you.";
+          } else {
+            const stErr = validateAddress(form.street, "Street and building", { max: 150, required: true });
+            if (stErr) errs.street = stErr;
+          }
+          if (form.landmark?.trim()) {
+            const lmErr = validateAddress(form.landmark, "Landmark", { max: 100, required: false });
+            if (lmErr) errs.landmark = lmErr;
+          }
         }
         if (Object.keys(errs).length > 0) {
           msg = Object.values(errs)[0];
+        }
+        break;
+      }
+
+      case "DietaryNeeds": {
+        if (form.allergies?.trim()) {
+          const alErr = validateSafeText(form.allergies, "Allergies note", { max: 300, required: false });
+          if (alErr) errs.allergies = alErr;
+        }
+        if (form.dietary_restrictions?.trim()) {
+          const drErr = validateSafeText(form.dietary_restrictions, "Dietary restrictions", { max: 300, required: false });
+          if (drErr) errs.dietary_restrictions = drErr;
         }
         break;
       }
@@ -2908,17 +2935,14 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       }
 
       case "ContactInfo": {
-        if (!form.contact_first_name?.trim())
-          errs.contact_first_name = "First name is required.";
-        if (!form.contact_last_name?.trim())
-          errs.contact_last_name = "Last name is required.";
+        const fnErr = validateName(form.contact_first_name, "First name", { min: 2, max: 50, required: true });
+        if (fnErr) errs.contact_first_name = fnErr;
+        const lnErr = validateName(form.contact_last_name, "Last name", { min: 2, max: 50, required: true });
+        if (lnErr) errs.contact_last_name = lnErr;
         if (!form.contact_email?.trim())
           errs.contact_email = "Email is required.";
-        if (!form.contact_phone?.trim()) {
-          errs.contact_phone = "Mobile phone is required.";
-        } else if (!/^09\d{9}$/.test(normalizePhone(form.contact_phone))) {
-          errs.contact_phone = "Phone must be in 09XXXXXXXXX format (11 digits).";
-        }
+        const pErr = validatePhone(form.contact_phone, "Mobile phone", { required: true });
+        if (pErr) errs.contact_phone = pErr;
         if (Object.keys(errs).length > 0) msg = "Please complete client contact details.";
         break;
       }

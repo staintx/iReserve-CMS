@@ -1,16 +1,17 @@
 const Joi = require("joi");
 const { passwordRule } = require("./password.rule");
+const { nameRule, phoneRule, usernameRule, addressRule, safeTextRule } = require("./rules.common");
 
 exports.updateUserSchema = Joi.object({
-  first_name: Joi.string().trim().allow("").optional(),
-  last_name: Joi.string().trim().allow("").optional(),
-  full_name: Joi.string().trim().allow("").optional(),
+  first_name: nameRule("First name", { min: 2, max: 50, required: false, allowEmpty: true }),
+  last_name: nameRule("Last name", { min: 2, max: 50, required: false, allowEmpty: true }),
+  full_name: nameRule("Full name", { min: 2, max: 100, required: false, allowEmpty: true }),
   email: Joi.string().trim().email().optional(),
-  phone: Joi.string().allow("").optional(),
-  alt_phone: Joi.string().allow("").optional(),
-  address: Joi.string().allow("").optional(),
-  username: Joi.string().allow("").optional(),
-  position: Joi.string().allow("").optional(),
+  phone: phoneRule("Phone number", { required: false, allowEmpty: true }),
+  alt_phone: phoneRule("Alternate phone number", { required: false, allowEmpty: true }),
+  address: addressRule("Address", { max: 200, required: false, allowEmpty: true }),
+  username: usernameRule({ required: false, allowEmpty: true }),
+  position: safeTextRule("Position", { max: 60, required: false, allowEmpty: true }),
   otp: Joi.string().trim().length(6).required().messages({
     "string.empty": "Verification code is required to save changes.",
     "string.length": "Verification code must be exactly 6 digits.",

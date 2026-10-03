@@ -1,7 +1,11 @@
 const Joi = require("joi");
-
-const PH_MOBILE_REGEX = /^09\d{9}$/;
-const PH_ZIP_REGEX = /^\d{4}$/;
+const {
+  nameRule,
+  phoneRule,
+  addressRule,
+  safeTextRule,
+  PH_ZIP_REGEX
+} = require("./rules.common");
 
 const noPastDate = (value, helpers) => {
   const date = new Date(value);
@@ -18,10 +22,10 @@ exports.bookingSchema = Joi.object({
   event_manager_id: Joi.string().allow("").optional(),
   staff_ids: Joi.array().items(Joi.string()).optional(),
 
-  event_type: Joi.string().trim().max(50).required(),
+  event_type: safeTextRule("Event type", { max: 50, required: true, allowEmpty: false }),
   booking_for: Joi.string().valid("myself", "someone_else").optional(),
-  celebrant_name: Joi.string().trim().max(80).allow("").optional(),
-  event_theme: Joi.string().trim().max(100).allow("").optional(),
+  celebrant_name: nameRule("Celebrant name", { min: 2, max: 80, required: false, allowEmpty: true }),
+  event_theme: safeTextRule("Event theme", { max: 100, required: false, allowEmpty: true }),
   event_date: Joi.date()
     .required()
     .custom(noPastDate, "no past dates")
@@ -38,28 +42,28 @@ exports.bookingSchema = Joi.object({
   }),
   duration_hours: Joi.number().integer().min(1).max(24).allow(null, "").optional(),
   include_food: Joi.boolean().optional(),
-  venue_type: Joi.string().trim().max(60).allow("").optional(),
+  venue_type: safeTextRule("Venue type", { max: 60, required: false, allowEmpty: true }),
   indoor_outdoor: Joi.string().trim().max(20).allow("").optional(),
-  province: Joi.string().trim().max(50).allow("").optional(),
-  municipality: Joi.string().trim().max(50).allow("").optional(),
-  barangay: Joi.string().trim().max(50).allow("").optional(),
-  street: Joi.string().trim().max(150).allow("").optional(),
-  landmark: Joi.string().trim().max(100).allow("").optional(),
+  province: safeTextRule("Province", { max: 50, required: false, allowEmpty: true }),
+  municipality: safeTextRule("Municipality", { max: 50, required: false, allowEmpty: true }),
+  barangay: safeTextRule("Barangay", { max: 50, required: false, allowEmpty: true }),
+  street: addressRule("Street", { max: 150, required: false, allowEmpty: true }),
+  landmark: addressRule("Landmark", { max: 100, required: false, allowEmpty: true }),
   zip_code: Joi.string().trim().pattern(PH_ZIP_REGEX).allow("").optional(),
-  venue_contact_name: Joi.string().trim().max(80).allow("").optional(),
-  venue_contact_phone: Joi.string().trim().pattern(PH_MOBILE_REGEX).allow("").optional(),
+  venue_contact_name: nameRule("Venue contact name", { min: 2, max: 80, required: false, allowEmpty: true }),
+  venue_contact_phone: phoneRule("Venue contact phone", { required: false, allowEmpty: true }),
   selected_menu: Joi.array().items(Joi.string()).optional(),
-  dietary_restrictions: Joi.string().trim().max(300).allow("").optional(),
-  allergies: Joi.string().trim().max(300).allow("").optional(),
-  special_requests: Joi.string().trim().max(500).allow("").optional(),
+  dietary_restrictions: safeTextRule("Dietary restrictions", { max: 300, required: false, allowEmpty: true }),
+  allergies: safeTextRule("Allergies", { max: 300, required: false, allowEmpty: true }),
+  special_requests: safeTextRule("Special requests", { max: 500, required: false, allowEmpty: true }),
   budget_min: Joi.alternatives().try(Joi.string(), Joi.number().min(0)).allow("").optional(),
   budget_max: Joi.alternatives().try(Joi.string(), Joi.number().min(0)).allow("").optional(),
-  additional_services: Joi.array().items(Joi.string().trim().max(100)).optional(),
-  contact_first_name: Joi.string().trim().min(2).max(50).allow("").optional(),
-  contact_last_name: Joi.string().trim().min(2).max(50).allow("").optional(),
+  additional_services: Joi.array().items(safeTextRule("Additional service", { max: 100, required: false, allowEmpty: true })).optional(),
+  contact_first_name: nameRule("Contact first name", { min: 2, max: 50, required: false, allowEmpty: true }),
+  contact_last_name: nameRule("Contact last name", { min: 2, max: 50, required: false, allowEmpty: true }),
   contact_email: Joi.string().trim().email().max(100).allow("").optional(),
-  contact_phone: Joi.string().trim().pattern(PH_MOBILE_REGEX).allow("").optional(),
-  contact_alt_phone: Joi.string().trim().pattern(PH_MOBILE_REGEX).allow("").optional(),
+  contact_phone: phoneRule("Contact phone", { required: false, allowEmpty: true }),
+  contact_alt_phone: phoneRule("Alternate contact phone", { required: false, allowEmpty: true }),
   contact_method: Joi.string().trim().max(30).allow("").optional(),
   total_price: Joi.number().min(0).max(10000000).required().messages({
     "number.min": "Total price cannot be negative.",

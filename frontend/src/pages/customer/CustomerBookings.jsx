@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import {
   Plus,
   CreditCard,
+  Banknote,
   Search,
   XCircle,
   ChevronDown,
@@ -905,6 +906,19 @@ export default function CustomerBookings() {
                                 <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                                 <span className="truncate">{locationStr}</span>
                               </span>
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 capitalize">
+                                {bkg.payment_method === "cash" ? (
+                                  <>
+                                    <Banknote className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                    <span>Cash</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <CreditCard className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                    <span>Online</span>
+                                  </>
+                                )}
+                              </span>
                               {countdown && countdown.days >= 0 && (
                                 <span
                                   className={cn(
@@ -1372,6 +1386,23 @@ export default function CustomerBookings() {
                             {bal > 0 ? formatCurrency(bal) : "Fully Settled"}
                           </div>
                         </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60">
+                        <span className="text-slate-500 font-medium">Payment Method</span>
+                        <span className="font-semibold text-slate-800 capitalize flex items-center gap-1">
+                          {selectedBooking.payment_method === "cash" ? (
+                            <>
+                              <Banknote className="w-3.5 h-3.5 text-amber-600" />
+                              Cash Payment
+                            </>
+                          ) : (
+                            <>
+                              <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                              Online Payment
+                            </>
+                          )}
+                        </span>
                       </div>
 
                       <div className="pt-1 flex items-center justify-between border-t border-slate-200/60">

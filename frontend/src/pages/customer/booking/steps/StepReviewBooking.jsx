@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react";
+import { Pencil, Banknote, CreditCard } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { Card, SH, InfoNote, StepShell } from "../components/BookingSharedUI";
 import { focusRing } from "../lib/bookingUI";
@@ -92,6 +92,7 @@ const formatTime = (value) => {
 
 export default function StepReviewBooking({
   form,
+  setForm,
   packageName,
   pickupAddress,
   estimate,
@@ -518,6 +519,76 @@ export default function StepReviewBooking({
               <Row label="Alternative phone" value={form.contact_alt_phone} />
             )}
           </Section>
+
+          <section className="px-3.5 py-2.5 sm:px-4 sm:py-3 border-t border-slate-100">
+            <div className="mb-2 border-b border-slate-100 pb-1">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                Preferred Payment Method
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Choose how you intend to pay for your deposit once your quotation is issued. No payment is taken today.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              <label
+                className={cn(
+                  "relative flex cursor-pointer flex-col rounded-xl border p-3 transition-all",
+                  (form.payment_method || "cash") === "cash"
+                    ? "border-amber-500 bg-amber-50/50 shadow-xs"
+                    : "border-slate-200 hover:border-slate-300 bg-white"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+                      <Banknote size={15} />
+                    </span>
+                    <span className="text-xs font-bold text-slate-900">Cash Payment</span>
+                  </div>
+                  <input
+                    type="radio"
+                    name="preferred_payment_method"
+                    value="cash"
+                    checked={(form.payment_method || "cash") === "cash"}
+                    onChange={() => setForm?.((prev) => ({ ...prev, payment_method: "cash" }))}
+                    className="h-4 w-4 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Pay cash deposit in person at our office or on-site upon coordination with our team.
+                </p>
+              </label>
+
+              <label
+                className={cn(
+                  "relative flex cursor-pointer flex-col rounded-xl border p-3 transition-all",
+                  form.payment_method === "online"
+                    ? "border-blue-500 bg-blue-50/50 shadow-xs"
+                    : "border-slate-200 hover:border-slate-300 bg-white"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                      <CreditCard size={15} />
+                    </span>
+                    <span className="text-xs font-bold text-slate-900">Online Payment</span>
+                  </div>
+                  <input
+                    type="radio"
+                    name="preferred_payment_method"
+                    value="online"
+                    checked={form.payment_method === "online"}
+                    onChange={() => setForm?.((prev) => ({ ...prev, payment_method: "online" }))}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Pay deposit online via GCash, Maya, or Credit/Debit Card through PayMongo.
+                </p>
+              </label>
+            </div>
+          </section>
         </Card>
 
         {/* Sidebar: Cost + Before You Submit */}

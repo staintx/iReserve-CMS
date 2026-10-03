@@ -398,6 +398,7 @@ exports.saveQuotationDraft = asyncHandler(async (req, res) => {
 
   const totals = computeQuotationTotals(pricingInput);
   const payload = buildQuotationPayload(pricingInput, totals, inquiry);
+  payload.payment_method = req.body.payment_method || inquiry.payment_method || "cash";
 
   const existing = await findDraft(inquiry_id);
   let draft;
@@ -483,6 +484,7 @@ exports.createQuotation = asyncHandler(async (req, res) => {
 
   const nextVersion = await nextVersionNumber(inquiry_id);
   const payload = buildQuotationPayload(pricingInput, totals, inquiry);
+  payload.payment_method = req.body.payment_method || inquiry.payment_method || "cash";
   // Freeze the event onto this version so the customer's copy keeps showing
   // what it was issued against, whatever happens to the inquiry afterwards.
   payload.event_snapshot = buildEventSnapshot(inquiry);
@@ -577,7 +579,7 @@ exports.getAllQuotations = asyncHandler(async (req, res) => {
     return {
       ...q,
       payment_status: isApproved ? (inq?.payment_status || "deposit_paid") : (payment?.status || inq?.payment_status || "unpaid"),
-      payment_method: payment?.method || null,
+      payment_method: payment?.method || q.payment_method || inq?.payment_method || "cash",
       payment_amount: payment?.amount || null,
       is_paid: isApproved
     };
@@ -619,6 +621,7 @@ exports.getQuotationsByInquiry = asyncHandler(async (req, res) => {
 
   const enrichedQuotations = quotations.map(q => ({
     ...q,
+    payment_method: q.payment_method || inquiry.payment_method || latestPayment?.method || "cash",
     inquiry_payment_status: paymentStatus,
     payments,
     approved_payment: approvedPayment || null,
@@ -646,6 +649,7 @@ exports.getQuotationById = asyncHandler(async (req, res) => {
   const payments = await Payment.find({ inquiry_id: inquiryId }).sort({ createdAt: -1 }).lean();
   const approvedPayment = payments.find(p => p.status === "approved");
 
+  qObj.payment_method = quotation.payment_method || quotation.inquiry_id?.payment_method || "cash";
   qObj.payments = payments;
   qObj.approved_payment = approvedPayment || null;
   qObj.inquiry_payment_status = approvedPayment ? "deposit_paid" : (quotation.inquiry_id?.payment_status || "unpaid");
@@ -706,13 +710,45 @@ exports.acceptQuotation = asyncHandler(async (req, res) => {
     });
   }
 
+  const inquiry = await Inquiry.findById(inquiryId);
+  const paymentMethod = req.body?.payment_method || quotation.payment_method || inquiry?.payment_method || "cash";
+
+  quotation.payment_method = paymentMethod;
   quotation.status = "Awaiting Final Confirmation";
   await quotation.save();
 
-  const inquiry = await Inquiry.findById(inquiryId);
   if (inquiry) {
+    inquiry.payment_method = paymentMethod;
     inquiry.status = "Awaiting Final Confirmation";
     await inquiry.save();
+  }
+
+  const customerId = inquiry?.customer_id?._id || inquiry?.customer_id || req.user?._id;
+
+  // If customer selected Cash, record a pending deposit payment record if none exists
+  if (paymentMethod === "cash" && Number(quotation.deposit_amount) > 0) {
+    let pendingPayment = await Payment.findOne({
+      inquiry_id: inquiryId,
+      payment_type: "deposit",
+      status: "pending",
+    });
+    if (pendingPayment) {
+      pendingPayment.amount = quotation.deposit_amount;
+      pendingPayment.method = "cash";
+      pendingPayment.gateway = "manual";
+      await pendingPayment.save();
+    } else {
+      await Payment.create({
+        inquiry_id: inquiryId,
+        customer_id: customerId,
+        amount: quotation.deposit_amount,
+        currency: "PHP",
+        payment_type: "deposit",
+        method: "cash",
+        status: "pending",
+        gateway: "manual",
+      });
+    }
   }
 
   const io = req.app.get("io");
@@ -723,22 +759,29 @@ exports.acceptQuotation = asyncHandler(async (req, res) => {
   const quoteRef = quotation.quotation_number || inquiry?.reference || "quotation";
 
   // Notify Admins
+  const adminBody = paymentMethod === "cash"
+    ? `${customerName} accepted quotation ${quoteRef}. Intended payment method: Cash. Awaiting cash deposit.`
+    : `${customerName} accepted quotation ${quoteRef}. Awaiting deposit payment.`;
+
   await notifyAdmins({
     title: "Quotation Accepted by Customer",
-    body: `${customerName} accepted quotation ${quoteRef}. Awaiting deposit payment.`,
+    body: adminBody,
     type: "success",
     link: `/admin/quotes/${inquiryId}/details`,
     meta: { inquiry_id: inquiryId, quotation_id: quotation._id }
   }, io);
 
   // Notify Customer
-  const customerId = inquiry?.customer_id?._id || inquiry?.customer_id || req.user?._id;
   if (customerId) {
     const { createNotification } = require("../utils/notify");
+    const custBody = paymentMethod === "cash"
+      ? `You accepted quotation ${quoteRef} with Cash payment method. Please coordinate with our team to pay your cash deposit.`
+      : `You accepted quotation ${quoteRef}. Please complete your deposit payment to lock in your event date.`;
+
     await createNotification({
       userId: customerId,
       title: "Quotation Accepted",
-      body: `You accepted quotation ${quoteRef}. Please complete your deposit payment to lock in your event date.`,
+      body: custBody,
       type: "success",
       link: "/customer/inquiries",
       meta: { inquiry_id: inquiryId, quotation_id: quotation._id, openQuoteId: inquiryId }
@@ -747,7 +790,7 @@ exports.acceptQuotation = asyncHandler(async (req, res) => {
 
   if (io) io.emit("system:refresh", { type: "quotation", action: "accept" });
 
-  res.json({ message: "Quotation accepted, awaiting final admin confirmation", quotation });
+  res.json({ message: "Quotation accepted, awaiting final admin confirmation", quotation, payment_method: paymentMethod });
 });
 
 // Customer requests revision

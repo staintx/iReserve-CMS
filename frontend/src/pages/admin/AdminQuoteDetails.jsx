@@ -236,6 +236,12 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
                 <MoneyLine label="Total" value={formatCurrency(quotation.total_cost)} strong />
                 <MoneyLine label="Deposit" value={formatCurrency(quotation.deposit_amount)} />
                 <MoneyLine label="Balance" value={formatCurrency(quotation.remaining_balance)} />
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                  <span className="text-slate-500">Payment Method</span>
+                  <span className="font-semibold text-slate-800 capitalize">
+                    {quotation.payment_method === "cash" ? "Cash" : "Online Payment"}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -514,7 +520,13 @@ export default function AdminQuoteDetails() {
             )}
             {!isConverted && !isCancelled && (
               <button
-                onClick={() => setShowConvertModal(true)}
+                onClick={() => {
+                  if (isAccepted) {
+                    setShowConfirmConvert(true);
+                  } else {
+                    setShowConvertModal(true);
+                  }
+                }}
                 className="px-3.5 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-md shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Activity size={13} />
@@ -559,7 +571,13 @@ export default function AdminQuoteDetails() {
               {!isConverted && !isCancelled && (
                 <button
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-md shadow-xs transition-colors cursor-pointer"
-                  onClick={() => setShowConvertModal(true)}
+                  onClick={() => {
+                    if (isAccepted) {
+                      setShowConfirmConvert(true);
+                    } else {
+                      setShowConvertModal(true);
+                    }
+                  }}
                 >
                   <Activity size={14} className="text-primary-400" />
                   <span>{primaryActionLabel}</span>
@@ -1727,7 +1745,13 @@ export default function AdminQuoteDetails() {
 
                 {!isConverted && !isCancelled && (
                   <button
-                    onClick={() => setShowConvertModal(true)}
+                    onClick={() => {
+                      if (isAccepted) {
+                        setShowConfirmConvert(true);
+                      } else {
+                        setShowConvertModal(true);
+                      }
+                    }}
                     className="w-full mt-2 py-2 px-3 bg-primary hover:bg-primary-hover active:scale-[0.99] text-white text-xs font-semibold rounded-md shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Activity size={13} />
@@ -1772,15 +1796,20 @@ export default function AdminQuoteDetails() {
 
       {showConfirmConvert && (
         <ConvertBookingModal
-          quote={quote}
+          quote={{
+            ...quote,
+            payment_method: currentQuotation?.payment_method || quote?.payment_method || "cash",
+          }}
           isDepositPaidProp={isDepositPaid}
           submitting={submitting}
           onClose={() => setShowConfirmConvert(false)}
-          onConfirm={(managerId, bypassDeposit = false) => {
+          onConfirm={(managerId, bypassDeposit = false, paymentMethod = null, markDepositPaid = false) => {
             setSubmitting(true);
             AdminAPI.createBookingFromInquiry(quote._id, {
               event_manager_id: managerId,
               bypass_deposit: bypassDeposit,
+              payment_method: paymentMethod || currentQuotation?.payment_method || quote?.payment_method || "cash",
+              mark_deposit_as_paid: markDepositPaid,
             })
               .then(() => {
                 notify("Quotation converted to booking successfully with assigned manager!", "success");

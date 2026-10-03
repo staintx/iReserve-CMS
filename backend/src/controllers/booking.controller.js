@@ -3127,7 +3127,8 @@ exports.executeInquiryConversion = async ({
   inquiryId,
   eventManagerId = null,
   bypassDeposit = false,
-  paymentMethod = "cash",
+  markDepositAsPaid = false,
+  paymentMethod = null,
   paymentDoc = null,
   io = null,
 }) => {
@@ -3158,6 +3159,23 @@ exports.executeInquiryConversion = async ({
     return existingBooking;
   }
 
+  // Find latest quotation if available (prefer Accepted, fallback to latest)
+  let quotation = await Quotation.findOne({ inquiry_id: inquiryId, status: "Accepted" });
+  if (!quotation) {
+    quotation = await Quotation.findOne({ inquiry_id: inquiryId }).sort({ version_number: -1, createdAt: -1 });
+  }
+
+  // Determine effective payment method from params, paymentDoc, inquiry, or quotation
+  const effectivePaymentMethod = (
+    paymentMethod ||
+    paymentDoc?.method ||
+    inquiry.payment_method ||
+    quotation?.payment_method ||
+    "cash"
+  ).toLowerCase();
+
+  const isCashPayment = effectivePaymentMethod === "cash";
+
   // Check for approved deposit payment
   const Payment = require("../models/Payment");
   let approvedPayment = (paymentDoc && paymentDoc.status === "approved") ? paymentDoc : null;
@@ -3169,7 +3187,16 @@ exports.executeInquiryConversion = async ({
     });
   }
 
-  if (!approvedPayment && bypassDeposit !== true) {
+  // A deposit is considered approved only if there is an approved payment,
+  // or if cash payment, admin explicitly marked cash deposit as collected,
+  // or if non-cash offline bypass was explicitly provided.
+  const isDepositApproved = Boolean(
+    approvedPayment ||
+    (isCashPayment ? markDepositAsPaid : bypassDeposit)
+  );
+
+  // If not cash and no approved deposit, require bypassDeposit
+  if (!approvedPayment && !isCashPayment && bypassDeposit !== true) {
     throw new Error("Cannot convert inquiry to booking: The down payment deposit has not been approved yet.");
   }
 
@@ -3181,12 +3208,6 @@ exports.executeInquiryConversion = async ({
       const activeManager = await User.findOne({ role: "manager", is_active: { $ne: false } });
       if (activeManager) finalManagerId = activeManager._id;
     } catch (e) {}
-  }
-
-  // Find latest quotation if available (prefer Accepted, fallback to latest)
-  let quotation = await Quotation.findOne({ inquiry_id: inquiryId, status: "Accepted" });
-  if (!quotation) {
-    quotation = await Quotation.findOne({ inquiry_id: inquiryId }).sort({ version_number: -1, createdAt: -1 });
   }
 
   // Whether this booking carries food, and the service type that follows from it
@@ -3343,8 +3364,9 @@ exports.executeInquiryConversion = async ({
     contact_method: inquiry.contact_method || "Email",
     
     total_price: totalPrice,
-    payment_status: approvedPayment ? "deposit_paid" : (bypassDeposit ? "deposit_paid" : "pending"),
-    status: approvedPayment ? "confirmed" : (bypassDeposit ? "confirmed" : "pending deposit"),
+    payment_method: effectivePaymentMethod,
+    payment_status: isDepositApproved ? "deposit_paid" : "pending",
+    status: isDepositApproved ? "confirmed" : "Deposit Pending",
     ...(finalManagerId ? { event_manager_id: finalManagerId } : {}),
   };
 
@@ -3369,11 +3391,13 @@ exports.executeInquiryConversion = async ({
 
   inquiry.status = "Converted to Booking";
   inquiry.converted_booking_id = newBooking._id;
-  inquiry.payment_status = (approvedPayment || bypassDeposit) ? "deposit_paid" : inquiry.payment_status;
+  inquiry.payment_method = effectivePaymentMethod;
+  inquiry.payment_status = isDepositApproved ? "deposit_paid" : inquiry.payment_status;
   await inquiry.save();
 
   if (quotation) {
     quotation.status = "Converted to Booking";
+    quotation.payment_method = effectivePaymentMethod;
     await quotation.save();
   }
 
@@ -3389,17 +3413,39 @@ exports.executeInquiryConversion = async ({
   }
   
   if (!approvedPayment && depositAmount > 0) {
-    const existingPayment = await Payment.findOne({ booking_id: newBooking._id });
+    let existingPayment = await Payment.findOne({ 
+      booking_id: newBooking._id, 
+      payment_type: "deposit" 
+    });
     if (!existingPayment) {
+      existingPayment = await Payment.findOne({ 
+        inquiry_id: inquiryId, 
+        payment_type: "deposit" 
+      });
+    }
+
+    if (existingPayment) {
+      existingPayment.booking_id = newBooking._id;
+      existingPayment.amount = depositAmount;
+      existingPayment.method = effectivePaymentMethod;
+      existingPayment.status = isDepositApproved ? "approved" : "pending";
+      existingPayment.gateway = (effectivePaymentMethod === "cash" ? "manual" : "paymongo");
+      if (isDepositApproved && !existingPayment.paid_at) {
+        existingPayment.paid_at = new Date();
+      }
+      await existingPayment.save();
+    } else {
       await Payment.create({
         booking_id: newBooking._id,
+        inquiry_id: inquiryId,
         customer_id: newBooking.customer_id,
         amount: depositAmount,
         currency: "PHP",
         payment_type: "deposit",
-        status: bypassDeposit ? "approved" : "pending",
-        gateway: bypassDeposit ? (paymentMethod || "cash") : "paymongo",
-        paid_at: bypassDeposit ? new Date() : undefined,
+        method: effectivePaymentMethod,
+        status: isDepositApproved ? "approved" : "pending",
+        gateway: (effectivePaymentMethod === "cash" ? "manual" : "paymongo"),
+        paid_at: isDepositApproved ? new Date() : undefined,
       });
     }
   }
@@ -3497,7 +3543,8 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
   const inquiryId = req.params.id;
   const eventManagerId = req.body.event_manager_id || req.body.manager_id;
   const bypassDeposit = req.body.bypass_deposit === true;
-  const paymentMethod = req.body.payment_method || "cash";
+  const paymentMethod = req.body.payment_method;
+  const markDepositAsPaid = req.body.mark_deposit_as_paid === true;
 
   try {
     const io = req.app.get("io");
@@ -3505,6 +3552,7 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
       inquiryId,
       eventManagerId,
       bypassDeposit,
+      markDepositAsPaid,
       paymentMethod,
       io,
     });

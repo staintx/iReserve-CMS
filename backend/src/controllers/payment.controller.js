@@ -88,9 +88,17 @@ exports.cleanupStalePendingPayments = async function (bookingId, inquiryId) {
 			const inquiry = await Inquiry.findById(inquiryId);
 			if (!inquiry) return;
 
-			if (inquiry.payment_status === "fully_paid" || inquiry.payment_status === "deposit_paid" || inquiry.converted_booking_id) {
+			if (inquiry.payment_status === "fully_paid" || inquiry.payment_status === "deposit_paid") {
 				await Payment.deleteMany({
 					inquiry_id: inquiryId,
+					payment_type: "deposit",
+					status: "pending"
+				});
+			} else if (inquiry.converted_booking_id) {
+				// Only delete orphan pending deposit payments that are NOT associated with the converted booking
+				await Payment.deleteMany({
+					inquiry_id: inquiryId,
+					booking_id: { $ne: inquiry.converted_booking_id },
 					payment_type: "deposit",
 					status: "pending"
 				});
@@ -330,7 +338,26 @@ exports.create = asyncHandler(async (req, res) => {
 	if (req.user?.role === "customer") {
 		return res.status(403).json({ message: "Forbidden" });
 	}
-	const payment = await Payment.create(req.body);
+
+	const { booking_id, inquiry_id, payment_type, status } = req.body;
+	let payment;
+	if (status === "approved" && payment_type) {
+		const query = { status: "pending", payment_type };
+		if (booking_id) query.booking_id = booking_id;
+		else if (inquiry_id) query.inquiry_id = inquiry_id;
+
+		const existingPending = await Payment.findOne(query);
+		if (existingPending) {
+			Object.assign(existingPending, req.body);
+			existingPending.paid_at = existingPending.paid_at || new Date();
+			payment = await existingPending.save();
+		}
+	}
+
+	if (!payment) {
+		payment = await Payment.create(req.body);
+	}
+
 	if (payment.status === "approved" && payment.booking_id) {
 		await exports.syncBookingStatus(payment.booking_id);
 	}
@@ -737,6 +764,19 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		await Payment.deleteMany({
 			booking_id: targetDoc._id,
 			payment_type: "balance",
+			status: "pending",
+			gateway: "manual"
+		});
+	}
+
+	if (inquiry_id) {
+		if (targetDoc.payment_method !== "online") {
+			targetDoc.payment_method = "online";
+			await targetDoc.save();
+		}
+		await Payment.deleteMany({
+			inquiry_id: targetDoc._id,
+			payment_type: "deposit",
 			status: "pending",
 			gateway: "manual"
 		});

@@ -22,6 +22,8 @@ import {
   MessageSquareQuote,
   Check,
   ArrowRight,
+  Banknote,
+  CreditCard,
 } from "lucide-react";
 import InvoiceModal from "../common/invoice/InvoiceModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
@@ -75,6 +77,15 @@ export default function CustomerQuotationModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pane, setPane] = useState("quotation");
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(
+    quotation?.payment_method || inquiry?.payment_method || "cash"
+  );
+
+  useEffect(() => {
+    if (quotation) {
+      setSelectedPaymentMethod(quotation.payment_method || inquiry?.payment_method || "cash");
+    }
+  }, [quotation, inquiry]);
 
   // Progressive disclosure states - collapsed by default for scannability
   const [packageOpen, setPackageOpen] = useState(false);
@@ -100,15 +111,44 @@ export default function CustomerQuotationModal({
 
   if (!quotation) return null;
 
-  const handleAccept = async () => {
+  const handleAccept = async (overrideMethod = null) => {
+    const methodToUse = overrideMethod || selectedPaymentMethod || "cash";
     const depositAmount = Number(quotation.deposit_amount || 0);
     const totalAmount = Number(quotation.total_cost || 0);
     const inquiryId = quotation.inquiry_id?._id || quotation.inquiry_id || inquiry?._id;
     const payable = depositAmount > 0 ? depositAmount : totalAmount;
 
+    if (methodToUse === "cash") {
+      await confirm({
+        tone: "confirm",
+        title: "Accept Quote with Cash Payment?",
+        description: `You are accepting this quotation with Cash as your intended payment method. A deposit of ${formatCurrency(
+          payable
+        )} will be payable in cash at our office or upon coordination with our team. Once verified, your reservation will be finalized.`,
+        confirmLabel: "Accept with Cash",
+        cancelLabel: "Not yet",
+        onConfirm: async () => {
+          setIsSubmitting(true);
+          try {
+            await CustomerAPI.acceptQuotation(quotation._id, { payment_method: "cash" });
+            notify("Quote accepted with Cash payment method!", "success", {
+              description: `Our team has been notified. Please coordinate your cash deposit of ${formatCurrency(payable)}.`,
+            });
+            if (onUpdated) onUpdated();
+            onClose();
+          } catch (err) {
+            notify(err.response?.data?.message || "Failed to accept quotation.", "error");
+          } finally {
+            setIsSubmitting(false);
+          }
+        },
+      });
+      return;
+    }
+
     await confirm({
       tone: "confirm",
-      title: "Accept Quote & Pay Deposit?",
+      title: "Accept Quote & Pay Online?",
       description: `Accepting this quote proceeds directly to the ${formatCurrency(
         payable
       )} deposit payment via PayMongo (GCash, Maya, or Card). Once paid, your event date is secured and moves to final confirmation.`,
@@ -118,7 +158,7 @@ export default function CustomerQuotationModal({
         setIsSubmitting(true);
         try {
           if (quotation.status !== "Awaiting Final Confirmation" && quotation.status !== "Accepted") {
-            await CustomerAPI.acceptQuotation(quotation._id);
+            await CustomerAPI.acceptQuotation(quotation._id, { payment_method: "online" });
           }
 
           if (payable > 0 && inquiryId) {
@@ -214,19 +254,20 @@ export default function CustomerQuotationModal({
   );
   const isExpired = isPastExpiry || isWithinLockout;
 
+  const isConverted = Boolean(inquiry?.converted_booking_id);
   const isDepositPaid =
     inquiry?.payment_status === "deposit_paid" ||
     inquiry?.payment_status === "fully_paid" ||
-    Boolean(inquiry?.converted_booking_id) ||
     quotation?.inquiry_payment_status === "deposit_paid" ||
     quotation?.inquiry_payment_status === "fully_paid" ||
     Boolean(quotation?.approved_payment);
 
-  const canRespond = quotation.status === "Sent" && !isExpired && !isDepositPaid;
+  const canRespond = quotation.status === "Sent" && !isExpired && !isDepositPaid && !isConverted;
   const canRetryPayment =
     (quotation.status === "Awaiting Final Confirmation" || quotation.status === "Accepted") &&
     !isDepositPaid &&
-    !isExpired;
+    !isExpired &&
+    !isConverted;
 
   const eventDetail = (key) => {
     const fromSnapshot = snapshot?.[key];
@@ -267,6 +308,8 @@ export default function CustomerQuotationModal({
 
   const status = isDepositPaid
     ? { tone: "success", label: "Deposit Paid & Confirmed", icon: CheckCircle2 }
+    : isConverted
+    ? { tone: "info", label: "Converted to Reservation", icon: CheckCircle2 }
     : statusMeta(quotation.status, isExpired);
 
   const total = Number(quotation.total_cost || 0);
@@ -1019,6 +1062,106 @@ export default function CustomerQuotationModal({
                         </dd>
                       </div>
                     )}
+
+                    {/* Payment Method Selector or Info */}
+                    {canRespond || canRetryPayment ? (
+                      <div className="border-t border-slate-100 p-4 sm:p-5 bg-slate-50/60">
+                        <div className="flex items-center justify-between mb-2.5">
+                          <span className="text-xs font-semibold text-slate-800">
+                            Select Payment Method for Deposit
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            Choose Cash or Online
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div
+                            onClick={() => setSelectedPaymentMethod("cash")}
+                            className={cn(
+                              "cursor-pointer rounded-lg border p-3 transition-all",
+                              selectedPaymentMethod === "cash"
+                                ? "border-blue-600 bg-blue-50/50 text-blue-950 shadow-xs ring-1 ring-blue-500"
+                                : "border-slate-200 bg-white hover:border-slate-300 text-slate-700"
+                            )}
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <div
+                                className={cn(
+                                  "p-1.5 rounded-md mt-0.5 shrink-0",
+                                  selectedPaymentMethod === "cash"
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-slate-100 text-slate-500"
+                                )}
+                              >
+                                <Banknote className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-semibold text-xs flex items-center gap-1.5">
+                                  <span>Cash Payment</span>
+                                  {selectedPaymentMethod === "cash" && (
+                                    <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Selected</span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                                  Pay in cash at our office or via team coordination. Reservation stays "Deposit Pending" until cash is received.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div
+                            onClick={() => setSelectedPaymentMethod("online")}
+                            className={cn(
+                              "cursor-pointer rounded-lg border p-3 transition-all",
+                              selectedPaymentMethod === "online"
+                                ? "border-blue-600 bg-blue-50/50 text-blue-950 shadow-xs ring-1 ring-blue-500"
+                                : "border-slate-200 bg-white hover:border-slate-300 text-slate-700"
+                            )}
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <div
+                                className={cn(
+                                  "p-1.5 rounded-md mt-0.5 shrink-0",
+                                  selectedPaymentMethod === "online"
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-slate-100 text-slate-500"
+                                )}
+                              >
+                                <CreditCard className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-semibold text-xs flex items-center gap-1.5">
+                                  <span>Online Payment</span>
+                                  {selectedPaymentMethod === "online" && (
+                                    <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Selected</span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                                  Pay instantly with GCash, Maya, or Card via PayMongo for instant confirmation.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="border-t border-slate-100 px-4 py-2.5 sm:px-5 flex items-center justify-between text-xs bg-slate-50/30">
+                        <span className="text-slate-600 font-medium">Payment Method</span>
+                        <span className="inline-flex items-center gap-1.5 font-semibold text-slate-800 capitalize">
+                          {selectedPaymentMethod === "cash" ? (
+                            <>
+                              <Banknote className="h-3.5 w-3.5 text-amber-600" />
+                              Cash Payment
+                            </>
+                          ) : (
+                            <>
+                              <CreditCard className="h-3.5 w-3.5 text-blue-600" />
+                              Online Payment
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    )}
                   </dl>
                 </div>
               </section>
@@ -1134,13 +1277,15 @@ export default function CustomerQuotationModal({
                   <RefreshCw className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Request a Change
                 </Button>
                 <Button
-                  onClick={handleAccept}
+                  onClick={() => handleAccept(selectedPaymentMethod)}
                   disabled={isSubmitting}
                   className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white font-bold text-xs h-9 px-5 rounded-xl cursor-pointer shadow-xs"
                 >
                   <CheckCircle2 className="h-4 w-4 mr-1.5" />
                   {isSubmitting
                     ? "Processing…"
+                    : selectedPaymentMethod === "cash"
+                    ? `Accept Quote (Cash Deposit: ${formatCurrency(dueOnAcceptance)})`
                     : `Accept & Pay Deposit (${formatCurrency(dueOnAcceptance)})`}
                 </Button>
               </div>
@@ -1159,14 +1304,16 @@ export default function CustomerQuotationModal({
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Request a Change
               </Button>
               <Button
-                onClick={handleAccept}
+                onClick={() => handleAccept(selectedPaymentMethod)}
                 disabled={isSubmitting}
                 className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white font-bold text-xs h-9 px-5 rounded-xl cursor-pointer shadow-xs"
               >
                 <CheckCircle2 className="h-4 w-4 mr-1.5" />
                 {isSubmitting
                   ? "Processing…"
-                  : `Pay Deposit (${formatCurrency(dueOnAcceptance)})`}
+                  : selectedPaymentMethod === "cash"
+                  ? `Coordinate Cash Deposit (${formatCurrency(dueOnAcceptance)})`
+                  : `Pay Deposit Online (${formatCurrency(dueOnAcceptance)})`}
               </Button>
             </div>
           )}

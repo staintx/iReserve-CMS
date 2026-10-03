@@ -41,6 +41,7 @@ import {
   Layers,
   FileCheck2,
   CreditCard,
+  Banknote,
   Pencil,
   MessageSquare,
   FileText,
@@ -428,6 +429,11 @@ export default function CustomerInquiryDetails() {
         return;
       }
 
+      if (inquiry.payment_method === "cash") {
+        openQuotationView();
+        return;
+      }
+
       if (inquiry.status === "Revision Requested" || inquiry.quotation_status === "Revision Requested") {
         notify("This quotation is currently being revised. You cannot pay deposit until the updated quotation is submitted.", "warning");
         return;
@@ -583,9 +589,12 @@ export default function CustomerInquiryDetails() {
       };
     }
     if (isQuoteAcceptedAwaitingPayment) {
+      const isCash = inquiry.payment_method === "cash";
       return {
-        title: "Quotation Accepted — Deposit Required",
-        description: "You have accepted the quotation. Complete the required reservation deposit to officially lock your event date on our calendar.",
+        title: isCash ? "Quotation Accepted — Cash Deposit Pending" : "Quotation Accepted — Deposit Required",
+        description: isCash
+          ? "You have accepted the quotation with Cash payment. Please coordinate your cash deposit at our office or with our team to finalize your confirmed booking."
+          : "You have accepted the quotation. Complete the required reservation deposit to officially lock your event date on our calendar.",
         validity: null,
       };
     }
@@ -634,13 +643,29 @@ export default function CustomerInquiryDetails() {
       </Button>
     );
   } else if (isQuoteAcceptedAwaitingPayment) {
+    const isCashPayment = inquiry.payment_method === "cash";
     primaryAction = (
       <Button
-        onClick={startInquiryCheckout}
+        onClick={() => {
+          if (isCashPayment) {
+            openQuotationView();
+          } else {
+            startInquiryCheckout();
+          }
+        }}
         className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs transition-all active:scale-95 gap-1.5"
       >
-        <CreditCard className="w-3.5 h-3.5" />
-        <span>Pay Deposit Now</span>
+        {isCashPayment ? (
+          <>
+            <Banknote className="w-3.5 h-3.5" />
+            <span>View Cash Deposit Details</span>
+          </>
+        ) : (
+          <>
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>Pay Deposit Now</span>
+          </>
+        )}
       </Button>
     );
   } else if (isConverted && inquiry.converted_booking_id) {
@@ -795,6 +820,20 @@ export default function CustomerInquiryDetails() {
                     <span>#{refCode}</span>
                     <Copy className="h-3 w-3 text-slate-400" />
                   </button>
+
+                  <span className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold capitalize text-slate-700">
+                    {inquiry.payment_method === "cash" ? (
+                      <>
+                        <Banknote className="h-3 w-3 text-amber-600" />
+                        <span>Cash Payment</span>
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="h-3 w-3 text-blue-600" />
+                        <span>Online Payment</span>
+                      </>
+                    )}
+                  </span>
                 </div>
               </div>
             </div>

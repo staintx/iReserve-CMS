@@ -24,6 +24,7 @@ import {
   CheckCircle2,
   Image as ImageIcon,
   ExternalLink,
+  FileText,
 } from "lucide-react";
 import { formatCurrency } from "../../../../utils/format";
 import {
@@ -130,6 +131,11 @@ export default function PricingAdjustmentsStep({
   setTaxes,
   errors = {},
   onProceedToReview,
+  customerNotes = "",
+  dietaryNotes = "",
+  allergiesNotes = "",
+  customNotes = "",
+  deliveryNotes = "",
 }) {
   // Catalog Dish Search
   const [isDishSearchOpen, setIsDishSearchOpen] = useState(false);
@@ -177,6 +183,44 @@ export default function PricingAdjustmentsStep({
   );
   const activeMenuItems = menuItems.filter((m) => !m.removed);
   const activeAddOns = addOns.filter((a) => !a.removed);
+
+  const menuTotal = useMemo(
+    () =>
+      activeMenuItems.reduce((sum, item) => {
+        const qty = Math.max(1, Number(item.quantity) || 1);
+        const price = Number(item.price) || 0;
+        return sum + qty * price;
+      }, 0),
+    [activeMenuItems]
+  );
+
+  const addOnsTotal = useMemo(
+    () =>
+      activeAddOns.reduce((sum, item) => {
+        const qty = Math.max(1, Number(item.quantity) || 1);
+        const price = Number(item.price) || 0;
+        return sum + qty * price;
+      }, 0),
+    [activeAddOns]
+  );
+
+  const resolvedCustomerNotes =
+    customerNotes || inquiry?.special_requests || "";
+  const resolvedDietaryNotes =
+    dietaryNotes || inquiry?.dietary_restrictions || "";
+  const resolvedAllergiesNotes =
+    allergiesNotes || inquiry?.allergies || "";
+  const resolvedCustomNotes =
+    customNotes || inquiry?.custom_setup_notes || "";
+  const resolvedDeliveryNotes =
+    deliveryNotes || inquiry?.delivery_instructions || "";
+  const hasCustomerNotes = Boolean(
+    resolvedCustomerNotes ||
+      resolvedDietaryNotes ||
+      resolvedAllergiesNotes ||
+      resolvedCustomNotes ||
+      resolvedDeliveryNotes
+  );
 
   // Special Offer course configuration & replacement state
   const [courseSearch, setCourseSearch] = useState({});
@@ -461,9 +505,32 @@ export default function PricingAdjustmentsStep({
                 </span>
               ))}
             </div>
-          ) : (
-            <div className="pt-1.5 border-t border-slate-100 text-[11px] text-slate-500">
-              All standard package inclusions are active with standard package pricing.
+          ) : null}
+
+          {/* Active Standard Inclusions Preview */}
+          {inclusions.length > 0 && (
+            <div className="pt-2 border-t border-slate-100 space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Standard Inclusions Preview ({inclusions.filter((i) => !i.removed).length} items):
+              </span>
+              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                {inclusions
+                  .filter((i) => !i.removed)
+                  .map((item, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-slate-50 border border-slate-200 text-slate-700 font-medium"
+                    >
+                      <Check size={10} className="text-emerald-600 shrink-0" />
+                      <span className="truncate max-w-[200px]">{getCleanInclusionName(item.name)}</span>
+                      {item.quantity && Number(item.quantity) > 1 && (
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          (×{item.quantity})
+                        </span>
+                      )}
+                    </span>
+                  ))}
+              </div>
             </div>
           )}
 
@@ -483,7 +550,7 @@ export default function PricingAdjustmentsStep({
       {/* ------------------------------------------------------------------
           3. MENU PRICING (Regular Packages) vs FOOD SELECTIONS (Special Offers)
       ------------------------------------------------------------------ */}
-      {cateringIncluded && isSpecial ? (
+      {(cateringIncluded || menuItems.length > 0) && isSpecial ? (
         <section
           id="pricing-menu"
           className="bg-white rounded-lg border border-slate-200 p-4 space-y-3.5"
@@ -765,7 +832,7 @@ export default function PricingAdjustmentsStep({
             })}
           </div>
         </section>
-      ) : cateringIncluded && (
+      ) : (cateringIncluded || menuItems.length > 0) && (
         <section
           id="pricing-menu"
           className="bg-white rounded-lg border border-slate-200 p-4 space-y-3"
@@ -1025,6 +1092,17 @@ export default function PricingAdjustmentsStep({
                     );
                   })}
                 </tbody>
+                <tfoot className="bg-slate-50/90 border-t-2 border-slate-200">
+                  <tr>
+                    <td colSpan={4} className="py-2.5 px-3 text-right text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Menu Total:
+                    </td>
+                    <td className="py-2.5 px-2 text-right font-mono font-bold text-xs sm:text-sm text-primary tabular-nums">
+                      {formatCurrency(menuTotal)}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           )}
@@ -1032,7 +1110,7 @@ export default function PricingAdjustmentsStep({
       )}
 
       {/* ------------------------------------------------------------------
-          4. EXTRA SERVICES & EQUIPMENT
+          4. EXTRA SERVICES & NOTES
       ------------------------------------------------------------------ */}
       <section
         id="pricing-addons"
@@ -1041,10 +1119,10 @@ export default function PricingAdjustmentsStep({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
           <div>
             <div className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5 font-sans">
-              <Sparkles size={14} className="text-primary" /> Extra Services ({activeAddOns.length} Items Quoted)
+              <Sparkles size={14} className="text-primary" /> Extra Services &amp; Notes ({activeAddOns.length} Services Quoted)
             </div>
             <p className="text-[11px] text-slate-500">
-              Additional equipment rentals, sound systems, styling upgrades, or custom requests.
+              Additional equipment rentals, sound systems, styling upgrades, and customer requests.
             </p>
           </div>
 
@@ -1190,9 +1268,99 @@ export default function PricingAdjustmentsStep({
                   );
                 })}
               </tbody>
+              {activeAddOns.length > 0 && (
+                <tfoot className="bg-slate-50/90 border-t-2 border-slate-200">
+                  <tr>
+                    <td colSpan={3} className="py-2.5 px-3 text-right text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Extra Services Total:
+                    </td>
+                    <td className="py-2.5 px-2 text-right font-mono font-bold text-xs sm:text-sm text-primary tabular-nums">
+                      {formatCurrency(addOnsTotal)}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         )}
+
+        {/* Customer Notes & Special Requests Box */}
+        <div className="rounded-xl border border-amber-200/90 bg-amber-50/70 p-4 space-y-3 mt-3">
+          <div className="flex items-center justify-between border-b border-amber-200/60 pb-2">
+            <div className="flex items-center gap-2">
+              <FileText size={15} className="text-amber-700" />
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-950 font-sans">
+                Customer Notes &amp; Special Requests
+              </span>
+            </div>
+            <span className="text-[10px] font-bold text-amber-800 bg-amber-100/90 border border-amber-200 px-2 py-0.5 rounded-full">
+              From Booking Steps
+            </span>
+          </div>
+
+          {hasCustomerNotes ? (
+            <div className="space-y-2.5 text-xs text-slate-800 font-sans">
+              {resolvedCustomerNotes && (
+                <div className="space-y-1">
+                  <span className="text-[11px] font-bold text-slate-700 block">
+                    Special Requests / Menu &amp; Setup Notes:
+                  </span>
+                  <div className="p-2.5 rounded-lg bg-white/95 border border-amber-200 text-xs text-slate-900 leading-relaxed whitespace-pre-wrap shadow-2xs font-sans">
+                    {resolvedCustomerNotes}
+                  </div>
+                </div>
+              )}
+
+              {(resolvedAllergiesNotes || resolvedDietaryNotes) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+                  {resolvedAllergiesNotes && (
+                    <div className="p-2.5 rounded-lg bg-white/95 border border-amber-200 shadow-2xs">
+                      <span className="text-[10.5px] font-bold text-red-700 block mb-0.5">
+                        Reported Allergies:
+                      </span>
+                      <p className="text-xs text-slate-800 leading-snug">{resolvedAllergiesNotes}</p>
+                    </div>
+                  )}
+                  {resolvedDietaryNotes && (
+                    <div className="p-2.5 rounded-lg bg-white/95 border border-amber-200 shadow-2xs">
+                      <span className="text-[10.5px] font-bold text-slate-700 block mb-0.5">
+                        Dietary Preferences:
+                      </span>
+                      <p className="text-xs text-slate-800 leading-snug">{resolvedDietaryNotes}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {resolvedCustomNotes && (
+                <div className="space-y-1 pt-0.5">
+                  <span className="text-[11px] font-bold text-slate-700 block">
+                    Customer Custom Setup Vision:
+                  </span>
+                  <div className="p-2.5 rounded-lg bg-white/95 border border-amber-200 text-xs text-slate-900 leading-relaxed whitespace-pre-wrap shadow-2xs">
+                    {resolvedCustomNotes}
+                  </div>
+                </div>
+              )}
+
+              {resolvedDeliveryNotes && (
+                <div className="space-y-1 pt-0.5">
+                  <span className="text-[11px] font-bold text-slate-700 block">
+                    Delivery Instructions:
+                  </span>
+                  <div className="p-2.5 rounded-lg bg-white/95 border border-amber-200 text-xs text-slate-800 leading-relaxed shadow-2xs">
+                    {resolvedDeliveryNotes}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-3 rounded-lg bg-white/60 border border-dashed border-amber-200 text-xs text-slate-500 italic">
+              No special requests or dietary notes were entered by the customer in previous steps.
+            </div>
+          )}
+        </div>
       </section>
 
       {/* ------------------------------------------------------------------

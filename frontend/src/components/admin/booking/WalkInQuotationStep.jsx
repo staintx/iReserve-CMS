@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   RotateCcw,
   Receipt,
@@ -6,16 +6,11 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
-  DollarSign,
-  Percent,
   Banknote,
-  ShieldCheck,
-  Info,
-  Calendar,
-  Layers,
 } from "lucide-react";
 import PricingAdjustmentsStep from "../quotation/steps/PricingAdjustmentsStep";
 import QuotationLiveSummary from "../quotation/QuotationLiveSummary";
+import WalkInQuotationNavigation from "./WalkInQuotationNavigation";
 import { formatCurrency } from "../../../utils/format";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +22,16 @@ const PAYMENT_METHODS = [
 ];
 
 const PRESET_PERCENTAGES = [10, 20, 30, 50, 100];
+
+const SECTION_IDS = [
+  "pricing-package",
+  "pricing-inclusions",
+  "pricing-menu",
+  "pricing-addons",
+  "pricing-charges",
+  "pricing-discount",
+  "pricing-terms",
+];
 
 export default function WalkInQuotationStep({
   // Package & Pricing props for PricingAdjustmentsStep
@@ -97,6 +102,13 @@ export default function WalkInQuotationStep({
   errors = {},
   onProceedToReview,
 
+  // Customer Notes Props from Earlier Booking Steps
+  customerNotes = "",
+  dietaryNotes = "",
+  allergiesNotes = "",
+  customNotes = "",
+  deliveryNotes = "",
+
   // Live Summary Props
   totals,
   eventSpace,
@@ -119,9 +131,67 @@ export default function WalkInQuotationStep({
   onResetToDefault,
 }) {
   const [isSummaryCollapsed, setIsSummaryCollapsed] = useState(false);
+  const [activeSection, setActiveSection] = useState("pricing-package");
+
+  // Counts & indicators for navigation
+  const activeMenuItemsCount = useMemo(
+    () => (Array.isArray(menuItems) ? menuItems.filter((m) => !m.removed).length : 0),
+    [menuItems]
+  );
+  const activeAddOnsCount = useMemo(
+    () => (Array.isArray(addOns) ? addOns.filter((a) => !a.removed).length : 0),
+    [addOns]
+  );
+  const inclusionsCount = useMemo(
+    () => (Array.isArray(inclusions) ? inclusions.filter((i) => !i.removed).length : 0),
+    [inclusions]
+  );
+  const hasNotes = useMemo(
+    () =>
+      Boolean(
+        customerNotes ||
+          dietaryNotes ||
+          allergiesNotes ||
+          customNotes ||
+          deliveryNotes ||
+          inquiry?.special_requests ||
+          inquiry?.dietary_restrictions ||
+          inquiry?.allergies
+      ),
+    [customerNotes, dietaryNotes, allergiesNotes, customNotes, deliveryNotes, inquiry]
+  );
+
+  // Smooth scroll to section on sidebar click
+  const handleScrollToSection = useCallback((sectionId) => {
+    setActiveSection(sectionId);
+    const targetElement = document.getElementById(sectionId);
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
+
+  // Track active section as user scrolls
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPos = window.scrollY || document.documentElement.scrollTop;
+      for (let i = SECTION_IDS.length - 1; i >= 0; i--) {
+        const el = document.getElementById(SECTION_IDS[i]);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.top <= 220) {
+            setActiveSection(SECTION_IDS[i]);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 font-sans">
       {/* ── Top Header Banner with Walk-in Quotation Indicator & Reset ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
@@ -135,7 +205,7 @@ export default function WalkInQuotationStep({
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Configure package base price, inclusions, course pricing, logistics, and payment terms using the standard quotation builder.
+            Configure package base price, inclusions, dish pricing, extra services, client notes, and payment terms using the standard quotation builder.
           </p>
         </div>
 
@@ -152,9 +222,23 @@ export default function WalkInQuotationStep({
         )}
       </div>
 
-      {/* ── Main Two-Column Quotation Workspace ── */}
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        {/* Left Column: Full Pricing Adjustments Step + Payment Terms */}
+      {/* ── Main Three-Column Quotation Workspace (Workflow Nav, Pricing Adjustments, Live Summary) ── */}
+      <div className="flex flex-col lg:flex-row gap-5 items-start">
+        {/* Left Column: Workflow Navigation (~195px) */}
+        <WalkInQuotationNavigation
+          activeSection={activeSection}
+          onSelectSection={handleScrollToSection}
+          cateringIncluded={cateringIncluded}
+          isSpecialOffer={isSpecialOffer}
+          menuItemsCount={activeMenuItemsCount}
+          addOnsCount={activeAddOnsCount}
+          hasNotes={hasNotes}
+          inclusionsCount={inclusionsCount}
+          errors={errors}
+          onProceedToReview={onProceedToReview}
+        />
+
+        {/* Center Column: Full Pricing Adjustments Step + Payment Terms */}
         <div className="flex-1 min-w-0 w-full space-y-6">
           <PricingAdjustmentsStep
             packageName={packageName}
@@ -223,10 +307,15 @@ export default function WalkInQuotationStep({
             setTaxes={setTaxes}
             errors={errors}
             onProceedToReview={onProceedToReview}
+            customerNotes={customerNotes}
+            dietaryNotes={dietaryNotes}
+            allergiesNotes={allergiesNotes}
+            customNotes={customNotes}
+            deliveryNotes={deliveryNotes}
           />
 
-          {/* ── Payment Terms & Status Settlement Card ── */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs space-y-5">
+          {/* ── Payment Terms & Status Settlement Card (Workflow Step 7) ── */}
+          <div id="pricing-terms" className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs space-y-5">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <Receipt size={17} className="text-blue-600" />
               <div>

@@ -398,8 +398,10 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
       serviceType = SERVICE_TYPES.FOOD_ONLY;
       includeFood = true;
     } else if (pkg.package_type === "Event Setup Only") {
-      serviceType = SERVICE_TYPES.SETUP_ONLY;
-      includeFood = false;
+      // In walk-in client booking flow, existing packages include the Menu step by default.
+      // Customer/admin can choose catering dishes to go with the setup.
+      serviceType = SERVICE_TYPES.FULL_SERVICE;
+      includeFood = true;
     }
 
     setForm((prev) => ({
@@ -1438,14 +1440,22 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
   const offerPax = isOffer ? offerGuestCount(packageDetails) : 0;
   const isCustomBooking = form.package_type === "custom";
 
+  const hasSelectedFood =
+    (Array.isArray(form.selected_menu) && form.selected_menu.length > 0) ||
+    (isOffer && Array.isArray(form.offer_food_snapshot) && form.offer_food_snapshot.length > 0);
+
   const isFoodOnly =
     (isCustomBooking && form.service_type === SERVICE_TYPES.FOOD_ONLY) ||
     (isOffer && form.service_type === SERVICE_TYPES.FOOD_ONLY) ||
-    form.service_type === SERVICE_TYPES.FOOD_ONLY;
+    form.service_type === SERVICE_TYPES.FOOD_ONLY ||
+    (packageDetails?.package_type === "Food Only" && !form.is_custom_setup);
+
   const isSetupOnly =
-    (isCustomBooking && form.service_type === SERVICE_TYPES.SETUP_ONLY) ||
-    packageDetails?.package_type === "Event Setup Only" ||
-    form.service_type === SERVICE_TYPES.SETUP_ONLY;
+    !hasSelectedFood &&
+    ((isCustomBooking && form.service_type === SERVICE_TYPES.SETUP_ONLY) ||
+      (form.include_food === false && packageDetails?.package_type === "Event Setup Only") ||
+      form.service_type === SERVICE_TYPES.SETUP_ONLY);
+
   const isEventSetupOnly = isSetupOnly;
   const isFoodAndEventSetup =
     (isCustomBooking && form.service_type === SERVICE_TYPES.FULL_SERVICE) ||
@@ -1797,16 +1807,18 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
           })
         )
       );
-    } else if (form.service_type !== SERVICE_TYPES.SETUP_ONLY && form.include_food !== false) {
+    } else if (cateringIncluded || hasSelectedFood || (Array.isArray(form.selected_menu) && form.selected_menu.length > 0)) {
       setQuotationMenuItems(
         (Array.isArray(form.selected_menu) ? form.selected_menu : []).map((item) => {
           if (item && typeof item === "object") {
+            const rawUnit = item.unit || item.portion_unit || "Pax";
             return menuRow({
               name: item.name || "",
               category: item.category || "",
               note: item.note || "",
-              unit: item.unit || "Pax",
+              unit: rawUnit,
               price: item.price ? String(item.price) : "",
+              quantity: item.quantity ? Math.max(1, Number(item.quantity)) : 1,
               image_url: item.image_url || resolveDishImageUrl({ name: item.name }, menuItems),
             });
           }
@@ -1870,6 +1882,76 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     packageDetails,
     isOffer,
   ]);
+
+  // Data consistency: Whenever form.selected_menu changes (e.g. user goes back to menu step and changes dishes),
+  // synchronize quotationMenuItems so new dishes appear and removed dishes are removed,
+  // while preserving any unit price or quantity the admin already configured in Quotation step!
+  useEffect(() => {
+    if (!open || isOffer) return;
+    if (!isQuotationDirty) return;
+
+    setQuotationMenuItems((prevQuoted) => {
+      const selectedList = Array.isArray(form.selected_menu) ? form.selected_menu : [];
+      return selectedList.map((selectedItem) => {
+        const itemName = typeof selectedItem === "object" ? selectedItem.name : String(selectedItem || "");
+        const existing = prevQuoted.find(
+          (q) => (q.name || "").trim().toLowerCase() === (itemName || "").trim().toLowerCase()
+        );
+        if (existing) {
+          return {
+            ...existing,
+            category: existing.category || (typeof selectedItem === "object" ? selectedItem.category : ""),
+            image_url:
+              existing.image_url ||
+              (typeof selectedItem === "object" ? selectedItem.image_url : "") ||
+              resolveDishImageUrl({ name: itemName }, menuItems),
+          };
+        }
+        return menuRow({
+          name: itemName,
+          category: typeof selectedItem === "object" ? selectedItem.category || "" : "",
+          unit: typeof selectedItem === "object" ? selectedItem.unit || selectedItem.portion_unit || "Pax" : "Pax",
+          quantity: typeof selectedItem === "object" && selectedItem.quantity ? Number(selectedItem.quantity) : 1,
+          price: typeof selectedItem === "object" && selectedItem.price ? String(selectedItem.price) : "",
+          note: typeof selectedItem === "object" ? selectedItem.note || "" : "",
+          image_url:
+            (typeof selectedItem === "object" ? selectedItem.image_url : "") ||
+            resolveDishImageUrl({ name: itemName }, menuItems),
+        });
+      });
+    });
+  }, [open, isOffer, isQuotationDirty, form.selected_menu, menuItems]);
+
+  // Data consistency: Whenever form.selected_package_addons changes,
+  // synchronize quotationAddOns preserving existing prices entered by admin
+  useEffect(() => {
+    if (!open) return;
+    if (!isQuotationDirty) return;
+
+    setQuotationAddOns((prevAddOns) => {
+      const selectedList = Array.isArray(form.selected_package_addons) ? form.selected_package_addons : [];
+      return selectedList.map((selectedItem) => {
+        const itemName = selectedItem.name || "";
+        const existing = prevAddOns.find(
+          (a) => (a.name || "").trim().toLowerCase() === (itemName || "").trim().toLowerCase()
+        );
+        if (existing) {
+          return {
+            ...existing,
+            quantity: Number(selectedItem.quantity) || existing.quantity || 1,
+          };
+        }
+        return {
+          name: itemName,
+          price: selectedItem.price ? String(selectedItem.price) : "",
+          quantity: Number(selectedItem.quantity) > 0 ? Number(selectedItem.quantity) : 1,
+          note: selectedItem.note || "",
+          pricing_type: "quantity",
+          removed: false,
+        };
+      });
+    });
+  }, [open, isQuotationDirty, form.selected_package_addons]);
 
   /* ─── Quotation Builder User Edit Handlers ─── */
   const handleInclusionQuantity = (index, value) => {
@@ -2354,7 +2436,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     [inclusions]
   );
 
-  const cateringIncluded = !isSetupOnly && form.include_food !== false;
+  const cateringIncluded = hasSelectedFood || (!isSetupOnly && form.include_food !== false);
 
   const chargeableMenuItems = useMemo(
     () => (cateringIncluded ? quotationMenuItems.filter((item) => !item.removed) : []),
@@ -2446,6 +2528,34 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     form.offer_food_snapshot,
     activeSpecialDishes,
   ]);
+
+  const inquiryContext = useMemo(
+    () => ({
+      special_requests: form.special_requests,
+      dietary_restrictions: form.dietary_restrictions,
+      allergies: form.allergies,
+      custom_setup_notes: form.custom_setup_notes,
+      delivery_instructions: form.delivery_instructions,
+      event_theme: form.event_theme,
+      event_palette: form.event_palette,
+      custom_setup_scope: form.custom_setup_scope,
+      is_custom_setup: form.is_custom_setup,
+      inspiration_images: form.inspiration_images,
+      budget_range: form.budget_range,
+      guest_count: form.guest_count,
+      venue_type: form.venue_type,
+      venue_type_other: form.venue_type_other,
+      province: form.province,
+      municipality: form.municipality,
+      barangay: form.barangay,
+      street: form.street,
+      landmark: form.landmark,
+      event_date: form.event_date,
+      start_time: form.start_time,
+      duration_hours: form.duration_hours,
+    }),
+    [form]
+  );
 
   const pricingInput = useMemo(
     () => ({
@@ -3500,7 +3610,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                   isSpecialOffer={isOffer}
                   offerContext={offerContext}
                   packageRecord={packageDetails}
-                  inquiry={null}
+                  inquiry={inquiryContext}
                   menuItems={quotationMenuItems}
                   handleMenuChange={handleMenuChange}
                   toggleMenuRemoved={toggleMenuRemoved}
@@ -3571,6 +3681,11 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                   }}
                   errors={stepErrors}
                   onProceedToReview={handleNext}
+                  customerNotes={form.special_requests}
+                  dietaryNotes={form.dietary_restrictions}
+                  allergiesNotes={form.allergies}
+                  customNotes={form.custom_setup_notes}
+                  deliveryNotes={form.delivery_instructions}
                   totals={quotationTotals}
                   eventSpace={eventSpace}
                   chargeableMenuItemsCount={chargeableMenuItems.length}

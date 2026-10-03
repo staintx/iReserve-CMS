@@ -458,10 +458,18 @@ export default function AdminBookingEditModal({
     setDetails({
       booking_for: booking.booking_for || "myself",
       celebrant_name: booking.celebrant_name || "",
-      contact_first_name: booking.contact_first_name || "",
-      contact_last_name: booking.contact_last_name || "",
-      contact_email: booking.contact_email || "",
-      contact_phone: booking.contact_phone || "",
+      contact_first_name:
+        booking.contact_first_name ||
+        booking.customer_id?.first_name ||
+        booking.customer_id?.full_name?.split(" ")[0] ||
+        "",
+      contact_last_name:
+        booking.contact_last_name ||
+        booking.customer_id?.last_name ||
+        (booking.customer_id?.full_name ? booking.customer_id.full_name.split(" ").slice(1).join(" ") : "") ||
+        "",
+      contact_email: booking.contact_email || booking.customer_id?.email || "",
+      contact_phone: booking.contact_phone || booking.customer_id?.phone || "",
       contact_alt_phone: booking.contact_alt_phone || "",
       event_type: eventTypeIsOther ? OTHER_EVENT_TYPE : matchEventType(rawEventType) || rawEventType,
       event_type_other: eventTypeIsOther ? rawEventType : "",
@@ -1168,7 +1176,11 @@ export default function AdminBookingEditModal({
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      notify("Please resolve the required fields before saving.", "error");
+      if (newErrors.contact_first_name || newErrors.contact_last_name || newErrors.celebrant_name) {
+        setShowFullCustomerForm(true);
+      }
+      const firstErrorMessage = Object.values(newErrors)[0];
+      notify(`Please resolve required fields: ${firstErrorMessage}`, "error");
       scrollToSection("qb-section-details");
       return;
     }
@@ -1291,6 +1303,7 @@ export default function AdminBookingEditModal({
       onClose();
     } catch (err) {
       notify(err.response?.data?.message || "Failed to update booking.", "error");
+      throw err;
     } finally {
       setSubmitting(false);
     }
@@ -1324,6 +1337,7 @@ export default function AdminBookingEditModal({
         className="max-w-7xl w-[96vw] h-[90vh]"
       >
         <form
+          noValidate
           onSubmit={handleInitiateSubmit}
           className="flex h-full flex-col gap-4 overflow-hidden lg:flex-row lg:gap-6"
         >
@@ -3141,7 +3155,8 @@ export default function AdminBookingEditModal({
             {/* Action Footer */}
             <div className="border-t border-white/10 bg-[#16264A] p-4 flex flex-col gap-2 shrink-0">
               <button
-                type="submit"
+                type="button"
+                onClick={handleInitiateSubmit}
                 disabled={submitting}
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary hover:bg-primary/90 px-4 py-2.5 text-xs font-bold text-white shadow-md transition-colors cursor-pointer disabled:opacity-50"
               >
@@ -3171,6 +3186,8 @@ export default function AdminBookingEditModal({
       {/* Pre-save confirmation dialog */}
       {showConfirmDialog && (
         <FeedbackDialog
+          open={showConfirmDialog}
+          onOpenChange={setShowConfirmDialog}
           tone="warning"
           title="Confirm Booking Update"
           description="Are you sure you want to apply these updates to this booking? A revision entry will be created."

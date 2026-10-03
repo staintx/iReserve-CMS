@@ -29,16 +29,12 @@ export default function AdminDashboard() {
       title: "Accepted Quotes", 
       value: summary.acceptedQuotes ?? "0", 
       sub: "Awaiting deposit", 
-      trend: summary.acceptedQuotesTrend || null, 
-      up: summary.acceptedQuotesTrendUp ?? true, 
       icon: FileText 
     },
     { 
       title: "Upcoming Events", 
       value: summary.upcomingEvents ?? "0", 
       sub: "Next 30 days", 
-      trend: summary.reservationTrend || null, 
-      up: summary.reservationTrendUp ?? true, 
       icon: Calendar 
     },
     { 
@@ -55,23 +51,6 @@ export default function AdminDashboard() {
     return Number.isNaN(d.getTime()) ? null : d;
   };
 
-  /**
-   * Calculate Month-over-Month (MoM) percentage change.
-   * "Only render the trend badge if there is actual historical data to compare against."
-   */
-  const computeMoMTrend = (current, previous) => {
-    if (!previous || previous <= 0) {
-      return { trend: null, up: true };
-    }
-
-    const diff = current - previous;
-    const percent = Math.round((diff / previous) * 100);
-    const up = percent >= 0;
-    const trend = `${up ? "+" : ""}${percent}%`;
-
-    return { trend, up };
-  };
-
   const loadData = () => {
     const loadAdminDashboard = async () => {
       try {
@@ -86,12 +65,6 @@ export default function AdminDashboard() {
 
         const now = new Date();
 
-        // Month boundaries for Month-over-Month (MoM) comparisons
-        const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-        const endOfThisMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-        const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-        const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-
         // Upcoming events within next 30 days
         const next30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
         const allFuture = data
@@ -104,38 +77,8 @@ export default function AdminDashboard() {
 
         const upcomingNext30Days = allFuture.filter((b) => b.eventDate <= next30Days);
 
-        // Accepted Quotes Month-over-Month calculation
         const isAcceptedQuote = (inq) =>
           inq.status === "Quote Accepted" || inq.status === "Awaiting Final Confirmation";
-
-        const thisMonthAccepted = inquiries.filter((inq) => {
-          if (!isAcceptedQuote(inq) && !inq.converted_booking_id) return false;
-          const d = parseDate(inq.updatedAt || inq.createdAt);
-          return d && d >= startOfThisMonth && d <= endOfThisMonth;
-        }).length;
-
-        const lastMonthAccepted = inquiries.filter((inq) => {
-          if (!isAcceptedQuote(inq) && !inq.converted_booking_id) return false;
-          const d = parseDate(inq.updatedAt || inq.createdAt);
-          return d && d >= startOfLastMonth && d <= endOfLastMonth;
-        }).length;
-
-        const acceptedQuotesTrend = computeMoMTrend(thisMonthAccepted, lastMonthAccepted);
-
-        // Reservation / Bookings Month-over-Month calculation
-        const thisMonthBookings = data.filter((b) => {
-          if (b.status === "cancelled") return false;
-          const d = parseDate(b.createdAt);
-          return d && d >= startOfThisMonth && d <= endOfThisMonth;
-        }).length;
-
-        const lastMonthBookings = data.filter((b) => {
-          if (b.status === "cancelled") return false;
-          const d = parseDate(b.createdAt);
-          return d && d >= startOfLastMonth && d <= endOfLastMonth;
-        }).length;
-
-        const reservationTrend = computeMoMTrend(thisMonthBookings, lastMonthBookings);
 
         setSummary({
           totalReservations: data.length,
@@ -144,10 +87,6 @@ export default function AdminDashboard() {
           pendingInquiries: inquiries.filter((inq) => inq.status === "Pending Review").length,
           acceptedQuotes: inquiries.filter(isAcceptedQuote).length,
           completedEvents: data.filter((booking) => booking.status === "completed" || booking.status === "Completed").length,
-          acceptedQuotesTrend: acceptedQuotesTrend.trend,
-          acceptedQuotesTrendUp: acceptedQuotesTrend.up,
-          reservationTrend: reservationTrend.trend,
-          reservationTrendUp: reservationTrend.up,
         });
       } catch (err) {
         console.error(err);

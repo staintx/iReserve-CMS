@@ -5,7 +5,11 @@
    the Manager/Staff portals use different wrapper components and
    never see these values — CSS custom properties inherit down the
    DOM, so this is the same technique as a `.dark` theme class.
-   ═══════════════════════════════════════════════════════════════ */
+/* Universal textarea styling: disable manual browser resize handle */
+textarea {
+  resize: none;
+}
+
 .admin-shell {
   --color-primary: #4C81E0;
   --color-primary-foreground: #FFFFFF;
@@ -478,6 +482,7 @@ input.search {
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   min-height: 80px;
+  resize: none;
 }
 
 .modal-body input:focus,
@@ -2010,6 +2015,7 @@ input.search {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 8px 10px;
+  resize: none;
 }
 
 .quote-actions {
@@ -2179,7 +2185,7 @@ input.search {
 }
 
 .business-info-textarea {
-  resize: vertical;
+  resize: none;
   min-height: 120px;
 }
 

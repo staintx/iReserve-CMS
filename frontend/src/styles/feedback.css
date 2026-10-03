@@ -20,6 +20,11 @@
    every call site to re-specify font and colour.
    ═══════════════════════════════════════════════════════════════ */
 
+/* Universal textarea styling: disable manual browser resize handle in portal surfaces */
+textarea {
+  resize: none;
+}
+
 :root {
   /* Structure — mirrors the --ls-* set so feedback reads as part of
      the same system rather than a parallel palette. */

@@ -1,4 +1,4 @@
-import { Truck, Store, Users, MapPin } from "lucide-react";
+import { Truck, Store, Users, MapPin, Package } from "lucide-react";
 import {
   Card,
   SH,
@@ -13,7 +13,7 @@ import {
   StepShell,
 } from "../components/BookingSharedUI";
 import { cn } from "@/lib/utils";
-
+import { offerPricePerPax } from "@/lib/specialOffers";
 
 export default function StepDeliveryDetails({
   form,
@@ -21,10 +21,11 @@ export default function StepDeliveryDetails({
   municipalities,
   barangays,
   pickupAddress,
-
   guestMin = 1,
   guestMax = null,
   errors = {},
+  offer = null,
+  selectedPackageName = "",
 }) {
   const handleGuestChange = (nextValue) => {
     setForm((prev) => ({ ...prev, guest_count: String(nextValue) }));
@@ -32,6 +33,7 @@ export default function StepDeliveryDetails({
 
   const currentCount = parseInt(form.guest_count, 10) || guestMin || 1;
   const isPickup = form.delivery_method === "pickup";
+  const perPax = offer ? offerPricePerPax(offer) : 0;
 
   const methods = [
     {
@@ -45,7 +47,7 @@ export default function StepDeliveryDetails({
       value: "pickup",
       icon: Store,
       title: "I'll pick it up",
-      description: "Collect the order from our kitchen.",
+      description: "Collect the order from our location.",
       active: isPickup,
     },
   ];
@@ -55,6 +57,17 @@ export default function StepDeliveryDetails({
       <SH
         title="Guests & Delivery"
         sub="Specify how many guests you're catering for and where your order should be received."
+        aside={
+          offer || selectedPackageName ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs">
+              <Package size={13} className="text-[#4C81E0]" />
+              <span className="text-slate-500">Combo:</span>
+              <strong className="font-semibold text-slate-800">
+                {offer?.name || selectedPackageName}
+              </strong>
+            </span>
+          ) : null
+        }
       />
 
       <div className="flex flex-col gap-3.5">
@@ -67,9 +80,11 @@ export default function StepDeliveryDetails({
                 label="Estimated guest count"
                 required
                 hint={
-                  guestMax
-                    ? `Up to ${guestMax} guests supported.`
-                    : "Dish prices are calculated per guest."
+                  perPax > 0
+                    ? `₱${perPax.toLocaleString("en-PH")} / pax · ${currentCount} guests = ₱${(currentCount * perPax).toLocaleString("en-PH")} estimated total`
+                    : guestMax
+                      ? `Up to ${guestMax} guests supported.`
+                      : "Dish prices are calculated per guest."
                 }
                 error={errors.guest_count}
               >

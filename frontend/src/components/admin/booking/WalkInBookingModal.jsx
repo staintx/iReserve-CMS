@@ -75,6 +75,7 @@ import {
   serviceLabel,
   eventTypeForPackage,
   packagePriceParts,
+  peso,
 } from "../../../lib/packageDisplay";
 import { formatCurrency, formatEventDate } from "../../../utils/format";
 import { cn } from "@/lib/utils";
@@ -205,147 +206,173 @@ function WalkInPackageCard({ pkg, isSelected, onSelect }) {
   const perPax = isCombo ? offerPricePerPax(pkg) : 0;
   const pax = isCombo ? offerGuestCount(pkg) : 0;
 
+  if (isCombo) {
+    return (
+      <article
+        onClick={onSelect}
+        className={cn(
+          "ls-pkg ls-offer relative transition-all duration-200 cursor-pointer select-none",
+          isSelected
+            ? "!border-amber-400 ring-2 ring-amber-400 shadow-xl"
+            : "hover:border-amber-300"
+        )}
+      >
+        <div className="ls-pkg-media">
+          {pkg.image_url ? (
+            <img
+              src={pkg.image_url}
+              alt={`${pkg.name} combo pack`}
+              loading="lazy"
+            />
+          ) : (
+            <div className="ls-pkg-media-empty">{pkg.name}</div>
+          )}
+          <span className="ls-offer-tag">Combo pack</span>
+          {isSelected && (
+            <span className="absolute right-3 top-3 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-slate-950 shadow-md">
+              <Check size={13} strokeWidth={3} />
+            </span>
+          )}
+        </div>
+
+        <div className="ls-pkg-body">
+          <h3>{pkg.name}</h3>
+
+          {perPax > 0 && (
+            <p className="ls-offer-price">
+              <strong>{peso(perPax)}</strong>
+              <span>per pax</span>
+            </p>
+          )}
+
+          {pkg.badge_text && (
+            <div className="ls-offer-chips">
+              <span className="ls-offer-chip">{pkg.badge_text}</span>
+            </div>
+          )}
+
+          {pkg.description && (
+            <p className="ls-pkg-desc">{pkg.description}</p>
+          )}
+
+          <div className="ls-pkg-actions">
+            <button
+              type="button"
+              className={cn(
+                "ls-btn ls-btn--block",
+                isSelected
+                  ? "!bg-amber-400 !border-amber-400 !text-slate-950 font-bold hover:bg-amber-300"
+                  : "ls-btn--primary"
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect();
+              }}
+            >
+              {isSelected ? (
+                <>
+                  <Check size={14} strokeWidth={2.5} /> Selected Combo
+                </>
+              ) : (
+                "Select Combo"
+              )}
+            </button>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article
       onClick={onSelect}
       className={cn(
-        "group relative flex flex-col rounded-2xl border-2 transition-all duration-200 cursor-pointer overflow-hidden bg-white text-left select-none",
+        "ls-pkg relative transition-all duration-200 cursor-pointer select-none",
         isSelected
-          ? "border-blue-600 bg-blue-50/20 shadow-md ring-4 ring-blue-600/10"
-          : "border-slate-200/90 hover:border-blue-300 hover:shadow-lg hover:-translate-y-0.5"
+          ? "!border-[#4C81E0] ring-2 ring-[#4C81E0] shadow-md bg-blue-50/15"
+          : "hover:border-slate-300"
       )}
     >
-      {/* Media / Image area (Square / Near-square Aspect Ratio matching customer cards) */}
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
+      <div className="ls-pkg-media">
         {pkg.image_url ? (
           <img
             src={pkg.image_url}
-            alt={pkg.name}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            alt={`${pkg.name} package`}
             loading="lazy"
           />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full w-full bg-slate-100 text-slate-400 p-4 text-center">
-            <Package size={36} className="mb-1.5 text-slate-300" />
-            <span className="text-xs font-semibold text-slate-500 line-clamp-1">{pkg.name}</span>
-          </div>
+          <div className="ls-pkg-media-empty">{pkg.name}</div>
         )}
-
-        {/* Top-left tag badge */}
-        <div className="absolute left-3 top-3 flex items-center gap-1.5 z-10">
-          {isCombo ? (
-            <span className="inline-flex items-center gap-1 rounded-md bg-amber-500 text-white font-bold text-[10.5px] uppercase tracking-wider px-2.5 py-1 shadow-xs">
-              <Sparkles size={11} /> Combo Pack
-            </span>
-          ) : event ? (
-            <span className="inline-flex items-center rounded-md bg-white/95 text-slate-800 font-bold text-[10.5px] uppercase tracking-wider px-2.5 py-1 shadow-xs backdrop-blur-xs">
-              {event}
-            </span>
-          ) : (
-            <span className="inline-flex items-center rounded-md bg-white/95 text-slate-800 font-bold text-[10.5px] uppercase tracking-wider px-2.5 py-1 shadow-xs backdrop-blur-xs">
-              {pkg.package_type || "Package"}
-            </span>
-          )}
-        </div>
-
-        {/* Top-right selection indicator */}
-        <div className="absolute right-3 top-3 z-10">
-          <div
-            className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-full transition-all shadow-xs",
-              isSelected
-                ? "bg-blue-600 text-white ring-2 ring-white"
-                : "bg-white/90 border border-slate-300 text-transparent group-hover:border-blue-400"
-            )}
-          >
-            <Check size={14} strokeWidth={3} className={isSelected ? "opacity-100" : "opacity-0"} />
-          </div>
-        </div>
+        {event ? (
+          <span className="ls-pkg-tag">{event}</span>
+        ) : (
+          <span className="ls-pkg-tag">{pkg.package_type || "Package"}</span>
+        )}
+        {isSelected && (
+          <span className="absolute right-3 top-3 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-[#4C81E0] text-white shadow-md">
+            <Check size={13} strokeWidth={3} />
+          </span>
+        )}
       </div>
 
-      {/* Card Body */}
-      <div className="p-4 sm:p-5 flex flex-1 flex-col justify-between">
-        <div>
-          {/* Category / Service subtitle */}
-          <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600 mb-1">
-            {isCombo ? "Special Combo Offer" : service}
-          </p>
+      <div className="ls-pkg-body">
+        <h3>{pkg.name}</h3>
+        {service && <p className="ls-pkg-service">{service}</p>}
+        {pkg.description && (
+          <p className="ls-pkg-desc">{pkg.description}</p>
+        )}
 
-          {/* Title */}
-          <h3 className="text-base sm:text-lg font-bold text-slate-900 line-clamp-1 group-hover:text-blue-600 transition-colors">
-            {pkg.name}
-          </h3>
-
-          {/* Description */}
-          {pkg.description && (
-            <p className="mt-1.5 text-xs text-slate-500 line-clamp-2 leading-relaxed">
-              {pkg.description}
-            </p>
-          )}
-        </div>
-
-        <div>
-          {/* Facts / Price Section */}
-          <dl className="mt-4 pt-3.5 border-t border-slate-100 space-y-2 text-xs">
-            <div className="flex items-baseline justify-between gap-2">
-              <dt className="text-slate-500 text-xs">Price</dt>
-              <dd className="text-right">
-                {isCombo ? (
-                  <span className="inline-flex items-baseline gap-1">
-                    <strong className="text-base sm:text-lg font-extrabold text-blue-700 tabular-nums">
-                      {formatCurrency(perPax)}
-                    </strong>
-                    <span className="text-xs text-slate-500 font-normal">/ pax</span>
-                  </span>
-                ) : priceInfo.amount ? (
-                  <span className="inline-flex items-baseline gap-1">
-                    {priceInfo.prefix && (
-                      <span className="text-xs text-slate-500 font-normal">{priceInfo.prefix}</span>
-                    )}
-                    <strong className="text-base sm:text-lg font-extrabold text-blue-700 tabular-nums">
-                      {priceInfo.amount}
-                    </strong>
-                    {priceInfo.suffix && (
-                      <span className="text-xs text-slate-500 font-normal">{priceInfo.suffix}</span>
-                    )}
-                  </span>
-                ) : (
-                  <strong className="text-xs font-semibold text-slate-800">{priceInfo.text}</strong>
-                )}
-              </dd>
-            </div>
-
-            {(pax > 0 || capacity) && (
-              <div className="flex items-baseline justify-between gap-2">
-                <dt className="text-slate-500 text-xs">Estimated Guests</dt>
-                <dd>
-                  <strong className="text-xs font-bold text-slate-800">
-                    {isCombo ? `${pax} guests` : capacity}
-                  </strong>
-                </dd>
-              </div>
-            )}
-          </dl>
-
-          {/* Action Button */}
-          <div className="mt-4 pt-1">
-            <div
-              className={cn(
-                "w-full py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all",
-                isSelected
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "bg-slate-50 border border-slate-200 text-slate-700 group-hover:bg-blue-50 group-hover:text-blue-700 group-hover:border-blue-300"
-              )}
-            >
-              {isSelected ? (
+        <dl className="ls-pkg-facts">
+          <div className="ls-pkg-fact">
+            <dt>Price</dt>
+            <dd className="ls-pkg-price-val">
+              {priceInfo.amount ? (
                 <>
-                  <Check size={14} strokeWidth={2.5} /> Selected Package
+                  {priceInfo.prefix && (
+                    <span className="ls-pkg-price-sub">{priceInfo.prefix}</span>
+                  )}
+                  <strong className="ls-pkg-price-amount">{priceInfo.amount}</strong>
+                  {priceInfo.suffix && (
+                    <span className="ls-pkg-price-sub">{priceInfo.suffix}</span>
+                  )}
                 </>
               ) : (
-                "Select Package"
+                <strong className="ls-pkg-price-text">{priceInfo.text}</strong>
               )}
-            </div>
+            </dd>
           </div>
+          {capacity && (
+            <div className="ls-pkg-fact">
+              <dt>Estimated Guests</dt>
+              <dd>
+                <strong className="ls-pkg-guests-val">{capacity}</strong>
+              </dd>
+            </div>
+          )}
+        </dl>
+
+        <div className="ls-pkg-actions">
+          <button
+            type="button"
+            className={cn(
+              "ls-btn ls-btn--block",
+              isSelected
+                ? "!bg-[#4C81E0] !border-[#4C81E0] text-white font-bold hover:bg-[#3b6ecc]"
+                : "ls-btn--primary"
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect();
+            }}
+          >
+            {isSelected ? (
+              <>
+                <Check size={14} strokeWidth={2.5} /> Selected Package
+              </>
+            ) : (
+              "Select Package"
+            )}
+          </button>
         </div>
       </div>
     </article>
@@ -665,7 +692,7 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  <div className="ls-card-grid">
                     {filteredRegular.map((pkg) => (
                       <WalkInPackageCard
                         key={pkg._id}
@@ -698,7 +725,7 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  <div className="ls-card-grid">
                     {filteredCombo.map((pkg) => (
                       <WalkInPackageCard
                         key={pkg._id}
@@ -1422,9 +1449,10 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
 
-  // Special Offer flags
-  const isOffer = isSpecialOffer(packageDetails);
-  const offerPax = isOffer ? offerGuestCount(packageDetails) : 0;
+  // Selected package resolution (either detailed package or matching package in list)
+  const activePackage = packageDetails || packages.find((p) => p._id === form.package_id) || null;
+  const isOffer = isSpecialOffer(activePackage);
+  const offerPax = isOffer ? offerGuestCount(activePackage) : 0;
   const isCustomBooking = form.package_type === "custom";
 
   const hasSelectedFood =
@@ -1435,7 +1463,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     (isCustomBooking && form.service_type === SERVICE_TYPES.FOOD_ONLY) ||
     (isOffer && form.service_type === SERVICE_TYPES.FOOD_ONLY) ||
     form.service_type === SERVICE_TYPES.FOOD_ONLY ||
-    (packageDetails?.package_type === "Food Only" && !form.is_custom_setup);
+    (activePackage?.package_type === "Food Only" && !form.is_custom_setup);
 
   const isSetupOnly =
     !hasSelectedFood &&
@@ -2224,28 +2252,47 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     });
 
     if (form.package_type === "existing") {
-      // Existing Package sequence
-      steps.push({
-        id: "EventDetails",
-        label: "Event details",
-        title: "Event & Venue Details",
-        key: "event",
-      });
-      steps.push({
-        id: "MenuSelection",
-        label: isOffer ? "Combo menu" : "Menu",
-        title: isOffer ? "Combo Food Menu" : "Catering Menu Selection",
-        key: "menu",
-      });
-      if (form.include_food !== false) {
+      // Existing Package sequence: For combos and food-only, match customer Guests & Delivery flow
+      if (isOffer || isFoodOnly) {
+        steps.push({
+          id: "DeliveryDetails",
+          label: "Guests & delivery",
+          title: "Guests & Delivery",
+          key: "delivery",
+        });
+        steps.push({
+          id: "MenuSelection",
+          label: isOffer ? "Combo menu" : "Dishes",
+          title: isOffer ? "Combo Food Menu" : "Menu & Dish Selection",
+          key: "menu",
+        });
         steps.push({
           id: "DietaryNeeds",
           label: "Dietary needs",
           title: "Allergies & Dietary Needs",
           key: "dietary",
         });
-      }
-      if (!isOffer) {
+      } else {
+        steps.push({
+          id: "EventDetails",
+          label: "Event details",
+          title: "Event & Venue Details",
+          key: "event",
+        });
+        steps.push({
+          id: "MenuSelection",
+          label: "Menu",
+          title: "Catering Menu Selection",
+          key: "menu",
+        });
+        if (form.include_food !== false) {
+          steps.push({
+            id: "DietaryNeeds",
+            label: "Dietary needs",
+            title: "Allergies & Dietary Needs",
+            key: "dietary",
+          });
+        }
         steps.push({
           id: "PackageAddOns",
           label: "Extras",
@@ -3316,8 +3363,8 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
             </div>
           </div>
 
-          {/* ── Step-by-Step Progress Indicator (Shown only after continuing past initial selection screen) ── */}
-          {step > 0 && (
+          {/* ── Step-by-Step Progress Indicator (Matching customer booking stepper) ── */}
+          {wizardSteps.length > 0 && (
             <div className="pt-2.5 border-t border-slate-100">
               <BookingStepper
                 currentStepIndex={step + 1}
@@ -3423,17 +3470,23 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                 />
               )}
 
-              {/* Step: Delivery Details (Food Only) */}
+              {/* Step: Delivery Details (Food Only & Combo Packs) */}
               {currentStepId === "DeliveryDetails" && (
                 <StepDeliveryDetails
                   form={form}
                   setForm={setForm}
                   municipalities={municipalities}
                   barangays={barangays}
-                  pickupAddress={businessInfo?.pickup_address || businessInfo?.address}
+                  pickupAddress={
+                    businessInfo?.pickup_address ||
+                    businessInfo?.address ||
+                    businessInfo?.kitchen_address
+                  }
                   guestMin={guestMin}
                   guestMax={guestMax}
                   errors={stepErrors}
+                  offer={isOffer ? activePackage : null}
+                  selectedPackageName={activePackage?.name || ""}
                 />
               )}
 
@@ -3649,12 +3702,23 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
             Cancel
           </button>
 
+          {/* Center subtitle matching customer wizard */}
+          <p className="hidden min-w-0 flex-1 truncate text-center text-xs text-[#64748B] sm:block">
+            {isEditing
+              ? `Editing ${wizardSteps[step]?.label} · Saving returns to review.`
+              : isReviewStep
+                ? "Review booking and quotation summary before submitting."
+                : wizardSteps[step + 1]?.label
+                  ? `Next: ${wizardSteps[step + 1].label}`
+                  : ""}
+          </p>
+
           <div className="flex items-center gap-3">
             {step > 0 && (
               <button
                 type="button"
                 onClick={handleBack}
-                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 cursor-pointer"
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 cursor-pointer"
               >
                 <ChevronLeft size={16} /> Back
               </button>
@@ -3664,7 +3728,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
               <button
                 type="button"
                 onClick={handleNext}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-blue-700 cursor-pointer"
+                className="flex items-center gap-2 rounded-lg bg-[#4C81E0] hover:bg-[#3b6ecc] px-5 py-2 text-sm font-semibold text-white shadow-xs transition cursor-pointer"
               >
                 {isEditing ? (
                   <>
@@ -3681,7 +3745,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                 type="button"
                 onClick={handleConfirmBooking}
                 disabled={submitting}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60 cursor-pointer"
+                className="flex items-center gap-2 rounded-lg bg-[#4C81E0] hover:bg-[#3b6ecc] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition disabled:opacity-60 cursor-pointer"
               >
                 {submitting ? (
                   <>

@@ -176,15 +176,15 @@ export default function StepEventDetails({
   const fulfillmentOptions = [
     {
       key: "pickup",
-      title: "Food only — Pick Up",
-      description: "Collect freshly packed food directly from our kitchen.",
+      title: "I'll pick it up",
+      description: "Collect the order from our location.",
       icon: Store,
       active: isPickup,
     },
     {
       key: "delivery",
-      title: "Food only — Delivery",
-      description: "We deliver the food order safely to your address.",
+      title: "Deliver to my address",
+      description: "We bring the food to your location.",
       icon: Truck,
       active: isDelivery,
     },
@@ -204,10 +204,10 @@ export default function StepEventDetails({
   return (
     <StepShell width="wide">
       <SH
-        title={isOffer ? "Service Option & Details" : "Event Details"}
+        title={isOffer ? "Guests & Delivery" : "Event Details"}
         sub={
           isOffer
-            ? "Choose how you'd like to avail this combo, specify your guest count, and provide location details."
+            ? "Specify how many guests you're catering for and where your order should be received."
             : "Specify your event type, guest count, and venue location."
         }
         aside={
@@ -226,7 +226,7 @@ export default function StepEventDetails({
       {/* Special Offer Fulfillment Option Selection */}
       {isOffer && (
         <Card className="mb-3.5 p-3.5 sm:p-4">
-          <SectionTitle icon={Sparkles}>Choose your service option</SectionTitle>
+          <SectionTitle icon={Truck}>Delivery or Pickup</SectionTitle>
           <div className={cn("grid grid-cols-1 gap-2", allowsSetup ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
             {fulfillmentOptions.map((opt) => {
               const Icon = opt.icon;

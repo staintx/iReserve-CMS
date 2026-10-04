@@ -191,6 +191,7 @@ const BookingSchema = new mongoose.Schema(
     total_price: Number,
     discount_amount: { type: Number, default: 0 },
     payment_method: String,
+    deposit_amount: { type: Number, default: 0 },
     balance_payment_preference: {
       type: String,
       enum: ["online", "in_person", "unselected"],

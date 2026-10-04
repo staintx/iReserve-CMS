@@ -3118,34 +3118,11 @@ exports.executeInquiryConversion = async ({
   markDepositAsPaid = false,
   paymentMethod = null,
   paymentDoc = null,
+  depositAmountOverride = null,
   io = null,
 }) => {
   const inquiry = await Inquiry.findById(inquiryId).populate("package_id customer_id");
   if (!inquiry) throw new Error("Inquiry not found");
-
-  // If already converted, return existing booking (checking both converted_booking_id and inquiry_id)
-  let existingBooking = null;
-  if (inquiry.converted_booking_id) {
-    existingBooking = await Booking.findById(inquiry.converted_booking_id);
-  }
-  if (!existingBooking) {
-    existingBooking = await Booking.findOne({ inquiry_id: inquiryId });
-  }
-
-  if (existingBooking) {
-    if (!inquiry.converted_booking_id) {
-      inquiry.converted_booking_id = existingBooking._id;
-      inquiry.status = "Converted to Booking";
-      await inquiry.save();
-    }
-    if (paymentDoc) {
-      paymentDoc.booking_id = existingBooking._id;
-      await paymentDoc.save();
-      const { syncBookingStatus } = require("./payment.controller");
-      if (syncBookingStatus) await syncBookingStatus(existingBooking._id);
-    }
-    return existingBooking;
-  }
 
   // Find latest quotation if available (prefer Accepted, fallback to latest)
   let quotation = await Quotation.findOne({ inquiry_id: inquiryId, status: "Accepted" });
@@ -3176,16 +3153,100 @@ exports.executeInquiryConversion = async ({
   }
 
   // A deposit is considered approved only if there is an approved payment,
-  // or if cash payment, admin explicitly marked cash deposit as collected,
-  // or if non-cash offline bypass was explicitly provided.
+  // or admin explicitly marked deposit as paid / immediate deposit collected,
+  // or offline deposit bypass was explicitly provided.
   const isDepositApproved = Boolean(
     approvedPayment ||
-    (isCashPayment ? markDepositAsPaid : bypassDeposit)
+    markDepositAsPaid ||
+    bypassDeposit
   );
 
   // If not cash and no approved deposit, require bypassDeposit
   if (!approvedPayment && !isCashPayment && bypassDeposit !== true) {
     throw new Error("Cannot convert inquiry to booking: The down payment deposit has not been approved yet.");
+  }
+
+  const totalPrice = quotation?.total_cost || inquiry.total_price || 0;
+
+  let depositAmount = Number(
+    depositAmountOverride ||
+    quotation?.deposit_amount ||
+    inquiry.deposit_amount ||
+    0
+  );
+  if (!depositAmount || depositAmount <= 0) {
+    const BusinessInfo = require("../models/BusinessInfo");
+    let businessInfo;
+    try { businessInfo = await BusinessInfo.findOne(); } catch (e) { }
+    const depositPercentage = businessInfo?.deposit_percentage ?? 20;
+    depositAmount = (totalPrice * depositPercentage) / 100;
+  }
+
+  // If already converted, return existing booking (checking both converted_booking_id and inquiry_id)
+  let existingBooking = null;
+  if (inquiry.converted_booking_id) {
+    existingBooking = await Booking.findById(inquiry.converted_booking_id);
+  }
+  if (!existingBooking) {
+    existingBooking = await Booking.findOne({ inquiry_id: inquiryId });
+  }
+
+  if (existingBooking) {
+    if (!inquiry.converted_booking_id) {
+      inquiry.converted_booking_id = existingBooking._id;
+      inquiry.status = "Converted to Booking";
+      await inquiry.save();
+    }
+    if (isDepositApproved) {
+      existingBooking.payment_status = "deposit_paid";
+      if (["deposit pending", "pending deposit", "inquiry", "quote_sent", "customer_accepted"].includes((existingBooking.status || "").toLowerCase())) {
+        existingBooking.status = "confirmed";
+      }
+      if ((!existingBooking.deposit_amount || existingBooking.deposit_amount <= 0) && depositAmount > 0) {
+        existingBooking.deposit_amount = depositAmount;
+      }
+      await existingBooking.save();
+
+      let existingPayment = await Payment.findOne({ 
+        booking_id: existingBooking._id, 
+        payment_type: "deposit" 
+      });
+      if (!existingPayment) {
+        existingPayment = await Payment.findOne({ 
+          inquiry_id: inquiryId, 
+          payment_type: "deposit" 
+        });
+      }
+      if (existingPayment) {
+        existingPayment.booking_id = existingBooking._id;
+        existingPayment.amount = depositAmount || existingPayment.amount;
+        existingPayment.method = effectivePaymentMethod;
+        existingPayment.status = "approved";
+        existingPayment.gateway = (effectivePaymentMethod === "cash" ? "manual" : "paymongo");
+        if (!existingPayment.paid_at) existingPayment.paid_at = new Date();
+        await existingPayment.save();
+      } else if (depositAmount > 0) {
+        await Payment.create({
+          booking_id: existingBooking._id,
+          inquiry_id: inquiryId,
+          customer_id: existingBooking.customer_id,
+          amount: depositAmount,
+          currency: "PHP",
+          payment_type: "deposit",
+          method: effectivePaymentMethod,
+          status: "approved",
+          gateway: (effectivePaymentMethod === "cash" ? "manual" : "paymongo"),
+          paid_at: new Date(),
+        });
+      }
+    }
+    if (paymentDoc) {
+      paymentDoc.booking_id = existingBooking._id;
+      await paymentDoc.save();
+    }
+    const { syncBookingStatus } = require("./payment.controller");
+    if (syncBookingStatus) await syncBookingStatus(existingBooking._id);
+    return existingBooking;
   }
 
   // Manager ID fallback: if not provided, try to find an active manager
@@ -3288,8 +3349,6 @@ exports.executeInquiryConversion = async ({
     }
   }
 
-  const totalPrice = quotation?.total_cost || inquiry.total_price || 0;
-
   const payload = {
     customer_id: inquiry.customer_id?._id || inquiry.customer_id,
     package_id: pkgId,
@@ -3352,6 +3411,7 @@ exports.executeInquiryConversion = async ({
     contact_method: inquiry.contact_method || "Email",
 
     total_price: totalPrice,
+    deposit_amount: depositAmount,
     payment_method: effectivePaymentMethod,
     payment_status: isDepositApproved ? "deposit_paid" : "pending",
     status: isDepositApproved ? "confirmed" : "Deposit Pending",
@@ -3361,6 +3421,49 @@ exports.executeInquiryConversion = async ({
   // Concurrency guard: double-check before creation
   const preCheckBooking = await Booking.findOne({ inquiry_id: inquiryId });
   if (preCheckBooking) {
+    if (isDepositApproved) {
+      preCheckBooking.payment_status = "deposit_paid";
+      if (["deposit pending", "pending deposit", "inquiry", "quote_sent", "customer_accepted"].includes((preCheckBooking.status || "").toLowerCase())) {
+        preCheckBooking.status = "confirmed";
+      }
+      if ((!preCheckBooking.deposit_amount || preCheckBooking.deposit_amount <= 0) && depositAmount > 0) {
+        preCheckBooking.deposit_amount = depositAmount;
+      }
+      await preCheckBooking.save();
+
+      let existingPayment = await Payment.findOne({ 
+        booking_id: preCheckBooking._id, 
+        payment_type: "deposit" 
+      });
+      if (!existingPayment) {
+        existingPayment = await Payment.findOne({ 
+          inquiry_id: inquiryId, 
+          payment_type: "deposit" 
+        });
+      }
+      if (existingPayment) {
+        existingPayment.booking_id = preCheckBooking._id;
+        existingPayment.amount = depositAmount || existingPayment.amount;
+        existingPayment.method = effectivePaymentMethod;
+        existingPayment.status = "approved";
+        existingPayment.gateway = (effectivePaymentMethod === "cash" ? "manual" : "paymongo");
+        if (!existingPayment.paid_at) existingPayment.paid_at = new Date();
+        await existingPayment.save();
+      } else if (depositAmount > 0) {
+        await Payment.create({
+          booking_id: preCheckBooking._id,
+          inquiry_id: inquiryId,
+          customer_id: preCheckBooking.customer_id,
+          amount: depositAmount,
+          currency: "PHP",
+          payment_type: "deposit",
+          method: effectivePaymentMethod,
+          status: "approved",
+          gateway: (effectivePaymentMethod === "cash" ? "manual" : "paymongo"),
+          paid_at: new Date(),
+        });
+      }
+    }
     if (paymentDoc) {
       paymentDoc.booking_id = preCheckBooking._id;
       await paymentDoc.save();
@@ -3390,15 +3493,6 @@ exports.executeInquiryConversion = async ({
   }
 
   await Payment.updateMany({ inquiry_id: inquiryId }, { booking_id: newBooking._id });
-
-  let depositAmount = quotation?.deposit_amount;
-  if (!depositAmount || depositAmount <= 0) {
-    const BusinessInfo = require("../models/BusinessInfo");
-    let businessInfo;
-    try { businessInfo = await BusinessInfo.findOne(); } catch (e) { }
-    const depositPercentage = businessInfo?.deposit_percentage ?? 20;
-    depositAmount = (newBooking.total_price * depositPercentage) / 100;
-  }
 
   if (!approvedPayment && depositAmount > 0) {
     let existingPayment = await Payment.findOne({ 
@@ -3532,7 +3626,8 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
   const eventManagerId = req.body.event_manager_id || req.body.manager_id;
   const bypassDeposit = req.body.bypass_deposit === true;
   const paymentMethod = req.body.payment_method;
-  const markDepositAsPaid = req.body.mark_deposit_as_paid === true;
+  const markDepositAsPaid = req.body.mark_deposit_as_paid === true || req.body.deposit_paid_immediately === true || req.body.bypass_deposit === true;
+  const depositAmountOverride = req.body.deposit_amount ? Number(req.body.deposit_amount) : undefined;
 
   try {
     const io = req.app.get("io");
@@ -3542,6 +3637,7 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
       bypassDeposit,
       markDepositAsPaid,
       paymentMethod,
+      depositAmountOverride,
       io,
     });
     res.status(201).json({ message: "Inquiry converted to booking successfully", booking: newBooking });

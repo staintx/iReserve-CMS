@@ -295,10 +295,14 @@ exports.syncBookingStatus = async function (bookingId) {
 		newBookingStatus = "confirmed";
 	}
 
-	await Booking.findByIdAndUpdate(bookingId, {
+	const updateFields = {
 		payment_status: newPaymentStatus,
 		status: newBookingStatus
-	});
+	};
+	if (depositAmount > 0 && (!booking.deposit_amount || booking.deposit_amount <= 0)) {
+		updateFields.deposit_amount = depositAmount;
+	}
+	await Booking.findByIdAndUpdate(bookingId, updateFields);
 
 	await exports.cleanupStalePendingPayments(bookingId);
 

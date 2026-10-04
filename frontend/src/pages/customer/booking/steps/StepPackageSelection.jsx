@@ -170,7 +170,7 @@ export default function StepPackageSelection({
   selectedPackageId,
   onSelectPackage,
   form = {},
-  setForm = () => {},
+  setForm = () => { },
   packageDetails = null,
   estimate,
   errors = {},
@@ -477,15 +477,12 @@ export default function StepPackageSelection({
                       type="button"
                       aria-pressed={isActive}
                       onClick={() => {
-                        const optMin = Number(option.guest_min) || 1;
                         const optMax = option.guest_max ? Number(option.guest_max) : null;
                         const curr = parseInt(form.guest_count, 10);
                         let nextGuests = form.guest_count;
                         if (Number.isFinite(curr)) {
-                          if (curr < optMin) nextGuests = String(optMin);
-                          else if (optMax && curr > optMax) nextGuests = String(optMax);
-                        } else {
-                          nextGuests = String(optMin);
+                          if (optMax && curr > optMax) nextGuests = String(optMax);
+                          else if (curr < 1) nextGuests = "1";
                         }
 
                         updateForm({
@@ -543,7 +540,7 @@ export default function StepPackageSelection({
                         </div>
                       </div>
 
-                      {hasGuestRange && (
+                      {option.guest_max && (
                         <div className="mt-1.5 flex items-center gap-1.5 border-t border-slate-100 pt-1.5 text-[11px] text-slate-500">
                           <Users
                             size={11}
@@ -552,13 +549,7 @@ export default function StepPackageSelection({
                               isActive ? "text-[#4C81E0]" : "text-slate-400",
                             )}
                           />
-                          <span>
-                            {option.guest_min && option.guest_max
-                              ? `${option.guest_min}–${option.guest_max} guests`
-                              : option.guest_min
-                                ? `From ${option.guest_min} guests`
-                                : `Up to ${option.guest_max} guests`}
-                          </span>
+                          <span>Up to {option.guest_max} guests</span>
                         </div>
                       )}
                     </button>

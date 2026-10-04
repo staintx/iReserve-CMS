@@ -384,8 +384,8 @@ function StageBookingSetup({ form, setForm, packages, errors }) {
     pkgTab === "regular"
       ? filteredRegular.length
       : pkgTab === "combo"
-      ? filteredCombo.length
-      : filteredRegular.length + filteredCombo.length;
+        ? filteredCombo.length
+        : filteredRegular.length + filteredCombo.length;
 
   const handleSelectPackage = (pkg) => {
     const isCombo = isSpecialOffer(pkg);
@@ -921,8 +921,8 @@ function WalkInReviewAndQuotation({
     balancePreference === "in_person"
       ? "In Person / On Event Day"
       : balancePreference === "online"
-      ? "Online (GCash / Bank Transfer / PayMongo)"
-      : "Not Selected";
+        ? "Online (GCash / Bank Transfer / PayMongo)"
+        : "Not Selected";
 
   const getCategoryBadge = (category) => {
     switch (category) {
@@ -1464,8 +1464,8 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
   const deliveryMethod = isOffer
     ? form.delivery_method || "setup"
     : isFoodOnly
-    ? form.delivery_method
-    : "setup";
+      ? form.delivery_method
+      : "setup";
 
   const requireAvailabilityCheck = isOffer
     ? form.delivery_method === "setup"
@@ -1487,22 +1487,20 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       return { guestMin: pkgMin, guestMax: pkgMax };
     }
 
-    const scaffoldMin = positive(form.scaffold_guest_min);
     const scaffoldMax = positive(form.scaffold_guest_max);
-    const pkgExplicitMin = positive(packageDetails?.guest_min);
     const pkgExplicitMax = positive(packageDetails?.guest_max);
 
-    if (scaffoldMin || scaffoldMax) {
+    if (scaffoldMax || pkgExplicitMax) {
       return {
-        guestMin: scaffoldMin || pkgExplicitMin || 1,
+        guestMin: 1,
         guestMax: scaffoldMax || pkgExplicitMax || null,
       };
     }
 
-    const [rangeMin, rangeMax] = guestRange(packageDetails);
-    if (rangeMin || rangeMax) {
+    const [, rangeMax] = guestRange(packageDetails);
+    if (rangeMax) {
       return {
-        guestMin: rangeMin || 1,
+        guestMin: 1,
         guestMax: rangeMax || null,
       };
     }
@@ -1511,7 +1509,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
   }, [
     isOffer,
     packageDetails,
-    form.scaffold_guest_min,
     form.scaffold_guest_max,
   ]);
 
@@ -1524,25 +1521,20 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     )
       return null;
 
-    let min = Number(form.scaffold_guest_min) || null;
     let max = Number(form.scaffold_guest_max) || null;
 
-    if (!min && !max) return null;
+    if (!max) return null;
 
     const guests = parseNumber(form.guest_count) || 0;
-    const label =
-      min && max ? `${min} to ${max} guests` : max ? `up to ${max} guests` : `${min}+ guests`;
+    const label = `up to ${max} guests`;
 
     if (!guests) return { status: "info", message: `Setup recommended for ${label}.` };
     if (max && guests > max)
       return { status: "over", message: `Setup recommended for ${label}. Consider larger size.` };
-    if (min && guests < min)
-      return { status: "under", message: `Setup built for ${label}. Fits ${guests} guests.` };
     return { status: "ok", message: `Setup comfortably fits ${label}.` };
   }, [
     form.service_type,
     form.selected_scaffold_option_id,
-    form.scaffold_guest_min,
     form.scaffold_guest_max,
     form.scaffold_width,
     form.guest_count,
@@ -1571,15 +1563,12 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
       if (!chosen) return prev;
 
-      const min = Number(chosen.guest_min) || 1;
       const max = chosen.guest_max ? Number(chosen.guest_max) : null;
       let nextGuests = prev.guest_count;
       const parsed = Number(prev.guest_count);
       if (Number.isFinite(parsed)) {
-        if (parsed < min) nextGuests = String(min);
-        else if (max && parsed > max) nextGuests = String(max);
-      } else {
-        nextGuests = String(min);
+        if (max && parsed > max) nextGuests = String(max);
+        else if (parsed < 1) nextGuests = "1";
       }
 
       const area =
@@ -1770,8 +1759,8 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       form.selected_scaffold_option_id
         ? String(form.selected_scaffold_option_id)
         : packageDetails?.scaffold_size_options?.[0]?._id
-        ? String(packageDetails.scaffold_size_options[0]._id)
-        : ""
+          ? String(packageDetails.scaffold_size_options[0]._id)
+          : ""
     );
     setScaffoldWidth(form.scaffold_width ? String(form.scaffold_width) : "");
     setScaffoldLength(form.scaffold_length ? String(form.scaffold_length) : "");
@@ -1782,17 +1771,17 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       const foodList =
         Array.isArray(form.offer_food_snapshot) && form.offer_food_snapshot.length > 0
           ? form.offer_food_snapshot.map((item) => ({
-              name: item.item_name || item.name,
-              category: item.menu_category || item.category || "",
-              image_url: item.image_url || "",
-            }))
+            name: item.item_name || item.name,
+            category: item.menu_category || item.category || "",
+            image_url: item.image_url || "",
+          }))
           : packageDetails
-          ? offerFoodItems(packageDetails).map((item) => ({
+            ? offerFoodItems(packageDetails).map((item) => ({
               name: item.item_name || item.name,
               category: item.menu_category || item.category || "",
               image_url: item.image_url || "",
             }))
-          : [];
+            : [];
 
       setQuotationMenuItems(
         foodList.map(({ name, category, image_url }) =>
@@ -1977,10 +1966,10 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       prev.map((entry, i) =>
         i === index
           ? {
-              ...entry,
-              removed: !entry.removed,
-              deduction: !entry.removed ? entry.deduction || "" : "",
-            }
+            ...entry,
+            removed: !entry.removed,
+            deduction: !entry.removed ? entry.deduction || "" : "",
+          }
           : entry
       )
     );
@@ -2500,12 +2489,12 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
     const snapshot = (isOffer && activeSpecialDishes.length > 0)
       ? activeSpecialDishes.map((item) => ({
-          menu_category: item.category || "",
-          item_name: item.name || "",
-        }))
+        menu_category: item.category || "",
+        item_name: item.name || "",
+      }))
       : (Array.isArray(form.offer_food_snapshot) && form.offer_food_snapshot.length > 0
-          ? form.offer_food_snapshot
-          : (packageDetails ? offerFoodItems(packageDetails) : []));
+        ? form.offer_food_snapshot
+        : (packageDetails ? offerFoodItems(packageDetails) : []));
 
     const basePrice = Math.round(perPax * guests * 100) / 100;
 
@@ -3184,8 +3173,8 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
           (isFoodOnly || (isOffer && form.delivery_method !== "setup")
             ? "Special Offer Catering"
             : isOffer
-            ? "Special Offer Event"
-            : "Food Delivery"),
+              ? "Special Offer Event"
+              : "Food Delivery"),
         event_theme: form.event_theme || undefined,
         event_palette: form.event_palette || [],
         booking_for: form.booking_for || "myself",
@@ -3208,8 +3197,8 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         delivery_method: isOffer
           ? form.delivery_method || "setup"
           : isFoodOnly
-          ? form.delivery_method
-          : "setup",
+            ? form.delivery_method
+            : "setup",
         pickup_location: form.pickup_location || undefined,
         contact_first_name: form.contact_first_name,
         contact_last_name: form.contact_last_name,
@@ -3266,23 +3255,23 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         guest_count: quotationTotals.guestCount,
         menu_items: isOffer
           ? (offerContext?.foodItems || []).map((item) => ({
-              name: String(item.name || "").trim(),
-              category: String(item.category || "").trim(),
-              note: "Included in combo package",
-              pricing_type: "per_guest",
-              quantity: 1,
-              unit: "Included",
-              price: 0,
-            }))
+            name: String(item.name || "").trim(),
+            category: String(item.category || "").trim(),
+            note: "Included in combo package",
+            pricing_type: "per_guest",
+            quantity: 1,
+            unit: "Included",
+            price: 0,
+          }))
           : chargeableMenuItems.map((item) => ({
-              name: String(item.name || "").trim(),
-              category: String(item.category || "").trim(),
-              note: String(item.note || "").trim(),
-              pricing_type: MENU_PRICING.QUANTITY,
-              quantity: Math.max(1, Number(item.quantity) || 1),
-              unit: String(item.unit || "").trim() || "Pax",
-              price: money(item.price),
-            })),
+            name: String(item.name || "").trim(),
+            category: String(item.category || "").trim(),
+            note: String(item.note || "").trim(),
+            pricing_type: MENU_PRICING.QUANTITY,
+            quantity: Math.max(1, Number(item.quantity) || 1),
+            unit: String(item.unit || "").trim() || "Pax",
+            price: money(item.price),
+          })),
         add_ons: chargeableAddOns.map((item) => ({
           name: String(item.name || "").trim(),
           price: money(item.price),

@@ -77,9 +77,7 @@ function eventSpaceLabel(request, pkg) {
     const guests = Number(request.guest_count);
     if (guests > 0) {
       const guestMatched = options.find(
-        (entry) =>
-          Number(entry.guest_min) <= guests &&
-          (!entry.guest_max || Number(entry.guest_max) >= guests)
+        (entry) => !entry.guest_max || Number(entry.guest_max) >= guests
       );
       if (guestMatched) option = guestMatched;
     }

@@ -100,9 +100,7 @@ export function eventSpaceLabel(request, pkg) {
     const guests = Number(request.guest_count);
     if (guests > 0) {
       const guestMatched = options.find(
-        (entry) =>
-          Number(entry.guest_min) <= guests &&
-          (!entry.guest_max || Number(entry.guest_max) >= guests)
+        (entry) => !entry.guest_max || Number(entry.guest_max) >= guests
       );
       if (guestMatched) option = guestMatched;
     }
@@ -185,10 +183,8 @@ export function guestRange(pkg) {
 }
 
 export function capacityLabel(pkg) {
-  const [min, max] = guestRange(pkg);
-  if (min && max) return min === max ? `${min} guests` : `${min}–${max} guests`;
+  const [, max] = guestRange(pkg);
   if (max) return `Up to ${max} guests`;
-  if (min) return `From ${min} guests`;
   return null;
 }
 

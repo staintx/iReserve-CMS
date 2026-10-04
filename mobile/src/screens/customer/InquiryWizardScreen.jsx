@@ -95,10 +95,10 @@ const CURATED_PALETTES = [
 ];
 
 const DEFAULT_SCAFFOLD_OPTIONS = [
-  { _id: "scaffold_20x20", label: "20 × 20 ft", width_ft: 20, length_ft: 20, guest_min: 50, guest_max: 80, price: 15000 },
-  { _id: "scaffold_20x40", label: "20 × 40 ft", width_ft: 20, length_ft: 40, guest_min: 100, guest_max: 150, price: 25000 },
-  { _id: "scaffold_40x40", label: "40 × 40 ft", width_ft: 40, length_ft: 40, guest_min: 150, guest_max: 220, price: 38000 },
-  { _id: "scaffold_20x60", label: "20 × 60 ft", width_ft: 20, length_ft: 60, guest_min: 180, guest_max: 250, price: 45000 },
+  { _id: "scaffold_20x20", label: "20 × 20 ft", width_ft: 20, length_ft: 20, guest_max: 80, price: 15000 },
+  { _id: "scaffold_20x40", label: "20 × 40 ft", width_ft: 20, length_ft: 40, guest_max: 150, price: 25000 },
+  { _id: "scaffold_40x40", label: "40 × 40 ft", width_ft: 40, length_ft: 40, guest_max: 220, price: 38000 },
+  { _id: "scaffold_20x60", label: "20 × 60 ft", width_ft: 20, length_ft: 60, guest_max: 250, price: 45000 },
 ];
 
 const MENU_CATEGORIES = [
@@ -1233,7 +1233,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                     <View style={styles.scaffoldCapacityRow}>
                       <User size={14} color={colors.foregroundMuted} />
                       <Text style={styles.scaffoldCapacityText}>
-                        Ideal for {option.guest_min || 50} - {option.guest_max || 120} Guests
+                        Ideal for up to {option.guest_max || 120} Guests
                       </Text>
                     </View>
 

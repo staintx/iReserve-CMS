@@ -282,12 +282,8 @@ function formatScaffoldOption(option, index) {
   if (option.width_ft && option.length_ft) {
     parts.push(`(${option.width_ft} × ${option.length_ft} ft)`);
   }
-  if (option.guest_min || option.guest_max) {
-    parts.push(
-      option.guest_min && option.guest_max
-        ? `[${option.guest_min}–${option.guest_max} guests]`
-        : `[${option.guest_max || option.guest_min} guests]`
-    );
+  if (option.guest_max) {
+    parts.push(`[Up to ${option.guest_max} guests]`);
   }
   if (option.price && Number(option.price) > 0) {
     parts.push(`— ${formatCurrency(option.price)}`);

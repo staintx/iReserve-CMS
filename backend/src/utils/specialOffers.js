@@ -351,10 +351,6 @@ function offerBookingProblem(pkg, guestCount) {
     return "Please enter a valid number of guests.";
   }
 
-  if (pkg.guest_min && requested < pkg.guest_min) {
-    return `${pkg.name} requires a minimum of ${pkg.guest_min} guests.`;
-  }
-
   if (pkg.guest_max && requested > pkg.guest_max) {
     return `${pkg.name} accommodates a maximum of ${pkg.guest_max} guests.`;
   }

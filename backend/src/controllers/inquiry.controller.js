@@ -170,26 +170,15 @@ exports.createInquiry = asyncHandler(async (req, res) => {
         if (matched.guest_max != null && Number(matched.guest_max) > 0) {
           maxLimit = Number(matched.guest_max);
         }
-        if (matched.guest_min != null && Number(matched.guest_min) > 0) {
-          minLimit = Number(matched.guest_min);
-        }
       }
 
       if (maxLimit == null && pkg.guest_max != null && Number(pkg.guest_max) > 0) {
         maxLimit = Number(pkg.guest_max);
       }
-      if (minLimit == null && pkg.guest_min != null && Number(pkg.guest_min) > 0) {
-        minLimit = Number(pkg.guest_min);
-      }
 
       if (maxLimit && requestedGuests > maxLimit) {
         return res.status(400).json({
           message: `${pkg.name} accommodates a maximum of ${maxLimit} guests for this setup.`
-        });
-      }
-      if (minLimit && requestedGuests < minLimit) {
-        return res.status(400).json({
-          message: `${pkg.name} requires a minimum of ${minLimit} guests for this setup.`
         });
       }
     }
@@ -255,7 +244,7 @@ exports.createInquiry = asyncHandler(async (req, res) => {
   }
 
   const inquiry = await Inquiry.create(payload);
-  
+
   const io = req.app.get("io");
 
   const { notifyAdmins, createNotification } = require("../utils/notify");
@@ -363,7 +352,7 @@ exports.getInquiries = asyncHandler(async (req, res) => {
     Inquiry.updateMany(
       { _id: { $in: inqIdsToUpdate }, payment_status: { $in: ["unpaid", "pending", null] } },
       { payment_status: "deposit_paid" }
-    ).catch(() => {});
+    ).catch(() => { });
   }
 
   res.json(inquiries);
@@ -380,7 +369,7 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
     .populate("customer_id", "first_name last_name email phone")
     .populate("package_id")
     .populate("selected_menu");
-  
+
   // Security check for customer
   const inquiryCustomerId = inquiry.customer_id?._id || inquiry.customer_id;
   if (req.user.role === "customer" && String(inquiryCustomerId) !== String(req.user._id)) {
@@ -400,7 +389,7 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
     const io = req.app.get("io");
     if (io) io.emit("system:refresh", { type: "inquiry", action: "update", id: rawInquiry._id });
   }
-  
+
   const inquiryObj = inquiry.toObject();
   inquiryObj.had_package_selection = hadPackageSelection;
 
@@ -412,10 +401,10 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
         if (rawInquiry && !rawInquiry.converted_booking_id) {
           rawInquiry.converted_booking_id = linkedBooking._id;
           rawInquiry.status = "Converted to Booking";
-          await rawInquiry.save().catch(() => {});
+          await rawInquiry.save().catch(() => { });
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   const [approvedPayment, latestQuote] = await Promise.all([
@@ -799,10 +788,10 @@ exports.deleteInquiry = asyncHandler(async (req, res) => {
   if (isCustomerActor && String(inquiryCustomerId) !== String(req.user._id)) {
     return res.status(403).json({ message: "Forbidden: You do not have access to this inquiry" });
   }
-  
+
   inquiry.status = "Cancelled";
   await inquiry.save();
-  
+
   const io = req.app.get("io");
   const { notifyAdmins, createNotification } = require("../utils/notify");
 

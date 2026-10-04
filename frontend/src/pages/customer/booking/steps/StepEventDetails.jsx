@@ -84,13 +84,12 @@ export default function StepEventDetails({
     );
     if (!selectedOpt) return;
 
-    const optMin = Number(selectedOpt.guest_min) || 1;
     const optMax = selectedOpt.guest_max ? Number(selectedOpt.guest_max) : null;
-    const curr = parseInt(form.guest_count, 10) || optMin;
+    const curr = parseInt(form.guest_count, 10) || 1;
 
     let nextGuestCount = curr;
-    if (curr < optMin) {
-      nextGuestCount = optMin;
+    if (curr < 1) {
+      nextGuestCount = 1;
     } else if (optMax && curr > optMax) {
       nextGuestCount = optMax;
     }
@@ -191,14 +190,14 @@ export default function StepEventDetails({
     },
     ...(allowsSetup
       ? [
-          {
-            key: "setup",
-            title: "With Event Setup",
-            description: "Full catering with buffet setup, styling, equipment & crew.",
-            icon: Sparkles,
-            active: isWithSetup,
-          },
-        ]
+        {
+          key: "setup",
+          title: "With Event Setup",
+          description: "Full catering with buffet setup, styling, equipment & crew.",
+          icon: Sparkles,
+          active: isWithSetup,
+        },
+      ]
       : []),
   ];
 
@@ -530,7 +529,7 @@ export default function StepEventDetails({
                   required
                   hint={
                     activeScaffoldOption
-                      ? `Base setup: ₱${Number(activeScaffoldOption.price || 0).toLocaleString("en-PH")} · Fits ${activeScaffoldOption.guest_min || 1}–${activeScaffoldOption.guest_max || "more"} guests`
+                      ? `Base setup: ₱${Number(activeScaffoldOption.price || 0).toLocaleString("en-PH")} · Up to ${activeScaffoldOption.guest_max || "more"} guests`
                       : "Choose the scaffold size for your event"
                   }
                   error={errors.scaffold_size}
@@ -540,13 +539,9 @@ export default function StepEventDetails({
                     onChange={handleScaffoldChange}
                     options={scaffoldOptions.map((opt) => {
                       const dims = `${opt.width_ft} × ${opt.length_ft} ft`;
-                      const guestStr = opt.guest_min && opt.guest_max
-                        ? `${opt.guest_min}–${opt.guest_max} guests`
-                        : opt.guest_max
-                          ? `up to ${opt.guest_max} guests`
-                          : opt.guest_min
-                            ? `from ${opt.guest_min} guests`
-                            : "";
+                      const guestStr = opt.guest_max
+                        ? `Up to ${opt.guest_max} guests`
+                        : "";
                       const priceStr = opt.price ? `₱${Number(opt.price).toLocaleString("en-PH")}` : "";
                       const details = [guestStr, priceStr].filter(Boolean).join(" · ");
                       return {
@@ -565,8 +560,8 @@ export default function StepEventDetails({
                 hint={
                   setupCapacity?.message ||
                   (guestMax
-                    ? `Guests between ${guestMin || 1} and ${guestMax} supported.`
-                    : `Minimum ${guestMin || 1} guest${(guestMin || 1) === 1 ? "" : "s"} supported.`)
+                    ? `Up to ${guestMax} guests supported.`
+                    : undefined)
                 }
                 error={errors.guest_count}
               >

@@ -319,15 +319,7 @@ export default function CateringInvoiceDocument({
   // - Coordinator: assigned Event Manager (resolved dynamically from booking.event_manager_id)
   // - Authorized Management Signatory: authenticated Admin / authorized management user
   const auth = useAuth() || {};
-  let authUser = auth.user || null;
-  if (!authUser) {
-    try {
-      const saved = localStorage.getItem("user");
-      if (saved) authUser = JSON.parse(saved);
-    } catch {
-      // ignore
-    }
-  }
+  const authUser = auth.user || null;
 
   // Check if authenticated account is an admin or authorized management account
   const isAuthorizedManagement = Boolean(

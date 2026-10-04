@@ -776,8 +776,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
     const joinActiveRoom = () => {
       if (joinedConversationId && socket.connected) {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        socket.emit("conversation:join", { conversationId: joinedConversationId, token });
+        socket.emit("conversation:join", { conversationId: joinedConversationId });
       }
     };
 
@@ -998,8 +997,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
         conversationId: activeId,
         body: textToSend,
         attachments: finalAttachments,
-        client_message_id: clientMessageId,
-        token: typeof window !== "undefined" ? localStorage.getItem("token") : null
+        client_message_id: clientMessageId
       };
 
       const newMsg = await sendMessageWithFallback({

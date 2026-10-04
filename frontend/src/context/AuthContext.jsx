@@ -10,35 +10,19 @@ export default function AuthProvider({ children }) {
   const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("user");
-    if (saved) {
-      try {
-        const parsedUser = JSON.parse(saved);
-        setUser(parsedUser);
-      } catch (err) {
-        localStorage.removeItem("user");
-      }
-    }
-
     api.get("/users/me")
       .then(({ data }) => {
         if (data) {
           const { token, ...userData } = data;
           setUser(userData);
-          localStorage.setItem("user", JSON.stringify(userData));
-          if (token) localStorage.setItem("token", token);
           resetSocket();
           getSocket().connect();
         }
       })
       .catch((err) => {
         if (err.response?.status === 401) {
-          localStorage.removeItem("user");
-          localStorage.removeItem("token");
           setUser(null);
           resetSocket();
-        } else if (localStorage.getItem("user")) {
-          getSocket().connect();
         }
       })
       .finally(() => {
@@ -52,9 +36,6 @@ export default function AuthProvider({ children }) {
       password,
       "cf-turnstile-response": turnstileToken 
     });
-    localStorage.setItem("user", JSON.stringify(data.user));
-    // Save returned token (fallback for socket auth) when present
-    if (data.token) localStorage.setItem("token", data.token);
     setUser(data.user);
     setSessionExpired(false);
     resetSocket();
@@ -68,8 +49,6 @@ export default function AuthProvider({ children }) {
     } catch (error) {
       console.error("Logout failed", error);
     }
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
     localStorage.removeItem("booking_wizard_form");
     localStorage.removeItem("booking_wizard_step");
     sessionStorage.removeItem("booking_wizard_form");
@@ -81,11 +60,13 @@ export default function AuthProvider({ children }) {
   // Listen for the session-expired event fired by the axios interceptor or socket handler
   useEffect(() => {
     const handleSessionExpired = () => {
-      // Only act if a user is currently logged in (based on our UI state)
-      if (localStorage.getItem("user")) {
-        logout();
-        setSessionExpired(true);
-      }
+      setUser((currentUser) => {
+        if (currentUser) {
+          logout();
+          setSessionExpired(true);
+        }
+        return null;
+      });
     };
 
     window.addEventListener("session-expired", handleSessionExpired);
@@ -94,11 +75,7 @@ export default function AuthProvider({ children }) {
 
   const updateUser = useCallback((updatedUserData) => {
     if (!updatedUserData) return;
-    setUser((prev) => {
-      const nextUser = { ...prev, ...updatedUserData };
-      localStorage.setItem("user", JSON.stringify(nextUser));
-      return nextUser;
-    });
+    setUser((prev) => (prev ? { ...prev, ...updatedUserData } : prev));
   }, []);
 
   const clearSessionExpired = () => setSessionExpired(false);

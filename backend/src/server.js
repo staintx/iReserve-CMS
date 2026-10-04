@@ -217,19 +217,22 @@ io.use(async (socket, next) => {
 });
 
 const resolveSocketUser = async (socket, token) => {
-	if (token && !socket.data.user) {
-		try {
-			const decoded = jwt.verify(token, process.env.JWT_SECRET);
-			const user = await User.findById(decoded.id).select("-password");
-			if (user) {
-				socket.data.user = user;
-				socket.join(`user:${user._id}`);
-				if (user.role === "admin" || user.role === "manager") {
-					socket.join("role:admin");
-					socket.join("role:manager");
+	if (!socket.data.user) {
+		const resolvedToken = token || parseCookies(socket.handshake.headers.cookie || "").token;
+		if (resolvedToken) {
+			try {
+				const decoded = jwt.verify(resolvedToken, process.env.JWT_SECRET);
+				const user = await User.findById(decoded.id).select("-password");
+				if (user) {
+					socket.data.user = user;
+					socket.join(`user:${user._id}`);
+					if (user.role === "admin" || user.role === "manager") {
+						socket.join("role:admin");
+						socket.join("role:manager");
+					}
 				}
-			}
-		} catch (e) {}
+			} catch (e) {}
+		}
 	}
 };
 

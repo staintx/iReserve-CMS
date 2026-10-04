@@ -415,12 +415,12 @@ const checkMaxBookingsLimit = async (eventDate, excludeId = null) => {
   if (!eventDate) return false;
   const date = new Date(eventDate);
   if (Number.isNaN(date.getTime())) return false;
-  
+
   const dayStart = new Date(date);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(date);
   dayEnd.setHours(23, 59, 59, 999);
-  
+
   const query = {
     status: { $in: ACTIVE_BOOKING_STATUSES },
     event_date: { $gte: dayStart, $lte: dayEnd },
@@ -432,7 +432,7 @@ const checkMaxBookingsLimit = async (eventDate, excludeId = null) => {
     getCachedBusinessInfo(),
   ]);
   const limit = businessInfo?.max_bookings_per_day || 2;
-  
+
   return count >= limit;
 };
 
@@ -557,34 +557,22 @@ exports.create = asyncHandler(async (req, res) => {
           }
         }
 
-        // If a setup/scaffold option is selected, its configured capacity is authoritative for this setup
+        // If a setup/scaffold option is selected, its configured maximum capacity is authoritative for this setup
         let maxLimit = null;
-        let minLimit = null;
 
         if (matched) {
           if (matched.guest_max != null && Number(matched.guest_max) > 0) {
             maxLimit = Number(matched.guest_max);
-          }
-          if (matched.guest_min != null && Number(matched.guest_min) > 0) {
-            minLimit = Number(matched.guest_min);
           }
         }
 
         if (maxLimit == null && bookedPackage.guest_max != null && Number(bookedPackage.guest_max) > 0) {
           maxLimit = Number(bookedPackage.guest_max);
         }
-        if (minLimit == null && bookedPackage.guest_min != null && Number(bookedPackage.guest_min) > 0) {
-          minLimit = Number(bookedPackage.guest_min);
-        }
 
         if (maxLimit && requestedGuests > maxLimit) {
           return res.status(400).json({
             message: `${bookedPackage.name} accommodates a maximum of ${maxLimit} guests for this setup.`
-          });
-        }
-        if (minLimit && requestedGuests < minLimit) {
-          return res.status(400).json({
-            message: `${bookedPackage.name} requires a minimum of ${minLimit} guests for this setup.`
           });
         }
       }
@@ -689,7 +677,7 @@ exports.create = asyncHandler(async (req, res) => {
   // Send booking confirmation email only if immediately confirmed (e.g., COD)
   const customerEmail = booking.contact_email || req.user?.email;
   if (customerEmail && booking.status === "confirmed") {
-    sendBookingConfirmationEmail({ booking, customerEmail }).catch(() => {});
+    sendBookingConfirmationEmail({ booking, customerEmail }).catch(() => { });
   }
 
   // Payment is NOT triggered during inquiry creation.
@@ -775,7 +763,7 @@ exports.update = asyncHandler(async (req, res) => {
         .status(400)
         .json({ message: "Event date must be today or later" });
     }
-    
+
     // Check Blocked Dates
     const parsedEventDate = new Date(req.body.event_date);
     parsedEventDate.setHours(0, 0, 0, 0);
@@ -783,7 +771,7 @@ exports.update = asyncHandler(async (req, res) => {
     if (blocked) {
       return res.status(409).json({ message: `This date is blocked: ${blocked.reason || 'Unavailable'}` });
     }
-    
+
     // Check Max Bookings Limit (exclude current booking)
     const maxLimitReached = await checkMaxBookingsLimit(req.body.event_date, current._id);
     if (maxLimitReached) {
@@ -1036,7 +1024,7 @@ exports.update = asyncHandler(async (req, res) => {
             booking: updated,
             newStatus: updated.status,
             customerEmail: statusEmail,
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }
     }
@@ -1066,7 +1054,7 @@ exports.update = asyncHandler(async (req, res) => {
         },
         created_at: new Date(),
       });
-      
+
       if (updated.change_request?.status === "pending") {
         updated.change_request = {
           ...updated.change_request.toObject?.(),
@@ -1530,7 +1518,7 @@ exports.remove = asyncHandler(async (req, res) => {
   try {
     const io = req.app.get("io");
     if (io) io.emit("system:refresh", { type: "booking", action: "delete", booking_id: req.params.id });
-  } catch (e) {}
+  } catch (e) { }
 
   res.json({ message: "Deleted" });
 });
@@ -1880,7 +1868,7 @@ exports.suggestDates = asyncHandler(async (req, res) => {
       event_date: { $gte: rangeStart, $lte: rangeEnd },
     }).lean(),
   ]);
-  const blockedTimestamps = new Set(blockedDates.map(b => new Date(b.date).setHours(0,0,0,0)));
+  const blockedTimestamps = new Set(blockedDates.map(b => new Date(b.date).setHours(0, 0, 0, 0)));
 
   const newRange = getTimeRange(start_time, duration_hours);
 
@@ -1897,7 +1885,7 @@ exports.suggestDates = asyncHandler(async (req, res) => {
       if (candidate < today) continue;
 
       // Skip blocked dates
-      if (blockedTimestamps.has(new Date(candidate).setHours(0,0,0,0))) {
+      if (blockedTimestamps.has(new Date(candidate).setHours(0, 0, 0, 0))) {
         continue;
       }
 
@@ -2345,8 +2333,8 @@ exports.approveCancellation = asyncHandler(async (req, res) => {
   if (booking.customer_id) {
     const refundNote = totalPaid > 0
       ? (refund_amount !== undefined && refund_amount !== null && !isNaN(refund_amount)
-          ? ` A refund of ₱${Number(refund_amount).toLocaleString()} was processed.`
-          : " Any eligible refund is currently being calculated and processed.")
+        ? ` A refund of ₱${Number(refund_amount).toLocaleString()} was processed.`
+        : " Any eligible refund is currently being calculated and processed.")
       : "";
 
     await createNotification(
@@ -2497,7 +2485,7 @@ exports.getAvailableTimes = asyncHandler(async (req, res) => {
 
   // 1. Check max bookings limit for the day first.
   const maxLimitReached = await checkMaxBookingsLimit(event_date);
-  
+
   // Define the standard time slots
   const timeSlots = [
     "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"
@@ -2554,9 +2542,9 @@ exports.skipOcular = asyncHandler(async (req, res) => {
   booking.ocular_visit.status = "skipped";
   booking.ocular_visit.outcome = "proceed";
   booking.ocular_visit.notes = "Skipped by customer.";
-  
+
   await booking.save();
-  
+
   if (req.user) {
     await logAction({
       user_id: req.user._id,
@@ -2567,7 +2555,7 @@ exports.skipOcular = asyncHandler(async (req, res) => {
       ip_address: req.ip,
     });
   }
-  
+
   res.json(booking);
 });
 
@@ -2588,7 +2576,7 @@ exports.resolveChangeRequest = asyncHandler(async (req, res) => {
   }
 
   await booking.save();
-  
+
   if (req.user) {
     await logAction({
       user_id: req.user._id,
@@ -2755,7 +2743,7 @@ exports.acceptRevision = asyncHandler(async (req, res) => {
   }
 
   const snapshot = booking.pending_revision.proposed_snapshot || {};
-  
+
   // Apply snapshot to live booking
   if (snapshot.event_date) booking.event_date = snapshot.event_date;
   if (snapshot.start_time) booking.start_time = snapshot.start_time;
@@ -2937,7 +2925,7 @@ exports.sendQuote = asyncHandler(async (req, res) => {
   if (req.body.total_price) {
     booking.total_price = req.body.total_price;
   }
-  
+
   if (req.body.note) {
     booking.event_manager_notes.push({
       note: req.body.note,
@@ -2981,7 +2969,7 @@ exports.acceptQuote = asyncHandler(async (req, res) => {
 
   // Double check inventory and conflicts before accepting
   const { checkMaxBookingsLimit, findBookingConflict, checkInventoryAvailability } = module.exports;
-  
+
   const maxLimitReached = await checkMaxBookingsLimit(booking.event_date, booking._id);
   if (maxLimitReached) {
     return res.status(409).json({ message: "This date has reached the maximum number of bookings allowed." });
@@ -3008,7 +2996,7 @@ exports.acceptQuote = asyncHandler(async (req, res) => {
   }
 
   booking.status = "customer_accepted";
-  
+
   // Set payment method if provided
   if (req.body.payment_method) {
     booking.payment_method = req.body.payment_method;
@@ -3040,7 +3028,7 @@ exports.acceptQuote = asyncHandler(async (req, res) => {
           status: "pending",
           gateway: "paymongo",
         });
-        
+
         const successUrl = `${appBaseUrl}/customer/booking-success?booking_id=${booking._id}&payment_id=${payment._id}`;
 
         let pmTypes = [booking.payment_method];
@@ -3066,7 +3054,7 @@ exports.acceptQuote = asyncHandler(async (req, res) => {
         payment.gateway_checkout_id = checkout.data.id;
         payment.checkout_url = checkout.data.attributes.checkout_url;
         await payment.save();
-        
+
         checkout_url = payment.checkout_url;
       }
     } catch (err) {
@@ -3076,7 +3064,7 @@ exports.acceptQuote = asyncHandler(async (req, res) => {
   }
 
   await booking.save();
-  
+
   // Create system log
   const { logAction } = require("../services/audit.service");
   await logAction({
@@ -3118,7 +3106,7 @@ exports.acceptQuote = asyncHandler(async (req, res) => {
   // Emit realtime refresh so admin/customer views update
   try {
     if (io) io.emit("system:refresh", { type: "booking", action: "accept_quote", booking_id: booking._id });
-  } catch (e) {}
+  } catch (e) { }
 
   res.json({ message: "Quote accepted", booking, checkout_url });
 });
@@ -3207,7 +3195,7 @@ exports.executeInquiryConversion = async ({
       const User = require("../models/User");
       const activeManager = await User.findOne({ role: "manager", is_active: { $ne: false } });
       if (activeManager) finalManagerId = activeManager._id;
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // Whether this booking carries food, and the service type that follows from it
@@ -3334,7 +3322,7 @@ exports.executeInquiryConversion = async ({
     street: inquiry.street || "",
     landmark: inquiry.landmark || "",
     zip_code: inquiry.zip_code || "",
-    
+
     menu_items: menuItems,
     offer_food_snapshot: (quotation?.offer_food_snapshot?.length > 0)
       ? quotation.offer_food_snapshot
@@ -3351,18 +3339,18 @@ exports.executeInquiryConversion = async ({
     subtotal: quotation?.subtotal || inquiry.subtotal || 0,
     discount_amount: quotation?.discounts || inquiry.discount_amount || 0,
     tax_amount: quotation?.taxes || inquiry.tax_amount || 0,
-    
+
     allergies: inquiry.allergies || "",
     dietary_restrictions: inquiry.dietary_restrictions || inquiry.dietary_requirements || "",
     special_requests: inquiry.special_requests || inquiry.custom_setup_notes || "",
-    
+
     contact_first_name: inquiry.contact_first_name || inquiry.customer_id?.first_name || "N/A",
     contact_last_name: inquiry.contact_last_name || inquiry.customer_id?.last_name || "N/A",
     contact_email: inquiry.contact_email || inquiry.customer_id?.email || "N/A",
     contact_phone: inquiry.contact_phone || inquiry.customer_id?.phone || "N/A",
     contact_alt_phone: inquiry.contact_alt_phone || "",
     contact_method: inquiry.contact_method || "Email",
-    
+
     total_price: totalPrice,
     payment_method: effectivePaymentMethod,
     payment_status: isDepositApproved ? "deposit_paid" : "pending",
@@ -3407,11 +3395,11 @@ exports.executeInquiryConversion = async ({
   if (!depositAmount || depositAmount <= 0) {
     const BusinessInfo = require("../models/BusinessInfo");
     let businessInfo;
-    try { businessInfo = await BusinessInfo.findOne(); } catch(e) {}
+    try { businessInfo = await BusinessInfo.findOne(); } catch (e) { }
     const depositPercentage = businessInfo?.deposit_percentage ?? 20;
     depositAmount = (newBooking.total_price * depositPercentage) / 100;
   }
-  
+
   if (!approvedPayment && depositAmount > 0) {
     let existingPayment = await Payment.findOne({ 
       booking_id: newBooking._id, 
@@ -3486,7 +3474,7 @@ exports.executeInquiryConversion = async ({
       io.emit("system:refresh", { type: "inquiry", action: "converted", inquiry_id: inquiryId });
       if (quotation) io.emit("system:refresh", { type: "quotation", action: "converted", quotation_id: quotation._id });
       io.emit("system:refresh", { type: "payment", action: "update" });
-    } catch (e) {}
+    } catch (e) { }
   }
 
   const customerId = newBooking.customer_id?._id || newBooking.customer_id;

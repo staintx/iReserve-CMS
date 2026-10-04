@@ -775,7 +775,7 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
                       <div className="flex items-center gap-1.5">
                         <Users size={13} className="text-slate-400" />
                         <span>
-                          {pkg.guest_min || 0} - {pkg.guest_max || 0} pax
+                          {pkg.guest_max ? `Up to ${pkg.guest_max} pax` : "Flexible pax"}
                         </span>
                       </div>
 

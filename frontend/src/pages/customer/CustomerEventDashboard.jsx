@@ -423,7 +423,7 @@ export default function CustomerEventDashboard() {
         length,
         label,
         area: area ? `${area} sq.ft.` : null,
-        capacity: option?.guest_min && option?.guest_max ? `${option.guest_min}–${option.guest_max} guests` : null,
+        capacity: option?.guest_max ? `Up to ${option.guest_max} guests` : null,
       };
     }
     return null;

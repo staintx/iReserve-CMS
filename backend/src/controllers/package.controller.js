@@ -349,8 +349,8 @@ const normalizeScaffoldOptions = (options, existing = []) => {
       option.price !== undefined && option.price !== "" && option.price !== null
         ? Number(option.price)
         : option.baseSetupPrice !== undefined &&
-            option.baseSetupPrice !== "" &&
-            option.baseSetupPrice !== null
+          option.baseSetupPrice !== "" &&
+          option.baseSetupPrice !== null
           ? Number(option.baseSetupPrice)
           : carriedPrice;
 
@@ -370,14 +370,14 @@ const normalizeScaffoldOptions = (options, existing = []) => {
         0,
       guest_min:
         option.guest_min !== undefined &&
-        option.guest_min !== "" &&
-        option.guest_min !== null
+          option.guest_min !== "" &&
+          option.guest_min !== null
           ? Number(option.guest_min)
           : undefined,
       guest_max:
         option.guest_max !== undefined &&
-        option.guest_max !== "" &&
-        option.guest_max !== null
+          option.guest_max !== "" &&
+          option.guest_max !== null
           ? Number(option.guest_max)
           : undefined,
       free_setup,
@@ -693,12 +693,6 @@ exports.create = async (req, res) => {
       if (payload.setup_price === undefined || payload.setup_price === "" || payload.setup_price === null) {
         payload.setup_price = defaultOpt?.price || 0;
       }
-      if (payload.guest_min === undefined || payload.guest_min === null) {
-        const mins = scaffold_size_options
-          .map((o) => Number(o.guest_min))
-          .filter((n) => Number.isFinite(n) && n > 0);
-        if (mins.length > 0) payload.guest_min = Math.min(...mins);
-      }
       if (payload.guest_max === undefined || payload.guest_max === null) {
         const maxs = scaffold_size_options
           .map((o) => Number(o.guest_max))
@@ -890,12 +884,6 @@ exports.update = async (req, res) => {
     if (req.body.setup_price === undefined || req.body.setup_price === "" || req.body.setup_price === null) {
       data.setup_price = defaultOpt?.price || 0;
     }
-    if (req.body.guest_min === undefined || req.body.guest_min === "" || req.body.guest_min === null) {
-      const mins = activeScaffold
-        .map((o) => Number(o.guest_min))
-        .filter((n) => Number.isFinite(n) && n > 0);
-      if (mins.length > 0) data.guest_min = Math.min(...mins);
-    }
     if (req.body.guest_max === undefined || req.body.guest_max === "" || req.body.guest_max === null) {
       const maxs = activeScaffold
         .map((o) => Number(o.guest_max))
@@ -1067,7 +1055,7 @@ exports.parseWithAI = async (req, res) => {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(503).json({ error: "AI service is currently unavailable. Please try again later." });
-    
+
     const isOffer = req.body.offer_type === OFFER_TYPES.SPECIAL;
 
     const comboPrompt = `You are a data extraction assistant for an event catering CMS.
@@ -1151,7 +1139,7 @@ Return ONLY valid JSON.`;
     const prompt = isOffer ? comboPrompt : packagePrompt;
 
     const parts = [prompt];
-    
+
     if (req.file) {
       const mimeType = req.file.mimetype;
       parts.push({
@@ -1172,7 +1160,7 @@ Return ONLY valid JSON.`;
         responseMimeType: "application/json",
       },
     });
-    
+
     const parsedData = cleanAndParseJson(text);
 
     // Normalize packages array output
@@ -1234,8 +1222,8 @@ exports.createBulk = async (req, res) => {
     const rawPackages = Array.isArray(req.body.packages)
       ? req.body.packages
       : Array.isArray(req.body)
-      ? req.body
-      : [];
+        ? req.body
+        : [];
 
     if (rawPackages.length === 0) {
       return res.status(400).json({ error: "No packages provided for bulk creation" });

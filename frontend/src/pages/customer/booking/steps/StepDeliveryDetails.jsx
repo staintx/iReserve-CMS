@@ -68,17 +68,15 @@ export default function StepDeliveryDetails({
                 required
                 hint={
                   guestMax
-                    ? `Guests between ${guestMin || 1} and ${guestMax} supported.`
-                    : (guestMin && guestMin > 1)
-                      ? `Minimum of ${guestMin} guests required.`
-                      : "Dish prices are calculated per guest."
+                    ? `Up to ${guestMax} guests supported.`
+                    : "Dish prices are calculated per guest."
                 }
                 error={errors.guest_count}
               >
                 <GuestCounter
                   value={currentCount}
                   onChange={handleGuestChange}
-                  min={guestMin || 1}
+                  min={1}
                   max={guestMax}
                 />
               </Field>

@@ -356,55 +356,49 @@ export default function BookingWizard() {
     }
 
     // 1. Scaffold options (from selected option in form or package scaffold options)
-    const scaffoldMin = positive(form.scaffold_guest_min);
     const scaffoldMax = positive(form.scaffold_guest_max);
-    const pkgExplicitMin = positive(packageDetails?.guest_min);
     const pkgExplicitMax = positive(packageDetails?.guest_max);
 
-    if (scaffoldMin || scaffoldMax) {
+    if (scaffoldMax || pkgExplicitMax) {
       return {
-        guestMin: scaffoldMin || pkgExplicitMin || 1,
+        guestMin: 1,
         guestMax: scaffoldMax || pkgExplicitMax || null,
       };
     }
 
-    // Infer scaffold range from dimensions if min/max not explicitly stored on option
+    // Infer scaffold range from dimensions if max not explicitly stored on option
     if (form.scaffold_width && form.scaffold_length) {
       const w = Number(form.scaffold_width);
       const l = Number(form.scaffold_length);
-      let inferredMin = 50;
       let inferredMax = 80;
-      if (w === 20 && l === 20) { inferredMin = 50; inferredMax = 80; }
-      else if (w === 20 && l === 40) { inferredMin = 100; inferredMax = 150; }
-      else if (w === 40 && l === 40) { inferredMin = 150; inferredMax = 220; }
-      else if (w === 20 && l === 60) { inferredMin = 180; inferredMax = 250; }
-      else if (w === 40 && l === 60) { inferredMin = 250; inferredMax = 350; }
+      if (w === 20 && l === 20) { inferredMax = 80; }
+      else if (w === 20 && l === 40) { inferredMax = 150; }
+      else if (w === 40 && l === 40) { inferredMax = 220; }
+      else if (w === 20 && l === 60) { inferredMax = 250; }
+      else if (w === 40 && l === 60) { inferredMax = 350; }
       else {
         const area = w * l;
-        inferredMin = Math.max(10, Math.round(area / 10));
         inferredMax = Math.max(50, Math.round(area / 5));
       }
       return {
-        guestMin: pkgExplicitMin || inferredMin,
+        guestMin: 1,
         guestMax: pkgExplicitMax ? Math.min(inferredMax, pkgExplicitMax) : inferredMax,
       };
     }
 
     // 2. Package guest range
-    const [rangeMin, rangeMax] = guestRange(packageDetails);
-    if (rangeMin || rangeMax) {
+    const [, rangeMax] = guestRange(packageDetails);
+    if (rangeMax) {
       return {
-        guestMin: rangeMin || positive(initialGuestMin) || 1,
+        guestMin: 1,
         guestMax: rangeMax || positive(initialGuestMax) || null,
       };
     }
 
-    const packageMin =
-      pkgExplicitMin || positive(initialGuestMin);
     const packageMax =
       pkgExplicitMax || positive(initialGuestMax);
-    if (packageMin || packageMax) {
-      return { guestMin: packageMin || 1, guestMax: packageMax || null };
+    if (packageMax) {
+      return { guestMin: 1, guestMax: packageMax || null };
     }
 
     return { guestMin: 1, guestMax: null };
@@ -413,7 +407,6 @@ export default function BookingWizard() {
     packageDetails,
     initialGuestMin,
     initialGuestMax,
-    form.scaffold_guest_min,
     form.scaffold_guest_max,
     form.scaffold_width,
     form.scaffold_length,
@@ -755,15 +748,12 @@ export default function BookingWizard() {
 
       if (!chosen) return prev;
 
-      const min = Number(chosen.guest_min) || 1;
       const max = chosen.guest_max ? Number(chosen.guest_max) : null;
       let nextGuests = prev.guest_count;
       const parsed = Number(prev.guest_count);
       if (Number.isFinite(parsed)) {
-        if (parsed < min) nextGuests = String(min);
-        else if (max && parsed > max) nextGuests = String(max);
-      } else {
-        nextGuests = String(min);
+        if (max && parsed > max) nextGuests = String(max);
+        else if (parsed < 1) nextGuests = "1";
       }
 
       const area =
@@ -927,30 +917,27 @@ export default function BookingWizard() {
   const setupCapacity = useMemo(() => {
     if (form.service_type !== SERVICE_TYPES.SETUP_ONLY && !form.selected_scaffold_option_id && !form.scaffold_width) return null;
 
-    let min = Number(form.scaffold_guest_min) || null;
     let max = Number(form.scaffold_guest_max) || null;
 
-    if (!min && !max && form.scaffold_width && form.scaffold_length) {
+    if (!max && form.scaffold_width && form.scaffold_length) {
       const w = Number(form.scaffold_width);
       const l = Number(form.scaffold_length);
-      if (w === 20 && l === 20) { min = 50; max = 80; }
-      else if (w === 20 && l === 40) { min = 100; max = 150; }
-      else if (w === 40 && l === 40) { min = 150; max = 220; }
-      else if (w === 20 && l === 60) { min = 180; max = 250; }
-      else if (w === 40 && l === 60) { min = 250; max = 350; }
+      if (w === 20 && l === 20) { max = 80; }
+      else if (w === 20 && l === 40) { max = 150; }
+      else if (w === 40 && l === 40) { max = 220; }
+      else if (w === 20 && l === 60) { max = 250; }
+      else if (w === 40 && l === 60) { max = 350; }
       else {
         const area = w * l;
-        min = Math.max(10, Math.round(area / 10));
-        max = Math.max(min + 20, Math.round(area / 5));
+        max = Math.max(50, Math.round(area / 5));
       }
     }
 
-    if (!min && !max) return null;
+    if (!max) return null;
 
     const guests = parseNumber(form.guest_count) || 0;
     const sizeLabel = form.scaffold_width && form.scaffold_length ? `${form.scaffold_width}×${form.scaffold_length} ft` : "";
-    const label =
-      min && max ? `${min} to ${max} guests` : max ? `up to ${max} guests` : `${min} guests or more`;
+    const label = `up to ${max} guests`;
 
     if (!guests) {
       return { status: "info", message: `Your setup size ${sizeLabel ? `(${sizeLabel}) ` : ""}is recommended for ${label}.` };
@@ -962,17 +949,10 @@ export default function BookingWizard() {
         message: `Your setup size ${sizeLabel ? `(${sizeLabel}) ` : ""}is recommended for ${label}. For ${guests} guests, consider choosing a larger setup size.`,
       };
     }
-    if (min && guests < min) {
-      return {
-        status: "under",
-        message: `Your setup size ${sizeLabel ? `(${sizeLabel}) ` : ""}is built for ${label}. With ${guests} guests, a smaller setup size may suit you better.`,
-      };
-    }
     return { status: "ok", message: `Your setup size ${sizeLabel ? `(${sizeLabel}) ` : ""}comfortably fits ${label}.` };
   }, [
     form.service_type,
     form.selected_scaffold_option_id,
-    form.scaffold_guest_min,
     form.scaffold_guest_max,
     form.scaffold_width,
     form.scaffold_length,
@@ -1129,8 +1109,6 @@ export default function BookingWizard() {
 
           if (guests <= 0) {
             errors.guest_count = "Enter how many guests you're expecting.";
-          } else if (guests < (guestMin || 1)) {
-            errors.guest_count = `Enter a guest count of at least ${guestMin || 1}.`;
           } else if (guestMax && guests > guestMax) {
             errors.guest_count = `The maximum guest count for this package setup is ${guestMax}.`;
           }
@@ -1141,8 +1119,6 @@ export default function BookingWizard() {
           const guests = parseNumber(form.guest_count) || 0;
           if (guests <= 0) {
             errors.guest_count = "Enter how many guests you're feeding.";
-          } else if (guests < (guestMin || 1)) {
-            errors.guest_count = `Enter a guest count of at least ${guestMin || 1}.`;
           } else if (guestMax && guests > guestMax) {
             errors.guest_count = `The maximum guest count for this package is ${guestMax}.`;
           }
@@ -1500,21 +1476,21 @@ export default function BookingWizard() {
 
       const requestSummary = isOffer
         ? [
-            { label: "Service", value: offerName || "Special Offer" },
-            { label: "Event date", value: formatEventDate(form.event_date) },
-            { label: "Guests", value: form.guest_count ? `${form.guest_count}` : "" },
-          ]
+          { label: "Service", value: offerName || "Special Offer" },
+          { label: "Event date", value: formatEventDate(form.event_date) },
+          { label: "Guests", value: form.guest_count ? `${form.guest_count}` : "" },
+        ]
         : [
-            ...(form.celebrant_name ? [{ label: "Celebrant / Honoree", value: form.celebrant_name }] : []),
-            { label: "Event type", value: eventType },
-            { label: "Event date", value: formatEventDate(form.event_date) },
-            { label: "Guests", value: form.guest_count ? `${form.guest_count}` : "" },
-            // The same one size the summary panel and the review page showed,
-            // so the confirmation confirms what was actually submitted.
-            { label: "Event space / scaffold size", value: estimate.eventSpace },
-            { label: "Service", value: payload.service_type },
-            { label: "Venue", value: payload.venue_type },
-          ];
+          ...(form.celebrant_name ? [{ label: "Celebrant / Honoree", value: form.celebrant_name }] : []),
+          { label: "Event type", value: eventType },
+          { label: "Event date", value: formatEventDate(form.event_date) },
+          { label: "Guests", value: form.guest_count ? `${form.guest_count}` : "" },
+          // The same one size the summary panel and the review page showed,
+          // so the confirmation confirms what was actually submitted.
+          { label: "Event space / scaffold size", value: estimate.eventSpace },
+          { label: "Service", value: payload.service_type },
+          { label: "Venue", value: payload.venue_type },
+        ];
 
       // A milestone, not a toast: the customer has just finished a nine-step
       // form and their next question is "is my date booked?" — which needs a
@@ -1888,120 +1864,120 @@ export default function BookingWizard() {
           }}
         >
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 pt-2.5 sm:px-6 sm:pt-3">
-          {error && (
-            <div
-              role="alert"
-              className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700 shadow-sm"
-            >
-              <AlertCircle size={15} className="mt-0.5 shrink-0 text-red-600" />
-              <div className="space-y-0.5">
-                <span className="font-semibold text-red-800">
-                  {error.includes(". ") ? "Please correct the following details:" : "Please review your information:"}
-                </span>
-                <p className="leading-relaxed text-red-700">{error}</p>
+            {error && (
+              <div
+                role="alert"
+                className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700 shadow-sm"
+              >
+                <AlertCircle size={15} className="mt-0.5 shrink-0 text-red-600" />
+                <div className="space-y-0.5">
+                  <span className="font-semibold text-red-800">
+                    {error.includes(". ") ? "Please correct the following details:" : "Please review your information:"}
+                  </span>
+                  <p className="leading-relaxed text-red-700">{error}</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {(() => {
-            const isMenuCategoryNav =
-              currentStepId === "MenuSelection" &&
-              !isOffer &&
-              form.include_food !== false &&
-              Boolean(menuNav);
+            {(() => {
+              const isMenuCategoryNav =
+                currentStepId === "MenuSelection" &&
+                !isOffer &&
+                form.include_food !== false &&
+                Boolean(menuNav);
 
-            const hasNextCategory = isMenuCategoryNav && menuNav?.hasNext;
-            const hasPrevCategory = isMenuCategoryNav && menuNav?.hasPrev;
+              const hasNextCategory = isMenuCategoryNav && menuNav?.hasNext;
+              const hasPrevCategory = isMenuCategoryNav && menuNav?.hasPrev;
 
-            const onBackClick = () => {
-              if (isEditing) {
-                returnToReview();
-              } else if (hasPrevCategory) {
-                menuNav.goToPrevGroup();
-              } else {
-                handleBack();
-              }
-            };
+              const onBackClick = () => {
+                if (isEditing) {
+                  returnToReview();
+                } else if (hasPrevCategory) {
+                  menuNav.goToPrevGroup();
+                } else {
+                  handleBack();
+                }
+              };
 
-            const onNextClick = () => {
-              if (isEditing) {
-                handleNext();
-              } else if (hasNextCategory) {
-                menuNav.goToNextGroup();
-              } else {
-                handleNext();
-              }
-            };
+              const onNextClick = () => {
+                if (isEditing) {
+                  handleNext();
+                } else if (hasNextCategory) {
+                  menuNav.goToNextGroup();
+                } else {
+                  handleNext();
+                }
+              };
 
-            const nextButtonLabel = isReview
-              ? "Send request"
-              : isEditing
-                ? "Save & Return to Review"
-                : hasNextCategory
-                  ? `Next: ${menuNav.nextGroupLabel}`
-                  : "Continue";
+              const nextButtonLabel = isReview
+                ? "Send request"
+                : isEditing
+                  ? "Save & Return to Review"
+                  : hasNextCategory
+                    ? `Next: ${menuNav.nextGroupLabel}`
+                    : "Continue";
 
-            const centerSubtitle = isEditing
-              ? `Editing ${wizardSteps[step]?.label} · Saving takes you directly back to your review.`
-              : isReview
-                ? "Sending this asks for a quotation. No payment is taken."
-                : hasNextCategory
-                  ? `Next course: ${menuNav.nextGroupLabel}`
-                  : nextStepLabel
-                    ? `Next: ${nextStepLabel}`
-                    : "";
+              const centerSubtitle = isEditing
+                ? `Editing ${wizardSteps[step]?.label} · Saving takes you directly back to your review.`
+                : isReview
+                  ? "Sending this asks for a quotation. No payment is taken."
+                  : hasNextCategory
+                    ? `Next course: ${menuNav.nextGroupLabel}`
+                    : nextStepLabel
+                      ? `Next: ${nextStepLabel}`
+                      : "";
 
-            return (
-              <div className="flex items-center justify-between gap-3">
-                <PrimaryBtn
-                  variant="ghost"
-                  onClick={onBackClick}
-                  className="px-3 sm:px-4"
-                >
-                  <ArrowLeft size={16} />
-                  {isEditing ? "Cancel & Review" : "Back"}
-                </PrimaryBtn>
-
-                <p className="hidden min-w-0 flex-1 truncate text-center text-xs text-[#64748B] sm:block">
-                  {centerSubtitle}
-                </p>
-
-                {isReview ? (
+              return (
+                <div className="flex items-center justify-between gap-3">
                   <PrimaryBtn
-                    variant="primary"
-                    onClick={submitInquiry}
-                    disabled={isSubmitting}
+                    variant="ghost"
+                    onClick={onBackClick}
+                    className="px-3 sm:px-4"
                   >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin" />
-                        Sending
-                      </>
-                    ) : (
-                      "Send request"
-                    )}
+                    <ArrowLeft size={16} />
+                    {isEditing ? "Cancel & Review" : "Back"}
                   </PrimaryBtn>
-                ) : (
-                  <PrimaryBtn variant="primary" onClick={onNextClick}>
-                    {isEditing ? (
-                      <>
-                        <Check size={16} />
-                        Save & Return to Review
-                      </>
-                    ) : (
-                      <>
-                        {nextButtonLabel}
-                        <ArrowRight size={16} />
-                      </>
-                    )}
-                  </PrimaryBtn>
-                )}
-              </div>
-            );
-          })()}
+
+                  <p className="hidden min-w-0 flex-1 truncate text-center text-xs text-[#64748B] sm:block">
+                    {centerSubtitle}
+                  </p>
+
+                  {isReview ? (
+                    <PrimaryBtn
+                      variant="primary"
+                      onClick={submitInquiry}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          Sending
+                        </>
+                      ) : (
+                        "Send request"
+                      )}
+                    </PrimaryBtn>
+                  ) : (
+                    <PrimaryBtn variant="primary" onClick={onNextClick}>
+                      {isEditing ? (
+                        <>
+                          <Check size={16} />
+                          Save & Return to Review
+                        </>
+                      ) : (
+                        <>
+                          {nextButtonLabel}
+                          <ArrowRight size={16} />
+                        </>
+                      )}
+                    </PrimaryBtn>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
         </div>
       </div>
-    </div>
 
       {/* Mobile Selected Dishes Bottom Sheet */}
       <SelectedDishesBottomSheet

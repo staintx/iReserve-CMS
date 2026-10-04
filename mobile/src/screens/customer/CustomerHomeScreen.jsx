@@ -590,10 +590,10 @@ export const CustomerHomeScreen = ({ navigation }) => {
                       ? `${formatCurrency(pkg.price_per_guest)} / pax`
                       : pkg.price_label || "Custom Quotation";
                   const guestRange =
-                    pkg.guest_min && pkg.guest_max
-                      ? `${pkg.guest_min} - ${pkg.guest_max} Pax`
+                    pkg.guest_max
+                      ? `Up to ${pkg.guest_max} Pax`
                       : pkg.guest_count
-                      ? `${pkg.guest_count} Pax Combo`
+                      ? `Up to ${pkg.guest_count} Pax`
                       : "Flexible Pax";
 
                   const displayInclusions = Array.isArray(pkg.inclusions) && pkg.inclusions.length > 0

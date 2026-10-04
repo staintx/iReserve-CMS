@@ -168,11 +168,10 @@ export default function PackageDetails() {
         </div>
 
         <ul
-          className={`grid gap-2 sm:gap-2.5 ${
-            isLargeCategory
+          className={`grid gap-2 sm:gap-2.5 ${isLargeCategory
               ? "grid-cols-1 sm:grid-cols-2"
               : "grid-cols-1 sm:grid-cols-2"
-          }`}
+            }`}
         >
           {course.items.map((item, itemIdx) => (
             <li
@@ -194,8 +193,8 @@ export default function PackageDetails() {
   const scaffoldOptions = useMemo(() => {
     return !offer && Array.isArray(data?.scaffold_size_options)
       ? data.scaffold_size_options.filter(
-          (option) => option?.label || option?.width_ft || option?.price,
-        )
+        (option) => option?.label || option?.width_ft || option?.price,
+      )
       : [];
   }, [offer, data]);
 
@@ -223,37 +222,35 @@ export default function PackageDetails() {
 
   const bookingState = data
     ? {
-        resetWizard: true,
-        initialStep: 0,
-        eventType: eventTypeForPackage(data),
-        // An offer always includes food, so it enters the wizard as full
-        // service rather than as a setup package the customer is then asked
-        // whether they want catering with.
-        serviceType: offer
-          ? SERVICE_TYPES.FULL_SERVICE
-          : serviceTypeForPackage(data),
-        packageId: data._id,
-        packageName: data.name,
-        packagePrice: offer
-          ? perPax
-          : (activeScaffold?.price || data.setup_price || perGuestPrice(data) || 0),
-        // A combo allows flexible guest count input starting from 1 or min pax
-        guestMin: offer
-          ? data.guest_min || null
-          : (activeScaffold?.guest_min || data.guest_min || null),
-        guestMax: offer
-          ? data.guest_max || null
-          : (activeScaffold?.guest_max || data.guest_max || null),
-        selectedScaffoldOptionId: activeScaffold?._id || null,
-        scaffoldWidth: activeScaffold?.width_ft || null,
-        scaffoldLength: activeScaffold?.length_ft || null,
-        scaffoldBaseArea:
-          activeScaffold?.area_ft2 ||
-          (activeScaffold?.width_ft && activeScaffold?.length_ft
-            ? activeScaffold.width_ft * activeScaffold.length_ft
-            : null),
-        scaffoldPrice: activeScaffold?.price || null,
-      }
+      resetWizard: true,
+      initialStep: 0,
+      eventType: eventTypeForPackage(data),
+      // An offer always includes food, so it enters the wizard as full
+      // service rather than as a setup package the customer is then asked
+      // whether they want catering with.
+      serviceType: offer
+        ? SERVICE_TYPES.FULL_SERVICE
+        : serviceTypeForPackage(data),
+      packageId: data._id,
+      packageName: data.name,
+      packagePrice: offer
+        ? perPax
+        : (activeScaffold?.price || data.setup_price || perGuestPrice(data) || 0),
+      // A combo allows flexible guest count input starting from 1 or min pax
+      guestMin: offer ? data.guest_min || null : null,
+      guestMax: offer
+        ? data.guest_max || null
+        : (activeScaffold?.guest_max || data.guest_max || null),
+      selectedScaffoldOptionId: activeScaffold?._id || null,
+      scaffoldWidth: activeScaffold?.width_ft || null,
+      scaffoldLength: activeScaffold?.length_ft || null,
+      scaffoldBaseArea:
+        activeScaffold?.area_ft2 ||
+        (activeScaffold?.width_ft && activeScaffold?.length_ft
+          ? activeScaffold.width_ft * activeScaffold.length_ft
+          : null),
+      scaffoldPrice: activeScaffold?.price || null,
+    }
     : null;
 
   // A package's inclusions carry the inventory class they came from and are
@@ -454,12 +451,8 @@ export default function PackageDetails() {
                       <div>
                         <dt>Estimated Guest</dt>
                         <dd>
-                          {activeScaffold?.guest_min || activeScaffold?.guest_max
-                            ? activeScaffold.guest_min && activeScaffold.guest_max
-                              ? `${activeScaffold.guest_min}–${activeScaffold.guest_max} guests`
-                              : activeScaffold.guest_max
-                                ? `Up to ${activeScaffold.guest_max} guests`
-                                : `From ${activeScaffold.guest_min} guests`
+                          {activeScaffold?.guest_max
+                            ? `Up to ${activeScaffold.guest_max} guests`
                             : capacity}
                         </dd>
                       </div>
@@ -489,11 +482,9 @@ export default function PackageDetails() {
                         >
                           {scaffoldOptions.map((opt) => {
                             const dims = `${opt.width_ft} × ${opt.length_ft} ft`;
-                            const guests = opt.guest_min && opt.guest_max
-                              ? `${opt.guest_min}–${opt.guest_max} guests`
-                              : opt.guest_max
-                                ? `up to ${opt.guest_max} guests`
-                                : "";
+                            const guests = opt.guest_max
+                              ? `up to ${opt.guest_max} guests`
+                              : "";
                             const priceStr = opt.price ? peso(opt.price) : "";
                             const extra = [guests, priceStr].filter(Boolean).join(" · ");
                             return (
@@ -529,14 +520,9 @@ export default function PackageDetails() {
                               : "—";
                           const area =
                             option.area_ft2 || (option.width_ft && option.length_ft ? `${option.width_ft * option.length_ft} sq ft` : "—");
-                          const guests =
-                            option.guest_min && option.guest_max
-                              ? `${option.guest_min}–${option.guest_max} guests`
-                              : option.guest_max
-                                ? `Up to ${option.guest_max} guests`
-                                : option.guest_min
-                                  ? `From ${option.guest_min} guests`
-                                  : "";
+                          const guests = option.guest_max
+                            ? `Up to ${option.guest_max} guests`
+                            : "";
                           const priceStr = option.price
                             ? peso(option.price)
                             : option.free_setup
@@ -598,14 +584,9 @@ export default function PackageDetails() {
                                   : "—";
                               const area =
                                 option.area_ft2 || (option.width_ft && option.length_ft ? `${option.width_ft * option.length_ft} sq ft` : "—");
-                              const guests =
-                                option.guest_min && option.guest_max
-                                  ? `${option.guest_min}–${option.guest_max}`
-                                  : option.guest_max
-                                    ? `Up to ${option.guest_max}`
-                                    : option.guest_min
-                                      ? `From ${option.guest_min}`
-                                      : "—";
+                              const guests = option.guest_max
+                                ? `Up to ${option.guest_max}`
+                                : "—";
 
                               return (
                                 <tr

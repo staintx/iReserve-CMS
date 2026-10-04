@@ -180,19 +180,10 @@ function ScaffoldFields({ value, onChange, compact = false }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className={compactLabel}>Fits</span>
+          <span className={compactLabel}>Up to</span>
           <input
             type="number"
-            min="0"
-            placeholder="Min"
-            className={compactInput}
-            value={value.guest_min || ""}
-            onChange={(e) => set({ guest_min: e.target.value })}
-          />
-          <span className="text-xs text-gray-400">to</span>
-          <input
-            type="number"
-            min="0"
+            min="1"
             placeholder="Max"
             className={compactInput}
             value={value.guest_max || ""}
@@ -222,7 +213,7 @@ function ScaffoldFields({ value, onChange, compact = false }) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <div>
         <label className="block text-xs font-bold text-gray-700 mb-1">
           Scaffold Size (ft) <span className="text-red-400">*</span>
@@ -247,21 +238,6 @@ function ScaffoldFields({ value, onChange, compact = false }) {
           />
         </div>
         <p className="mt-1 text-[11px] text-gray-400">Width × Length (e.g. 20 × 20)</p>
-      </div>
-
-      <div>
-        <label className="block text-xs font-bold text-gray-700 mb-1">
-          Minimum Guests <span className="text-red-400">*</span>
-        </label>
-        <input
-          type="number"
-          min="1"
-          placeholder="e.g. 50"
-          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
-          value={value.guest_min || ""}
-          onChange={(e) => set({ guest_min: e.target.value })}
-        />
-        <p className="mt-1 text-[11px] text-gray-400">Min guests allowed for this size</p>
       </div>
 
       <div>
@@ -452,8 +428,8 @@ function AutocompleteInput({
                     (isAddonSource
                       ? "+ Create New Add-on"
                       : isServiceSource
-                      ? "+ Create New Service"
-                      : "+ Create New Inventory Item")}
+                        ? "+ Create New Service"
+                        : "+ Create New Inventory Item")}
                 </button>
               )}
             </div>
@@ -470,13 +446,12 @@ function AutocompleteInput({
                       handleSelect(item);
                     }}
                     onMouseEnter={() => setHighlightedIndex(idx)}
-                    className={`px-3 py-1.5 cursor-pointer flex items-center justify-between transition-colors text-xs ${
-                      isHighlighted
+                    className={`px-3 py-1.5 cursor-pointer flex items-center justify-between transition-colors text-xs ${isHighlighted
                         ? "bg-primary/10 text-primary font-medium"
                         : isSelected
-                        ? "bg-blue-50/70 text-blue-700 font-semibold"
-                        : "text-gray-700 hover:bg-gray-50"
-                    }`}
+                          ? "bg-blue-50/70 text-blue-700 font-semibold"
+                          : "text-gray-700 hover:bg-gray-50"
+                      }`}
                   >
                     <span>{item}</span>
                     {isSelected && <Check size={12} className="text-primary shrink-0" />}
@@ -499,8 +474,8 @@ function AutocompleteInput({
                       (isAddonSource
                         ? "+ Create New Add-on"
                         : isServiceSource
-                        ? "+ Create New Service"
-                        : "+ Create New Inventory Item")}{" "}
+                          ? "+ Create New Service"
+                          : "+ Create New Inventory Item")}{" "}
                     for "{trimmedValue}"
                   </button>
                 </div>
@@ -744,7 +719,6 @@ export default function PackageModal({
     label: "",
     width_ft: "",
     length_ft: "",
-    guest_min: "",
     guest_max: "",
     price: "",
     free_setup: false,
@@ -889,14 +863,14 @@ export default function PackageModal({
           pkg.offer_type === OFFER_TYPES.SPECIAL
             ? offerInclusions(pkg)
             : (Array.isArray(pkg.inclusions) ? pkg.inclusions : [])
-                .map((inc) => {
-                  const p = parseInclusion(inc);
-                  if (!p.name) return "";
-                  const q = p.qty ? ` (${p.qty})` : "";
-                  return `[${p.category}] ${p.name}${q}`;
-                })
-                .filter(Boolean)
-                .filter((inc, idx, arr) => arr.indexOf(inc) === idx),
+              .map((inc) => {
+                const p = parseInclusion(inc);
+                if (!p.name) return "";
+                const q = p.qty ? ` (${p.qty})` : "";
+                return `[${p.category}] ${p.name}${q}`;
+              })
+              .filter(Boolean)
+              .filter((inc, idx, arr) => arr.indexOf(inc) === idx),
         add_ons: normalizedAddOns.map((addon) => ({
           ...addon,
           name: cleanTextValue(addon.name),
@@ -1443,11 +1417,11 @@ export default function PackageModal({
 
 
   const SCAFFOLD_PRESETS = [
-    { label: "20x20 Setup", width_ft: 20, length_ft: 20, guest_min: 50, guest_max: 80, price: "" },
-    { label: "20x40 Setup", width_ft: 20, length_ft: 40, guest_min: 81, guest_max: 120, price: "" },
-    { label: "40x40 Setup", width_ft: 40, length_ft: 40, guest_min: 121, guest_max: 200, price: "" },
-    { label: "20x60 Setup", width_ft: 20, length_ft: 60, guest_min: 180, guest_max: 250, price: "" },
-    { label: "40x60 Setup", width_ft: 40, length_ft: 60, guest_min: 250, guest_max: 350, price: "" },
+    { label: "20x20 Setup", width_ft: 20, length_ft: 20, guest_max: 80, price: "" },
+    { label: "20x40 Setup", width_ft: 20, length_ft: 40, guest_max: 120, price: "" },
+    { label: "40x40 Setup", width_ft: 40, length_ft: 40, guest_max: 200, price: "" },
+    { label: "20x60 Setup", width_ft: 20, length_ft: 60, guest_max: 250, price: "" },
+    { label: "40x60 Setup", width_ft: 40, length_ft: 60, guest_max: 350, price: "" },
   ];
 
   const [editingScaffoldIdx, setEditingScaffoldIdx] = useState(null);
@@ -1455,7 +1429,6 @@ export default function PackageModal({
     label: "",
     width_ft: "",
     length_ft: "",
-    guest_min: "",
     guest_max: "",
     price: "",
     free_setup: false,
@@ -1463,7 +1436,7 @@ export default function PackageModal({
 
   // ============ HANDLERS - Scaffold Options ============
   const handleAddScaffoldOption = () => {
-    const { label, width_ft, length_ft, guest_min, guest_max, price, free_setup } =
+    const { label, width_ft, length_ft, guest_max, price, free_setup } =
       newScaffoldOption;
     if (!width_ft || !length_ft) return;
     const area = Number(width_ft) * Number(length_ft);
@@ -1477,7 +1450,6 @@ export default function PackageModal({
           width_ft: Number(width_ft),
           length_ft: Number(length_ft),
           area_ft2: area,
-          guest_min: guest_min ? Number(guest_min) : undefined,
           guest_max: guest_max ? Number(guest_max) : undefined,
           price: price !== undefined && price !== "" ? Number(price) : 0,
           free_setup: Boolean(free_setup),
@@ -1488,7 +1460,6 @@ export default function PackageModal({
       label: "",
       width_ft: "",
       length_ft: "",
-      guest_min: "",
       guest_max: "",
       price: "",
       free_setup: false,
@@ -1519,7 +1490,6 @@ export default function PackageModal({
       label: opt.label || "",
       width_ft: opt.width_ft || "",
       length_ft: opt.length_ft || "",
-      guest_min: opt.guest_min || "",
       guest_max: opt.guest_max || "",
       price: opt.price !== undefined ? opt.price : "",
       free_setup: Boolean(opt.free_setup),
@@ -1527,7 +1497,7 @@ export default function PackageModal({
   };
 
   const handleSaveEditScaffold = (idx) => {
-    const { width_ft, length_ft, guest_min, guest_max, price, free_setup } =
+    const { width_ft, length_ft, guest_max, price, free_setup } =
       editScaffoldData;
     if (!width_ft || !length_ft) return;
     const area = Number(width_ft) * Number(length_ft);
@@ -1541,7 +1511,6 @@ export default function PackageModal({
         width_ft: Number(width_ft),
         length_ft: Number(length_ft),
         area_ft2: area,
-        guest_min: guest_min ? Number(guest_min) : undefined,
         guest_max: guest_max ? Number(guest_max) : undefined,
         price: price !== undefined && price !== "" ? Number(price) : 0,
         free_setup: Boolean(free_setup),
@@ -1562,7 +1531,6 @@ export default function PackageModal({
       label: preset.label,
       width_ft: preset.width_ft,
       length_ft: preset.length_ft,
-      guest_min: preset.guest_min,
       guest_max: preset.guest_max,
       price: preset.price !== undefined && preset.price !== "" ? preset.price : prev.price,
     }));
@@ -1976,15 +1944,15 @@ export default function PackageModal({
       const rawScaffolds = isOffer || isFoodOnly
         ? []
         : (formData.scaffold_size_options || []).map((option) => ({
-            ...option,
-            width_ft: Number(option.width_ft),
-            length_ft: Number(option.length_ft),
-            area_ft2: option.area_ft2 || Number(option.width_ft) * Number(option.length_ft),
-            guest_min: option.guest_min !== undefined && option.guest_min !== "" ? Number(option.guest_min) : undefined,
-            guest_max: option.guest_max !== undefined && option.guest_max !== "" ? Number(option.guest_max) : undefined,
-            price: option.free_setup ? 0 : Number(option.price) || 0,
-            free_setup: Boolean(option.free_setup),
-          }));
+          ...option,
+          width_ft: Number(option.width_ft),
+          length_ft: Number(option.length_ft),
+          area_ft2: option.area_ft2 || Number(option.width_ft) * Number(option.length_ft),
+          guest_min: option.guest_min !== undefined && option.guest_min !== "" ? Number(option.guest_min) : undefined,
+          guest_max: option.guest_max !== undefined && option.guest_max !== "" ? Number(option.guest_max) : undefined,
+          price: option.free_setup ? 0 : Number(option.price) || 0,
+          free_setup: Boolean(option.free_setup),
+        }));
 
       const defaultScaffold =
         rawScaffolds.find(
@@ -1992,13 +1960,9 @@ export default function PackageModal({
         ) || rawScaffolds[0];
 
       const derivedSetupPrice = defaultScaffold ? defaultScaffold.price : 0;
-      const allMins = rawScaffolds
-        .map((s) => Number(s.guest_min))
-        .filter((n) => Number.isFinite(n) && n > 0);
       const allMaxs = rawScaffolds
         .map((s) => Number(s.guest_max))
         .filter((n) => Number.isFinite(n) && n > 0);
-      const derivedGuestMin = allMins.length > 0 ? Math.min(...allMins) : "";
       const derivedGuestMax = allMaxs.length > 0 ? Math.max(...allMaxs) : "";
 
       const normalizedFormData = {
@@ -2013,37 +1977,37 @@ export default function PackageModal({
         add_ons: isOffer || isFoodOnly
           ? []
           : (formData.add_ons || [])
-              .map((addon) => ({
-                name: cleanTextValue(addon.name),
-                qty: String(addon.qty || "").trim(),
-              }))
-              .filter((addon) => addon.name),
+            .map((addon) => ({
+              name: cleanTextValue(addon.name),
+              qty: String(addon.qty || "").trim(),
+            }))
+            .filter((addon) => addon.name),
         inclusions: normalizedInclusions,
         // Derived from scaffold size options for regular packages
         setup_price: isOffer ? "" : String(derivedSetupPrice),
-        guest_min: isOffer ? "" : String(derivedGuestMin),
+        guest_min: "",
         guest_max: isOffer ? "" : String(derivedGuestMax),
         guest_count: isOffer ? formData.guest_count || "" : "",
         price_per_guest: isOffer ? formData.price_per_guest || "" : "",
         // Saved in the order shown; the server renumbers `sort_order` from it.
         offer_food_items: isOffer
           ? (formData.offer_food_items || [])
-              .map((item) => ({
-                menu_category: cleanTextValue(item.menu_category),
-                item_name: cleanTextValue(item.item_name),
-              }))
-              .filter((item) => item.item_name)
-              .filter(
-                (item, idx, self) =>
-                  idx ===
-                  self.findIndex(
-                    (t) =>
-                      t.menu_category.toLowerCase() ===
-                        item.menu_category.toLowerCase() &&
-                      t.item_name.toLowerCase() ===
-                        item.item_name.toLowerCase()
-                  )
-              )
+            .map((item) => ({
+              menu_category: cleanTextValue(item.menu_category),
+              item_name: cleanTextValue(item.item_name),
+            }))
+            .filter((item) => item.item_name)
+            .filter(
+              (item, idx, self) =>
+                idx ===
+                self.findIndex(
+                  (t) =>
+                    t.menu_category.toLowerCase() ===
+                    item.menu_category.toLowerCase() &&
+                    t.item_name.toLowerCase() ===
+                    item.item_name.toLowerCase()
+                )
+            )
           : [],
       };
 
@@ -2100,9 +2064,9 @@ export default function PackageModal({
           scaffold_size_options: updatedDoc?.scaffold_size_options || normalizedFormData.scaffold_size_options,
           offer_food_items: isOffer
             ? offerFoodItems(updatedDoc || pkg).map((item) => ({
-                menu_category: cleanTextValue(item.menu_category),
-                item_name: cleanTextValue(item.item_name),
-              }))
+              menu_category: cleanTextValue(item.menu_category),
+              item_name: cleanTextValue(item.item_name),
+            }))
             : [],
         };
 
@@ -2154,11 +2118,11 @@ export default function PackageModal({
           }));
         }}
       />
-      
+
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
         <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-gray-100">
-        {/* ============ HEADER ============ */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+          {/* ============ HEADER ============ */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-bold text-foreground">
                 {pkg
@@ -2186,270 +2150,264 @@ export default function PackageModal({
             </button>
           </div>
 
-        {/* ============ SCROLLABLE CONTENT ============ */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-8">
-          {/* SECTION 1: Basic Information */}
-          <section>
-            <h3 className="font-bold text-foreground mb-4">Basic Information</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Package Type (Locked / Read-Only for existing packages) */}
-              <div className="col-span-2">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Package Type {!pkg && <span className="text-red-400">*</span>}
-                  </label>
-                  {pkg && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
-                      <Lock size={11} className="text-gray-400" />
-                      Locked / Non-changeable
-                    </span>
+          {/* ============ SCROLLABLE CONTENT ============ */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-8">
+            {/* SECTION 1: Basic Information */}
+            <section>
+              <h3 className="font-bold text-foreground mb-4">Basic Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Package Type (Locked / Read-Only for existing packages) */}
+                <div className="col-span-2">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Package Type {!pkg && <span className="text-red-400">*</span>}
+                    </label>
+                    {pkg && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
+                        <Lock size={11} className="text-gray-400" />
+                        Locked / Non-changeable
+                      </span>
+                    )}
+                  </div>
+
+                  {pkg ? (
+                    <div
+                      className={`rounded-xl border px-3.5 py-3 flex items-center justify-between transition-colors ${isOffer
+                          ? "border-amber-200/80 bg-amber-50/40"
+                          : "border-primary/20 bg-primary/5"
+                        }`}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <div
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${isOffer
+                              ? "bg-amber-100 text-amber-600"
+                              : "bg-primary/10 text-primary"
+                            }`}
+                        >
+                          {isOffer ? <Tag size={16} /> : <Package size={16} />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-foreground">
+                              {isOffer ? "Special Offer" : "Regular Package"}
+                            </span>
+                            <span
+                              className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${isOffer
+                                  ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                  : "bg-primary/10 text-primary border border-primary/20"
+                                }`}
+                            >
+                              Fixed Type
+                            </span>
+                          </div>
+                          <span className="mt-0.5 block text-xs text-gray-500">
+                            {isOffer
+                              ? "A fixed combo meal for a set guest count, priced per pax."
+                              : "Priced by setup size. Guest count is an estimate."}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-gray-400 pl-2">
+                        <Lock size={14} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        {
+                          id: OFFER_TYPES.REGULAR,
+                          title: "Regular Package",
+                          blurb: "Priced by setup size. Guest count is an estimate.",
+                        },
+                        {
+                          id: OFFER_TYPES.SPECIAL,
+                          title: "Special Offer",
+                          blurb: "A fixed combo meal for a set guest count, priced per pax.",
+                        },
+                      ].map((option) => {
+                        const selected = formData.offer_type === option.id;
+                        const offerOption = option.id === OFFER_TYPES.SPECIAL;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() =>
+                              setFormData((prev) => {
+                                const next = { ...prev, offer_type: option.id };
+                                // A regular package supports one size. Switching
+                                // down keeps the first and drops the rest, rather
+                                // than storing a list the type cannot express.
+                                if (option.id === OFFER_TYPES.REGULAR) {
+                                  next.scaffold_size_options = (
+                                    prev.scaffold_size_options || []
+                                  )
+                                    .slice(0, 1)
+                                    // Free set-up is an offer promise; a regular
+                                    // package makes none, so the flag goes with it.
+                                    .map((option) => ({ ...option, free_setup: false }));
+                                  next.default_scaffold_option_id = "";
+                                }
+                                return next;
+                              })
+                            }
+                            className={`rounded-xl border px-3 py-2.5 text-left transition-colors cursor-pointer ${selected
+                                ? offerOption
+                                  ? "border-amber-400 bg-amber-50 ring-1 ring-amber-400"
+                                  : "border-primary bg-primary/5 ring-1 ring-primary"
+                                : "border-gray-200 bg-white hover:border-gray-300"
+                              }`}
+                          >
+                            <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                              {offerOption && (
+                                <Tag size={13} className="text-amber-500" />
+                              )}
+                              {option.title}
+                            </span>
+                            <span className="mt-0.5 block text-xs text-gray-500">
+                              {option.blurb}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
 
-                {pkg ? (
-                  <div
-                    className={`rounded-xl border px-3.5 py-3 flex items-center justify-between transition-colors ${
-                      isOffer
-                        ? "border-amber-200/80 bg-amber-50/40"
-                        : "border-primary/20 bg-primary/5"
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                          isOffer
-                            ? "bg-amber-100 text-amber-600"
-                            : "bg-primary/10 text-primary"
-                        }`}
-                      >
-                        {isOffer ? <Tag size={16} /> : <Package size={16} />}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-foreground">
-                            {isOffer ? "Special Offer" : "Regular Package"}
-                          </span>
-                          <span
-                            className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
-                              isOffer
-                                ? "bg-amber-100 text-amber-800 border border-amber-200"
-                                : "bg-primary/10 text-primary border border-primary/20"
-                            }`}
-                          >
-                            Fixed Type
-                          </span>
-                        </div>
-                        <span className="mt-0.5 block text-xs text-gray-500">
-                          {isOffer
-                            ? "A fixed combo meal for a set guest count, priced per pax."
-                            : "Priced by setup size. Guest count is an estimate."}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-gray-400 pl-2">
-                      <Lock size={14} />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      {
-                        id: OFFER_TYPES.REGULAR,
-                        title: "Regular Package",
-                        blurb: "Priced by setup size. Guest count is an estimate.",
-                      },
-                      {
-                        id: OFFER_TYPES.SPECIAL,
-                        title: "Special Offer",
-                        blurb: "A fixed combo meal for a set guest count, priced per pax.",
-                      },
-                    ].map((option) => {
-                      const selected = formData.offer_type === option.id;
-                      const offerOption = option.id === OFFER_TYPES.SPECIAL;
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() =>
-                            setFormData((prev) => {
-                              const next = { ...prev, offer_type: option.id };
-                              // A regular package supports one size. Switching
-                              // down keeps the first and drops the rest, rather
-                              // than storing a list the type cannot express.
-                              if (option.id === OFFER_TYPES.REGULAR) {
-                                next.scaffold_size_options = (
-                                  prev.scaffold_size_options || []
-                                )
-                                  .slice(0, 1)
-                                  // Free set-up is an offer promise; a regular
-                                  // package makes none, so the flag goes with it.
-                                  .map((option) => ({ ...option, free_setup: false }));
-                                next.default_scaffold_option_id = "";
-                              }
-                              return next;
-                            })
-                          }
-                          className={`rounded-xl border px-3 py-2.5 text-left transition-colors cursor-pointer ${
-                            selected
-                              ? offerOption
-                                ? "border-amber-400 bg-amber-50 ring-1 ring-amber-400"
-                                : "border-primary bg-primary/5 ring-1 ring-primary"
-                              : "border-gray-200 bg-white hover:border-gray-300"
-                          }`}
-                        >
-                          <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                            {offerOption && (
-                              <Tag size={13} className="text-amber-500" />
-                            )}
-                            {option.title}
-                          </span>
-                          <span className="mt-0.5 block text-xs text-gray-500">
-                            {option.blurb}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Package Name */}
-              <div className="col-span-2">
-                <label className="block text-sm text-gray-600 mb-1">
-                  {isOffer ? "Combo Name" : "Package Name"}{" "}
-                  <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                  placeholder={
-                    isOffer
-                      ? "e.g. Classic Celebration Combo"
-                      : "e.g. Elegant White Wedding Setup"
-                  }
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                />
-              </div>
-
-
-
-
-              {/* Availability Toggle */}
-              <div className="col-span-2 flex items-center justify-between bg-gray-50 border border-gray-100 p-4 rounded-xl">
-                <div>
-                  <p className="font-semibold text-foreground">
-                    Availability Status
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {isOffer
-                      ? "Unavailable combos are hidden from customers and cannot be booked"
-                      : "Toggle to make package visible to customers"}
-                  </p>
-                </div>
-                <button
-                  onClick={() =>
-                    setFormData({ ...formData, available: !formData.available })
-                  }
-                  className={`w-12 h-6 rounded-full transition-colors relative flex items-center ${
-                    formData.available ? "bg-emerald-500" : "bg-gray-300"
-                  }`}
-                >
-                  <div
-                    className={`w-4 h-4 bg-white rounded-full absolute transition-all ${
-                      formData.available ? "right-1" : "left-1"
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* SECTION 2: Description */}
-          <section>
-            <h3 className="font-bold text-foreground mb-4">Description</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">
-                  Short Description <span className="text-red-400">*</span>
-                </label>
-                <textarea
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary h-20"
-                  placeholder={
-                    isOffer
-                      ? "Shown on the combo card, e.g. A balanced combo designed for small celebrations."
-                      : "Brief summary of the setup package (1-2 sentences)"
-                  }
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">
-                  Full Description
-                </label>
-                <textarea
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary h-32"
-                  placeholder={
-                    isOffer
-                      ? "Shown on the combo's detail page — what the meal is and who it suits"
-                      : "Detailed description of what this setup package includes"
-                  }
-                  value={formData.fullDescription}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      fullDescription: e.target.value,
-                    })
-                  }
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* SECTION 3: Pricing & Guest Count — Special Offers only */}
-          {isOffer && (
-            <section>
-              <h3 className="font-bold text-foreground mb-1">Pricing</h3>
-              <p className="mb-4 text-xs text-gray-500">
-                Special Offers are priced per pax. Customers will specify their guest count when booking.
-              </p>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2 sm:col-span-1">
+                {/* Package Name */}
+                <div className="col-span-2">
                   <label className="block text-sm text-gray-600 mb-1">
-                    Price Per Pax (₱) <span className="text-red-400">*</span>
+                    {isOffer ? "Combo Name" : "Package Name"}{" "}
+                    <span className="text-red-400">*</span>
                   </label>
                   <input
-                    type="number"
-                    min="0"
-                    className="w-full border border-amber-300 bg-amber-50/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-                    placeholder="e.g. 350"
-                    value={formData.price_per_guest}
-                    onChange={(e) => {
-                      if (Number(e.target.value) < 0) return;
-                      setFormData({
-                        ...formData,
-                        price_per_guest: e.target.value,
-                      });
-                    }}
+                    type="text"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    placeholder={
+                      isOffer
+                        ? "e.g. Classic Celebration Combo"
+                        : "e.g. Elegant White Wedding Setup"
+                    }
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
                   />
                 </div>
 
-                {Number(formData.price_per_guest) > 0 && (
-                  <p className="col-span-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-900">
-                    Pricing: <strong>₱{Number(formData.price_per_guest).toLocaleString("en-PH")} / pax</strong> · Customer will specify guest count during booking.
-                  </p>
-                )}
+
+
+
+                {/* Availability Toggle */}
+                <div className="col-span-2 flex items-center justify-between bg-gray-50 border border-gray-100 p-4 rounded-xl">
+                  <div>
+                    <p className="font-semibold text-foreground">
+                      Availability Status
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {isOffer
+                        ? "Unavailable combos are hidden from customers and cannot be booked"
+                        : "Toggle to make package visible to customers"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() =>
+                      setFormData({ ...formData, available: !formData.available })
+                    }
+                    className={`w-12 h-6 rounded-full transition-colors relative flex items-center ${formData.available ? "bg-emerald-500" : "bg-gray-300"
+                      }`}
+                  >
+                    <div
+                      className={`w-4 h-4 bg-white rounded-full absolute transition-all ${formData.available ? "right-1" : "left-1"
+                        }`}
+                    />
+                  </button>
+                </div>
               </div>
             </section>
-          )}
 
-          {/* SECTION 4: Combo Food ------------------------------------------
+            {/* SECTION 2: Description */}
+            <section>
+              <h3 className="font-bold text-foreground mb-4">Description</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">
+                    Short Description <span className="text-red-400">*</span>
+                  </label>
+                  <textarea
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary h-20"
+                    placeholder={
+                      isOffer
+                        ? "Shown on the combo card, e.g. A balanced combo designed for small celebrations."
+                        : "Brief summary of the setup package (1-2 sentences)"
+                    }
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">
+                    Full Description
+                  </label>
+                  <textarea
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary h-32"
+                    placeholder={
+                      isOffer
+                        ? "Shown on the combo's detail page — what the meal is and who it suits"
+                        : "Detailed description of what this setup package includes"
+                    }
+                    value={formData.fullDescription}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        fullDescription: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* SECTION 3: Pricing & Guest Count — Special Offers only */}
+            {isOffer && (
+              <section>
+                <h3 className="font-bold text-foreground mb-1">Pricing</h3>
+                <p className="mb-4 text-xs text-gray-500">
+                  Special Offers are priced per pax. Customers will specify their guest count when booking.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block text-sm text-gray-600 mb-1">
+                      Price Per Pax (₱) <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full border border-amber-300 bg-amber-50/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                      placeholder="e.g. 350"
+                      value={formData.price_per_guest}
+                      onChange={(e) => {
+                        if (Number(e.target.value) < 0) return;
+                        setFormData({
+                          ...formData,
+                          price_per_guest: e.target.value,
+                        });
+                      }}
+                    />
+                  </div>
+
+                  {Number(formData.price_per_guest) > 0 && (
+                    <p className="col-span-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-900">
+                      Pricing: <strong>₱{Number(formData.price_per_guest).toLocaleString("en-PH")} / pax</strong> · Customer will specify guest count during booking.
+                    </p>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* SECTION 4: Combo Food ------------------------------------------
               What the combo serves, written out. A combo is a decided meal, so
               this is a list rather than a set of rules: one row per dish, each
               naming the course it belongs to, in the order it is presented.
@@ -2458,476 +2416,475 @@ export default function PackageModal({
               the live menu — a combo may serve something the standing menu does
               not list, but the usual case is one keystroke and names that match
               the rest of the product. */}
-          {/* SECTION 4: Combo Food — Grouped by Category --------------------- */}
-          {isOffer && (
-            <section>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="flex items-center gap-2 font-bold text-foreground">
-                    <Tag size={15} className="text-amber-500" />
-                    Combo Food <span className="text-red-400">*</span>
-                  </h3>
-                  <p className="text-xs text-gray-500">
-                    Dishes grouped by category. Customers see items organized by course.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Btn
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setIsAddingCategory(true)}
-                  >
-                    <FolderPlus size={14} /> Add Category
-                  </Btn>
-                </div>
-              </div>
-
-              <datalist id="combo-course-suggestions">
-                {categorySuggestions.map((label) => (
-                  <option key={label} value={label} />
-                ))}
-              </datalist>
-
-              <div className="space-y-4 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
-                {categoryGroups.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-amber-300 bg-white/80 p-6 text-center">
-                    <p className="mb-3 text-sm italic text-gray-500">
-                      No food categories yet. Choose a category below or add a custom one to start listing dishes.
+            {/* SECTION 4: Combo Food — Grouped by Category --------------------- */}
+            {isOffer && (
+              <section>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="flex items-center gap-2 font-bold text-foreground">
+                      <Tag size={15} className="text-amber-500" />
+                      Combo Food <span className="text-red-400">*</span>
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      Dishes grouped by category. Customers see items organized by course.
                     </p>
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {availableCategoriesToAdd.slice(0, 8).map((presetCat) => (
-                        <button
-                          key={presetCat}
-                          type="button"
-                          onClick={() => handleAddNewCategory(presetCat)}
-                          className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 hover:border-amber-400 cursor-pointer"
-                        >
-                          <Plus size={12} /> {presetCat}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => setIsAddingCategory(true)}
-                        className="flex items-center gap-1 rounded-lg border border-dashed border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-50 cursor-pointer"
-                      >
-                        <Plus size={12} /> Custom Category
-                      </button>
-                    </div>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    {categoryGroups.map((group) => {
-                      const isCollapsed = Boolean(collapsedCategories[group.name]);
-                      const isEditingThisCat = editingCategory === group.name;
 
-                      const catDishes = getDishesForCategory(menuItems, group.name);
-                      const selectedDishNames = new Set(
-                        group.items
-                          .map((i) => (i.item_name || "").trim().toLowerCase())
-                          .filter(Boolean)
-                      );
-                      const availableCategoryDishes = catDishes.filter(
-                        (dish) =>
-                          !selectedDishNames.has((dish.name || "").trim().toLowerCase())
-                      );
-                      const currentSearch = categoryInputs[group.name] || "";
-                      const q = currentSearch.trim().toLowerCase();
-                      const filteredAvailableDishes = q
-                        ? availableCategoryDishes.filter(
-                            (d) =>
-                              (d.name || "").toLowerCase().includes(q) ||
-                              (d.description || "").toLowerCase().includes(q)
-                          )
-                        : availableCategoryDishes;
-
-                      return (
-                        <div
-                          key={group.name}
-                          className="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-2xs transition-all"
-                        >
-                          {/* Category Header */}
-                          <div className="flex items-center justify-between border-b border-amber-100 bg-amber-50/80 px-4 py-2.5">
-                            <div className="flex flex-1 items-center gap-2 min-w-0">
-                              <button
-                                type="button"
-                                onClick={() => toggleCollapseCategory(group.name)}
-                                className="rounded p-1 text-amber-800 transition-colors hover:bg-amber-100 hover:text-amber-950 cursor-pointer"
-                                title={isCollapsed ? "Expand category" : "Collapse category"}
-                              >
-                                {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                              </button>
-
-                              {isEditingThisCat ? (
-                                <div className="flex flex-1 items-center gap-1.5 max-w-xs">
-                                  <input
-                                    type="text"
-                                    list="combo-course-suggestions"
-                                    autoFocus
-                                    className="w-full rounded border border-amber-400 bg-white px-2 py-1 text-xs font-bold text-amber-950 focus:outline-none"
-                                    value={editCategoryNameValue}
-                                    onChange={(e) => setEditCategoryNameValue(e.target.value)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter") {
-                                        e.preventDefault();
-                                        handleRenameCategoryGroup(group.name, editCategoryNameValue);
-                                      }
-                                    }}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRenameCategoryGroup(group.name, editCategoryNameValue)}
-                                    className="rounded p-1 text-amber-700 hover:bg-amber-100 cursor-pointer"
-                                    title="Save name"
-                                  >
-                                    <Check size={14} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingCategory(null)}
-                                    className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 cursor-pointer"
-                                    title="Cancel"
-                                  >
-                                    <X size={14} />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="truncate text-xs font-bold uppercase tracking-wider text-amber-950">
-                                    {group.name}
-                                  </span>
-                                  <span className="rounded-full bg-amber-200/70 px-2 py-0.5 text-[11px] font-extrabold text-amber-900">
-                                    {group.items.length} {group.items.length === 1 ? "item" : "items"}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-1 ml-2">
-                              {!isEditingThisCat && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingCategory(group.name);
-                                    setEditCategoryNameValue(group.name);
-                                  }}
-                                  className="rounded p-1 text-gray-400 transition-colors hover:bg-amber-100 hover:text-amber-700 cursor-pointer"
-                                  title="Rename category"
-                                >
-                                  <Pencil size={13} />
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveCategoryGroup(group.name)}
-                                className="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
-                                title="Delete category"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Category Items List & Food Selector */}
-                          {!isCollapsed && (
-                            <div className="space-y-3 bg-amber-50/20 p-3">
-                              {/* 1. Configured dishes in this category */}
-                              {group.items.length === 0 ? (
-                                <p className="py-2.5 text-center text-xs italic text-gray-500 bg-amber-50/50 rounded-lg border border-dashed border-amber-200">
-                                  No dishes added under {group.name} yet. Select from available dishes below or create a new one.
-                                </p>
-                              ) : (
-                                <div className="space-y-1.5">
-                                  {group.items.map((item, catIdx) => (
-                                    <div
-                                      key={item.globalIndex}
-                                      className="flex items-center gap-2 rounded-lg border border-amber-200/80 bg-white px-2.5 py-1.5 shadow-2xs"
-                                    >
-                                      <div className="flex flex-col">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleMoveFoodItemWithinCategory(group.name, catIdx, -1)}
-                                          disabled={catIdx === 0}
-                                          aria-label={`Move ${item.item_name || "item"} up`}
-                                          className="rounded px-0.5 text-gray-400 transition-colors hover:text-amber-600 disabled:opacity-20 cursor-pointer"
-                                        >
-                                          <ChevronUp size={13} />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleMoveFoodItemWithinCategory(group.name, catIdx, 1)}
-                                          disabled={catIdx === group.items.length - 1}
-                                          aria-label={`Move ${item.item_name || "item"} down`}
-                                          className="rounded px-0.5 text-gray-400 transition-colors hover:text-amber-600 disabled:opacity-20 cursor-pointer"
-                                        >
-                                          <ChevronDown size={13} />
-                                        </button>
-                                      </div>
-
-                                      <div className="flex-1 min-w-0">
-                                        <input
-                                          type="text"
-                                          className={`w-full rounded-md border px-3 py-1 text-sm bg-white focus:outline-none ${
-                                            String(item.item_name || "").trim()
-                                              ? "border-gray-200 focus:border-amber-500"
-                                              : "border-red-300 focus:border-red-400"
-                                          }`}
-                                          placeholder={`e.g. Dish name under ${group.name}`}
-                                          value={item.item_name || ""}
-                                          onChange={(e) =>
-                                            handleUpdateFoodItem(item.globalIndex, {
-                                              item_name: e.target.value,
-                                            })
-                                          }
-                                          onBlur={(e) => {
-                                            const cleaned = cleanTextValue(e.target.value);
-                                            if (cleaned !== e.target.value) {
-                                              handleUpdateFoodItem(item.globalIndex, {
-                                                item_name: cleaned,
-                                              });
-                                            }
-                                          }}
-                                        />
-                                      </div>
-
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRemoveFoodItem(item.globalIndex)}
-                                        className="rounded p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
-                                        title="Remove dish"
-                                        aria-label={`Remove ${item.item_name || "item"}`}
-                                      >
-                                        <Trash2 size={14} />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* 2. Searchable Dish Browser & Inline Creator */}
-                              <div className="rounded-xl border border-amber-200/90 bg-amber-50/40 p-3 space-y-2.5">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-bold text-amber-950 uppercase tracking-wide">
-                                      Select Dishes ({availableCategoryDishes.length} available)
-                                    </span>
-                                  </div>
-
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleOpenQuickCreateFood(currentSearch, group.name)
-                                    }
-                                    className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white shadow-2xs hover:bg-amber-700 cursor-pointer shrink-0 transition-colors"
-                                    title="Create a new food item in this category"
-                                  >
-                                    <Plus size={13} /> New Food
-                                  </button>
-                                </div>
-
-                                {/* Search Bar */}
-                                <div className="relative">
-                                  <Search
-                                    size={14}
-                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                                  />
-                                  <input
-                                    type="text"
-                                    placeholder={`Search dishes under ${group.name}...`}
-                                    value={currentSearch}
-                                    onChange={(e) =>
-                                      setCategoryInputs((prev) => ({
-                                        ...prev,
-                                        [group.name]: e.target.value,
-                                      }))
-                                    }
-                                    className="w-full rounded-lg border border-gray-200 bg-white pl-8 pr-8 py-1.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all"
-                                  />
-                                  {currentSearch && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setCategoryInputs((prev) => ({
-                                          ...prev,
-                                          [group.name]: "",
-                                        }))
-                                      }
-                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer"
-                                      title="Clear search"
-                                    >
-                                      <X size={12} />
-                                    </button>
-                                  )}
-                                </div>
-
-                                {/* Properly sized, clearly visible searchable list */}
-                                <div className="max-h-48 overflow-y-auto rounded-lg border border-amber-200/80 bg-white shadow-2xs divide-y divide-gray-100">
-                                  {filteredAvailableDishes.length > 0 ? (
-                                    filteredAvailableDishes.map((dish) => (
-                                      <div
-                                        key={dish._id || dish.name}
-                                        onClick={() =>
-                                          handleAddDishToCategory(group.name, dish.name)
-                                        }
-                                        className="flex items-center justify-between px-3 py-2 hover:bg-amber-50/70 transition-colors group cursor-pointer"
-                                        title={`Add "${dish.name}" to ${group.name}`}
-                                      >
-                                        <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                                          <div className="w-6 h-6 rounded-md bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                                            <Utensils size={12} />
-                                          </div>
-                                          <div className="min-w-0">
-                                            <p className="text-xs font-semibold text-gray-800 group-hover:text-amber-950 truncate">
-                                              {dish.name}
-                                            </p>
-                                            {dish.description && (
-                                              <p className="text-[10px] text-gray-400 truncate max-w-sm">
-                                                {dish.description}
-                                              </p>
-                                            )}
-                                          </div>
-                                        </div>
-
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleAddDishToCategory(group.name, dish.name);
-                                          }}
-                                          className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900 group-hover:bg-amber-600 group-hover:text-white transition-colors shrink-0 shadow-2xs cursor-pointer"
-                                        >
-                                          <Plus size={11} /> Add
-                                        </button>
-                                      </div>
-                                    ))
-                                  ) : availableCategoryDishes.length === 0 ? (
-                                    catDishes.length > 0 ? (
-                                      <div className="p-3 text-center text-xs font-medium text-emerald-700 bg-emerald-50/40">
-                                        <Check size={13} className="inline-block mr-1 text-emerald-600" />All {catDishes.length} dishes in {group.name} have been added to this combo.
-                                      </div>
-                                    ) : (
-                                      <div className="p-4 text-center text-xs text-gray-500">
-                                        <p className="mb-2">
-                                          No dishes recorded under "{group.name}" yet.
-                                        </p>
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleOpenQuickCreateFood("", group.name)
-                                          }
-                                          className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-amber-700 cursor-pointer"
-                                        >
-                                          <Plus size={12} /> Create first dish in {group.name}
-                                        </button>
-                                      </div>
-                                    )
-                                  ) : (
-                                    <div className="p-4 text-center text-xs text-gray-500">
-                                      <p className="mb-2">
-                                        No dishes match "<strong className="text-gray-800">{currentSearch}</strong>".
-                                      </p>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handleOpenQuickCreateFood(currentSearch, group.name)
-                                        }
-                                        className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-amber-700 cursor-pointer"
-                                      >
-                                        <Plus size={12} /> Create "{currentSearch}" in {group.name}
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                  <div className="flex items-center gap-2">
+                    <Btn
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setIsAddingCategory(true)}
+                    >
+                      <FolderPlus size={14} /> Add Category
+                    </Btn>
                   </div>
-                )}
+                </div>
 
-                {/* Bottom Add Category Bar */}
-                <div className="pt-2 border-t border-amber-200/60">
-                  {isAddingCategory ? (
-                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-300 bg-amber-50/90 p-3 shadow-2xs">
-                      <span className="text-xs font-bold uppercase text-amber-900">New Category:</span>
-                      <input
-                        type="text"
-                        list="combo-course-suggestions"
-                        autoFocus
-                        placeholder="e.g. Viand, Fried, Pasta, Drinks, Dessert..."
-                        className="flex-1 min-w-[160px] rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
-                        value={newCategoryName}
-                        onChange={(e) => setNewCategoryName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddNewCategory(newCategoryName);
-                          }
-                        }}
-                      />
-                      <div className="flex items-center gap-1.5">
+                <datalist id="combo-course-suggestions">
+                  {categorySuggestions.map((label) => (
+                    <option key={label} value={label} />
+                  ))}
+                </datalist>
+
+                <div className="space-y-4 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+                  {categoryGroups.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-amber-300 bg-white/80 p-6 text-center">
+                      <p className="mb-3 text-sm italic text-gray-500">
+                        No food categories yet. Choose a category below or add a custom one to start listing dishes.
+                      </p>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {availableCategoriesToAdd.slice(0, 8).map((presetCat) => (
+                          <button
+                            key={presetCat}
+                            type="button"
+                            onClick={() => handleAddNewCategory(presetCat)}
+                            className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 hover:border-amber-400 cursor-pointer"
+                          >
+                            <Plus size={12} /> {presetCat}
+                          </button>
+                        ))}
                         <button
                           type="button"
-                          onClick={() => handleAddNewCategory(newCategoryName)}
-                          className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-amber-700"
+                          onClick={() => setIsAddingCategory(true)}
+                          className="flex items-center gap-1 rounded-lg border border-dashed border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-50 cursor-pointer"
                         >
-                          Add Group
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsAddingCategory(false);
-                            setNewCategoryName("");
-                          }}
-                          className="rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-300"
-                        >
-                          Cancel
+                          <Plus size={12} /> Custom Category
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setIsAddingCategory(true)}
-                        className="flex items-center gap-1.5 rounded-lg border border-dashed border-amber-400 bg-amber-50/80 px-4 py-2 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-100"
-                      >
-                        <FolderPlus size={15} /> + Add Category
-                      </button>
+                    <div className="space-y-3">
+                      {categoryGroups.map((group) => {
+                        const isCollapsed = Boolean(collapsedCategories[group.name]);
+                        const isEditingThisCat = editingCategory === group.name;
 
-                      {categoryGroups.length > 0 && (
-                        <div className="flex items-center gap-2">
+                        const catDishes = getDishesForCategory(menuItems, group.name);
+                        const selectedDishNames = new Set(
+                          group.items
+                            .map((i) => (i.item_name || "").trim().toLowerCase())
+                            .filter(Boolean)
+                        );
+                        const availableCategoryDishes = catDishes.filter(
+                          (dish) =>
+                            !selectedDishNames.has((dish.name || "").trim().toLowerCase())
+                        );
+                        const currentSearch = categoryInputs[group.name] || "";
+                        const q = currentSearch.trim().toLowerCase();
+                        const filteredAvailableDishes = q
+                          ? availableCategoryDishes.filter(
+                            (d) =>
+                              (d.name || "").toLowerCase().includes(q) ||
+                              (d.description || "").toLowerCase().includes(q)
+                          )
+                          : availableCategoryDishes;
+
+                        return (
+                          <div
+                            key={group.name}
+                            className="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-2xs transition-all"
+                          >
+                            {/* Category Header */}
+                            <div className="flex items-center justify-between border-b border-amber-100 bg-amber-50/80 px-4 py-2.5">
+                              <div className="flex flex-1 items-center gap-2 min-w-0">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleCollapseCategory(group.name)}
+                                  className="rounded p-1 text-amber-800 transition-colors hover:bg-amber-100 hover:text-amber-950 cursor-pointer"
+                                  title={isCollapsed ? "Expand category" : "Collapse category"}
+                                >
+                                  {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                                </button>
+
+                                {isEditingThisCat ? (
+                                  <div className="flex flex-1 items-center gap-1.5 max-w-xs">
+                                    <input
+                                      type="text"
+                                      list="combo-course-suggestions"
+                                      autoFocus
+                                      className="w-full rounded border border-amber-400 bg-white px-2 py-1 text-xs font-bold text-amber-950 focus:outline-none"
+                                      value={editCategoryNameValue}
+                                      onChange={(e) => setEditCategoryNameValue(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          handleRenameCategoryGroup(group.name, editCategoryNameValue);
+                                        }
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRenameCategoryGroup(group.name, editCategoryNameValue)}
+                                      className="rounded p-1 text-amber-700 hover:bg-amber-100 cursor-pointer"
+                                      title="Save name"
+                                    >
+                                      <Check size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingCategory(null)}
+                                      className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 cursor-pointer"
+                                      title="Cancel"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="truncate text-xs font-bold uppercase tracking-wider text-amber-950">
+                                      {group.name}
+                                    </span>
+                                    <span className="rounded-full bg-amber-200/70 px-2 py-0.5 text-[11px] font-extrabold text-amber-900">
+                                      {group.items.length} {group.items.length === 1 ? "item" : "items"}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1 ml-2">
+                                {!isEditingThisCat && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingCategory(group.name);
+                                      setEditCategoryNameValue(group.name);
+                                    }}
+                                    className="rounded p-1 text-gray-400 transition-colors hover:bg-amber-100 hover:text-amber-700 cursor-pointer"
+                                    title="Rename category"
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCategoryGroup(group.name)}
+                                  className="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                                  title="Delete category"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Category Items List & Food Selector */}
+                            {!isCollapsed && (
+                              <div className="space-y-3 bg-amber-50/20 p-3">
+                                {/* 1. Configured dishes in this category */}
+                                {group.items.length === 0 ? (
+                                  <p className="py-2.5 text-center text-xs italic text-gray-500 bg-amber-50/50 rounded-lg border border-dashed border-amber-200">
+                                    No dishes added under {group.name} yet. Select from available dishes below or create a new one.
+                                  </p>
+                                ) : (
+                                  <div className="space-y-1.5">
+                                    {group.items.map((item, catIdx) => (
+                                      <div
+                                        key={item.globalIndex}
+                                        className="flex items-center gap-2 rounded-lg border border-amber-200/80 bg-white px-2.5 py-1.5 shadow-2xs"
+                                      >
+                                        <div className="flex flex-col">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleMoveFoodItemWithinCategory(group.name, catIdx, -1)}
+                                            disabled={catIdx === 0}
+                                            aria-label={`Move ${item.item_name || "item"} up`}
+                                            className="rounded px-0.5 text-gray-400 transition-colors hover:text-amber-600 disabled:opacity-20 cursor-pointer"
+                                          >
+                                            <ChevronUp size={13} />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleMoveFoodItemWithinCategory(group.name, catIdx, 1)}
+                                            disabled={catIdx === group.items.length - 1}
+                                            aria-label={`Move ${item.item_name || "item"} down`}
+                                            className="rounded px-0.5 text-gray-400 transition-colors hover:text-amber-600 disabled:opacity-20 cursor-pointer"
+                                          >
+                                            <ChevronDown size={13} />
+                                          </button>
+                                        </div>
+
+                                        <div className="flex-1 min-w-0">
+                                          <input
+                                            type="text"
+                                            className={`w-full rounded-md border px-3 py-1 text-sm bg-white focus:outline-none ${String(item.item_name || "").trim()
+                                                ? "border-gray-200 focus:border-amber-500"
+                                                : "border-red-300 focus:border-red-400"
+                                              }`}
+                                            placeholder={`e.g. Dish name under ${group.name}`}
+                                            value={item.item_name || ""}
+                                            onChange={(e) =>
+                                              handleUpdateFoodItem(item.globalIndex, {
+                                                item_name: e.target.value,
+                                              })
+                                            }
+                                            onBlur={(e) => {
+                                              const cleaned = cleanTextValue(e.target.value);
+                                              if (cleaned !== e.target.value) {
+                                                handleUpdateFoodItem(item.globalIndex, {
+                                                  item_name: cleaned,
+                                                });
+                                              }
+                                            }}
+                                          />
+                                        </div>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveFoodItem(item.globalIndex)}
+                                          className="rounded p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                                          title="Remove dish"
+                                          aria-label={`Remove ${item.item_name || "item"}`}
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* 2. Searchable Dish Browser & Inline Creator */}
+                                <div className="rounded-xl border border-amber-200/90 bg-amber-50/40 p-3 space-y-2.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                                        Select Dishes ({availableCategoryDishes.length} available)
+                                      </span>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleOpenQuickCreateFood(currentSearch, group.name)
+                                      }
+                                      className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white shadow-2xs hover:bg-amber-700 cursor-pointer shrink-0 transition-colors"
+                                      title="Create a new food item in this category"
+                                    >
+                                      <Plus size={13} /> New Food
+                                    </button>
+                                  </div>
+
+                                  {/* Search Bar */}
+                                  <div className="relative">
+                                    <Search
+                                      size={14}
+                                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                                    />
+                                    <input
+                                      type="text"
+                                      placeholder={`Search dishes under ${group.name}...`}
+                                      value={currentSearch}
+                                      onChange={(e) =>
+                                        setCategoryInputs((prev) => ({
+                                          ...prev,
+                                          [group.name]: e.target.value,
+                                        }))
+                                      }
+                                      className="w-full rounded-lg border border-gray-200 bg-white pl-8 pr-8 py-1.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all"
+                                    />
+                                    {currentSearch && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setCategoryInputs((prev) => ({
+                                            ...prev,
+                                            [group.name]: "",
+                                          }))
+                                        }
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer"
+                                        title="Clear search"
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Properly sized, clearly visible searchable list */}
+                                  <div className="max-h-48 overflow-y-auto rounded-lg border border-amber-200/80 bg-white shadow-2xs divide-y divide-gray-100">
+                                    {filteredAvailableDishes.length > 0 ? (
+                                      filteredAvailableDishes.map((dish) => (
+                                        <div
+                                          key={dish._id || dish.name}
+                                          onClick={() =>
+                                            handleAddDishToCategory(group.name, dish.name)
+                                          }
+                                          className="flex items-center justify-between px-3 py-2 hover:bg-amber-50/70 transition-colors group cursor-pointer"
+                                          title={`Add "${dish.name}" to ${group.name}`}
+                                        >
+                                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                                            <div className="w-6 h-6 rounded-md bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                                              <Utensils size={12} />
+                                            </div>
+                                            <div className="min-w-0">
+                                              <p className="text-xs font-semibold text-gray-800 group-hover:text-amber-950 truncate">
+                                                {dish.name}
+                                              </p>
+                                              {dish.description && (
+                                                <p className="text-[10px] text-gray-400 truncate max-w-sm">
+                                                  {dish.description}
+                                                </p>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleAddDishToCategory(group.name, dish.name);
+                                            }}
+                                            className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900 group-hover:bg-amber-600 group-hover:text-white transition-colors shrink-0 shadow-2xs cursor-pointer"
+                                          >
+                                            <Plus size={11} /> Add
+                                          </button>
+                                        </div>
+                                      ))
+                                    ) : availableCategoryDishes.length === 0 ? (
+                                      catDishes.length > 0 ? (
+                                        <div className="p-3 text-center text-xs font-medium text-emerald-700 bg-emerald-50/40">
+                                          <Check size={13} className="inline-block mr-1 text-emerald-600" />All {catDishes.length} dishes in {group.name} have been added to this combo.
+                                        </div>
+                                      ) : (
+                                        <div className="p-4 text-center text-xs text-gray-500">
+                                          <p className="mb-2">
+                                            No dishes recorded under "{group.name}" yet.
+                                          </p>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleOpenQuickCreateFood("", group.name)
+                                            }
+                                            className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-amber-700 cursor-pointer"
+                                          >
+                                            <Plus size={12} /> Create first dish in {group.name}
+                                          </button>
+                                        </div>
+                                      )
+                                    ) : (
+                                      <div className="p-4 text-center text-xs text-gray-500">
+                                        <p className="mb-2">
+                                          No dishes match "<strong className="text-gray-800">{currentSearch}</strong>".
+                                        </p>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleOpenQuickCreateFood(currentSearch, group.name)
+                                          }
+                                          className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-amber-700 cursor-pointer"
+                                        >
+                                          <Plus size={12} /> Create "{currentSearch}" in {group.name}
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Bottom Add Category Bar */}
+                  <div className="pt-2 border-t border-amber-200/60">
+                    {isAddingCategory ? (
+                      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-300 bg-amber-50/90 p-3 shadow-2xs">
+                        <span className="text-xs font-bold uppercase text-amber-900">New Category:</span>
+                        <input
+                          type="text"
+                          list="combo-course-suggestions"
+                          autoFocus
+                          placeholder="e.g. Viand, Fried, Pasta, Drinks, Dessert..."
+                          className="flex-1 min-w-[160px] rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddNewCategory(newCategoryName);
+                            }
+                          }}
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleAddNewCategory(newCategoryName)}
+                            className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-amber-700"
+                          >
+                            Add Group
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
-                              const allCollapsed = {};
-                              categoryGroups.forEach((g) => (allCollapsed[g.name] = true));
-                              setCollapsedCategories(allCollapsed);
+                              setIsAddingCategory(false);
+                              setNewCategoryName("");
                             }}
-                            className="text-xs font-medium text-amber-700 hover:underline"
+                            className="rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-300"
                           >
-                            Collapse All
-                          </button>
-                          <span className="text-gray-300">·</span>
-                          <button
-                            type="button"
-                            onClick={() => setCollapsedCategories({})}
-                            className="text-xs font-medium text-amber-700 hover:underline"
-                          >
-                            Expand All
+                            Cancel
                           </button>
                         </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
-          )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingCategory(true)}
+                          className="flex items-center gap-1.5 rounded-lg border border-dashed border-amber-400 bg-amber-50/80 px-4 py-2 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-100"
+                        >
+                          <FolderPlus size={15} /> + Add Category
+                        </button>
 
-          {/* SECTION 5: Scaffold / Event Space — regular packages only -------
+                        {categoryGroups.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const allCollapsed = {};
+                                categoryGroups.forEach((g) => (allCollapsed[g.name] = true));
+                                setCollapsedCategories(allCollapsed);
+                              }}
+                              className="text-xs font-medium text-amber-700 hover:underline"
+                            >
+                              Collapse All
+                            </button>
+                            <span className="text-gray-300">·</span>
+                            <button
+                              type="button"
+                              onClick={() => setCollapsedCategories({})}
+                              className="text-xs font-medium text-amber-700 hover:underline"
+                            >
+                              Expand All
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* SECTION 5: Scaffold / Event Space — regular packages only -------
               A combo is food: it sells no event space, so it has no sizes to
               support and no size to mark as covering the set-up. ---------------
               A scaffold option is a supported event-space size and the guest
@@ -2937,1311 +2894,1303 @@ export default function PackageModal({
               A regular package supports one size — its own. A Special Offer may
               list several, and may mark one as covering the set-up (the client's
               "20x40 = FREE SET-UP"), which is why the flag lives on the size. */}
-          {/* SECTION 5: Scaffold Size, Guest Capacity & Pricing — regular packages only */}
-          {!isOffer && (
-          <section>
-            <div className="mb-4">
-              <h3 className="font-bold text-foreground">Scaffold Size, Guest Capacity &amp; Pricing</h3>
-              <p className="text-xs text-gray-500">
-                Each scaffold size has its own guest limits and base setup price. Configure one or more sizes for this package.
-              </p>
-            </div>
+            {/* SECTION 5: Scaffold Size, Guest Capacity & Pricing — regular packages only */}
+            {!isOffer && (
+              <section>
+                <div className="mb-4">
+                  <h3 className="font-bold text-foreground">Scaffold Size, Guest Capacity &amp; Pricing</h3>
+                  <p className="text-xs text-gray-500">
+                    Each scaffold size has its own guest limits and base setup price. Configure one or more sizes for this package.
+                  </p>
+                </div>
 
-            <div className="space-y-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
-              {/* Saved sizes */}
-              {scaffoldOptions.length > 0 && (
-                <ul className="space-y-2.5">
-                  {scaffoldOptions.map((opt, idx) => {
-                    const editing = editingScaffoldIdx === idx;
+                <div className="space-y-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  {/* Saved sizes */}
+                  {scaffoldOptions.length > 0 && (
+                    <ul className="space-y-2.5">
+                      {scaffoldOptions.map((opt, idx) => {
+                        const editing = editingScaffoldIdx === idx;
 
-                    if (editing) {
-                      return (
-                        <li
-                          key={idx}
-                          className="rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 shadow-2xs"
-                        >
-                          <div className="mb-2 flex items-center justify-between border-b border-blue-200/60 pb-1.5">
-                            <span className="text-xs font-bold text-blue-900 uppercase tracking-wider">
-                              Edit Scaffold #{idx + 1}
-                            </span>
-                            <span className="text-[11px] text-blue-700">
-                              Update dimensions, capacity, or setup price
-                            </span>
-                          </div>
-                          <ScaffoldFields
-                            value={editScaffoldData}
-                            onChange={setEditScaffoldData}
-                            compact
-                          />
-                          <div className="mt-3 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleSaveEditScaffold(idx)}
-                              className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-primary/90 cursor-pointer"
+                        if (editing) {
+                          return (
+                            <li
+                              key={idx}
+                              className="rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 shadow-2xs"
                             >
-                              <Check size={13} /> Save Changes
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleCancelEditScaffold}
-                              className="flex items-center gap-1 rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-300 cursor-pointer"
-                            >
-                              <X size={13} /> Cancel
-                            </button>
-                          </div>
-                        </li>
-                      );
-                    }
-
-                    const isDefault =
-                      String(formData.default_scaffold_option_id) === String(opt._id) ||
-                      (!formData.default_scaffold_option_id && idx === 0);
-
-                    return (
-                      <li
-                        key={idx}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white p-3.5 shadow-xs transition-colors hover:border-gray-200"
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          {scaffoldOptions.length > 1 && (
-                            <input
-                              type="radio"
-                              name="default_scaffold"
-                              checked={isDefault}
-                              onChange={() =>
-                                handleSetDefaultScaffoldOption(opt._id || opt.id || idx)
-                              }
-                              className="shrink-0 accent-primary cursor-pointer"
-                              title="Set as default scaffold size"
-                            />
-                          )}
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="truncate text-sm font-bold text-slate-800">
-                                {opt.label || `${opt.width_ft}ft × ${opt.length_ft}ft Setup`}
-                              </span>
-                              {scaffoldOptions.length > 1 && isDefault && (
-                                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
-                                  Default
+                              <div className="mb-2 flex items-center justify-between border-b border-blue-200/60 pb-1.5">
+                                <span className="text-xs font-bold text-blue-900 uppercase tracking-wider">
+                                  Edit Scaffold #{idx + 1}
                                 </span>
+                                <span className="text-[11px] text-blue-700">
+                                  Update dimensions, capacity, or setup price
+                                </span>
+                              </div>
+                              <ScaffoldFields
+                                value={editScaffoldData}
+                                onChange={setEditScaffoldData}
+                                compact
+                              />
+                              <div className="mt-3 flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveEditScaffold(idx)}
+                                  className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-primary/90 cursor-pointer"
+                                >
+                                  <Check size={13} /> Save Changes
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEditScaffold}
+                                  className="flex items-center gap-1 rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-300 cursor-pointer"
+                                >
+                                  <X size={13} /> Cancel
+                                </button>
+                              </div>
+                            </li>
+                          );
+                        }
+
+                        const isDefault =
+                          String(formData.default_scaffold_option_id) === String(opt._id) ||
+                          (!formData.default_scaffold_option_id && idx === 0);
+
+                        return (
+                          <li
+                            key={idx}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white p-3.5 shadow-xs transition-colors hover:border-gray-200"
+                          >
+                            <div className="flex min-w-0 items-center gap-3">
+                              {scaffoldOptions.length > 1 && (
+                                <input
+                                  type="radio"
+                                  name="default_scaffold"
+                                  checked={isDefault}
+                                  onChange={() =>
+                                    handleSetDefaultScaffoldOption(opt._id || opt.id || idx)
+                                  }
+                                  className="shrink-0 accent-primary cursor-pointer"
+                                  title="Set as default scaffold size"
+                                />
                               )}
-                            </div>
-                            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 text-xs text-gray-500">
-                              <span className="font-medium text-slate-700 flex items-center gap-1">
-                                <Ruler size={12} className="text-slate-400 shrink-0" />
-                                {opt.width_ft} × {opt.length_ft} ft ({opt.area_ft2 || opt.width_ft * opt.length_ft} ft²)
-                              </span>
-                              <span>·</span>
-                              <span className="font-medium text-blue-700 flex items-center gap-1">
-                                <Users size={12} className="text-blue-500 shrink-0" />
-                                {opt.guest_min || 0} – {opt.guest_max || "∞"} guests
-                              </span>
-                              <span>·</span>
-                              <span className="font-bold text-emerald-700">
-                                ₱{Number(opt.price || 0).toLocaleString("en-PH")} Base Setup
-                              </span>
-                              {opt.free_setup && (
-                                <>
-                                  <span>·</span>
-                                  <span className="font-semibold text-emerald-600">
-                                    FREE SET-UP
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="truncate text-sm font-bold text-slate-800">
+                                    {opt.label || `${opt.width_ft}ft × ${opt.length_ft}ft Setup`}
                                   </span>
-                                </>
-                              )}
+                                  {scaffoldOptions.length > 1 && isDefault && (
+                                    <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
+                                      Default
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 text-xs text-gray-500">
+                                  <span className="font-medium text-slate-700 flex items-center gap-1">
+                                    <Ruler size={12} className="text-slate-400 shrink-0" />
+                                    {opt.width_ft} × {opt.length_ft} ft ({opt.area_ft2 || opt.width_ft * opt.length_ft} ft²)
+                                  </span>
+                                  <span>·</span>
+                                  <span className="font-medium text-blue-700 flex items-center gap-1">
+                                    <Users size={12} className="text-blue-500 shrink-0" />
+                                    Up to {opt.guest_max || "∞"} guests
+                                  </span>
+                                  <span>·</span>
+                                  <span className="font-bold text-emerald-700">
+                                    ₱{Number(opt.price || 0).toLocaleString("en-PH")} Base Setup
+                                  </span>
+                                  {opt.free_setup && (
+                                    <>
+                                      <span>·</span>
+                                      <span className="font-semibold text-emerald-600">
+                                        FREE SET-UP
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleStartEditScaffold(idx, opt)}
-                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-primary/10 hover:text-primary cursor-pointer"
-                            title="Edit scaffold configuration"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveScaffoldOption(idx)}
-                            className="rounded-lg p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
-                            title="Remove scaffold configuration"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditScaffold(idx, opt)}
+                                className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-primary/10 hover:text-primary cursor-pointer"
+                                title="Edit scaffold configuration"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveScaffoldOption(idx)}
+                                className="rounded-lg p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                                title="Remove scaffold configuration"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
 
-              {/* Add Scaffold Form */}
-              <div className="rounded-xl border border-dashed border-gray-300 bg-white p-4 shadow-2xs">
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                    {scaffoldOptions.length === 0 ? "Add Scaffold Configuration" : "Add Another Scaffold Option"}
-                  </p>
-                  <span className="text-[11px] text-gray-400">
-                    Each scaffold controls guest limits &amp; base setup price
-                  </span>
-                </div>
+                  {/* Add Scaffold Form */}
+                  <div className="rounded-xl border border-dashed border-gray-300 bg-white p-4 shadow-2xs">
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        {scaffoldOptions.length === 0 ? "Add Scaffold Configuration" : "Add Another Scaffold Option"}
+                      </p>
+                      <span className="text-[11px] text-gray-400">
+                        Each scaffold controls guest limits &amp; base setup price
+                      </span>
+                    </div>
 
-                <ScaffoldFields
-                  value={newScaffoldOption}
-                  onChange={setNewScaffoldOption}
-                />
+                    <ScaffoldFields
+                      value={newScaffoldOption}
+                      onChange={setNewScaffoldOption}
+                    />
 
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100">
-                  <Btn
-                    variant="primary"
-                    size="sm"
-                    onClick={handleAddScaffoldOption}
-                    disabled={
-                      !newScaffoldOption.width_ft ||
-                      !newScaffoldOption.length_ft ||
-                      newScaffoldOption.price === "" ||
-                      newScaffoldOption.price === undefined
-                    }
-                  >
-                    <Plus size={13} className="mr-1" /> Add Scaffold
-                  </Btn>
-
-                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
-                    <span className="text-[11px] text-gray-400 mr-1">
-                      Standard presets:
-                    </span>
-                    {SCAFFOLD_PRESETS.map((preset, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleApplyScaffoldPreset(preset)}
-                        className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-700 shadow-2xs transition-all hover:border-primary/40 hover:bg-powder hover:text-primary cursor-pointer"
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100">
+                      <Btn
+                        variant="primary"
+                        size="sm"
+                        onClick={handleAddScaffoldOption}
+                        disabled={
+                          !newScaffoldOption.width_ft ||
+                          !newScaffoldOption.length_ft ||
+                          newScaffoldOption.price === "" ||
+                          newScaffoldOption.price === undefined
+                        }
                       >
-                        {preset.label}
-                      </button>
-                    ))}
+                        <Plus size={13} className="mr-1" /> Add Scaffold
+                      </Btn>
+
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                        <span className="text-[11px] text-gray-400 mr-1">
+                          Standard presets:
+                        </span>
+                        {SCAFFOLD_PRESETS.map((preset, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleApplyScaffoldPreset(preset)}
+                            className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-700 shadow-2xs transition-all hover:border-primary/40 hover:bg-powder hover:text-primary cursor-pointer"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
+
+                  {scaffoldOptions.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50/60 p-3.5 text-center">
+                      <p className="text-xs font-medium text-amber-800">
+                        No scaffold size configured yet. Use the form above to add at least one scaffold option with size, guest limits, and base setup price.
+                      </p>
+                    </div>
+                  )}
                 </div>
-              </div>
-
-              {scaffoldOptions.length === 0 && (
-                <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50/60 p-3.5 text-center">
-                  <p className="text-xs font-medium text-amber-800">
-                    No scaffold size configured yet. Use the form above to add at least one scaffold option with size, guest limits, and base setup price.
-                  </p>
-                </div>
-              )}
-            </div>
-          </section>
-          )}
+              </section>
+            )}
 
 
-          {/* SECTION 5b: Combo Inclusions -----------------------------------
+            {/* SECTION 5b: Combo Inclusions -----------------------------------
               What comes with the combo besides the food — buffet setup, serving
               utensils, plates. Plain lines the admin types, because a combo's
               inclusions are what the customer is told they get, not items drawn
               from the inventory the way a setup package's are. */}
-          {isOffer && (
-            <section>
-              <div className="mb-4">
-                <h3 className="font-bold text-foreground">Combo Inclusions</h3>
-                <p className="text-xs text-gray-500">
-                  What comes with the combo besides the dishes, e.g. buffet
-                  setup, serving utensils, disposable plates.
-                </p>
-              </div>
-
-              <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    placeholder="e.g. Buffet Setup, Disposable Plates"
-                    value={comboInclusionInput}
-                    onChange={(e) => setComboInclusionInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddComboInclusion();
-                      }
-                    }}
-                    className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-foreground placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
-                  />
-                  <Btn
-                    variant="secondary"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => handleAddComboInclusion()}
-                    disabled={!comboInclusionInput.trim()}
-                  >
-                    <Plus size={12} /> Add
-                  </Btn>
+            {isOffer && (
+              <section>
+                <div className="mb-4">
+                  <h3 className="font-bold text-foreground">Combo Inclusions</h3>
+                  <p className="text-xs text-gray-500">
+                    What comes with the combo besides the dishes, e.g. buffet
+                    setup, serving utensils, disposable plates.
+                  </p>
                 </div>
 
-                {(formData.inclusions || []).length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-gray-200 bg-white/60 py-5 text-center text-sm italic text-gray-400">
-                    No inclusions yet.
-                  </p>
-                ) : (
-                  <ul className="space-y-1.5">
-                    {(formData.inclusions || []).map((inc, index) => {
-                      const editing = editingComboInclusionIdx === index;
+                <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      placeholder="e.g. Buffet Setup, Disposable Plates"
+                      value={comboInclusionInput}
+                      onChange={(e) => setComboInclusionInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddComboInclusion();
+                        }
+                      }}
+                      className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-foreground placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                    />
+                    <Btn
+                      variant="secondary"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => handleAddComboInclusion()}
+                      disabled={!comboInclusionInput.trim()}
+                    >
+                      <Plus size={12} /> Add
+                    </Btn>
+                  </div>
 
-                      if (editing) {
+                  {(formData.inclusions || []).length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-gray-200 bg-white/60 py-5 text-center text-sm italic text-gray-400">
+                      No inclusions yet.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {(formData.inclusions || []).map((inc, index) => {
+                        const editing = editingComboInclusionIdx === index;
+
+                        if (editing) {
+                          return (
+                            <li
+                              key={index}
+                              className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50/70 px-2.5 py-2"
+                            >
+                              <input
+                                type="text"
+                                value={editComboInclusionValue}
+                                onChange={(e) => setEditComboInclusionValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleSaveComboInclusion(index);
+                                  } else if (e.key === "Escape") {
+                                    setEditingComboInclusionIdx(null);
+                                  }
+                                }}
+                                autoFocus
+                                className="flex-1 rounded border border-blue-300 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveComboInclusion(index)}
+                                className="flex items-center gap-1 rounded bg-primary px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary/90 shrink-0"
+                              >
+                                <Check size={12} /> Save
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingComboInclusionIdx(null)}
+                                className="rounded px-2.5 py-1.5 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100 shrink-0"
+                              >
+                                Cancel
+                              </button>
+                            </li>
+                          );
+                        }
+
                         return (
                           <li
                             key={index}
-                            className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50/70 px-2.5 py-2"
+                            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-2xs"
                           >
-                            <input
-                              type="text"
-                              value={editComboInclusionValue}
-                              onChange={(e) => setEditComboInclusionValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  handleSaveComboInclusion(index);
-                                } else if (e.key === "Escape") {
-                                  setEditingComboInclusionIdx(null);
-                                }
-                              }}
-                              autoFocus
-                              className="flex-1 rounded border border-blue-300 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                            />
+                            <Check size={13} className="shrink-0 text-emerald-500" />
+                            <span className="flex-1 truncate text-foreground">
+                              {inc}
+                            </span>
                             <button
                               type="button"
-                              onClick={() => handleSaveComboInclusion(index)}
-                              className="flex items-center gap-1 rounded bg-primary px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary/90 shrink-0"
+                              onClick={() => {
+                                setEditingComboInclusionIdx(index);
+                                setEditComboInclusionValue(inc);
+                              }}
+                              className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-primary"
+                              title="Edit inclusion"
+                              aria-label={`Edit ${inc}`}
                             >
-                              <Check size={12} /> Save
+                              <Pencil size={13} />
                             </button>
                             <button
                               type="button"
-                              onClick={() => setEditingComboInclusionIdx(null)}
-                              className="rounded px-2.5 py-1.5 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100 shrink-0"
+                              onClick={() => handleRemoveComboInclusion(index)}
+                              className="rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                              title="Remove inclusion"
+                              aria-label={`Remove ${inc}`}
                             >
-                              Cancel
+                              <Trash2 size={13} />
                             </button>
                           </li>
                         );
-                      }
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </section>
+            )}
 
-                      return (
-                        <li
-                          key={index}
-                          className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-2xs"
-                        >
-                          <Check size={13} className="shrink-0 text-emerald-500" />
-                          <span className="flex-1 truncate text-foreground">
-                            {inc}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingComboInclusionIdx(index);
-                              setEditComboInclusionValue(inc);
-                            }}
-                            className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-primary"
-                            title="Edit inclusion"
-                            aria-label={`Edit ${inc}`}
-                          >
-                            <Pencil size={13} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveComboInclusion(index)}
-                            className="rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                            title="Remove inclusion"
-                            aria-label={`Remove ${inc}`}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* SECTION 6: Inclusions & Add-ons — regular packages only.
+            {/* SECTION 6: Inclusions & Add-ons — regular packages only.
               A combo's inclusions are plain lines with their own section above,
               and it has no add-ons: extras are sold alongside an event-space
               build, which a combo is not. */}
-          {!isOffer && (
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="font-bold text-foreground">
-                  {isOffer ? "Add-ons" : "Inclusions & Add-ons"}
-                </h3>
-                <p className="text-xs text-gray-500">
-                  {isOffer
-                    ? "Optional extras a customer can add to this combo. Priced on the quotation."
-                    : "Configure the 3 package classes shown to customers on the website & inquiries."}
-                </p>
-              </div>
-            </div>
-
-            {/* 3-Class Segmented Tabs. A combo has no inventory classes to
-                switch between, so it shows no tab bar at all. */}
             {!isOffer && (
-            <div className="flex bg-gray-100 p-1 rounded-xl w-full border border-gray-200/80 text-xs font-semibold mb-4 gap-1">
-              <button
-                type="button"
-                onClick={() => setActiveClassTab("setup")}
-                className={`flex-1 py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                  activeClassTab === "setup" || activeClassTab === "services"
-                    ? "bg-white text-primary shadow-xs font-bold"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                <ConciergeBell size={14} className="shrink-0" />
-                <span className="truncate">Services</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-bold border border-gray-200 shrink-0">
-                  {servicesInclusionsCount}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveClassTab("inventory")}
-                className={`flex-1 py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                  activeClassTab === "inventory" || activeClassTab === "dining"
-                    ? "bg-white text-primary shadow-xs font-bold"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                <Package size={14} className="shrink-0" />
-                <span className="truncate">Inventory</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-bold border border-gray-200 shrink-0">
-                  {inventoryInclusions.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveClassTab("addons")}
-                className={`flex-1 py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                  activeClassTab === "addons"
-                    ? "bg-white text-primary shadow-xs font-bold"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                <Sparkles size={14} className="shrink-0" />
-                <span className="truncate">Add Ons</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-bold border border-gray-200 shrink-0">
-                  {(formData.add_ons || []).length}
-                </span>
-              </button>
-            </div>
-            )}
-
-            <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-4">
-              {/* TAB 1: Services (Event Setup + Staff & Personnel) */}
-              {(inclusionTab === "setup" || inclusionTab === "services") && (
-                <div className="space-y-6">
-                  {/* SUBSECTION 1: Event Setup Inclusions */}
+              <section>
+                <div className="flex items-center justify-between mb-3">
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Layers size={16} className="text-primary/80 shrink-0" />
-                      <label className="font-semibold text-gray-800 text-sm">
-                        Event Setup Inclusions
-                      </label>
-                    </div>
-                    <p className="text-xs text-gray-500 mb-3">
-                      Stage, backdrops, decorations & venue setup items shown to customers.
+                    <h3 className="font-bold text-foreground">
+                      {isOffer ? "Add-ons" : "Inclusions & Add-ons"}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {isOffer
+                        ? "Optional extras a customer can add to this combo. Priced on the quotation."
+                        : "Configure the 3 package classes shown to customers on the website & inquiries."}
                     </p>
-
-                    {/* Add Setup Item Form (Connected to Central Services with Autocomplete and Create New) */}
-                    <div className="flex gap-2 mb-2 items-center w-full">
-                      <AutocompleteInput
-                        placeholder="Enter setup item name (e.g. Stage Setup, Venue Decoration, Backdrop Setup)"
-                        value={setupInput.name}
-                        onChange={(val) =>
-                          setSetupInput((prev) => ({ ...prev, name: val }))
-                        }
-                        candidates={allServiceNames}
-                        sourceLabel="Services"
-                        onSubmit={() => handleAddSetupInclusion()}
-                        onCreateNew={(name) =>
-                          handleOpenQuickCreateService(name)
-                        }
-                        createActionLabel="+ Create New Service"
-                      />
-                      <Btn
-                        variant="primary"
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => handleAddSetupInclusion()}
-                        disabled={!setupInput.name.trim()}
-                      >
-                        <Plus size={14} className="mr-1" /> Add
-                      </Btn>
-                    </div>
-
-                    {/* Quick Presets Chips for Services */}
-                    <div className="mb-3">
-                      <button
-                        type="button"
-                        onClick={() => togglePresets("services")}
-                        className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors mb-2 select-none group"
-                      >
-                        <span>Quick add Presets from Services</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-normal group-hover:bg-gray-200">
-                          {allServiceNames.length}
-                        </span>
-                        {showPresets.services ? (
-                          <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
-                        ) : (
-                          <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
-                        )}
-                      </button>
-                      {showPresets.services && (
-                        allServiceNames.length === 0 ? (
-                          <p className="text-xs text-gray-400 italic py-1">
-                            No services found in Services database.
-                          </p>
-                        ) : (
-                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                            {allServiceNames.map((preset, idx) => {
-                              const isAdded = setupInclusions.some(
-                                (inc) => parseInclusion(inc).name.toLowerCase() === preset.toLowerCase()
-                              );
-                              return (
-                                <button
-                                  key={idx}
-                                  type="button"
-                                  onClick={() => handleAddSetupInclusion(preset)}
-                                  className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 cursor-pointer ${
-                                    isAdded
-                                      ? "bg-blue-50 border-blue-200 text-blue-700 font-medium"
-                                      : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
-                                  }`}
-                                >
-                                  {isAdded ? <Check size={10} className="text-blue-600" /> : <Plus size={10} />}
-                                  {preset}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )
-                      )}
-                    </div>
-
-                    {/* Added Items */}
-                    <div className="pt-2 border-t border-gray-200/80">
-                      <div className="flex items-center justify-between mb-2">
-                        <button
-                          type="button"
-                          onClick={() => toggleItemsList("setup")}
-                          className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
-                        >
-                          <span>Added Items</span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold">
-                            {setupInclusions.length}
-                          </span>
-                          {showItemsList.setup ? (
-                            <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
-                          ) : (
-                            <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
-                          )}
-                        </button>
-                        {setupInclusions.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => toggleItemsList("setup")}
-                            className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
-                          >
-                            {showItemsList.setup ? "Minimize" : "Maximize"}
-                          </button>
-                        )}
-                      </div>
-
-                      {showItemsList.setup && (
-                        setupInclusions.length > 0 ? (
-                          <ul className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                            {setupInclusions.map((inc, i) => {
-                              const parsed = parseInclusion(inc);
-                              return (
-                                <li
-                                  key={i}
-                                  className="flex justify-between items-center text-sm bg-white px-3 py-2.5 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
-                                >
-                                  <div className="flex items-center gap-2.5 min-w-0">
-                                    <span className="w-2 h-2 bg-blue-500 rounded-full shrink-0" />
-                                    <span className="font-semibold text-gray-900 break-words leading-tight">
-                                      {parsed.name}
-                                    </span>
-                                  </div>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveInclusionString(inc)}
-                                    className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer shrink-0"
-                                    title="Remove from package"
-                                    aria-label={`Remove ${parsed.name}`}
-                                  >
-                                    <Trash2 size={15} />
-                                  </button>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        ) : (
-                          <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
-                            No event setup items added yet
-                          </p>
-                        )
-                      )}
-                    </div>
                   </div>
+                </div>
 
-                  {/* SUBSECTION 2: Staff & Personnel */}
-                  <div className="pt-5 border-t border-gray-200/90">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Users size={16} className="text-primary/80 shrink-0" />
-                      <label className="font-semibold text-gray-800 text-sm">
-                        Staff & Personnel
-                      </label>
-                    </div>
-                    <p className="text-xs text-gray-500 mb-3">
-                      Event coordinators, waiters, servers, ushers & service staff included in this package.
-                    </p>
+                {/* 3-Class Segmented Tabs. A combo has no inventory classes to
+                switch between, so it shows no tab bar at all. */}
+                {!isOffer && (
+                  <div className="flex bg-gray-100 p-1 rounded-xl w-full border border-gray-200/80 text-xs font-semibold mb-4 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setActiveClassTab("setup")}
+                      className={`flex-1 py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeClassTab === "setup" || activeClassTab === "services"
+                          ? "bg-white text-primary shadow-xs font-bold"
+                          : "text-gray-600 hover:text-gray-900"
+                        }`}
+                    >
+                      <ConciergeBell size={14} className="shrink-0" />
+                      <span className="truncate">Services</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-bold border border-gray-200 shrink-0">
+                        {servicesInclusionsCount}
+                      </span>
+                    </button>
 
-                    {/* Add Staff Form (Name + Quantity + Add button) */}
-                    <div className="flex gap-2 mb-2 items-center w-full">
-                      <input
-                        type="text"
-                        placeholder="Enter staff role / title (e.g. Event Coordinator, Waiter, Server, Usher)"
-                        value={staffInput.name}
-                        onChange={(e) =>
-                          setStaffInput((prev) => ({ ...prev, name: e.target.value }))
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddStaffInclusion();
-                          }
-                        }}
-                        className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
-                      />
-                      <input
-                        type="number"
-                        min="1"
-                        placeholder="Qty"
-                        value={staffInput.qty}
-                        onChange={(e) =>
-                          setStaffInput((prev) => ({ ...prev, qty: e.target.value }))
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddStaffInclusion();
-                          }
-                        }}
-                        title="Quantity of staff / personnel"
-                        className="w-24 shrink-0 border border-gray-200 rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none focus:border-primary"
-                      />
-                      <Btn
-                        variant="primary"
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => handleAddStaffInclusion()}
-                        disabled={!staffInput.name.trim()}
-                      >
-                        <Plus size={14} className="mr-1" /> Add
-                      </Btn>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveClassTab("inventory")}
+                      className={`flex-1 py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeClassTab === "inventory" || activeClassTab === "dining"
+                          ? "bg-white text-primary shadow-xs font-bold"
+                          : "text-gray-600 hover:text-gray-900"
+                        }`}
+                    >
+                      <Package size={14} className="shrink-0" />
+                      <span className="truncate">Inventory</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-bold border border-gray-200 shrink-0">
+                        {inventoryInclusions.length}
+                      </span>
+                    </button>
 
-                    {/* Added Staff List */}
-                    <div className="pt-2 border-t border-gray-200/80">
-                      <div className="flex items-center justify-between mb-2">
-                        <button
-                          type="button"
-                          onClick={() => toggleItemsList("staff")}
-                          className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
-                        >
-                          <span>Added Staff</span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-800 font-bold">
-                            {staffInclusions.length}
-                          </span>
-                          {showItemsList.staff ? (
-                            <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
-                          ) : (
-                            <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
-                          )}
-                        </button>
-                        {staffInclusions.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveClassTab("addons")}
+                      className={`flex-1 py-2 px-1 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeClassTab === "addons"
+                          ? "bg-white text-primary shadow-xs font-bold"
+                          : "text-gray-600 hover:text-gray-900"
+                        }`}
+                    >
+                      <Sparkles size={14} className="shrink-0" />
+                      <span className="truncate">Add Ons</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-bold border border-gray-200 shrink-0">
+                        {(formData.add_ons || []).length}
+                      </span>
+                    </button>
+                  </div>
+                )}
+
+                <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-4">
+                  {/* TAB 1: Services (Event Setup + Staff & Personnel) */}
+                  {(inclusionTab === "setup" || inclusionTab === "services") && (
+                    <div className="space-y-6">
+                      {/* SUBSECTION 1: Event Setup Inclusions */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Layers size={16} className="text-primary/80 shrink-0" />
+                          <label className="font-semibold text-gray-800 text-sm">
+                            Event Setup Inclusions
+                          </label>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-3">
+                          Stage, backdrops, decorations & venue setup items shown to customers.
+                        </p>
+
+                        {/* Add Setup Item Form (Connected to Central Services with Autocomplete and Create New) */}
+                        <div className="flex gap-2 mb-2 items-center w-full">
+                          <AutocompleteInput
+                            placeholder="Enter setup item name (e.g. Stage Setup, Venue Decoration, Backdrop Setup)"
+                            value={setupInput.name}
+                            onChange={(val) =>
+                              setSetupInput((prev) => ({ ...prev, name: val }))
+                            }
+                            candidates={allServiceNames}
+                            sourceLabel="Services"
+                            onSubmit={() => handleAddSetupInclusion()}
+                            onCreateNew={(name) =>
+                              handleOpenQuickCreateService(name)
+                            }
+                            createActionLabel="+ Create New Service"
+                          />
+                          <Btn
+                            variant="primary"
+                            size="sm"
+                            className="shrink-0"
+                            onClick={() => handleAddSetupInclusion()}
+                            disabled={!setupInput.name.trim()}
+                          >
+                            <Plus size={14} className="mr-1" /> Add
+                          </Btn>
+                        </div>
+
+                        {/* Quick Presets Chips for Services */}
+                        <div className="mb-3">
                           <button
                             type="button"
-                            onClick={() => toggleItemsList("staff")}
-                            className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                            onClick={() => togglePresets("services")}
+                            className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors mb-2 select-none group"
                           >
-                            {showItemsList.staff ? "Minimize" : "Maximize"}
+                            <span>Quick add Presets from Services</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-normal group-hover:bg-gray-200">
+                              {allServiceNames.length}
+                            </span>
+                            {showPresets.services ? (
+                              <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                            ) : (
+                              <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                            )}
                           </button>
-                        )}
+                          {showPresets.services && (
+                            allServiceNames.length === 0 ? (
+                              <p className="text-xs text-gray-400 italic py-1">
+                                No services found in Services database.
+                              </p>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                                {allServiceNames.map((preset, idx) => {
+                                  const isAdded = setupInclusions.some(
+                                    (inc) => parseInclusion(inc).name.toLowerCase() === preset.toLowerCase()
+                                  );
+                                  return (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => handleAddSetupInclusion(preset)}
+                                      className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 cursor-pointer ${isAdded
+                                          ? "bg-blue-50 border-blue-200 text-blue-700 font-medium"
+                                          : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
+                                        }`}
+                                    >
+                                      {isAdded ? <Check size={10} className="text-blue-600" /> : <Plus size={10} />}
+                                      {preset}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )
+                          )}
+                        </div>
+
+                        {/* Added Items */}
+                        <div className="pt-2 border-t border-gray-200/80">
+                          <div className="flex items-center justify-between mb-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleItemsList("setup")}
+                              className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
+                            >
+                              <span>Added Items</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold">
+                                {setupInclusions.length}
+                              </span>
+                              {showItemsList.setup ? (
+                                <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                              ) : (
+                                <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                              )}
+                            </button>
+                            {setupInclusions.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => toggleItemsList("setup")}
+                                className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                              >
+                                {showItemsList.setup ? "Minimize" : "Maximize"}
+                              </button>
+                            )}
+                          </div>
+
+                          {showItemsList.setup && (
+                            setupInclusions.length > 0 ? (
+                              <ul className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                                {setupInclusions.map((inc, i) => {
+                                  const parsed = parseInclusion(inc);
+                                  return (
+                                    <li
+                                      key={i}
+                                      className="flex justify-between items-center text-sm bg-white px-3 py-2.5 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <span className="w-2 h-2 bg-blue-500 rounded-full shrink-0" />
+                                        <span className="font-semibold text-gray-900 break-words leading-tight">
+                                          {parsed.name}
+                                        </span>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveInclusionString(inc)}
+                                        className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer shrink-0"
+                                        title="Remove from package"
+                                        aria-label={`Remove ${parsed.name}`}
+                                      >
+                                        <Trash2 size={15} />
+                                      </button>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
+                                No event setup items added yet
+                              </p>
+                            )
+                          )}
+                        </div>
                       </div>
 
-                      {showItemsList.staff && (
-                        staffInclusions.length > 0 ? (
-                          <ul className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                            {staffInclusions.map((inc, i) => {
-                              const parsed = parseInclusion(inc);
-                              const qty = parsed.qty || "1";
-                              return (
-                                <li
-                                  key={i}
-                                  className="flex justify-between items-center text-sm bg-white px-3 py-2.5 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
-                                >
-                                  <div className="flex items-center gap-2.5 min-w-0">
-                                    <span className="w-2 h-2 bg-violet-500 rounded-full shrink-0" />
-                                    <span className="font-semibold text-gray-900 break-words leading-tight">
-                                      {parsed.name}
-                                    </span>
-                                  </div>
+                      {/* SUBSECTION 2: Staff & Personnel */}
+                      <div className="pt-5 border-t border-gray-200/90">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Users size={16} className="text-primary/80 shrink-0" />
+                          <label className="font-semibold text-gray-800 text-sm">
+                            Staff & Personnel
+                          </label>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-3">
+                          Event coordinators, waiters, servers, ushers & service staff included in this package.
+                        </p>
 
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    {/* Quantity Stepper */}
-                                    <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleStepStaffQty(inc, -1)}
-                                        className="px-2 py-1 text-gray-600 hover:bg-gray-200 transition-colors text-xs font-bold"
-                                        title="Decrease quantity"
-                                      >
-                                        -
-                                      </button>
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        value={qty}
-                                        onChange={(e) => handleUpdateStaffQty(inc, e.target.value)}
-                                        className="w-12 text-center text-xs font-bold bg-white py-1 focus:outline-none border-x border-gray-200"
-                                        title="Edit staff quantity"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => handleStepStaffQty(inc, 1)}
-                                        className="px-2 py-1 text-gray-600 hover:bg-gray-200 transition-colors text-xs font-bold"
-                                        title="Increase quantity"
-                                      >
-                                        +
-                                      </button>
+                        {/* Add Staff Form (Name + Quantity + Add button) */}
+                        <div className="flex gap-2 mb-2 items-center w-full">
+                          <input
+                            type="text"
+                            placeholder="Enter staff role / title (e.g. Event Coordinator, Waiter, Server, Usher)"
+                            value={staffInput.name}
+                            onChange={(e) =>
+                              setStaffInput((prev) => ({ ...prev, name: e.target.value }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleAddStaffInclusion();
+                              }
+                            }}
+                            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                          />
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="Qty"
+                            value={staffInput.qty}
+                            onChange={(e) =>
+                              setStaffInput((prev) => ({ ...prev, qty: e.target.value }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleAddStaffInclusion();
+                              }
+                            }}
+                            title="Quantity of staff / personnel"
+                            className="w-24 shrink-0 border border-gray-200 rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                          />
+                          <Btn
+                            variant="primary"
+                            size="sm"
+                            className="shrink-0"
+                            onClick={() => handleAddStaffInclusion()}
+                            disabled={!staffInput.name.trim()}
+                          >
+                            <Plus size={14} className="mr-1" /> Add
+                          </Btn>
+                        </div>
+
+                        {/* Added Staff List */}
+                        <div className="pt-2 border-t border-gray-200/80">
+                          <div className="flex items-center justify-between mb-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleItemsList("staff")}
+                              className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
+                            >
+                              <span>Added Staff</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-800 font-bold">
+                                {staffInclusions.length}
+                              </span>
+                              {showItemsList.staff ? (
+                                <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                              ) : (
+                                <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                              )}
+                            </button>
+                            {staffInclusions.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => toggleItemsList("staff")}
+                                className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                              >
+                                {showItemsList.staff ? "Minimize" : "Maximize"}
+                              </button>
+                            )}
+                          </div>
+
+                          {showItemsList.staff && (
+                            staffInclusions.length > 0 ? (
+                              <ul className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                                {staffInclusions.map((inc, i) => {
+                                  const parsed = parseInclusion(inc);
+                                  const qty = parsed.qty || "1";
+                                  return (
+                                    <li
+                                      key={i}
+                                      className="flex justify-between items-center text-sm bg-white px-3 py-2.5 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <span className="w-2 h-2 bg-violet-500 rounded-full shrink-0" />
+                                        <span className="font-semibold text-gray-900 break-words leading-tight">
+                                          {parsed.name}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        {/* Quantity Stepper */}
+                                        <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleStepStaffQty(inc, -1)}
+                                            className="px-2 py-1 text-gray-600 hover:bg-gray-200 transition-colors text-xs font-bold"
+                                            title="Decrease quantity"
+                                          >
+                                            -
+                                          </button>
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            value={qty}
+                                            onChange={(e) => handleUpdateStaffQty(inc, e.target.value)}
+                                            className="w-12 text-center text-xs font-bold bg-white py-1 focus:outline-none border-x border-gray-200"
+                                            title="Edit staff quantity"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => handleStepStaffQty(inc, 1)}
+                                            className="px-2 py-1 text-gray-600 hover:bg-gray-200 transition-colors text-xs font-bold"
+                                            title="Increase quantity"
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveInclusionString(inc)}
+                                          className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                          title="Remove from package"
+                                          aria-label={`Remove ${parsed.name}`}
+                                        >
+                                          <Trash2 size={15} />
+                                        </button>
+                                      </div>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
+                                No staff & personnel added yet
+                              </p>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 2: Inventory */}
+                  {(inclusionTab === "inventory" || inclusionTab === "dining") && (
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Package size={16} className="text-primary/80 shrink-0" />
+                          <label className="font-semibold text-gray-800 text-sm">
+                            Inventory Inclusions
+                          </label>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-3">
+                          Food warmers, tableware, furniture, equipment & supplies tracked in inventory.
+                        </p>
+
+                        {/* Add Inventory Item Form */}
+                        <div className="flex gap-2 mb-2 items-center w-full">
+                          <AutocompleteInput
+                            placeholder="Search item name (e.g. Food Warmer, Round Tables, Plates)"
+                            value={inventoryInput.name}
+                            onChange={(val) =>
+                              setInventoryInput((prev) => ({ ...prev, name: val }))
+                            }
+                            candidates={allInventoryItemNames}
+                            sourceLabel="Inventory"
+                            onSubmit={() => handleAddInventoryInclusion()}
+                            onCreateNew={(name) =>
+                              handleOpenQuickCreate(name, false)
+                            }
+                            createActionLabel="+ Create New Inventory Item"
+                          />
+                          <input
+                            type="number"
+                            min="1"
+                            max={selectedInvItem?.quantity != null ? selectedInvItem.quantity : undefined}
+                            placeholder={
+                              selectedInvItem?.quantity != null
+                                ? `1–${selectedInvItem.quantity}`
+                                : "Pkg Qty"
+                            }
+                            title={
+                              selectedInvItem?.quantity != null
+                                ? `Quantity Included in This Package (Total Quantity: ${selectedInvItem.quantity})`
+                                : "Quantity Included in This Package"
+                            }
+                            className={`w-28 shrink-0 border rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none transition-colors ${selectedInvItem?.quantity != null &&
+                                Number(inventoryInput.qty) > selectedInvItem.quantity
+                                ? "border-red-400 focus:border-red-500 bg-red-50/40 text-red-700"
+                                : "border-gray-200 focus:border-primary"
+                              }`}
+                            value={inventoryInput.qty}
+                            onChange={(e) =>
+                              setInventoryInput({ ...inventoryInput, qty: e.target.value })
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleAddInventoryInclusion();
+                              }
+                            }}
+                          />
+                          <Btn
+                            variant="primary"
+                            size="sm"
+                            className="shrink-0"
+                            onClick={() => handleAddInventoryInclusion()}
+                            disabled={
+                              !inventoryInput.name.trim() ||
+                              (selectedInvItem?.quantity != null &&
+                                Number(inventoryInput.qty) > selectedInvItem.quantity)
+                            }
+                          >
+                            <Plus size={14} className="mr-1" /> Add
+                          </Btn>
+                        </div>
+
+                        {selectedInvItem && (
+                          <div className="text-xs bg-emerald-50/70 border border-emerald-200/80 rounded-lg p-2.5 mb-2.5 flex flex-wrap items-center justify-between gap-2 animate-in fade-in duration-150">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500 font-medium">Inventory Item:</span>
+                              <span className="font-bold text-gray-900">{selectedInvItem.item_name}</span>
+                              <span className="text-gray-300">•</span>
+                              <span className="text-gray-500 font-medium">Total Quantity:</span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                                {selectedInvItem.quantity}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-emerald-700/80 font-medium">
+                              Package quantity assigned below will not modify inventory Total Quantity.
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Quick Presets Chips */}
+                        <div className="mb-1">
+                          <button
+                            type="button"
+                            onClick={() => togglePresets("inventory")}
+                            className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors mb-2 select-none group"
+                          >
+                            <span>Quick Add Presets from Inventory</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-normal group-hover:bg-gray-200">
+                              {allInventoryItemNames.length}
+                            </span>
+                            {showPresets.inventory ? (
+                              <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                            ) : (
+                              <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                            )}
+                          </button>
+                          {showPresets.inventory && (
+                            allInventoryItemNames.length === 0 ? (
+                              <p className="text-xs text-gray-400 italic py-1">
+                                No items found in Inventory.
+                              </p>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                                {allInventoryItemNames.map((preset, idx) => {
+                                  const isAdded = inventoryInclusions.some(
+                                    (inc) => parseInclusion(inc).name.toLowerCase() === preset.toLowerCase()
+                                  );
+                                  return (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => handleAddInventoryInclusion(preset)}
+                                      className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${isAdded
+                                          ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-medium"
+                                          : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
+                                        }`}
+                                    >
+                                      {isAdded ? <Check size={10} className="text-emerald-600" /> : <Plus size={10} />}
+                                      {preset}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Active List */}
+                      <div className="pt-2 border-t border-gray-200/80">
+                        <div className="flex items-center justify-between mb-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleItemsList("inventory")}
+                            className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
+                          >
+                            <span>Added Items</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                              {inventoryInclusions.length}
+                            </span>
+                            {showItemsList.inventory ? (
+                              <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                            ) : (
+                              <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                            )}
+                          </button>
+                          {inventoryInclusions.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => toggleItemsList("inventory")}
+                              className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                            >
+                              {showItemsList.inventory ? "Minimize" : "Maximize"}
+                            </button>
+                          )}
+                        </div>
+
+                        {showItemsList.inventory && (
+                          inventoryInclusions.length > 0 ? (
+                            <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                              {inventoryInclusions.map((inc, i) => {
+                                const parsed = parseInclusion(inc);
+                                const invItem = inventoryItems.find(
+                                  (item) =>
+                                    item.item_name &&
+                                    item.item_name.trim().toLowerCase() === parsed.name.toLowerCase()
+                                );
+                                const totalInvQty =
+                                  invItem?.quantity != null ? invItem.quantity : null;
+                                const rawQtyStr = parsed.qty != null ? String(parsed.qty).trim() : "";
+                                const qtyNum = parseInt(rawQtyStr, 10);
+                                const isQtyValid = !isNaN(qtyNum) && qtyNum >= 1;
+
+                                return (
+                                  <li
+                                    key={i}
+                                    className="flex flex-wrap sm:flex-nowrap justify-between items-center text-sm bg-white px-3 py-2.5 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <span className="w-2 h-2 bg-emerald-500 rounded-full shrink-0" />
+                                      <div className="flex flex-col min-w-0">
+                                        <span className="font-semibold text-gray-900 break-words leading-tight">
+                                          {parsed.name}
+                                        </span>
+                                        {totalInvQty != null && (
+                                          <span className="text-[11px] text-gray-500">
+                                            Total Quantity:{" "}
+                                            <strong className="text-gray-700 font-semibold">
+                                              {totalInvQty}
+                                            </strong>
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
 
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveInclusionString(inc)}
-                                      className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
-                                      title="Remove from package"
-                                      aria-label={`Remove ${parsed.name}`}
-                                    >
-                                      <Trash2 size={15} />
-                                    </button>
-                                  </div>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        ) : (
-                          <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
-                            No staff & personnel added yet
-                          </p>
-                        )
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
+                                    <div className="flex items-center gap-3 shrink-0 ml-auto">
+                                      <div className="flex items-center gap-1.5 bg-gray-50/80 px-2 py-1 rounded-lg border border-gray-200">
+                                        <span className="text-[11px] text-gray-500 font-medium hidden md:inline">
+                                          Quantity Included in This Package:
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStepInclusionQty(inc, -1)}
+                                          disabled={!isQtyValid || qtyNum <= 1}
+                                          className="w-6 h-6 rounded bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                                          title="Decrease package quantity"
+                                        >
+                                          -
+                                        </button>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          max={totalInvQty != null ? totalInvQty : undefined}
+                                          value={rawQtyStr}
+                                          onChange={(e) =>
+                                            handleUpdateInclusionQty(inc, e.target.value)
+                                          }
+                                          placeholder="Qty"
+                                          className={`w-14 text-center py-0.5 text-xs font-bold border rounded bg-white transition-colors focus:outline-none focus:border-primary ${!isQtyValid
+                                              ? "border-red-400 focus:border-red-500 bg-red-50/40 text-red-700"
+                                              : "border-gray-200 text-gray-900"
+                                            }`}
+                                          title={isQtyValid ? "Quantity Included in This Package" : "Quantity must be at least 1."}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStepInclusionQty(inc, 1)}
+                                          disabled={
+                                            totalInvQty != null && isQtyValid && qtyNum >= totalInvQty
+                                          }
+                                          className="w-6 h-6 rounded bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                                          title="Increase package quantity"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
 
-              {/* TAB 2: Inventory */}
-              {(inclusionTab === "inventory" || inclusionTab === "dining") && (
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Package size={16} className="text-primary/80 shrink-0" />
-                      <label className="font-semibold text-gray-800 text-sm">
-                        Inventory Inclusions
-                      </label>
-                    </div>
-                    <p className="text-xs text-gray-500 mb-3">
-                      Food warmers, tableware, furniture, equipment & supplies tracked in inventory.
-                    </p>
-
-                    {/* Add Inventory Item Form */}
-                    <div className="flex gap-2 mb-2 items-center w-full">
-                      <AutocompleteInput
-                        placeholder="Search item name (e.g. Food Warmer, Round Tables, Plates)"
-                        value={inventoryInput.name}
-                        onChange={(val) =>
-                          setInventoryInput((prev) => ({ ...prev, name: val }))
-                        }
-                        candidates={allInventoryItemNames}
-                        sourceLabel="Inventory"
-                        onSubmit={() => handleAddInventoryInclusion()}
-                        onCreateNew={(name) =>
-                          handleOpenQuickCreate(name, false)
-                        }
-                        createActionLabel="+ Create New Inventory Item"
-                      />
-                      <input
-                        type="number"
-                        min="1"
-                        max={selectedInvItem?.quantity != null ? selectedInvItem.quantity : undefined}
-                        placeholder={
-                          selectedInvItem?.quantity != null
-                            ? `1–${selectedInvItem.quantity}`
-                            : "Pkg Qty"
-                        }
-                        title={
-                          selectedInvItem?.quantity != null
-                            ? `Quantity Included in This Package (Total Quantity: ${selectedInvItem.quantity})`
-                            : "Quantity Included in This Package"
-                        }
-                        className={`w-28 shrink-0 border rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none transition-colors ${
-                          selectedInvItem?.quantity != null &&
-                          Number(inventoryInput.qty) > selectedInvItem.quantity
-                            ? "border-red-400 focus:border-red-500 bg-red-50/40 text-red-700"
-                            : "border-gray-200 focus:border-primary"
-                        }`}
-                        value={inventoryInput.qty}
-                        onChange={(e) =>
-                          setInventoryInput({ ...inventoryInput, qty: e.target.value })
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddInventoryInclusion();
-                          }
-                        }}
-                      />
-                      <Btn
-                        variant="primary"
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => handleAddInventoryInclusion()}
-                        disabled={
-                          !inventoryInput.name.trim() ||
-                          (selectedInvItem?.quantity != null &&
-                            Number(inventoryInput.qty) > selectedInvItem.quantity)
-                        }
-                      >
-                        <Plus size={14} className="mr-1" /> Add
-                      </Btn>
-                    </div>
-
-                    {selectedInvItem && (
-                      <div className="text-xs bg-emerald-50/70 border border-emerald-200/80 rounded-lg p-2.5 mb-2.5 flex flex-wrap items-center justify-between gap-2 animate-in fade-in duration-150">
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-500 font-medium">Inventory Item:</span>
-                          <span className="font-bold text-gray-900">{selectedInvItem.item_name}</span>
-                          <span className="text-gray-300">•</span>
-                          <span className="text-gray-500 font-medium">Total Quantity:</span>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-                            {selectedInvItem.quantity}
-                          </span>
-                        </div>
-                        <span className="text-[11px] text-emerald-700/80 font-medium">
-                          Package quantity assigned below will not modify inventory Total Quantity.
-                        </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveInclusionString(inc)}
+                                        className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                        title="Remove from package"
+                                        aria-label={`Remove ${parsed.name}`}
+                                      >
+                                        <Trash2 size={15} />
+                                      </button>
+                                    </div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
+                              No inventory items added yet
+                            </p>
+                          )
+                        )}
                       </div>
-                    )}
-
-                    {/* Quick Presets Chips */}
-                    <div className="mb-1">
-                      <button
-                        type="button"
-                        onClick={() => togglePresets("inventory")}
-                        className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors mb-2 select-none group"
-                      >
-                        <span>Quick Add Presets from Inventory</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-normal group-hover:bg-gray-200">
-                          {allInventoryItemNames.length}
-                        </span>
-                        {showPresets.inventory ? (
-                          <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
-                        ) : (
-                          <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
-                        )}
-                      </button>
-                      {showPresets.inventory && (
-                        allInventoryItemNames.length === 0 ? (
-                          <p className="text-xs text-gray-400 italic py-1">
-                            No items found in Inventory.
-                          </p>
-                        ) : (
-                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                            {allInventoryItemNames.map((preset, idx) => {
-                              const isAdded = inventoryInclusions.some(
-                                (inc) => parseInclusion(inc).name.toLowerCase() === preset.toLowerCase()
-                              );
-                              return (
-                                <button
-                                  key={idx}
-                                  type="button"
-                                  onClick={() => handleAddInventoryInclusion(preset)}
-                                  className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${
-                                    isAdded
-                                      ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-medium"
-                                      : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
-                                  }`}
-                                >
-                                  {isAdded ? <Check size={10} className="text-emerald-600" /> : <Plus size={10} />}
-                                  {preset}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )
-                      )}
                     </div>
-                  </div>
+                  )}
 
-                  {/* Active List */}
-                  <div className="pt-2 border-t border-gray-200/80">
-                    <div className="flex items-center justify-between mb-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleItemsList("inventory")}
-                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
-                      >
-                        <span>Added Items</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                          {inventoryInclusions.length}
-                        </span>
-                        {showItemsList.inventory ? (
-                          <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
-                        ) : (
-                          <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
-                        )}
-                      </button>
-                      {inventoryInclusions.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => toggleItemsList("inventory")}
-                          className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
-                        >
-                          {showItemsList.inventory ? "Minimize" : "Maximize"}
-                        </button>
-                      )}
-                    </div>
+                  {/* TAB 3: Add Ons */}
+                  {inclusionTab === "addons" && (
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Sparkles size={16} className="text-primary/80 shrink-0" />
+                          <label className="font-semibold text-gray-800 text-sm">
+                            Add Ons
+                          </label>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-3">
+                          Extra options and entertainment packages customers can select during booking.
+                        </p>
 
-                    {showItemsList.inventory && (
-                      inventoryInclusions.length > 0 ? (
-                        <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                          {inventoryInclusions.map((inc, i) => {
-                            const parsed = parseInclusion(inc);
-                            const invItem = inventoryItems.find(
-                              (item) =>
-                                item.item_name &&
-                                item.item_name.trim().toLowerCase() === parsed.name.toLowerCase()
-                            );
-                            const totalInvQty =
-                              invItem?.quantity != null ? invItem.quantity : null;
-                            const rawQtyStr = parsed.qty != null ? String(parsed.qty).trim() : "";
-                            const qtyNum = parseInt(rawQtyStr, 10);
-                            const isQtyValid = !isNaN(qtyNum) && qtyNum >= 1;
+                        {/* Add Add-on Form */}
+                        <div className="flex gap-2 mb-3 items-center w-full">
+                          <AutocompleteInput
+                            placeholder="Search addon (e.g. Dessert station, Fruit platter)"
+                            value={addOnInput.name}
+                            onChange={(val) =>
+                              setAddOnInput((prev) => ({ ...prev, name: val }))
+                            }
+                            candidates={addonNames}
+                            sourceLabel="Addons"
+                            onSubmit={() => handleAddAddOn()}
+                            onCreateNew={(name) =>
+                              handleOpenQuickCreate(name, "Event Setup & Furniture", true)
+                            }
+                            createActionLabel="+ Create New Add-on"
+                          />
 
-                            return (
-                              <li
-                                key={i}
-                                className="flex flex-wrap sm:flex-nowrap justify-between items-center text-sm bg-white px-3 py-2.5 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <span className="w-2 h-2 bg-emerald-500 rounded-full shrink-0" />
-                                  <div className="flex flex-col min-w-0">
-                                    <span className="font-semibold text-gray-900 break-words leading-tight">
-                                      {parsed.name}
-                                    </span>
-                                    {totalInvQty != null && (
-                                      <span className="text-[11px] text-gray-500">
-                                        Total Quantity:{" "}
-                                        <strong className="text-gray-700 font-semibold">
-                                          {totalInvQty}
-                                        </strong>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="Pkg Qty"
+                            className="w-24 shrink-0 border border-gray-200 rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                            value={addOnInput.qty}
+                            onChange={(e) =>
+                              setAddOnInput({ ...addOnInput, qty: e.target.value })
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleAddAddOn();
+                              }
+                            }}
+                          />
+
+                          <Btn
+                            variant="primary"
+                            size="sm"
+                            className="shrink-0"
+                            onClick={() => handleAddAddOn()}
+                            disabled={!addOnInput.name.trim()}
+                          >
+                            <Plus size={14} className="mr-1" /> Add
+                          </Btn>
+                        </div>
+
+                        {/* Quick Presets Chips */}
+                        <div className="mb-1">
+                          <button
+                            type="button"
+                            onClick={() => togglePresets("addons")}
+                            className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors mb-2 select-none group"
+                          >
+                            <span>Quick Add Presets from Addons</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-normal group-hover:bg-gray-200">
+                              {addonNames.length}
+                            </span>
+                            {showPresets.addons ? (
+                              <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                            ) : (
+                              <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                            )}
+                          </button>
+                          {showPresets.addons && (
+                            addonNames.length === 0 ? (
+                              <p className="text-xs text-gray-400 italic py-1">
+                                No addons found in database.
+                              </p>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                                {addonNames.map((preset, idx) => {
+                                  const isAdded = (formData.add_ons || []).some(
+                                    (addon) => cleanTextValue(addon.name).toLowerCase() === preset.toLowerCase()
+                                  );
+                                  return (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => handleAddAddOn(preset)}
+                                      className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${isAdded
+                                          ? "bg-purple-50 border-purple-200 text-purple-700 font-medium"
+                                          : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
+                                        }`}
+                                    >
+                                      {isAdded ? <Check size={10} className="text-purple-600" /> : <Plus size={10} />}
+                                      {preset}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Active List */}
+                      <div className="pt-2 border-t border-gray-200/80">
+                        <div className="flex items-center justify-between mb-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleItemsList("addons")}
+                            className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
+                          >
+                            <span>Added Items</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">
+                              {(formData.add_ons || []).length}
+                            </span>
+                            {showItemsList.addons ? (
+                              <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                            ) : (
+                              <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                            )}
+                          </button>
+                          {(formData.add_ons || []).length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => toggleItemsList("addons")}
+                              className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                            >
+                              {showItemsList.addons ? "Minimize" : "Maximize"}
+                            </button>
+                          )}
+                        </div>
+
+                        {showItemsList.addons && (
+                          (formData.add_ons || []).length > 0 ? (
+                            <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                              {formData.add_ons.map((add, i) => {
+                                const currentPkgQty = parseInt(add.qty, 10) || 1;
+
+                                return (
+                                  <li
+                                    key={i}
+                                    className="flex flex-wrap sm:flex-nowrap justify-between items-center text-sm bg-white px-3 py-2 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <span className="w-2 h-2 bg-purple-500 rounded-full shrink-0" />
+                                      <span className="font-semibold text-gray-900 break-words leading-tight">
+                                        {add.name}
                                       </span>
-                                    )}
-                                  </div>
-                                </div>
+                                    </div>
 
-                                <div className="flex items-center gap-3 shrink-0 ml-auto">
-                                  <div className="flex items-center gap-1.5 bg-gray-50/80 px-2 py-1 rounded-lg border border-gray-200">
-                                    <span className="text-[11px] text-gray-500 font-medium hidden md:inline">
-                                      Quantity Included in This Package:
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleStepInclusionQty(inc, -1)}
-                                      disabled={!isQtyValid || qtyNum <= 1}
-                                      className="w-6 h-6 rounded bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
-                                      title="Decrease package quantity"
-                                    >
-                                      -
-                                    </button>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      max={totalInvQty != null ? totalInvQty : undefined}
-                                      value={rawQtyStr}
-                                      onChange={(e) =>
-                                        handleUpdateInclusionQty(inc, e.target.value)
-                                      }
-                                      placeholder="Qty"
-                                      className={`w-14 text-center py-0.5 text-xs font-bold border rounded bg-white transition-colors focus:outline-none focus:border-primary ${
-                                        !isQtyValid
-                                          ? "border-red-400 focus:border-red-500 bg-red-50/40 text-red-700"
-                                          : "border-gray-200 text-gray-900"
-                                      }`}
-                                      title={isQtyValid ? "Quantity Included in This Package" : "Quantity must be at least 1."}
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => handleStepInclusionQty(inc, 1)}
-                                      disabled={
-                                        totalInvQty != null && isQtyValid && qtyNum >= totalInvQty
-                                      }
-                                      className="w-6 h-6 rounded bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
-                                      title="Increase package quantity"
-                                    >
-                                      +
-                                    </button>
-                                  </div>
+                                    <div className="flex items-center gap-3 shrink-0 ml-auto">
+                                      <div className="flex items-center gap-1.5 bg-gray-50/80 px-2 py-1 rounded-lg border border-gray-200">
+                                        <span className="text-[11px] text-gray-500 font-medium hidden md:inline">
+                                          Quantity Included in This Package:
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStepAddOnQty(i, -1)}
+                                          disabled={currentPkgQty <= 1}
+                                          className="w-6 h-6 rounded bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                                          title="Decrease quantity"
+                                        >
+                                          -
+                                        </button>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          value={currentPkgQty}
+                                          onChange={(e) => handleUpdateAddOnQty(i, e.target.value)}
+                                          className="w-12 text-center py-0.5 text-xs font-bold border border-gray-200 rounded bg-white text-gray-900 focus:outline-none focus:border-primary"
+                                          title="Quantity Included in This Package"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStepAddOnQty(i, 1)}
+                                          className="w-6 h-6 rounded bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                                          title="Increase quantity"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveInclusionString(inc)}
-                                    className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
-                                    title="Remove from package"
-                                    aria-label={`Remove ${parsed.name}`}
-                                  >
-                                    <Trash2 size={15} />
-                                  </button>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      ) : (
-                        <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
-                          No inventory items added yet
-                        </p>
-                      )
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 3: Add Ons */}
-              {inclusionTab === "addons" && (
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Sparkles size={16} className="text-primary/80 shrink-0" />
-                      <label className="font-semibold text-gray-800 text-sm">
-                        Add Ons
-                      </label>
-                    </div>
-                    <p className="text-xs text-gray-500 mb-3">
-                      Extra options and entertainment packages customers can select during booking.
-                    </p>
-
-                    {/* Add Add-on Form */}
-                    <div className="flex gap-2 mb-3 items-center w-full">
-                      <AutocompleteInput
-                        placeholder="Search addon (e.g. Dessert station, Fruit platter)"
-                        value={addOnInput.name}
-                        onChange={(val) =>
-                          setAddOnInput((prev) => ({ ...prev, name: val }))
-                        }
-                        candidates={addonNames}
-                        sourceLabel="Addons"
-                        onSubmit={() => handleAddAddOn()}
-                        onCreateNew={(name) =>
-                          handleOpenQuickCreate(name, "Event Setup & Furniture", true)
-                        }
-                        createActionLabel="+ Create New Add-on"
-                      />
-
-                      <input
-                        type="number"
-                        min="1"
-                        placeholder="Pkg Qty"
-                        className="w-24 shrink-0 border border-gray-200 rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none focus:border-primary"
-                        value={addOnInput.qty}
-                        onChange={(e) =>
-                          setAddOnInput({ ...addOnInput, qty: e.target.value })
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddAddOn();
-                          }
-                        }}
-                      />
-
-                      <Btn
-                        variant="primary"
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => handleAddAddOn()}
-                        disabled={!addOnInput.name.trim()}
-                      >
-                        <Plus size={14} className="mr-1" /> Add
-                      </Btn>
-                    </div>
-
-                    {/* Quick Presets Chips */}
-                    <div className="mb-1">
-                      <button
-                        type="button"
-                        onClick={() => togglePresets("addons")}
-                        className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors mb-2 select-none group"
-                      >
-                        <span>Quick Add Presets from Addons</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-normal group-hover:bg-gray-200">
-                          {addonNames.length}
-                        </span>
-                        {showPresets.addons ? (
-                          <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
-                        ) : (
-                          <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveAddOn(i)}
+                                        className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                        title="Remove add-on"
+                                        aria-label={`Remove ${add.name}`}
+                                      >
+                                        <Trash2 size={15} />
+                                      </button>
+                                    </div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
+                              No add-ons configured yet
+                            </p>
+                          )
                         )}
-                      </button>
-                      {showPresets.addons && (
-                        addonNames.length === 0 ? (
-                          <p className="text-xs text-gray-400 italic py-1">
-                            No addons found in database.
-                          </p>
-                        ) : (
-                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                            {addonNames.map((preset, idx) => {
-                              const isAdded = (formData.add_ons || []).some(
-                                (addon) => cleanTextValue(addon.name).toLowerCase() === preset.toLowerCase()
-                              );
-                              return (
-                                <button
-                                  key={idx}
-                                  type="button"
-                                  onClick={() => handleAddAddOn(preset)}
-                                  className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${
-                                    isAdded
-                                      ? "bg-purple-50 border-purple-200 text-purple-700 font-medium"
-                                      : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
-                                  }`}
-                                >
-                                  {isAdded ? <Check size={10} className="text-purple-600" /> : <Plus size={10} />}
-                                  {preset}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )
-                      )}
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Active List */}
-                  <div className="pt-2 border-t border-gray-200/80">
-                    <div className="flex items-center justify-between mb-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleItemsList("addons")}
-                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
-                      >
-                        <span>Added Items</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">
-                          {(formData.add_ons || []).length}
-                        </span>
-                        {showItemsList.addons ? (
-                          <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
-                        ) : (
-                          <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
-                        )}
-                      </button>
-                      {(formData.add_ons || []).length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => toggleItemsList("addons")}
-                          className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
-                        >
-                          {showItemsList.addons ? "Minimize" : "Maximize"}
-                        </button>
-                      )}
-                    </div>
-
-                    {showItemsList.addons && (
-                      (formData.add_ons || []).length > 0 ? (
-                        <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                          {formData.add_ons.map((add, i) => {
-                            const currentPkgQty = parseInt(add.qty, 10) || 1;
-
-                            return (
-                              <li
-                                key={i}
-                                className="flex flex-wrap sm:flex-nowrap justify-between items-center text-sm bg-white px-3 py-2 rounded-lg border border-gray-100 shadow-2xs gap-3 hover:border-gray-200 transition-colors"
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <span className="w-2 h-2 bg-purple-500 rounded-full shrink-0" />
-                                  <span className="font-semibold text-gray-900 break-words leading-tight">
-                                    {add.name}
-                                  </span>
-                                </div>
-
-                                <div className="flex items-center gap-3 shrink-0 ml-auto">
-                                  <div className="flex items-center gap-1.5 bg-gray-50/80 px-2 py-1 rounded-lg border border-gray-200">
-                                    <span className="text-[11px] text-gray-500 font-medium hidden md:inline">
-                                      Quantity Included in This Package:
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleStepAddOnQty(i, -1)}
-                                      disabled={currentPkgQty <= 1}
-                                      className="w-6 h-6 rounded bg-white hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-white text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
-                                      title="Decrease quantity"
-                                    >
-                                      -
-                                    </button>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={currentPkgQty}
-                                      onChange={(e) => handleUpdateAddOnQty(i, e.target.value)}
-                                      className="w-12 text-center py-0.5 text-xs font-bold border border-gray-200 rounded bg-white text-gray-900 focus:outline-none focus:border-primary"
-                                      title="Quantity Included in This Package"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => handleStepAddOnQty(i, 1)}
-                                      className="w-6 h-6 rounded bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 flex items-center justify-center font-bold text-xs transition-colors shadow-2xs cursor-pointer"
-                                      title="Increase quantity"
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveAddOn(i)}
-                                    className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
-                                    title="Remove add-on"
-                                    aria-label={`Remove ${add.name}`}
-                                  >
-                                    <Trash2 size={15} />
-                                  </button>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      ) : (
-                        <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
-                          No add-ons configured yet
-                        </p>
-                      )
-                    )}
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </section>
-          )}
+              </section>
+            )}
 
-          {/* SECTION 7: Media */}
-          <section>
-            <h3 className="font-bold text-foreground mb-4">Media</h3>
-            <div className="space-y-6">
-              {/* Cover image — 16:9 is how package cards and detail pages crop it */}
-              <SingleImageField
-                label="Cover image"
-                hint="Landscape works best · JPG, PNG, GIF or WEBP · up to 5MB"
-                aspect="16 / 9"
-                previewWidth="13rem"
-                emptyLabel="Add a cover image"
-                existingUrl={pkg?.image_url}
-                file={imageFile}
-                onFileChange={setImageFile}
-                disabled={loading}
-              />
+            {/* SECTION 7: Media */}
+            <section>
+              <h3 className="font-bold text-foreground mb-4">Media</h3>
+              <div className="space-y-6">
+                {/* Cover image — 16:9 is how package cards and detail pages crop it */}
+                <SingleImageField
+                  label="Cover image"
+                  hint="Landscape works best · JPG, PNG, GIF or WEBP · up to 5MB"
+                  aspect="16 / 9"
+                  previewWidth="13rem"
+                  emptyLabel="Add a cover image"
+                  existingUrl={pkg?.image_url}
+                  file={imageFile}
+                  onFileChange={setImageFile}
+                  disabled={loading}
+                />
 
-              <MultiImageField
-                label="Gallery photos"
-                existing={pkg?.gallery || []}
-                removedExisting={galleryToRemove}
-                onToggleExisting={(url) =>
-                  setGalleryToRemove((prev) =>
-                    prev.includes(url)
-                      ? prev.filter((u) => u !== url)
-                      : [...prev, url],
-                  )
-                }
-                files={galleryFiles}
-                onFilesChange={setGalleryFiles}
-                maxNew={10}
-                disabled={loading}
-              />
-            </div>
-          </section>
-        </div>
+                <MultiImageField
+                  label="Gallery photos"
+                  existing={pkg?.gallery || []}
+                  removedExisting={galleryToRemove}
+                  onToggleExisting={(url) =>
+                    setGalleryToRemove((prev) =>
+                      prev.includes(url)
+                        ? prev.filter((u) => u !== url)
+                        : [...prev, url],
+                    )
+                  }
+                  files={galleryFiles}
+                  onFilesChange={setGalleryFiles}
+                  maxNew={10}
+                  disabled={loading}
+                />
+              </div>
+            </section>
+          </div>
 
-        {/* ============ FOOTER ============ */}
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
-          <Btn variant="secondary" onClick={onClose} disabled={loading}>
-            Cancel
-          </Btn>
-          <Btn
-            variant="primary"
-            onClick={pkg && !isDirty ? onClose : handleSubmit}
-            disabled={loading}
-          >
-            {loading
-              ? "Saving..."
-              : !pkg
-                ? isOffer
-                  ? "Create Combo"
-                  : "Create Package"
-                : isDirty
-                  ? "Update Changes"
-                  : "Done"}
-          </Btn>
+          {/* ============ FOOTER ============ */}
+          <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
+            <Btn variant="secondary" onClick={onClose} disabled={loading}>
+              Cancel
+            </Btn>
+            <Btn
+              variant="primary"
+              onClick={pkg && !isDirty ? onClose : handleSubmit}
+              disabled={loading}
+            >
+              {loading
+                ? "Saving..."
+                : !pkg
+                  ? isOffer
+                    ? "Create Combo"
+                    : "Create Package"
+                  : isDirty
+                    ? "Update Changes"
+                    : "Done"}
+            </Btn>
+          </div>
         </div>
       </div>
-    </div>
 
-    <QuickInventoryCreateDrawer
-      isOpen={quickDrawer.isOpen}
-      initialName={quickDrawer.initialName}
-      isAddon={quickDrawer.isAddon}
-      existingItems={inventoryItems}
-      existingAddons={addonItems}
-      onClose={() => setQuickDrawer((prev) => ({ ...prev, isOpen: false }))}
-      onCreateSuccess={handleQuickCreateSuccess}
-    />
-
-    {quickFoodModal.isOpen && (
-      <QuickFoodCreateModal
-        isOpen={quickFoodModal.isOpen}
-        initialName={quickFoodModal.initialName}
-        initialCategory={quickFoodModal.category}
-        existingDishes={getDishesForCategory(menuItems, quickFoodModal.category)}
-        onClose={() =>
-          setQuickFoodModal({ isOpen: false, initialName: "", category: "" })
-        }
-        onCreateSuccess={handleQuickCreateFoodSuccess}
+      <QuickInventoryCreateDrawer
+        isOpen={quickDrawer.isOpen}
+        initialName={quickDrawer.initialName}
+        isAddon={quickDrawer.isAddon}
+        existingItems={inventoryItems}
+        existingAddons={addonItems}
+        onClose={() => setQuickDrawer((prev) => ({ ...prev, isOpen: false }))}
+        onCreateSuccess={handleQuickCreateSuccess}
       />
-    )}
 
-    {quickServiceModal.isOpen && (
-      <QuickServiceCreateModal
-        isOpen={quickServiceModal.isOpen}
-        initialName={quickServiceModal.initialName}
-        existingServices={serviceItems}
-        onClose={() =>
-          setQuickServiceModal({ isOpen: false, initialName: "" })
-        }
-        onCreateSuccess={handleQuickCreateServiceSuccess}
-      />
-    )}
+      {quickFoodModal.isOpen && (
+        <QuickFoodCreateModal
+          isOpen={quickFoodModal.isOpen}
+          initialName={quickFoodModal.initialName}
+          initialCategory={quickFoodModal.category}
+          existingDishes={getDishesForCategory(menuItems, quickFoodModal.category)}
+          onClose={() =>
+            setQuickFoodModal({ isOpen: false, initialName: "", category: "" })
+          }
+          onCreateSuccess={handleQuickCreateFoodSuccess}
+        />
+      )}
+
+      {quickServiceModal.isOpen && (
+        <QuickServiceCreateModal
+          isOpen={quickServiceModal.isOpen}
+          initialName={quickServiceModal.initialName}
+          existingServices={serviceItems}
+          onClose={() =>
+            setQuickServiceModal({ isOpen: false, initialName: "" })
+          }
+          onCreateSuccess={handleQuickCreateServiceSuccess}
+        />
+      )}
     </>
   );
 }

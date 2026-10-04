@@ -341,8 +341,8 @@ export default function CustomerInquiryDetails() {
         label: isRedundantLabel ? null : label,
         area: area ? `${area} sq.ft.` : null,
         capacity:
-          option?.guest_min && option?.guest_max
-            ? `${option.guest_min}–${option.guest_max} guests`
+          option?.guest_max
+            ? `Up to ${option.guest_max} guests`
             : null,
       };
     }
@@ -355,8 +355,8 @@ export default function CustomerInquiryDetails() {
         label: null,
         area: area ? `${area} sq.ft.` : null,
         capacity:
-          option?.guest_min && option?.guest_max
-            ? `${option.guest_min}–${option.guest_max} guests`
+          option?.guest_max
+            ? `Up to ${option.guest_max} guests`
             : null,
       };
     }
@@ -369,8 +369,8 @@ export default function CustomerInquiryDetails() {
         label: null,
         area: null,
         capacity:
-          option?.guest_min && option?.guest_max
-            ? `${option.guest_min}–${option.guest_max} guests`
+          option?.guest_max
+            ? `Up to ${option.guest_max} guests`
             : null,
       };
     }

@@ -4,7 +4,6 @@ import {
   Utensils,
   Sparkles,
   Truck,
-  Clock,
   Percent,
   Plus,
   Trash2,
@@ -108,19 +107,6 @@ export default function PricingAdjustmentsStep({
   onAddCustomAddon,
   transportationFee,
   setTransportationFee,
-  includeOvertime,
-  setIncludeOvertime,
-  overtimeMode,
-  setOvertimeMode,
-  overtimeHours,
-  setOvertimeHours,
-  crewCount,
-  setCrewCount,
-  hourlyRatePerCrew,
-  setHourlyRatePerCrew,
-  flatOvertimeFee,
-  setFlatOvertimeFee,
-  computedOvertimeAmount,
   additionalFees,
   handleFeeChange,
   handleRemoveFee,
@@ -380,8 +366,13 @@ export default function PricingAdjustmentsStep({
               value={startingPrice}
               onChange={setStartingPrice}
               placeholder="0.00"
-              className={errors.package_name ? "border-red-400 bg-red-50/40" : ""}
+              className={errors.package_starting_price || errors.startingPrice || errors.package_name ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}
             />
+            {(errors.package_starting_price || errors.startingPrice) && (
+              <p className="text-[11px] text-red-600 mt-0.5 font-medium">
+                {errors.package_starting_price || errors.startingPrice}
+              </p>
+            )}
             <span className="text-[10px] text-slate-500 mt-1 block">
               {offerContext
                 ? `Combo rate: ${formatCurrency(offerContext.perPax)} / guest × ${offerContext.guests} guests = ${formatCurrency(offerContext.basePrice)}`
@@ -1064,11 +1055,12 @@ export default function PricingAdjustmentsStep({
                         {/* Unit Price */}
                         <td className="py-2 px-2 text-right align-top">
                           <MoneyInput
+                            id={`qb-menu-price-${index}`}
                             value={item.price}
                             disabled={item.removed}
                             onChange={(val) => handleMenuChange(index, "price", val)}
                             placeholder="0.00"
-                            className="w-24 text-right ml-auto"
+                            className={`w-24 text-right ml-auto ${errors[`menu_items.${index}.price`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}`}
                           />
                         </td>
 
@@ -1244,11 +1236,12 @@ export default function PricingAdjustmentsStep({
                       </td>
                       <td className="py-2 px-2 text-right">
                         <MoneyInput
+                          id={`qb-addon-price-${index}`}
                           value={item.price}
                           disabled={item.removed}
                           onChange={(val) => handleAddOnChange(index, "price", val)}
                           placeholder="0.00"
-                          className="w-24 text-right ml-auto"
+                          className={`w-24 text-right ml-auto ${errors[`add_ons.${index}.price`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}`}
                         />
                       </td>
                       <td className="py-2 px-2 text-right font-mono font-semibold text-slate-900 tabular-nums">
@@ -1375,7 +1368,7 @@ export default function PricingAdjustmentsStep({
             <Truck size={14} className="text-primary" /> Other Charges &amp; Delivery
           </div>
           <p className="text-[11px] text-slate-500">
-            Delivery fees, crew overtime, and any special custom fees for this event.
+            Delivery fees and any special custom fees for this event.
           </p>
         </div>
 
@@ -1386,107 +1379,17 @@ export default function PricingAdjustmentsStep({
               Delivery / Transportation Fee (₱)
             </label>
             <MoneyInput
+              id="qb-transpo-fee"
               value={transportationFee}
               onChange={setTransportationFee}
               placeholder="0.00"
+              className={errors.transportation_fee ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}
             />
             <span className="text-[10px] text-slate-500 block">
               Covers vehicle dispatch and venue logistics
             </span>
-          </div>
-
-          {/* Overtime Calculator */}
-          <div className="bg-slate-50 p-3 rounded-md border border-slate-200/80 space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-semibold text-slate-700 flex items-center gap-1.5">
-                <Clock size={12} className="text-primary" /> Crew &amp; Event Overtime
-              </label>
-              <input
-                type="checkbox"
-                checked={includeOvertime}
-                onChange={(e) => setIncludeOvertime(e.target.checked)}
-                className="rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
-              />
-            </div>
-
-            {includeOvertime ? (
-              <div className="space-y-2 pt-1">
-                <div className="flex items-center gap-1.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setOvertimeMode("per_crew")}
-                    className={`flex-1 py-1 px-2 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
-                      overtimeMode === "per_crew"
-                        ? "bg-primary text-white border-primary font-semibold"
-                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                    }`}
-                  >
-                    Per Crew / Hour
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOvertimeMode("flat")}
-                    className={`flex-1 py-1 px-2 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
-                      overtimeMode === "flat"
-                        ? "bg-primary text-white border-primary font-semibold"
-                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                    }`}
-                  >
-                    Flat Rate
-                  </button>
-                </div>
-
-                {overtimeMode === "per_crew" ? (
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div>
-                      <span className="text-[10px] text-slate-500 block mb-0.5">Hours</span>
-                      <input
-                        type="number"
-                        min="1"
-                        value={overtimeHours}
-                        onChange={(e) => setOvertimeHours(e.target.value)}
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-center font-mono"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 block mb-0.5">Crew count</span>
-                      <input
-                        type="number"
-                        min="1"
-                        value={crewCount}
-                        onChange={(e) => setCrewCount(e.target.value)}
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-center font-mono"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 block mb-0.5">Rate/hr (₱)</span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={hourlyRatePerCrew}
-                        onChange={(e) => setHourlyRatePerCrew(e.target.value)}
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-center font-mono"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <span className="text-[10px] text-slate-500 block mb-0.5">Flat Fee (₱)</span>
-                    <MoneyInput value={flatOvertimeFee} onChange={setFlatOvertimeFee} />
-                  </div>
-                )}
-
-                <div className="text-[11px] text-slate-600 flex justify-between items-baseline pt-1">
-                  <span>Computed overtime:</span>
-                  <span className="font-mono font-bold text-slate-900">
-                    {formatCurrency(computedOvertimeAmount)}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <span className="text-[10px] text-slate-500 block">
-                Enable if the event requires crew beyond the standard 4 hours
-              </span>
+            {errors.transportation_fee && (
+              <p className="text-[11px] text-red-600 mt-0.5 font-medium">{errors.transportation_fee}</p>
             )}
           </div>
         </div>
@@ -1506,35 +1409,34 @@ export default function PricingAdjustmentsStep({
             </button>
           </div>
 
-          {additionalFees.filter((f) => !f.isOvertime).length > 0 && (
+          {additionalFees.length > 0 && (
             <div className="space-y-1.5">
-              {additionalFees
-                .map((fee, index) => ({ fee, index }))
-                .filter(({ fee }) => !fee.isOvertime)
-                .map(({ fee, index }) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="e.g. Corkage Fee, Standby Generator"
-                      value={fee.name}
-                      onChange={(e) => handleFeeChange(index, "name", e.target.value)}
-                      className="flex-1 rounded border border-slate-300 px-2.5 py-1 text-xs placeholder:text-slate-400"
-                    />
-                    <MoneyInput
-                      value={fee.amount}
-                      onChange={(val) => handleFeeChange(index, "amount", val)}
-                      placeholder="0.00"
-                      className="w-28 text-right"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFee(index)}
-                      className="p-1 text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                ))}
+              {additionalFees.map((fee, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <input
+                    id={`qb-fee-name-${index}`}
+                    type="text"
+                    placeholder="e.g. Corkage Fee, Standby Generator"
+                    value={fee.name}
+                    onChange={(e) => handleFeeChange(index, "name", e.target.value)}
+                    className={`flex-1 rounded border ${errors[`additional_fees.${index}.name`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : "border-slate-300"} px-2.5 py-1 text-xs placeholder:text-slate-400`}
+                  />
+                  <MoneyInput
+                    id={`qb-fee-amount-${index}`}
+                    value={fee.amount}
+                    onChange={(val) => handleFeeChange(index, "amount", val)}
+                    placeholder="0.00"
+                    className={`w-28 text-right ${errors[`additional_fees.${index}.amount`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveFee(index)}
+                    className="p-1 text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -1562,11 +1464,15 @@ export default function PricingAdjustmentsStep({
               Discount (₱)
             </label>
             <MoneyInput
+              id="qb-discounts"
               value={discounts}
               onChange={setDiscounts}
               placeholder="0.00"
-              className="text-emerald-700 font-bold"
+              className={`text-emerald-700 font-bold ${errors.discounts ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}`}
             />
+            {errors.discounts && (
+              <p className="text-[11px] text-red-600 mt-0.5 font-medium">{errors.discounts}</p>
+            )}
             <span className="text-[10px] text-slate-500 mt-1 block">
               Deducted directly from the subtotal
             </span>
@@ -1576,7 +1482,16 @@ export default function PricingAdjustmentsStep({
             <label className="block text-[11px] font-semibold text-slate-700 mb-1">
               Taxes / VAT (₱)
             </label>
-            <MoneyInput value={taxes} onChange={setTaxes} placeholder="0.00" />
+            <MoneyInput
+              id="qb-taxes"
+              value={taxes}
+              onChange={setTaxes}
+              placeholder="0.00"
+              className={errors.taxes ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}
+            />
+            {errors.taxes && (
+              <p className="text-[11px] text-red-600 mt-0.5 font-medium">{errors.taxes}</p>
+            )}
             <span className="text-[10px] text-slate-500 mt-1 block">
               Leave at 0 if prices are already tax-inclusive
             </span>

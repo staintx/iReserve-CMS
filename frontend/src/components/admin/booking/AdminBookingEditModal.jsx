@@ -27,7 +27,6 @@ import {
   MapPin,
   CalendarDays,
   FileText,
-  Clock,
   Users,
   ChevronDown,
   ChevronUp,
@@ -377,20 +376,12 @@ export default function AdminBookingEditModal({
   // Section 5: Add-ons
   const [addOns, setAddOns] = useState([]);
 
-  // Section 6: Adjustments & Overtime
+  // Section 6: Adjustments & Logistics
   const [transportationFee, setTransportationFee] = useState("");
   const [additionalFees, setAdditionalFees] = useState([]);
   const [taxes, setTaxes] = useState("");
   const [discounts, setDiscounts] = useState("");
 
-  const [includeOvertime, setIncludeOvertime] = useState(false);
-  const [overtimeMode, setOvertimeMode] = useState("per_crew"); // "per_crew" | "flat"
-  const [overtimeHours, setOvertimeHours] = useState(2);
-  const [crewCount, setCrewCount] = useState(3);
-  const [hourlyRatePerCrew, setHourlyRatePerCrew] = useState(200);
-  const [flatOvertimeFee, setFlatOvertimeFee] = useState(1500);
-  const [overtimeCustomTitle, setOvertimeCustomTitle] = useState("");
-  const [overtimeCustomAmount, setOvertimeCustomAmount] = useState("");
 
   // Section 7: Revision & Admin Notes
   const [revisionNote, setRevisionNote] = useState("");
@@ -619,11 +610,8 @@ export default function AdminBookingEditModal({
       }))
     );
 
-    // Additional Charges, Transportation & Overtime
+    // Additional Charges & Transportation
     let transpo = "";
-    let otActive = false;
-    let otTitle = "";
-    let otAmount = "";
     const otherFees = [];
 
     const rawCharges = Array.isArray(booking.additional_charges) ? booking.additional_charges : [];
@@ -632,31 +620,12 @@ export default function AdminBookingEditModal({
       const cName = String(c?.name || "");
       if (/transport/i.test(cName)) {
         transpo = String(amt);
-      } else if (/overtime/i.test(cName)) {
-        otActive = true;
-        otTitle = cName;
-        otAmount = String(amt);
-        if (/flat/i.test(cName)) {
-          setOvertimeMode("flat");
-          setFlatOvertimeFee(amt);
-        } else {
-          setOvertimeMode("per_crew");
-          const m = cName.match(/(\d+(?:\.\d+)?)\s*hrs?.*?(\d+)\s*crew.*?(\d+)/i);
-          if (m) {
-            setOvertimeHours(Number(m[1]) || 2);
-            setCrewCount(Number(m[2]) || 3);
-            setHourlyRatePerCrew(Number(m[3]) || 200);
-          }
-        }
-      } else {
-        otherFees.push({ name: cName, amount: String(amt), isOvertime: false });
+      } else if (!/overtime/i.test(cName)) {
+        otherFees.push({ name: cName, amount: String(amt) });
       }
     });
 
     setTransportationFee(transpo);
-    setIncludeOvertime(otActive);
-    setOvertimeCustomTitle(otTitle);
-    setOvertimeCustomAmount(otAmount);
     setAdditionalFees(otherFees);
 
     // Taxes & Discounts
@@ -757,50 +726,6 @@ export default function AdminBookingEditModal({
     }
   };
 
-  // Overtime calculations
-  const computedOvertimeAmount = useMemo(() => {
-    if (!includeOvertime) return 0;
-    if (overtimeMode === "flat") {
-      return Math.max(0, Number(flatOvertimeFee) || 0);
-    }
-    const hrs = Math.max(0, Number(overtimeHours) || 0);
-    const crew = Math.max(1, Number(crewCount) || 1);
-    const rate = Math.max(0, Number(hourlyRatePerCrew) || 0);
-    return Math.round(hrs * crew * rate);
-  }, [includeOvertime, overtimeMode, overtimeHours, crewCount, hourlyRatePerCrew, flatOvertimeFee]);
-
-  const finalOvertimeAmount = useMemo(() => {
-    if (!includeOvertime) return 0;
-    if (overtimeCustomAmount !== "" && !isNaN(Number(overtimeCustomAmount))) {
-      return Math.max(0, Number(overtimeCustomAmount));
-    }
-    return computedOvertimeAmount;
-  }, [includeOvertime, overtimeCustomAmount, computedOvertimeAmount]);
-
-  const defaultOvertimeTitle = useMemo(() => {
-    const hrs = Number(overtimeHours) || 0;
-    const hrsLabel = `${hrs} hr${hrs === 1 ? "" : "s"}`;
-    if (overtimeMode === "flat") {
-      return `Event Overtime Fee (${hrsLabel} flat extension)`;
-    }
-    const crew = Number(crewCount) || 1;
-    const rate = Number(hourlyRatePerCrew) || 0;
-    return `Crew Overtime (${hrsLabel} × ${crew} crew @ ₱${rate}/hr)`;
-  }, [overtimeMode, overtimeHours, crewCount, hourlyRatePerCrew]);
-
-  // Synchronize Crew Overtime item with additionalFees
-  useEffect(() => {
-    const title = overtimeCustomTitle.trim() || defaultOvertimeTitle;
-    const amountStr = String(finalOvertimeAmount);
-
-    setAdditionalFees((prev) => {
-      const filtered = prev.filter((f) => !f.isOvertime && !/overtime/i.test(f.name || ""));
-      if (!includeOvertime || finalOvertimeAmount <= 0) {
-        return filtered;
-      }
-      return [...filtered, { name: title, amount: amountStr, isOvertime: true }];
-    });
-  }, [includeOvertime, finalOvertimeAmount, overtimeCustomTitle, defaultOvertimeTitle]);
 
   // Active (non-removed) item filters
   const keptInclusions = useMemo(() => inclusions.filter((i) => !i.removed), [inclusions]);
@@ -1134,7 +1059,7 @@ export default function AdminBookingEditModal({
   };
 
   const handleAddFee = () => {
-    setAdditionalFees((prev) => [...prev, { name: "", amount: "", isOvertime: false }]);
+    setAdditionalFees((prev) => [...prev, { name: "", amount: "" }]);
   };
 
   const handleRemoveFee = (index) => {
@@ -1434,14 +1359,10 @@ export default function AdminBookingEditModal({
               <button
                 type="button"
                 onClick={() => scrollToSection("qb-section-adjustments")}
-                className={`px-2.5 py-1 rounded-lg font-semibold text-[11.5px] shrink-0 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs ${
-                  includeOvertime
-                    ? "bg-sky-100 text-sky-900 border border-sky-300 font-bold"
-                    : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80"
-                }`}
+                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
               >
-                <Clock size={12} className={includeOvertime ? "text-sky-600" : "text-slate-500"} />
-                <span>6. Overtime &amp; Fees {includeOvertime && `(Active)`}</span>
+                <Truck size={12} className="text-slate-500" />
+                <span>6. Adjustments &amp; Fees</span>
               </button>
               <button
                 type="button"
@@ -2773,14 +2694,14 @@ export default function AdminBookingEditModal({
                 )}
               </SectionCard>
 
-              {/* --- 6. Adjustments, Overtime & Logistics ------------------------- */}
+              {/* --- 6. Adjustments & Logistics ------------------------- */}
               <SectionCard
                 step={6}
                 id="qb-section-adjustments"
                 accent="sky"
                 icon={Percent}
-                title="Adjustments, Overtime &amp; Logistics"
-                description="Transportation, delivery, crew overtime calculator, custom fees, taxes, and discounts."
+                title="Adjustments &amp; Logistics"
+                description="Transportation, delivery, custom fees, taxes, and discounts."
               >
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -2807,143 +2728,6 @@ export default function AdminBookingEditModal({
                     </Field>
                   </div>
 
-                  {/* Overtime Calculator */}
-                  <div className="rounded-xl border border-sky-200 bg-sky-50/40 p-4 space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sky-200/60 pb-2.5">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-sky-600" />
-                        <div>
-                          <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-                            Crew &amp; Event Overtime Calculator
-                          </span>
-                          <span className="text-[10.5px] text-slate-500">
-                            Automatic formula calculation for extended event hours.
-                          </span>
-                        </div>
-                      </div>
-
-                      <label className="flex items-center gap-2 text-xs font-bold text-sky-900 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={includeOvertime}
-                          onChange={(e) => setIncludeOvertime(e.target.checked)}
-                          className="h-4 w-4 rounded border-sky-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
-                        />
-                        <span>Enable Overtime Fee</span>
-                      </label>
-                    </div>
-
-                    {includeOvertime && (
-                      <div className="space-y-3 pt-1 animate-in fade-in-50 duration-150">
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          <button
-                            type="button"
-                            onClick={() => setOvertimeMode("per_crew")}
-                            className={`px-3 py-1.5 rounded-md font-semibold border transition-colors cursor-pointer ${
-                              overtimeMode === "per_crew"
-                                ? "bg-sky-600 text-white border-sky-600"
-                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                            }`}
-                          >
-                            Per Crew per Hour
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setOvertimeMode("flat")}
-                            className={`px-3 py-1.5 rounded-md font-semibold border transition-colors cursor-pointer ${
-                              overtimeMode === "flat"
-                                ? "bg-sky-600 text-white border-sky-600"
-                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                            }`}
-                          >
-                            Flat Event Extension Fee
-                          </button>
-                        </div>
-
-                        {overtimeMode === "per_crew" ? (
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <Field label="Overtime Hours">
-                              <input
-                                type="number"
-                                min="1"
-                                step="0.5"
-                                value={overtimeHours}
-                                onChange={(e) => setOvertimeHours(Number(e.target.value))}
-                                className={`${inputClass(false)} py-1.5 text-xs font-semibold`}
-                              />
-                            </Field>
-                            <Field label="Crew Members Count">
-                              <input
-                                type="number"
-                                min="1"
-                                value={crewCount}
-                                onChange={(e) => setCrewCount(Number(e.target.value))}
-                                className={`${inputClass(false)} py-1.5 text-xs font-semibold`}
-                              />
-                            </Field>
-                            <Field label="Hourly Rate per Crew (₱)">
-                              <input
-                                type="number"
-                                min="0"
-                                value={hourlyRatePerCrew}
-                                onChange={(e) => setHourlyRatePerCrew(Number(e.target.value))}
-                                className={`${inputClass(false)} py-1.5 text-xs font-semibold`}
-                              />
-                            </Field>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <Field label="Overtime Extension (Hours)">
-                              <input
-                                type="number"
-                                min="1"
-                                value={overtimeHours}
-                                onChange={(e) => setOvertimeHours(Number(e.target.value))}
-                                className={`${inputClass(false)} py-1.5 text-xs font-semibold`}
-                              />
-                            </Field>
-                            <Field label="Flat Overtime Fee (₱)">
-                              <input
-                                type="number"
-                                min="0"
-                                value={flatOvertimeFee}
-                                onChange={(e) => setFlatOvertimeFee(Number(e.target.value))}
-                                className={`${inputClass(false)} py-1.5 text-xs font-semibold`}
-                              />
-                            </Field>
-                          </div>
-                        )}
-
-                        {/* Formula Summary & Live Overtime Total */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-sky-100/70 border border-sky-200">
-                          <div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 block">
-                              Formula Calculation
-                            </span>
-                            <p className="text-xs font-semibold text-sky-950 mt-0.5">
-                              {overtimeMode === "per_crew" ? (
-                                <>
-                                  {overtimeHours} hrs &times; {crewCount} crew &times;{" "}
-                                  {formatCurrency(hourlyRatePerCrew)}/hr
-                                </>
-                              ) : (
-                                <>{overtimeHours} hrs flat event extension</>
-                              )}
-                            </p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 block sm:inline mr-2">
-                              Total Fee:
-                            </span>
-                            <span className="text-base font-extrabold text-sky-950 tabular-nums">
-                              {formatCurrency(finalOvertimeAmount)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
                   {/* Custom Additional Fees */}
                   <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
@@ -2964,14 +2748,13 @@ export default function AdminBookingEditModal({
                       </button>
                     </div>
 
-                    {additionalFees.filter((f) => !f.isOvertime).length === 0 ? (
+                    {additionalFees.length === 0 ? (
                       <p className="text-[11.5px] text-slate-400 italic py-1">
                         No custom additional fees added yet.
                       </p>
                     ) : (
                       <ul className="space-y-2">
                         {additionalFees.map((fee, index) => {
-                          if (fee.isOvertime) return null;
                           return (
                             <li key={index} className="flex items-center gap-2">
                               <input
@@ -3116,11 +2899,8 @@ export default function AdminBookingEditModal({
                 {money(transportationFee) > 0 && (
                   <SummaryRow label="Transportation" value={formatCurrency(transportationFee)} />
                 )}
-                {includeOvertime && finalOvertimeAmount > 0 && (
-                  <SummaryRow label="Crew overtime fee" value={formatCurrency(finalOvertimeAmount)} />
-                )}
                 {additionalFees
-                  .filter((f) => !f.isOvertime && money(f.amount) > 0)
+                  .filter((f) => money(f.amount) > 0)
                   .map((f, idx) => (
                     <SummaryRow key={idx} label={f.name || "Custom fee"} value={formatCurrency(f.amount)} />
                   ))}

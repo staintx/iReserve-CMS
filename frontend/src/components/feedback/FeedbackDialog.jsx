@@ -47,6 +47,7 @@ export default function FeedbackDialog({
   tertiary,
   wide = false,
   hideCancel = false,
+  busyLabel = "Working…",
 }) {
   const { icon: Icon, tint } = toneOf(tone);
   const [pending, setPending] = useState(null); // "confirm" | "tertiary" | null
@@ -207,7 +208,7 @@ export default function FeedbackDialog({
                 ) : ConfirmIcon ? (
                   <ConfirmIcon aria-hidden="true" />
                 ) : null}
-                {pending === "confirm" ? "Working…" : confirmLabel}
+                {pending === "confirm" ? busyLabel : confirmLabel}
               </button>
             </div>
           </div>

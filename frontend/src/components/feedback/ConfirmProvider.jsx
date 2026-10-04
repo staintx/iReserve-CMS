@@ -58,6 +58,7 @@ export function ConfirmProvider({ children }) {
           confirmLabel={request.confirmLabel}
           cancelLabel={request.cancelLabel}
           confirmIcon={request.confirmIcon}
+          busyLabel={request.busyLabel}
           wide={request.wide}
           onConfirm={async () => {
             if (request.onConfirm) {

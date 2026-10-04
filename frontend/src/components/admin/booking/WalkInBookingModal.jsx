@@ -938,7 +938,6 @@ function WalkInReviewAndQuotation({
         return "bg-emerald-50 text-emerald-700 border-emerald-200";
       case "Extra":
       case "Logistics":
-      case "Overtime":
       case "Fee":
         return "bg-slate-100 text-slate-700 border-slate-200";
       default:
@@ -1287,12 +1286,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
   const [quotationMenuItems, setQuotationMenuItems] = useState([]);
   const [quotationAddOns, setQuotationAddOns] = useState([]);
   const [transportationFee, setTransportationFee] = useState("");
-  const [includeOvertime, setIncludeOvertime] = useState(false);
-  const [overtimeMode, setOvertimeMode] = useState("per_crew");
-  const [overtimeHours, setOvertimeHours] = useState(2);
-  const [crewCount, setCrewCount] = useState(3);
-  const [hourlyRatePerCrew, setHourlyRatePerCrew] = useState(200);
-  const [flatOvertimeFee, setFlatOvertimeFee] = useState(1500);
   const [additionalFees, setAdditionalFees] = useState([]);
   const [discounts, setDiscounts] = useState("");
   const [taxes, setTaxes] = useState("");
@@ -1412,12 +1405,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       setQuotationMenuItems([]);
       setQuotationAddOns([]);
       setTransportationFee("");
-      setIncludeOvertime(false);
-      setOvertimeMode("per_crew");
-      setOvertimeHours(2);
-      setCrewCount(3);
-      setHourlyRatePerCrew(200);
-      setFlatOvertimeFee(1500);
       setAdditionalFees([]);
       setDiscounts("");
       setTaxes("");
@@ -1841,7 +1828,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     setTaxes("");
     setTransportationFee("");
     setAdditionalFees([]);
-    setIncludeOvertime(false);
     notify("Quotation builder reset to step selections & catalog defaults.", "info");
   }, [syncQuotationFromWizard, notify]);
 
@@ -2214,7 +2200,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
   const handleAddFee = () => {
     setIsQuotationDirty(true);
-    setAdditionalFees((prev) => [...prev, { name: "", amount: "", isOvertime: false }]);
+    setAdditionalFees((prev) => [...prev, { name: "", amount: "" }]);
   };
 
   // ─── Dynamic Steps Array (Identical to Customer Booking Sequence) ───────────
@@ -2437,42 +2423,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     [quotationAddOns]
   );
 
-  // Overtime calculations
-  const computedOvertimeAmount = useMemo(() => {
-    if (!includeOvertime) return 0;
-    if (overtimeMode === "flat") {
-      return Math.max(0, Number(flatOvertimeFee) || 0);
-    }
-    const hrs = Math.max(0, Number(overtimeHours) || 0);
-    const crew = Math.max(1, Number(crewCount) || 1);
-    const rate = Math.max(0, Number(hourlyRatePerCrew) || 0);
-    return Math.round(hrs * crew * rate);
-  }, [includeOvertime, overtimeMode, overtimeHours, crewCount, hourlyRatePerCrew, flatOvertimeFee]);
-
-  const defaultOvertimeTitle = useMemo(() => {
-    const hrs = Number(overtimeHours) || 0;
-    const hrsLabel = `${hrs} hr${hrs === 1 ? "" : "s"}`;
-    if (overtimeMode === "flat") {
-      return `Event Overtime Fee (${hrsLabel} flat extension)`;
-    }
-    const crew = Number(crewCount) || 1;
-    const rate = Number(hourlyRatePerCrew) || 0;
-    return `Crew Overtime (${hrsLabel} × ${crew} crew @ ₱${rate}/hr)`;
-  }, [overtimeMode, overtimeHours, crewCount, hourlyRatePerCrew]);
-
-  // Sync overtime into additional fees
-  useEffect(() => {
-    const title = defaultOvertimeTitle;
-    const amountStr = String(computedOvertimeAmount);
-
-    setAdditionalFees((prev) => {
-      const filtered = prev.filter((f) => !f.isOvertime && !/overtime/i.test(f.name || ""));
-      if (!includeOvertime || computedOvertimeAmount <= 0) {
-        return filtered;
-      }
-      return [...filtered, { name: title, amount: amountStr, isOvertime: true }];
-    });
-  }, [includeOvertime, computedOvertimeAmount, defaultOvertimeTitle]);
 
   const activeSpecialDishes = useMemo(
     () => (cateringIncluded ? quotationMenuItems.filter((m) => !m.removed) : []),
@@ -2702,15 +2652,15 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       });
     }
 
-    // 7. Additional & Overtime Fees
+    // 7. Additional Fees
     additionalFees
       .filter((f) => Number(f.amount) > 0)
       .forEach((f, idx) => {
         rows.push({
           key: `fee-${idx}`,
-          category: f.isOvertime ? "Overtime" : "Fee",
+          category: "Fee",
           name: f.name || "Additional Fee",
-          description: f.isOvertime ? "Crew / Event extension" : "Custom adjustment",
+          description: "Custom adjustment",
           quantity: 1,
           unit: "Fee",
           unitPrice: Number(f.amount),
@@ -3623,37 +3573,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                     setIsQuotationDirty(true);
                     setTransportationFee(val);
                   }}
-                  includeOvertime={includeOvertime}
-                  setIncludeOvertime={(val) => {
-                    setIsQuotationDirty(true);
-                    setIncludeOvertime(val);
-                  }}
-                  overtimeMode={overtimeMode}
-                  setOvertimeMode={(val) => {
-                    setIsQuotationDirty(true);
-                    setOvertimeMode(val);
-                  }}
-                  overtimeHours={overtimeHours}
-                  setOvertimeHours={(val) => {
-                    setIsQuotationDirty(true);
-                    setOvertimeHours(val);
-                  }}
-                  crewCount={crewCount}
-                  setCrewCount={(val) => {
-                    setIsQuotationDirty(true);
-                    setCrewCount(val);
-                  }}
-                  hourlyRatePerCrew={hourlyRatePerCrew}
-                  setHourlyRatePerCrew={(val) => {
-                    setIsQuotationDirty(true);
-                    setHourlyRatePerCrew(val);
-                  }}
-                  flatOvertimeFee={flatOvertimeFee}
-                  setFlatOvertimeFee={(val) => {
-                    setIsQuotationDirty(true);
-                    setFlatOvertimeFee(val);
-                  }}
-                  computedOvertimeAmount={computedOvertimeAmount}
                   additionalFees={additionalFees}
                   handleFeeChange={handleFeeChange}
                   handleRemoveFee={handleRemoveFee}

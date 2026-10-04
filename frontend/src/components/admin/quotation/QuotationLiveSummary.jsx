@@ -5,7 +5,6 @@ import {
   ArrowLeft,
   Send,
   Save,
-  Clock,
   Ruler,
   ChevronRight,
   ChevronLeft,
@@ -198,7 +197,6 @@ export default function QuotationLiveSummary({
             />
           )}
           {additionalFees.map((fee, idx) => {
-            const isOt = fee.isOvertime || /overtime/i.test(fee.name || "");
             const amt = Number(fee.amount) || 0;
             if (amt <= 0) return null;
             return (
@@ -206,9 +204,8 @@ export default function QuotationLiveSummary({
                 key={idx}
                 indent
                 label={
-                  <span className="inline-flex items-center gap-1 truncate max-w-[130px]">
-                    {isOt && <Clock size={10} className="text-sky-400 shrink-0" />}
-                    <span>{fee.name || "Fee"}</span>
+                  <span className="truncate max-w-[130px]">
+                    {fee.name || "Fee"}
                   </span>
                 }
                 value={formatCurrency(amt)}

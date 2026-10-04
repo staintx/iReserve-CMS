@@ -307,22 +307,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const [taxes, setTaxes] = useState("");
   const [discounts, setDiscounts] = useState("");
 
-  // Overtime Calculator (Step 2)
-  const [includeOvertime, setIncludeOvertime] = useState(false);
-  const [overtimeMode, setOvertimeMode] = useState("per_crew");
-  const [overtimeHours, setOvertimeHours] = useState(2);
-  const [crewCount, setCrewCount] = useState(() => {
-    const pax = Number(inquiry?.guest_count) || 50;
-    if (pax <= 40) return 2;
-    if (pax <= 75) return 3;
-    if (pax <= 120) return 4;
-    if (pax <= 180) return 6;
-    return 8;
-  });
-  const [hourlyRatePerCrew, setHourlyRatePerCrew] = useState(200);
-  const [flatOvertimeFee, setFlatOvertimeFee] = useState(1500);
-  const [overtimeCustomTitle, setOvertimeCustomTitle] = useState("");
-  const [overtimeCustomAmount, setOvertimeCustomAmount] = useState("");
 
   // Payment Terms & Expiration (Step 3)
   const [depositAmount, setDepositAmount] = useState("");
@@ -556,51 +540,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const municipalities = useMemo(() => getBatangasMunicipalities(), []);
   const barangays = useMemo(() => getBatangasBarangays(details.municipality), [details.municipality]);
 
-  // Overtime calculation
-  const computedOvertimeAmount = useMemo(() => {
-    if (!includeOvertime) return 0;
-    if (overtimeMode === "flat") {
-      return Math.max(0, Number(flatOvertimeFee) || 0);
-    }
-    const hrs = Math.max(0, Number(overtimeHours) || 0);
-    const crew = Math.max(1, Number(crewCount) || 1);
-    const rate = Math.max(0, Number(hourlyRatePerCrew) || 0);
-    return Math.round(hrs * crew * rate);
-  }, [includeOvertime, overtimeMode, overtimeHours, crewCount, hourlyRatePerCrew, flatOvertimeFee]);
-
-  const finalOvertimeAmount = useMemo(() => {
-    if (!includeOvertime) return 0;
-    if (overtimeCustomAmount !== "" && !isNaN(Number(overtimeCustomAmount))) {
-      return Math.max(0, Number(overtimeCustomAmount));
-    }
-    return computedOvertimeAmount;
-  }, [includeOvertime, overtimeCustomAmount, computedOvertimeAmount]);
-
-  const defaultOvertimeTitle = useMemo(() => {
-    const hrs = Number(overtimeHours) || 0;
-    const hrsLabel = `${hrs} hr${hrs === 1 ? "" : "s"}`;
-    if (overtimeMode === "flat") {
-      return `Event Overtime Fee (${hrsLabel} flat extension)`;
-    }
-    const crew = Number(crewCount) || 1;
-    const rate = Number(hourlyRatePerCrew) || 0;
-    return `Crew Overtime (${hrsLabel} × ${crew} crew @ ₱${rate}/hr)`;
-  }, [overtimeMode, overtimeHours, crewCount, hourlyRatePerCrew]);
-
-  // Sync overtime to additional fees
-  useEffect(() => {
-    const title = overtimeCustomTitle.trim() || defaultOvertimeTitle;
-    const amountStr = String(finalOvertimeAmount);
-
-    setAdditionalFees((prev) => {
-      const filtered = prev.filter((f) => !f.isOvertime && !/overtime/i.test(f.name || ""));
-      if (!includeOvertime || finalOvertimeAmount <= 0) {
-        return filtered;
-      }
-      return [...filtered, { name: title, amount: amountStr, isOvertime: true }];
-    });
-  }, [includeOvertime, finalOvertimeAmount, overtimeCustomTitle, defaultOvertimeTitle]);
-
   /* ---------------------------------------------------------------------------
      Initial Data Fetching & Setup
   --------------------------------------------------------------------------- */
@@ -802,30 +741,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           setTransportationFee(latest.transportation_fee ? String(latest.transportation_fee) : "");
 
           const rawFees = Array.isArray(latest.additional_fees) ? latest.additional_fees : [];
-          const otFee = rawFees.find((f) => /overtime/i.test(f?.name || ""));
-          if (otFee) {
-            setIncludeOvertime(true);
-            setOvertimeCustomTitle(otFee.name || "");
-            if (/flat/i.test(otFee.name || "")) {
-              setOvertimeMode("flat");
-              setFlatOvertimeFee(Number(otFee.amount) || 1500);
-            } else {
-              setOvertimeMode("per_crew");
-              const m = (otFee.name || "").match(/(\d+(?:\.\d+)?)\s*hrs?.*?(\d+)\s*crew.*?(\d+)/i);
-              if (m) {
-                setOvertimeHours(Number(m[1]) || 2);
-                setCrewCount(Number(m[2]) || 3);
-                setHourlyRatePerCrew(Number(m[3]) || 200);
-              }
-            }
-          }
-
           setAdditionalFees(
-            rawFees.map((fee) => ({
-              name: fee?.name || "",
-              amount: fee?.amount ? String(fee.amount) : "",
-              isOvertime: /overtime/i.test(fee?.name || ""),
-            }))
+            rawFees
+              .filter((fee) => !/overtime/i.test(fee?.name || ""))
+              .map((fee) => ({
+                name: fee?.name || "",
+                amount: fee?.amount ? String(fee.amount) : "",
+              }))
           );
 
           setTaxes(latest.taxes ? String(latest.taxes) : "");
@@ -1206,6 +1128,92 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     return notes;
   }, [totals, inquiry?.is_custom_setup, packageRecord, depositPercentage, cateringIncluded, chargeableMenuItems.length, offerContext, isFoodOnly, maxValidityDate]);
 
+  /* --- Required Pricing Validation --- */
+  const getMissingPricingItems = () => {
+    const missing = [];
+
+    // 1. Starting / Package Base Price (if applicable)
+    if (!isFoodOnly) {
+      if (!numberOf(startingPrice) || money(startingPrice) <= 0) {
+        missing.push({
+          name: packageName ? `${packageName} (Base Setup Price)` : "Package / Setup Starting Price",
+          id: "qb-starting-price",
+          errorKey: "package_starting_price",
+        });
+      }
+    }
+
+    // 2. Menu Items (Dishes)
+    if (cateringIncluded && !isSpecial) {
+      menuItems.forEach((dish, idx) => {
+        if (!dish.removed) {
+          if (!numberOf(dish.price) || money(dish.price) <= 0) {
+            missing.push({
+              name: dish.name ? `Dish: ${dish.name}` : `Menu Item #${idx + 1}`,
+              id: `qb-menu-price-${idx}`,
+              errorKey: `menu_items.${idx}.price`,
+            });
+          }
+        }
+      });
+    }
+
+    // 3. Extra Services (Add-ons)
+    addOns.forEach((addon, idx) => {
+      if (!addon.removed) {
+        if (!numberOf(addon.price) || money(addon.price) <= 0) {
+          missing.push({
+            name: addon.name ? `Extra Service: ${addon.name}` : `Add-on #${idx + 1}`,
+            id: `qb-addon-price-${idx}`,
+            errorKey: `add_ons.${idx}.price`,
+          });
+        }
+      }
+    });
+
+    // 4. Other Charges (Additional Fees)
+    additionalFees.forEach((fee, idx) => {
+      const hasName = Boolean(String(fee.name || "").trim());
+      const hasAmount = numberOf(fee.amount) && money(fee.amount) > 0;
+      if (hasName || numberOf(fee.amount)) {
+        if (!hasName) {
+          missing.push({
+            name: `Other Charge #${idx + 1} (Name is required)`,
+            id: `qb-fee-name-${idx}`,
+            errorKey: `additional_fees.${idx}.name`,
+          });
+        }
+        if (!hasAmount) {
+          missing.push({
+            name: fee.name ? `Other Charge: ${fee.name}` : `Other Charge #${idx + 1}`,
+            id: `qb-fee-amount-${idx}`,
+            errorKey: `additional_fees.${idx}.amount`,
+          });
+        }
+      }
+    });
+
+    // 5. Inclusion Adjustments (Extra Quantities)
+    inclusions.forEach((inc, idx) => {
+      if (
+        !inc.removed &&
+        inc.baseQuantity !== null &&
+        inc.baseQuantity !== undefined &&
+        Number(inc.quantity) > Number(inc.baseQuantity)
+      ) {
+        if (!numberOf(inc.unitPrice) || money(inc.unitPrice) <= 0) {
+          missing.push({
+            name: `${inc.name || "Inclusion"} (Extra Quantity Price)`,
+            id: `qb-inclusion-price-${idx}`,
+            errorKey: `inclusion_adjustments.${idx}.unit_price`,
+          });
+        }
+      }
+    });
+
+    return missing;
+  };
+
   /* --- Validation --- */
   const validate = () => {
     const found = {};
@@ -1518,7 +1526,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   };
 
   const handleAddFee = () => {
-    setAdditionalFees((prev) => [...prev, { name: "", amount: "", isOvertime: false }]);
+    setAdditionalFees((prev) => [...prev, { name: "", amount: "" }]);
   };
 
   /* --- Draft & Submit Handlers --- */
@@ -1635,11 +1643,37 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
 
+    // 1. Strict Pricing Validation: Every applicable pricing item must be complete
+    const missingPrices = getMissingPricingItems();
+    if (missingPrices.length > 0) {
+      const missingList = missingPrices.map((m) => `• ${m.name}`).join("\n");
+      notify(`Please complete the pricing before sending this quotation.\n\nMissing prices:\n${missingList}`, "error", {
+        duration: 7000,
+      });
+      const missingErrors = {};
+      missingPrices.forEach((m) => {
+        if (m.errorKey) missingErrors[m.errorKey] = `Price required for ${m.name}`;
+      });
+      setErrors((prev) => ({ ...prev, ...missingErrors }));
+      setActiveStep(2);
+      setTimeout(() => {
+        const firstId = missingPrices[0]?.id;
+        if (firstId) {
+          const el = document.getElementById(firstId);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.focus?.();
+          }
+        }
+      }, 150);
+      return;
+    }
+
+    // 2. Step & form field validations
     const found = validate();
     setErrors(found);
     if (Object.keys(found).length > 0) {
       notify("Please review and resolve the highlighted errors before sending.", "error");
-      // If error belongs to a specific step, switch to it
       if (found.contact_first_name || found.event_date || found.guest_count) {
         setActiveStep(1);
       } else if (found.package_name || found.total_cost) {
@@ -1650,60 +1684,72 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       return;
     }
 
-    setSubmitting(true);
-    try {
-      await AdminAPI.updateInquiry(inquiry._id, {
-        booking_for: details.booking_for || "myself",
-        celebrant_name: String(details.celebrant_name || "").trim(),
-        contact_first_name: details.contact_first_name.trim(),
-        contact_last_name: details.contact_last_name.trim(),
-        contact_email: details.contact_email.trim(),
-        contact_phone: details.contact_phone.trim(),
-        event_type: resolvedEventType,
-        event_date: details.event_date,
-        start_time: details.start_time,
-        guest_count: totals.guestCount,
-        service_type: details.service_type,
-        include_food: cateringIncluded,
-        event_theme: String(details.event_theme || "").trim(),
-        event_palette: resolvedPalette,
-        venue_type: details.venue_type.trim(),
-        province: details.province,
-        municipality: details.municipality,
-        barangay: details.barangay,
-        street: details.street.trim(),
-        landmark: details.landmark.trim(),
-        zip_code: details.zip_code.trim(),
-        selected_scaffold_option_id: isCustomScaffold || !selectedScaffoldId ? null : selectedScaffoldId,
-        scaffold_width: scaffoldWidth ? Number(scaffoldWidth) : null,
-        scaffold_length: scaffoldLength ? Number(scaffoldLength) : null,
-        scaffold_base_area: scaffoldWidth && scaffoldLength ? Number(scaffoldWidth) * Number(scaffoldLength) : null,
-        scaffold_price: selectedScaffoldPrice != null ? selectedScaffoldPrice : undefined,
-      });
-    } catch (err) {
-      setSubmitting(false);
-      notify(err.response?.data?.message || "Could not save event details. Please try again.", "error");
-      return;
-    }
+    // 3. "Are You Sure?" Confirmation Modal
+    await confirm({
+      tone: "confirm",
+      title: "Send Quotation?",
+      description:
+        "Are you sure you want to send this quotation to the customer? Please make sure all prices, charges, discounts, and quotation details are correct before sending.",
+      confirmLabel: "Yes, Send Quotation",
+      cancelLabel: "Cancel",
+      busyLabel: "Sending...",
+      onConfirm: async () => {
+        setSubmitting(true);
+        try {
+          await AdminAPI.updateInquiry(inquiry._id, {
+            booking_for: details.booking_for || "myself",
+            celebrant_name: String(details.celebrant_name || "").trim(),
+            contact_first_name: details.contact_first_name.trim(),
+            contact_last_name: details.contact_last_name.trim(),
+            contact_email: details.contact_email.trim(),
+            contact_phone: details.contact_phone.trim(),
+            event_type: resolvedEventType,
+            event_date: details.event_date,
+            start_time: details.start_time,
+            guest_count: totals.guestCount,
+            service_type: details.service_type,
+            include_food: cateringIncluded,
+            event_theme: String(details.event_theme || "").trim(),
+            event_palette: resolvedPalette,
+            venue_type: details.venue_type.trim(),
+            province: details.province,
+            municipality: details.municipality,
+            barangay: details.barangay,
+            street: details.street.trim(),
+            landmark: details.landmark.trim(),
+            zip_code: details.zip_code.trim(),
+            selected_scaffold_option_id: isCustomScaffold || !selectedScaffoldId ? null : selectedScaffoldId,
+            scaffold_width: scaffoldWidth ? Number(scaffoldWidth) : null,
+            scaffold_length: scaffoldLength ? Number(scaffoldLength) : null,
+            scaffold_base_area: scaffoldWidth && scaffoldLength ? Number(scaffoldWidth) * Number(scaffoldLength) : null,
+            scaffold_price: selectedScaffoldPrice != null ? selectedScaffoldPrice : undefined,
+          });
+        } catch (err) {
+          setSubmitting(false);
+          notify(err.response?.data?.message || "Could not save event details. Please try again.", "error");
+          return;
+        }
 
-    try {
-      await AdminAPI.createQuotation(quotationPayload);
-      notify(
-        quotation
-          ? `Version ${(Number(quotation.version_number) || 1) + 1}.0 sent successfully!`
-          : `Quotation sent to ${details.contact_first_name || "the customer"}!`,
-        "success"
-      );
-      onSuccess();
-    } catch (err) {
-      const serverErrors = err.response?.data?.errors;
-      if (serverErrors && typeof serverErrors === "object") {
-        setErrors(serverErrors);
-      }
-      notify(err.response?.data?.message || "Failed to generate quotation.", "error");
-    } finally {
-      setSubmitting(false);
-    }
+        try {
+          await AdminAPI.createQuotation(quotationPayload);
+          notify(
+            quotation
+              ? `Version ${(Number(quotation.version_number) || 1) + 1}.0 sent successfully!`
+              : `Quotation sent to ${details.contact_first_name || "the customer"}!`,
+            "success"
+          );
+          onSuccess();
+        } catch (err) {
+          const serverErrors = err.response?.data?.errors;
+          if (serverErrors && typeof serverErrors === "object") {
+            setErrors(serverErrors);
+          }
+          notify(err.response?.data?.message || "Failed to generate quotation.", "error");
+        } finally {
+          setSubmitting(false);
+        }
+      },
+    });
   };
 
   if (!inquiry) return null;
@@ -1848,19 +1894,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               onAddCustomAddon={handleAddCustomAddon}
               transportationFee={transportationFee}
               setTransportationFee={setTransportationFee}
-              includeOvertime={includeOvertime}
-              setIncludeOvertime={setIncludeOvertime}
-              overtimeMode={overtimeMode}
-              setOvertimeMode={setOvertimeMode}
-              overtimeHours={overtimeHours}
-              setOvertimeHours={setOvertimeHours}
-              crewCount={crewCount}
-              setCrewCount={setCrewCount}
-              hourlyRatePerCrew={hourlyRatePerCrew}
-              setHourlyRatePerCrew={setHourlyRatePerCrew}
-              flatOvertimeFee={flatOvertimeFee}
-              setFlatOvertimeFee={setFlatOvertimeFee}
-              computedOvertimeAmount={computedOvertimeAmount}
               additionalFees={additionalFees}
               handleFeeChange={handleFeeChange}
               handleRemoveFee={handleRemoveFee}
@@ -1903,6 +1936,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               pendingChanges={pendingChanges}
               errors={errors}
               warnings={warnings}
+              missingPrices={getMissingPricingItems()}
               submitting={submitting}
               savingDraft={savingDraft}
               today={todayInput()}

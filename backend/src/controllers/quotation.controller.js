@@ -91,11 +91,18 @@ function validateQuotationPayload(body, totals) {
   const isSpecial = Boolean(body.is_special_offer || body.booking_type === "special");
   if (!isSpecial) {
     (Array.isArray(body.menu_items) ? body.menu_items : []).forEach((item, index) => {
-      if (!String(item?.name || "").trim()) {
+      const dishName = String(item?.name || "").trim();
+      if (!dishName) {
         errors[`menu_items.${index}.name`] = "Name this dish or remove the line.";
       }
-      if (negative(item?.price)) {
-        errors[`menu_items.${index}.price`] = "A dish price cannot be negative.";
+      if (
+        item?.price === undefined ||
+        item?.price === null ||
+        item?.price === "" ||
+        isNaN(Number(item?.price)) ||
+        Number(item?.price) <= 0
+      ) {
+        errors[`menu_items.${index}.price`] = `Price is required for "${dishName || `Dish #${index + 1}`}".`;
       }
       // Only meaningful on a line charged by its own units; a per-guest dish
       // takes its quantity from the guest count, which is validated above.
@@ -106,11 +113,18 @@ function validateQuotationPayload(body, totals) {
   }
 
   (Array.isArray(body.add_ons) ? body.add_ons : []).forEach((item, index) => {
-    if (!String(item?.name || "").trim()) {
+    const addonName = String(item?.name || "").trim();
+    if (!addonName) {
       errors[`add_ons.${index}.name`] = "Name this add-on or remove the line.";
     }
-    if (negative(item?.price)) {
-      errors[`add_ons.${index}.price`] = "An add-on price cannot be negative.";
+    if (
+      item?.price === undefined ||
+      item?.price === null ||
+      item?.price === "" ||
+      isNaN(Number(item?.price)) ||
+      Number(item?.price) <= 0
+    ) {
+      errors[`add_ons.${index}.price`] = `Price is required for "${addonName || `Add-on #${index + 1}`}".`;
     }
     if (item?.quantity !== undefined && Number(item.quantity) < 1) {
       errors[`add_ons.${index}.quantity`] = "Quantity must be at least 1.";
@@ -131,7 +145,8 @@ function validateQuotationPayload(body, totals) {
 
   (Array.isArray(body.inclusion_adjustments) ? body.inclusion_adjustments : []).forEach(
     (item, index) => {
-      if (!String(item?.name || "").trim()) {
+      const incName = String(item?.name || "").trim();
+      if (!incName) {
         errors[`inclusion_adjustments.${index}.name`] = "An adjusted inclusion needs a name.";
       }
       if (Number(item?.quantity) < 0 || Number(item?.base_quantity) < 0) {
@@ -141,16 +156,33 @@ function validateQuotationPayload(body, totals) {
       if (negative(item?.unit_price)) {
         errors[`inclusion_adjustments.${index}.unit_price`] =
           "A unit price cannot be a negative amount.";
+      } else if (Number(item?.quantity) > Number(item?.base_quantity)) {
+        if (
+          item?.unit_price === undefined ||
+          item?.unit_price === null ||
+          item?.unit_price === "" ||
+          isNaN(Number(item?.unit_price)) ||
+          Number(item?.unit_price) <= 0
+        ) {
+          errors[`inclusion_adjustments.${index}.unit_price`] = `A unit price greater than ₱0 is required for extra "${incName || `Inclusion #${index + 1}`}".`;
+        }
       }
     }
   );
 
   (Array.isArray(body.additional_fees) ? body.additional_fees : []).forEach((fee, index) => {
-    if (!String(fee?.name || "").trim()) {
+    const feeName = String(fee?.name || "").trim();
+    if (!feeName) {
       errors[`additional_fees.${index}.name`] = "Name this fee so the customer knows what it covers.";
     }
-    if (negative(fee?.amount)) {
-      errors[`additional_fees.${index}.amount`] = "A fee cannot be a negative amount.";
+    if (
+      fee?.amount === undefined ||
+      fee?.amount === null ||
+      fee?.amount === "" ||
+      isNaN(Number(fee?.amount)) ||
+      Number(fee?.amount) <= 0
+    ) {
+      errors[`additional_fees.${index}.amount`] = `A fee amount greater than ₱0 is required for "${feeName || `Fee #${index + 1}`}".`;
     }
   });
 

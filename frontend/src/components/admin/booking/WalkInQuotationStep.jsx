@@ -78,19 +78,6 @@ export default function WalkInQuotationStep({
   onAddCustomAddon,
   transportationFee,
   setTransportationFee,
-  includeOvertime,
-  setIncludeOvertime,
-  overtimeMode,
-  setOvertimeMode,
-  overtimeHours,
-  setOvertimeHours,
-  crewCount,
-  setCrewCount,
-  hourlyRatePerCrew,
-  setHourlyRatePerCrew,
-  flatOvertimeFee,
-  setFlatOvertimeFee,
-  computedOvertimeAmount,
   additionalFees,
   handleFeeChange,
   handleRemoveFee,
@@ -284,19 +271,6 @@ export default function WalkInQuotationStep({
             onAddCustomAddon={onAddCustomAddon}
             transportationFee={transportationFee}
             setTransportationFee={setTransportationFee}
-            includeOvertime={includeOvertime}
-            setIncludeOvertime={setIncludeOvertime}
-            overtimeMode={overtimeMode}
-            setOvertimeMode={setOvertimeMode}
-            overtimeHours={overtimeHours}
-            setOvertimeHours={setOvertimeHours}
-            crewCount={crewCount}
-            setCrewCount={setCrewCount}
-            hourlyRatePerCrew={hourlyRatePerCrew}
-            setHourlyRatePerCrew={setHourlyRatePerCrew}
-            flatOvertimeFee={flatOvertimeFee}
-            setFlatOvertimeFee={setFlatOvertimeFee}
-            computedOvertimeAmount={computedOvertimeAmount}
             additionalFees={additionalFees}
             handleFeeChange={handleFeeChange}
             handleRemoveFee={handleRemoveFee}

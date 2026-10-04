@@ -41,6 +41,7 @@ export default function ReviewSendStep({
   pendingChanges = [],
   errors = {},
   warnings = [],
+  missingPrices = [],
   submitting,
   savingDraft,
   today,
@@ -121,8 +122,11 @@ export default function ReviewSendStep({
     },
     {
       label: "Package & items priced",
-      passed: totals.totalCost > 0,
-      failMsg: "Quotation total must be greater than ₱0",
+      passed: totals.totalCost > 0 && missingPrices.length === 0,
+      failMsg:
+        missingPrices.length > 0
+          ? `Missing prices for ${missingPrices.length} item(s): ${missingPrices.map((m) => m.name).join(", ")}`
+          : "Quotation total must be greater than ₱0",
     },
     {
       label: "Required deposit specified",
@@ -197,6 +201,33 @@ export default function ReviewSendStep({
               <li key={idx}>{w}</li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Missing Prices Alert Banner */}
+      {missingPrices.length > 0 && (
+        <div className="bg-red-50 border border-red-300 rounded-lg p-3 space-y-1.5 text-xs text-red-900 shadow-2xs">
+          <div className="flex items-center gap-1.5 font-bold text-red-800">
+            <AlertCircle size={14} className="text-red-600 shrink-0" />
+            <span>Pricing Incomplete — {missingPrices.length} item(s) require pricing</span>
+          </div>
+          <p className="text-[11px] text-red-700">
+            Please set a valid price for the following items before sending this quotation:
+          </p>
+          <ul className="list-disc pl-5 space-y-0.5 font-medium text-[11px] text-red-800">
+            {missingPrices.map((item, idx) => (
+              <li key={idx}>{item.name}</li>
+            ))}
+          </ul>
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={onBackToPrices}
+              className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-red-700 hover:text-red-900 underline cursor-pointer"
+            >
+              Go to Set Prices to complete pricing &rarr;
+            </button>
+          </div>
         </div>
       )}
 

@@ -88,7 +88,7 @@ export default function WalkInQuotationNavigation({
       id: "pricing-charges",
       stepNumber: 5,
       label: "Other Charges",
-      desc: "Transpo & overtime",
+      desc: "Transpo & fees",
       icon: Truck,
       hasError: hasChargesErrors,
       badge: null,

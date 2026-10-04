@@ -125,8 +125,8 @@ const QuotationSchema = new mongoose.Schema(
 
     transportation_fee: { type: Number, default: 0 },
 
-    // Named one-off charges the admin adds while quoting (overtime service,
-    // special equipment, a transportation top-up). Replaces the two fixed fee
+    // Named one-off charges the admin adds while quoting (special equipment,
+    // a transportation top-up, custom service). Replaces the two fixed fee
     // fields below, which could only ever describe two situations.
     additional_fees: [
       {

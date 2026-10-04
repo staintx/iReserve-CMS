@@ -380,6 +380,7 @@ export default function ManageInclusionsModal({
                             ₱
                           </span>
                           <input
+                            id={`qb-inclusion-price-${item.originalIndex}`}
                             type="number"
                             min="0"
                             step="0.01"
@@ -391,7 +392,11 @@ export default function ManageInclusionsModal({
                                 e.target.value.replace(/[^0-9.]/g, "")
                               )
                             }
-                            className="w-full rounded border border-slate-300 bg-white pl-4 pr-1 py-0.5 text-xs text-right font-mono font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+                            className={`w-full rounded border pl-4 pr-1 py-0.5 text-xs text-right font-mono font-medium focus:outline-none focus:ring-1 focus:ring-primary ${
+                              !item.unitPrice || Number(item.unitPrice) <= 0
+                                ? "border-red-400 bg-red-50/40"
+                                : "border-slate-300 bg-white"
+                            }`}
                           />
                         </div>
                       </div>

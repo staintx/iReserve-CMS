@@ -144,9 +144,16 @@ export default function AdminReservations() {
     }
   };
 
-  const handleNewBookingCreated = () => {
+  const handleNewBookingCreated = (createdBooking) => {
     loadData();
-    handleCloseNewBooking();
+    setShowNewBookingModal(false);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("new");
+    nextParams.delete("action");
+    if (createdBooking?._id) {
+      nextParams.set("bookingId", String(createdBooking._id));
+    }
+    setSearchParams(nextParams, { replace: true });
   };
 
   // State
@@ -269,11 +276,18 @@ export default function AdminReservations() {
           ? addressParts.join(", ") + (b.zip_code ? ` (${b.zip_code})` : "")
           : b.venue_address || "Venue TBA";
 
+        const contactName = `${b.contact_first_name || ""} ${b.contact_last_name || ""}`.trim();
+        const customerDisplay =
+          (b.customer_id?.role === "customer" ? b.customer_id?.full_name : null) ||
+          contactName ||
+          b.customer_id?.full_name ||
+          "Customer";
+
         return {
           _id: b._id,
           id: b.reference || `BK-${b._id.substring(b._id.length - 6).toUpperCase()}`,
-          customer: b.customer_id?.full_name || `${b.contact_first_name || ""} ${b.contact_last_name || ""}`.trim() || "Customer",
-          email: b.customer_id?.email || b.contact_email || "N/A",
+          customer: customerDisplay,
+          email: (b.customer_id?.role === "customer" ? b.customer_id?.email : null) || b.contact_email || b.customer_id?.email || "N/A",
           phone: b.contact_phone || b.customer_id?.phone || "N/A",
           eventTitle: recordTitle(b),
           eventType: b.event_type === "Other" && b.event_type_other ? b.event_type_other : (b.event_type || b.inquiry_id?.event_type || "Event"),

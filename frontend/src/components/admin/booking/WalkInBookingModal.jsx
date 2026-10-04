@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   X,
   Search,
@@ -1293,6 +1294,7 @@ function WalkInReviewAndQuotation({
 // ─── Main Modal Component ─────────────────────────────────────────────────────
 export default function WalkInBookingModal({ open, onClose, onCreated }) {
   const { notify } = useToast();
+  const navigate = useNavigate();
   const contentRef = useRef(null);
 
   // Flow State
@@ -3286,6 +3288,8 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         total_cost: quotationTotals.totalCost,
         deposit_amount: quotationTotals.depositAmount,
         remaining_balance: quotationTotals.remainingBalance,
+        payment_method: paymentMethod || "cash",
+        balance_payment_preference: balancePreference || "in_person",
         expiration_date: toDateInput(new Date(Date.now() + 7 * 86400000)),
         admin_notes: quotationNotes,
       };
@@ -3295,24 +3299,35 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       // Step 3: Handle Status Routing Based on Deposit Payment
       if (depositPaidImmediately) {
         // Customer paid deposit right now: convert inquiry into confirmed reservation
-        await AdminAPI.createBookingFromInquiry(newInquiry._id, {
+        const convertRes = await AdminAPI.createBookingFromInquiry(newInquiry._id, {
           bypass_deposit: true,
+          mark_deposit_as_paid: true,
+          deposit_paid_immediately: true,
           payment_method: paymentMethod || "cash",
+          deposit_amount: quotationTotals.depositAmount,
         });
+        const createdBooking = convertRes.data?.booking;
         notify(
           "Walk-in booking created and confirmed into Reservations (deposit recorded)!",
           "success"
         );
+        onCreated?.(createdBooking);
+        onClose();
+        if (createdBooking?._id) {
+          navigate(`/admin/bookings/reservations?bookingId=${createdBooking._id}`);
+        } else {
+          navigate("/admin/bookings/reservations");
+        }
+        return;
       } else {
         // Unpaid deposit: stays under Quotations as "Quotation Sent"
         notify(
           "Walk-in inquiry & quotation created! Placed in Quotations pending deposit payment.",
           "success"
         );
+        onCreated?.();
+        onClose();
       }
-
-      onCreated?.();
-      onClose();
     } catch (err) {
       notify(
         err.response?.data?.message || err.message || "Could not create the walk-in booking. Please check details.",

@@ -7,9 +7,7 @@ const TOKEN_KEY = "ireserve_mobile_jwt_token";
 
 export const getStoredToken = async () => {
   try {
-    if (Platform.OS === "web") {
-      return typeof localStorage !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
-    }
+    if (Platform.OS === "web") return null;
     return await SecureStore.getItemAsync(TOKEN_KEY);
   } catch (error) {
     console.warn("Error reading token from storage", error);
@@ -19,16 +17,7 @@ export const getStoredToken = async () => {
 
 export const setStoredToken = async (token) => {
   try {
-    if (Platform.OS === "web") {
-      if (typeof localStorage !== "undefined") {
-        if (token) {
-          localStorage.setItem(TOKEN_KEY, token);
-        } else {
-          localStorage.removeItem(TOKEN_KEY);
-        }
-      }
-      return;
-    }
+    if (Platform.OS === "web") return;
     if (token) {
       await SecureStore.setItemAsync(TOKEN_KEY, token);
     } else {
@@ -41,12 +30,7 @@ export const setStoredToken = async (token) => {
 
 export const removeStoredToken = async () => {
   try {
-    if (Platform.OS === "web") {
-      if (typeof localStorage !== "undefined") {
-        localStorage.removeItem(TOKEN_KEY);
-      }
-      return;
-    }
+    if (Platform.OS === "web") return;
     await SecureStore.deleteItemAsync(TOKEN_KEY);
   } catch (error) {
     console.warn("Error deleting token from storage", error);
@@ -62,6 +46,7 @@ export const setOnSessionExpired = (callback) => {
 const client = axios.create({
   baseURL: API_BASE_URL,
   timeout: 20000,
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",

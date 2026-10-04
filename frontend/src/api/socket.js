@@ -3,8 +3,6 @@ import { io } from "socket.io-client";
 let socket;
 
 export const getSocket = () => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
   if (!socket) {
     // Derive socket server URL: prefer explicit VITE_SOCKET_URL, then VITE_API_BASE_URL,
     // otherwise fall back to current origin. Strip any trailing /api.
@@ -14,7 +12,6 @@ export const getSocket = () => {
     socket = io(baseUrl, {
       autoConnect: false,
       withCredentials: true,
-      auth: token ? { token } : undefined,
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -31,13 +28,10 @@ export const getSocket = () => {
 
     // Helpful debug logs for connection lifecycle in production troubleshooting
     socket.on("connect", () => {
-      console.debug("[Socket] connected with auth:", socket.auth);
+      console.debug("[Socket] connected");
     });
     socket.on("reconnect", (attempt) => console.debug("[Socket] reconnected", attempt));
     socket.on("disconnect", (reason) => console.debug("[Socket] disconnected", reason));
-  } else {
-    socket.auth = token ? { token } : undefined;
-    console.debug("[Socket] getSocket called, updated auth:", socket.auth);
   }
 
   return socket;

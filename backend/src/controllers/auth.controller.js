@@ -150,11 +150,11 @@ exports.login = async (req, res, next) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 24 * 60 * 60 * 1000 // 1 day
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
+      path: "/"
     });
 
-    // Also return token in response body so clients that cannot read httpOnly
-    // cookie (e.g. socket handshake auth fallbacks) can still include it.
+    // Also return token in response body so native mobile clients can store it in SecureStore
     res.json({ user: sanitizeUser(user), token });
   } catch (err) {
     next(err);
@@ -166,6 +166,7 @@ exports.logout = (req, res) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    path: "/"
   });
   res.json({ message: "Logged out successfully" });
 };

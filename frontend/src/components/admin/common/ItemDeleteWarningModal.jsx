@@ -22,13 +22,16 @@ export default function ItemDeleteWarningModal({
   onConfirm,
   item,
   type = "inventory", // "inventory" | "menu" | "addon"
+  action = "delete", // "delete" | "make_unavailable"
   confirmText,
+  initialUsage,
 }) {
   const [loading, setLoading] = useState(true);
   const [usage, setUsage] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
 
+  const isMakeUnavailable = action === "make_unavailable";
   const itemName = item ? (item.item_name || item.name || "this item") : "this item";
 
   const typeLabel = type === "menu" ? "Food Menu Item" : type === "addon" ? "Addon" : "Inventory Item";
@@ -37,6 +40,12 @@ export default function ItemDeleteWarningModal({
 
   useEffect(() => {
     if (!isOpen || !item?._id) return;
+    if (initialUsage) {
+      setUsage(initialUsage);
+      setLoading(false);
+      setError("");
+      return;
+    }
     let isMounted = true;
     setLoading(true);
     setError("");
@@ -57,7 +66,11 @@ export default function ItemDeleteWarningModal({
       .catch((err) => {
         console.error("Failed to check item usage:", err);
         if (isMounted) {
-          setError("Could not check current usage details. You may still proceed with deletion.");
+          setError(
+            isMakeUnavailable
+              ? "Could not check current usage details. You may still proceed with updating availability."
+              : "Could not check current usage details. You may still proceed with deletion."
+          );
           setUsage({ hasUsage: false, hasActiveCustomerUsage: false });
         }
       })
@@ -68,7 +81,7 @@ export default function ItemDeleteWarningModal({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, item?._id, type]);
+  }, [isOpen, item?._id, type, initialUsage, isMakeUnavailable]);
 
   if (!isOpen || !item) return null;
 
@@ -78,7 +91,7 @@ export default function ItemDeleteWarningModal({
     try {
       await onConfirm();
     } catch (err) {
-      console.error("Failed to delete item:", err);
+      console.error(isMakeUnavailable ? "Failed to update item availability:" : "Failed to delete item:", err);
       setDeleting(false);
     }
   };
@@ -100,26 +113,26 @@ export default function ItemDeleteWarningModal({
   const hasUsage = usage?.hasUsage;
 
   const resolvedConfirmText =
-    confirmText || "Delete Item";
+    confirmText || (isMakeUnavailable ? "Continue & Make Unavailable" : "Delete Item");
 
   // Determine modal header icon and title
-  let modalTitle = `Delete ${typeLabel}`;
-  let HeaderIcon = Trash2;
-  let iconBgClass = "bg-rose-100 text-rose-600";
+  let modalTitle = isMakeUnavailable ? `Make ${typeLabel} Unavailable` : `Delete ${typeLabel}`;
+  let HeaderIcon = isMakeUnavailable ? AlertTriangle : Trash2;
+  let iconBgClass = isMakeUnavailable ? "bg-amber-100 text-amber-600" : "bg-rose-100 text-rose-600";
 
   if (hasActiveCustomerUsage) {
     modalTitle = `Warning: ${typeLabel} Currently Used`;
     HeaderIcon = AlertTriangle;
     iconBgClass = "bg-amber-100 text-amber-600";
   } else if (hasUsage) {
-    modalTitle = `Warning: ${typeLabel} In Use`;
+    modalTitle = isMakeUnavailable ? `Warning: ${typeLabel} Currently Used` : `Warning: ${typeLabel} In Use`;
     HeaderIcon = AlertTriangle;
     iconBgClass = "bg-amber-100 text-amber-600";
   }
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
         <motion.div
           initial={{ scale: 0.96, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -138,7 +151,9 @@ export default function ItemDeleteWarningModal({
                   {modalTitle}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Confirm deletion of item from the catalog
+                  {isMakeUnavailable
+                    ? "Confirm changing item availability to Unavailable"
+                    : "Confirm deletion of item from the catalog"}
                 </p>
               </div>
             </div>
@@ -167,10 +182,29 @@ export default function ItemDeleteWarningModal({
                     <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
                     <div className="text-xs space-y-0.5">
                       <p className="font-bold text-amber-950">
-                        Deleting this {typeNoun} item may affect an active customer transaction.
+                        {isMakeUnavailable
+                          ? `Making this ${typeNoun} item unavailable may affect an active customer transaction.`
+                          : `Deleting this ${typeNoun} item may affect an active customer transaction.`}
                       </p>
                       <p className="text-amber-800/90 text-[11px] leading-relaxed">
-                        The admin should still be able to choose whether to proceed. Do not automatically modify or delete the inquiry, quotation, or booking.
+                        {isMakeUnavailable
+                          ? "You can choose whether to proceed. Do not automatically modify the package or cancel bookings."
+                          : "The admin should still be able to choose whether to proceed. Do not automatically modify or delete the inquiry, quotation, or booking."}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Package Usage Alert Banner (when turning unavailable without active customer usage) */}
+                {!hasActiveCustomerUsage && hasUsage && isMakeUnavailable && (
+                  <div className="p-3 rounded-lg bg-amber-50 border border-amber-200/80 flex items-start gap-2.5 text-amber-900">
+                    <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="text-xs space-y-0.5">
+                      <p className="font-bold text-amber-950">
+                        This {typeNoun} item is currently referenced in active packages.
+                      </p>
+                      <p className="text-amber-800/90 text-[11px] leading-relaxed">
+                        Making it unavailable will prevent it from new bookings. Existing package definitions will remain intact.
                       </p>
                     </div>
                   </div>
@@ -185,7 +219,15 @@ export default function ItemDeleteWarningModal({
                     </p>
                   ) : (
                     <p className="text-xs sm:text-sm text-foreground/90">
-                      Are you sure you want to delete <span className="font-bold text-foreground">"{itemName}"</span>? This action cannot be undone.
+                      {isMakeUnavailable ? (
+                        <>
+                          Are you sure you want to mark <span className="font-bold text-foreground">"{itemName}"</span> as Unavailable?
+                        </>
+                      ) : (
+                        <>
+                          Are you sure you want to delete <span className="font-bold text-foreground">"{itemName}"</span>? This action cannot be undone.
+                        </>
+                      )}
                     </p>
                   )}
                 </div>
@@ -311,7 +353,9 @@ export default function ItemDeleteWarningModal({
                 {/* Clarification notes */}
                 {hasUsage && (
                   <p className="text-[11px] text-muted-foreground/90 italic pt-1">
-                    Important: Deleting this item will only remove it from the current {catalogNoun} catalog. Historical/completed events and active records will remain intact.
+                    {isMakeUnavailable
+                      ? "Important: Making this item unavailable will disable it for new bookings. Existing package definitions, active inquiries, bookings, quotations, and reservations will remain intact."
+                      : `Important: Deleting this item will only remove it from the current ${catalogNoun} catalog. Historical/completed events and active records will remain intact.`}
                   </p>
                 )}
 
@@ -334,25 +378,50 @@ export default function ItemDeleteWarningModal({
             >
               Cancel
             </Btn>
-            <Btn
-              variant="danger"
-              size="sm"
-              onClick={handleDelete}
-              disabled={deleting || loading}
-            >
-              {deleting ? (
-                <>
-                  <Loader2 size={13} className="animate-spin mr-1.5" /> Deleting…
-                </>
-              ) : (
-                <>
-                  <Trash2 size={13} className="mr-1.5" /> {resolvedConfirmText}
-                </>
-              )}
-            </Btn>
+            {isMakeUnavailable ? (
+              <Btn
+                variant="primary"
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleting || loading}
+                className="bg-amber-600 hover:bg-amber-700 text-white border-amber-600 hover:border-amber-700"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin mr-1.5" /> Updating…
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle size={13} className="mr-1.5" /> {resolvedConfirmText}
+                  </>
+                )}
+              </Btn>
+            ) : (
+              <Btn
+                variant="danger"
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleting || loading}
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin mr-1.5" /> Deleting…
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={13} className="mr-1.5" /> {resolvedConfirmText}
+                  </>
+                )}
+              </Btn>
+            )}
           </div>
         </motion.div>
       </div>
     </AnimatePresence>
   );
 }
+
+export function ItemAvailabilityWarningModal(props) {
+  return <ItemDeleteWarningModal action="make_unavailable" {...props} />;
+}
+

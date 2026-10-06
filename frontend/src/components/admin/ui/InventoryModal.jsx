@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { X, AlertCircle } from "lucide-react";
+import { X, AlertCircle, Loader2 } from "lucide-react";
 import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 import { validateCatalogName, validateSafeText } from "@/lib/validationRules";
+import ItemDeleteWarningModal from "../common/ItemDeleteWarningModal";
 
 // Canonical identifier normalizer for duplicate checks
 const normalizeIdentifier = (name) => {
@@ -29,6 +30,11 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
     reason: "",
   });
 
+  const [isCheckingUsage, setIsCheckingUsage] = useState(false);
+  const [showUsageWarning, setShowUsageWarning] = useState(false);
+  const [usageWarningData, setUsageWarningData] = useState(null);
+  const [hasConfirmedUnavailable, setHasConfirmedUnavailable] = useState(false);
+
   useEffect(() => {
     if (existingItems && existingItems.length > 0) {
       setItemsCatalog(existingItems);
@@ -51,6 +57,9 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
         available: item.available !== false,
         reason: "",
       });
+      setHasConfirmedUnavailable(false);
+      setShowUsageWarning(false);
+      setUsageWarningData(null);
     } else {
       setFormData({
         item_name: "",
@@ -59,6 +68,9 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
         available: true,
         reason: "",
       });
+      setHasConfirmedUnavailable(false);
+      setShowUsageWarning(false);
+      setUsageWarningData(null);
     }
   }, [item]);
 
@@ -139,6 +151,30 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
       return;
     }
 
+    // Safety check: if admin submits item as unavailable when it was previously available and not yet confirmed
+    if (
+      item &&
+      item._id &&
+      item.available !== false &&
+      !formData.available &&
+      !hasConfirmedUnavailable
+    ) {
+      try {
+        setIsCheckingUsage(true);
+        const res = await AdminAPI.getInventoryUsage(item._id);
+        const usage = res.data;
+        if (usage?.hasUsage) {
+          setUsageWarningData(usage);
+          setShowUsageWarning(true);
+          return;
+        }
+      } catch (err) {
+        console.error("Failed to check inventory usage on submit:", err);
+      } finally {
+        setIsCheckingUsage(false);
+      }
+    }
+
     isSubmittingRef.current = true;
     setLoading(true);
     try {
@@ -164,6 +200,60 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
       setLoading(false);
       isSubmittingRef.current = false;
     }
+  };
+
+  const handleToggleClick = async () => {
+    // Turning ON: Unavailable -> Available (no warning)
+    if (!formData.available) {
+      setFormData((prev) => ({ ...prev, available: true }));
+      setHasConfirmedUnavailable(false);
+      return;
+    }
+
+    // Turning OFF: Available -> Unavailable
+    // If this is a new unsaved item:
+    if (!item?._id) {
+      setFormData((prev) => ({ ...prev, available: false }));
+      return;
+    }
+
+    // If already explicitly confirmed in this edit session:
+    if (hasConfirmedUnavailable) {
+      setFormData((prev) => ({ ...prev, available: false }));
+      return;
+    }
+
+    if (isCheckingUsage) return;
+    setIsCheckingUsage(true);
+    try {
+      const res = await AdminAPI.getInventoryUsage(item._id);
+      const usage = res.data;
+      if (usage?.hasUsage) {
+        setUsageWarningData(usage);
+        setShowUsageWarning(true);
+      } else {
+        // No usage found anywhere -> turn off normally without warning
+        setFormData((prev) => ({ ...prev, available: false }));
+      }
+    } catch (err) {
+      console.error("Failed to check inventory usage:", err);
+      setUsageWarningData({ hasUsage: false, hasActiveCustomerUsage: false });
+      setShowUsageWarning(true);
+    } finally {
+      setIsCheckingUsage(false);
+    }
+  };
+
+  const handleCancelWarning = () => {
+    setShowUsageWarning(false);
+    // Keep the inventory item Available; do not save the status change
+  };
+
+  const handleConfirmUnavailable = () => {
+    setShowUsageWarning(false);
+    setHasConfirmedUnavailable(true);
+    // Proceed with turning the inventory item to Unavailable
+    setFormData((prev) => ({ ...prev, available: false }));
   };
 
   return (
@@ -293,17 +383,28 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
                   type="button"
                   role="switch"
                   aria-checked={formData.available}
-                  onClick={() => setFormData({ ...formData, available: !formData.available })}
+                  disabled={isCheckingUsage || loading}
+                  onClick={handleToggleClick}
                   className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 ${
-                    formData.available ? "bg-emerald-600" : "bg-slate-300"
+                    isCheckingUsage
+                      ? "opacity-60 cursor-wait"
+                      : formData.available
+                      ? "bg-emerald-600"
+                      : "bg-slate-300"
                   }`}
                 >
-                  <span
-                    aria-hidden="true"
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                      formData.available ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
+                  {isCheckingUsage ? (
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <Loader2 size={12} className="animate-spin text-white" />
+                    </span>
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                        formData.available ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  )}
                 </button>
               </div>
             </div>
@@ -332,6 +433,19 @@ export default function InventoryModal({ item, onClose, onSave, existingItems = 
           </div>
         </form>
       </div>
+
+      {showUsageWarning && item && (
+        <ItemDeleteWarningModal
+          isOpen={showUsageWarning}
+          item={item}
+          type="inventory"
+          action="make_unavailable"
+          initialUsage={usageWarningData}
+          onClose={handleCancelWarning}
+          onConfirm={handleConfirmUnavailable}
+          confirmText="Continue & Make Unavailable"
+        />
+      )}
     </div>
   );
 }

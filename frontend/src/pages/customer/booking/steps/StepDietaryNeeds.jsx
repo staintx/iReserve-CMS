@@ -13,7 +13,7 @@ import {
  * and a cost summary next to an allergy question is noise that trains people to
  * stop reading it.
  */
-export default function StepDietaryNeeds({ form, setForm }) {
+export default function StepDietaryNeeds({ form, setForm, errors = {} }) {
   return (
     <StepShell width="wide">
       <SH
@@ -26,6 +26,7 @@ export default function StepDietaryNeeds({ form, setForm }) {
           <Field
             label="Allergies"
             hint="Ingredients that must not touch the food (max 300 chars)"
+            error={errors.allergies}
           >
             <TTextarea
               placeholder="e.g. Peanut allergy, severe shellfish or seafood allergy..."
@@ -33,12 +34,14 @@ export default function StepDietaryNeeds({ form, setForm }) {
               value={form.allergies || ""}
               onChange={(val) => setForm({ ...form, allergies: val })}
               rows={3}
+              hasError={!!errors.allergies}
             />
           </Field>
 
           <Field
             label="Dietary preferences & restrictions"
             hint="Vegetarian, halal, religious, or health requirements (max 300 chars)"
+            error={errors.dietary_restrictions}
           >
             <TTextarea
               placeholder="e.g. 5 vegetarian guests, no pork, or low-sodium meals..."
@@ -46,6 +49,7 @@ export default function StepDietaryNeeds({ form, setForm }) {
               value={form.dietary_restrictions || ""}
               onChange={(val) => setForm({ ...form, dietary_restrictions: val })}
               rows={3}
+              hasError={!!errors.dietary_restrictions}
             />
           </Field>
         </div>

@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import {
   Card,
@@ -64,6 +65,7 @@ export default function StepDateTime({
   requireAvailabilityCheck = false,
   onRetryAvailability,
   leadTimeDays,
+  errors = {},
 }) {
   // Simple calendar logic
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -274,7 +276,16 @@ export default function StepDateTime({
 
       <div className="grid grid-cols-1 gap-3.5 md:grid-cols-[330px_1fr] items-start">
         {/* Calendar Card */}
-        <Card className="p-3.5 sm:p-4">
+        <Card className={cn("p-3.5 sm:p-4 transition-all", errors.event_date && "border-red-300 ring-1 ring-red-400/40")}>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <SectionTitle icon={CalendarDays} className="mb-0">
+              Select event date{" "}
+              <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
+                *
+              </span>
+            </SectionTitle>
+          </div>
+
           <div className="mb-2 flex items-center justify-between">
             <button
               type="button"
@@ -377,12 +388,24 @@ export default function StepDateTime({
               Fully booked
             </span>
           </div>
+
+          {errors.event_date && (
+            <div className="mt-2.5 flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-600">
+              <AlertCircle size={14} className="shrink-0 text-red-500" />
+              <span>{errors.event_date}</span>
+            </div>
+          )}
         </Card>
 
         {/* Start Time & Schedule Confirmation Card */}
-        <Card className="p-3.5 sm:p-4">
+        <Card className={cn("p-3.5 sm:p-4 transition-all", errors.start_time && "border-red-300 ring-1 ring-red-400/40")}>
           <div className="flex items-center justify-between gap-2 mb-2">
-            <SectionTitle icon={Clock} className="mb-0">Select start time</SectionTitle>
+            <SectionTitle icon={Clock} className="mb-0">
+              Select start time{" "}
+              <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
+                *
+              </span>
+            </SectionTitle>
             {form.event_date && (
               <span className="hidden sm:inline-block text-[11px] font-medium text-slate-500">
                 {formattedDateStr}
@@ -443,6 +466,13 @@ export default function StepDateTime({
                   </button>
                 );
               })}
+            </div>
+          )}
+
+          {errors.start_time && (
+            <div className="mt-2.5 flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-600">
+              <AlertCircle size={14} className="shrink-0 text-red-500" />
+              <span>{errors.start_time}</span>
             </div>
           )}
 

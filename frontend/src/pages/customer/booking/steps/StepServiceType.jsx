@@ -1,4 +1,4 @@
-import { Utensils, CalendarDays, PartyPopper, Check, Sparkles, ShieldCheck } from "lucide-react";
+import { Utensils, CalendarDays, PartyPopper, Check, Sparkles, ShieldCheck, AlertCircle } from "lucide-react";
 import {
   SH,
   SelectableCard,
@@ -43,15 +43,29 @@ const SERVICE_OPTIONS = [
   },
 ];
 
-export default function StepServiceType({ form, setForm }) {
+export default function StepServiceType({ form, setForm, errors = {} }) {
   const active = SERVICE_PATHS[form.service_type];
 
   return (
     <StepShell width="wide">
       <SH
-        title="Choose Your Service Type"
+        title={
+          <span>
+            Choose Your Service Type{" "}
+            <span className="font-bold text-red-500 text-sm" title="Required" aria-hidden="true">
+              *
+            </span>
+          </span>
+        }
         sub="Select the catering and event setup service that fits your event."
       />
+
+      {errors.service_type && (
+        <div className="mb-3.5 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs font-semibold text-red-700">
+          <AlertCircle size={15} className="shrink-0 text-red-500" />
+          <span>{errors.service_type}</span>
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-3">
         {SERVICE_OPTIONS.map((option) => {

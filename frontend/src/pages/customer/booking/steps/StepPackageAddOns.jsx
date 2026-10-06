@@ -18,6 +18,7 @@ export default function StepPackageAddOns({
   packageDetails,
   addons = [],
   estimate,
+  errors = {},
 }) {
   // 1. Package-specific add-ons
   const packageItems = useMemo(() => {
@@ -196,6 +197,7 @@ export default function StepPackageAddOns({
           <Field
             label="Additional event notes or requests"
             hint="Event theme, styling preferences, or schedule timing (max 500 chars)"
+            error={errors.special_requests}
           >
             <TTextarea
               placeholder="e.g. Navy and gold color motif, setup backdrop by 3:00 PM before photoshoot, vegetarian guest table..."
@@ -203,6 +205,7 @@ export default function StepPackageAddOns({
               value={form.special_requests || ""}
               onChange={(val) => setForm({ ...form, special_requests: val })}
               rows={4}
+              hasError={!!errors.special_requests}
             />
           </Field>
           <InfoNote icon={Info} className="mt-3">

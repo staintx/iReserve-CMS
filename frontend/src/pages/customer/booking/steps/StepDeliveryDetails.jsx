@@ -197,30 +197,33 @@ export default function StepDeliveryDetails({
                     hasError={!!errors.street}
                   />
                 </Field>
-                <Field label="ZIP code" hint="Optional (4 digits)">
+                <Field label="ZIP code" hint="Optional (4 digits)" error={errors.zip_code}>
                   <TInput
                     placeholder="e.g. 4200"
                     maxLength={4}
                     inputMode="numeric"
                     value={form.zip_code || ""}
                     onChange={(val) => setForm({ ...form, zip_code: val.replace(/\D/g, "").slice(0, 4) })}
+                    hasError={!!errors.zip_code}
                   />
                 </Field>
               </div>
 
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                <Field label="Landmark" hint="Helps our delivery driver locate your address">
+                <Field label="Landmark" hint="Helps our delivery driver locate your address" error={errors.landmark}>
                   <TInput
                     placeholder="e.g. Near Barangay Hall, behind Shell station"
                     maxLength={100}
                     value={form.landmark || ""}
                     onChange={(val) => setForm({ ...form, landmark: val })}
+                    hasError={!!errors.landmark}
                   />
                 </Field>
 
                 <Field
                   label="Delivery instructions"
                   hint="Gate, floor number, or parking notes for our crew"
+                  error={errors.delivery_instructions}
                 >
                   <TInput
                     placeholder="e.g. 2nd floor, blue gate, parking along side street"
@@ -229,6 +232,7 @@ export default function StepDeliveryDetails({
                     onChange={(val) =>
                       setForm({ ...form, delivery_instructions: val })
                     }
+                    hasError={!!errors.delivery_instructions}
                   />
                 </Field>
               </div>

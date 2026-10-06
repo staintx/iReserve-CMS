@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
   DollarSign,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import {
   Card,
@@ -335,7 +336,12 @@ export default function StepPackageSelection({
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between">
               <span className="font-bold text-xs sm:text-sm text-slate-900 leading-tight">
-                Pre-made Package
+                Pre-made Package{" "}
+                {!isCustomSetup && (
+                  <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
+                    *
+                  </span>
+                )}
               </span>
               {!isCustomSetup && (
                 <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#4C81E0] text-white text-[9px] font-bold">
@@ -373,7 +379,12 @@ export default function StepPackageSelection({
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between">
               <span className="font-bold text-xs sm:text-sm text-slate-900 leading-tight">
-                Design from Scratch (100% Custom)
+                Design from Scratch (100% Custom){" "}
+                {isCustomSetup && (
+                  <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
+                    *
+                  </span>
+                )}
               </span>
               {isCustomSetup && (
                 <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#4C81E0] text-white text-[9px] font-bold">
@@ -443,11 +454,23 @@ export default function StepPackageSelection({
           )}
 
           {selectedPackage && scaffoldOptions.length > 0 && (
-            <Card className="p-3.5 sm:p-4">
-              <SectionTitle icon={Ruler}>Event space / scaffold size</SectionTitle>
+            <Card className={cn("p-3.5 sm:p-4 transition-all", errors.selected_scaffold_option_id && "border-red-300 ring-1 ring-red-400/40")}>
+              <SectionTitle icon={Ruler}>
+                Event space / scaffold size{" "}
+                <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
+                  *
+                </span>
+              </SectionTitle>
               <p className="mb-2 text-xs text-slate-500">
                 Select the scaffold dimensions for your venue footprint.
               </p>
+
+              {errors.selected_scaffold_option_id && (
+                <div className="mb-2.5 flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 p-2 text-xs font-semibold text-red-600">
+                  <AlertCircle size={14} className="shrink-0 text-red-500" />
+                  <span>{errors.selected_scaffold_option_id}</span>
+                </div>
+              )}
 
               {setupCapacity && (
                 <InfoNote
@@ -573,7 +596,10 @@ export default function StepPackageSelection({
               <div>
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                    Theme or styling motif
+                    Theme or styling motif{" "}
+                    <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
+                      *
+                    </span>
                   </label>
                   <FieldStatusPill value={form.event_theme} />
                 </div>
@@ -582,7 +608,10 @@ export default function StepPackageSelection({
                   onChange={(theme) => updateForm({ event_theme: theme })}
                 />
                 {errors.event_theme && (
-                  <p className="text-[11px] text-red-600 mt-1">{errors.event_theme}</p>
+                  <p className="text-xs font-semibold text-red-600 mt-1.5 flex items-center gap-1.5">
+                    <AlertCircle size={13} className="shrink-0 text-red-500" />
+                    <span>{errors.event_theme}</span>
+                  </p>
                 )}
               </div>
 
@@ -761,10 +790,19 @@ export default function StepPackageSelection({
                   onChange={(e) => updateForm({ custom_setup_notes: e.target.value })}
                   placeholder="e.g. Warm ambient fairy lights, floral stage backdrop, elegant couple's seating, wooden rustic tables..."
                   className={cn(
-                    "w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0]",
+                    "w-full rounded-lg border bg-white p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2",
+                    errors.custom_setup_notes
+                      ? "border-red-300 bg-red-50/50 focus:ring-red-200 focus:border-red-400"
+                      : "border-slate-200 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0]",
                     focusRing,
                   )}
                 />
+                {errors.custom_setup_notes && (
+                  <p className="text-xs font-semibold text-red-600 mt-1 flex items-center gap-1">
+                    <AlertCircle size={13} className="shrink-0 text-red-500" />
+                    <span>{errors.custom_setup_notes}</span>
+                  </p>
+                )}
               </div>
             </div>
           </Card>

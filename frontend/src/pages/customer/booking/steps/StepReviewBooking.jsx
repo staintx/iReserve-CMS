@@ -604,71 +604,93 @@ export default function StepReviewBooking({
               Please review and accept our policies before submitting your quotation request.
             </p>
 
-            {errors.agreements && (
+            {(errors.agreements || errors.terms || errors.privacy) && (
               <InfoNote tone="danger" className="mb-2.5">
-                {errors.agreements}
+                {errors.agreements || errors.terms || errors.privacy}
               </InfoNote>
             )}
 
-            <div className="space-y-1.5 border-t border-slate-100 pt-2.5">
-              <label className="flex cursor-pointer items-start gap-2 rounded-md p-1 transition-colors hover:bg-slate-50">
-                <input
-                  type="checkbox"
-                  className={checkboxClass}
-                  checked={agreements.terms}
-                  onChange={(event) =>
-                    setAgreements({ ...agreements, terms: event.target.checked })
-                  }
-                />
-                <span className="text-xs text-slate-600 leading-snug">
-                  I agree to the{" "}
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      onShowTerms();
-                    }}
-                    className={cn(
-                      "font-semibold text-[#4C81E0] hover:underline cursor-pointer",
-                      focusRing,
-                    )}
-                  >
-                    Terms &amp; Conditions
-                  </button>
-                  .
-                </span>
-              </label>
+            <div className="space-y-2 border-t border-slate-100 pt-2.5">
+              <div>
+                <label className="flex cursor-pointer items-start gap-2 rounded-md p-1 transition-colors hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    className={checkboxClass}
+                    checked={agreements.terms}
+                    onChange={(event) =>
+                      setAgreements({ ...agreements, terms: event.target.checked })
+                    }
+                  />
+                  <span className="text-xs text-slate-600 leading-snug">
+                    I agree to the{" "}
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        onShowTerms();
+                      }}
+                      className={cn(
+                        "font-semibold text-[#4C81E0] hover:underline cursor-pointer",
+                        focusRing,
+                      )}
+                    >
+                      Terms &amp; Conditions
+                    </button>
+                    {" "}
+                    <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
+                      *
+                    </span>
+                    .
+                  </span>
+                </label>
+                {errors.terms && (
+                  <p className="text-xs font-semibold text-red-600 pl-6 mt-0.5">
+                    {errors.terms}
+                  </p>
+                )}
+              </div>
 
-              <label className="flex cursor-pointer items-start gap-2 rounded-md p-1 transition-colors hover:bg-slate-50">
-                <input
-                  type="checkbox"
-                  className={checkboxClass}
-                  checked={agreements.privacy}
-                  onChange={(event) =>
-                    setAgreements({
-                      ...agreements,
-                      privacy: event.target.checked,
-                    })
-                  }
-                />
-                <span className="text-xs text-slate-600 leading-snug">
-                  I have read and understood the{" "}
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      onShowPrivacy();
-                    }}
-                    className={cn(
-                      "font-semibold text-[#4C81E0] hover:underline cursor-pointer",
-                      focusRing,
-                    )}
-                  >
-                    Privacy Policy
-                  </button>
-                  .
-                </span>
-              </label>
+              <div>
+                <label className="flex cursor-pointer items-start gap-2 rounded-md p-1 transition-colors hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    className={checkboxClass}
+                    checked={agreements.privacy}
+                    onChange={(event) =>
+                      setAgreements({
+                        ...agreements,
+                        privacy: event.target.checked,
+                      })
+                    }
+                  />
+                  <span className="text-xs text-slate-600 leading-snug">
+                    I have read and understood the{" "}
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        onShowPrivacy();
+                      }}
+                      className={cn(
+                        "font-semibold text-[#4C81E0] hover:underline cursor-pointer",
+                        focusRing,
+                      )}
+                    >
+                      Privacy Policy
+                    </button>
+                    {" "}
+                    <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
+                      *
+                    </span>
+                    .
+                  </span>
+                </label>
+                {errors.privacy && (
+                  <p className="text-xs font-semibold text-red-600 pl-6 mt-0.5">
+                    {errors.privacy}
+                  </p>
+                )}
+              </div>
 
               {onShowCancellation && (
                 <p className="text-[11px] text-slate-500 pt-1.5 pl-1">
@@ -688,14 +710,21 @@ export default function StepReviewBooking({
             </div>
 
             {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
-              <div className="mt-3 flex justify-center border-t border-slate-100 pt-3">
-                <Turnstile
-                  ref={turnstileRef}
-                  siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
-                  onSuccess={(token) => setTurnstileToken && setTurnstileToken(token)}
-                  onExpire={() => setTurnstileToken && setTurnstileToken("")}
-                  onError={() => setTurnstileToken && setTurnstileToken("")}
-                />
+              <div className="mt-3 border-t border-slate-100 pt-3">
+                <div className="flex justify-center">
+                  <Turnstile
+                    ref={turnstileRef}
+                    siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+                    onSuccess={(token) => setTurnstileToken && setTurnstileToken(token)}
+                    onExpire={() => setTurnstileToken && setTurnstileToken("")}
+                    onError={() => setTurnstileToken && setTurnstileToken("")}
+                  />
+                </div>
+                {errors.turnstile && (
+                  <p className="text-xs font-semibold text-red-600 text-center mt-1.5">
+                    {errors.turnstile}
+                  </p>
+                )}
               </div>
             )}
           </Card>

@@ -7,12 +7,14 @@ import {
   RotateCcw,
   ChevronDown,
   ChevronRight,
+  AlertCircle,
 } from "lucide-react";
 import {
   Card,
   SH,
   Field,
   TTextarea,
+  InfoNote,
   StepShell,
 } from "../components/BookingSharedUI";
 import { focusRing } from "../lib/bookingUI";
@@ -182,6 +184,7 @@ export default function StepMenuSelection({
   onRegisterMenuNav,
   onRemoveDish,
   onClearDishes,
+  errors = {},
 }) {
   const selected = useMemo(() => form.selected_menu || [], [form.selected_menu]);
   const [activeGroup, setActiveGroup] = useState("");
@@ -418,6 +421,7 @@ export default function StepMenuSelection({
     <Field
       label="Additional requests or notes"
       hint="Optional. Custom dishes not on the menu or special preparation notes. (Max 500 chars)"
+      error={errors.special_requests}
     >
       <TTextarea
         placeholder={placeholder}
@@ -425,12 +429,19 @@ export default function StepMenuSelection({
         value={form.special_requests || ""}
         onChange={(val) => setForm({ ...form, special_requests: val })}
         rows={3}
+        hasError={!!errors.special_requests}
       />
     </Field>
   );
 
   const dishBrowser = (
     <div className="space-y-4 max-w-full overflow-hidden pb-24 sm:pb-6">
+      {errors.selected_menu && (
+        <InfoNote tone="danger" className="mb-3">
+          {errors.selected_menu}
+        </InfoNote>
+      )}
+
       {/* 1. Lightweight Text-Based Category Navigation */}
       <CategoryTabs
         groups={groupedItems}
@@ -674,6 +685,12 @@ export default function StepMenuSelection({
           sub="Choose your preferred dish for each course included in this special offer combo."
         />
 
+        {errors.menu && (
+          <InfoNote tone="danger" className="mb-3">
+            {errors.menu}
+          </InfoNote>
+        )}
+
         <div className="space-y-3 max-w-full overflow-hidden">
           {/* Top Pax & Combo Progress Summary Card */}
           <Card className="p-3 sm:p-3.5">
@@ -715,6 +732,7 @@ export default function StepMenuSelection({
                 selectedInThis.length >= req ||
                 (isSingle && isDishSelected(course.category, course.items[0]));
               const isExpanded = expandedCategory === course.category;
+              const hasCourseError = Boolean(errors.menu && !isCategoryComplete && !isSingle);
 
               const selectedDishes =
                 selectedInThis.length > 0
@@ -728,11 +746,13 @@ export default function StepMenuSelection({
                   key={course.category}
                   className={cn(
                     "p-3 sm:p-3.5 transition-all duration-200",
-                    isExpanded
-                      ? "border-[#4C81E0] ring-1 ring-[#4C81E0]/30 shadow-xs"
-                      : isCategoryComplete
-                        ? "border-slate-200 bg-white hover:border-slate-300"
-                        : "border-amber-200/90 bg-amber-50/[0.03] hover:border-amber-300",
+                    hasCourseError
+                      ? "border-red-300 ring-1.5 ring-red-400 bg-red-50/20"
+                      : isExpanded
+                        ? "border-[#4C81E0] ring-1 ring-[#4C81E0]/30 shadow-xs"
+                        : isCategoryComplete
+                          ? "border-slate-200 bg-white hover:border-slate-300"
+                          : "border-amber-200/90 bg-amber-50/[0.03] hover:border-amber-300",
                   )}
                 >
                   {/* Clickable Course Accordion Header */}
@@ -765,9 +785,16 @@ export default function StepMenuSelection({
                           {isSingle
                             ? "Included"
                             : req === 1
-                              ? "Choose 1"
-                              : `Choose ${req}`}
+                              ? "Choose 1 *"
+                              : `Choose ${req} *`}
                         </span>
+
+                        {hasCourseError && (
+                          <span className="text-red-600 font-bold text-[10px] uppercase tracking-wider flex items-center gap-0.5">
+                            <AlertCircle size={11} className="shrink-0" />
+                            Selection required
+                          </span>
+                        )}
                       </div>
 
                       <p className="text-[11px] text-slate-400 mt-0.5 truncate">
@@ -1030,7 +1057,14 @@ export default function StepMenuSelection({
         {/* Header with compact catering toggle buttons matching mockup */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3.5 border-b border-slate-100 pb-3">
           <div>
-            <h2 className="text-base sm:text-lg font-bold text-slate-900">Food Catering Menu</h2>
+            <h2 className="text-base sm:text-lg font-bold text-slate-900">
+              Food Catering Menu{" "}
+              {isFoodIncluded && (
+                <span className="font-bold text-red-500 text-sm" title="Required" aria-hidden="true">
+                  *
+                </span>
+              )}
+            </h2>
             <p className="text-xs text-slate-500 mt-0.5 max-w-xl">
               Choose the dishes you'd like for your guests. Food pricing and details will be discussed and finalized in your official quotation.
             </p>
@@ -1116,7 +1150,14 @@ export default function StepMenuSelection({
       className="max-w-6xl"
     >
       <SH
-        title="Choose Your Dishes"
+        title={
+          <span>
+            Choose Your Dishes{" "}
+            <span className="font-bold text-red-500 text-sm" title="Required" aria-hidden="true">
+              *
+            </span>
+          </span>
+        }
         sub="Select your dishes for catering. Your per-guest catering rate will be confirmed on your official quotation."
       />
 

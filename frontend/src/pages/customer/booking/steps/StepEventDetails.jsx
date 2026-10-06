@@ -417,12 +417,13 @@ export default function StepEventDetails({
                 />
               </Field>
 
-              <Field label="Landmark" hint="Helps our delivery driver locate your address">
+              <Field label="Landmark" hint="Helps our delivery driver locate your address" error={errors.landmark}>
                 <TInput
                   placeholder="e.g. Near Barangay Hall, behind Shell station"
                   maxLength={100}
                   value={form.landmark}
                   onChange={(val) => setForm({ ...form, landmark: val })}
+                  hasError={!!errors.landmark}
                 />
               </Field>
             </div>
@@ -550,6 +551,7 @@ export default function StepEventDetails({
                       };
                     })}
                     placeholder="Select scaffold size"
+                    hasError={!!errors.scaffold_size}
                   />
                 </Field>
               )}
@@ -611,12 +613,14 @@ export default function StepEventDetails({
               <Field
                 label="Street and building"
                 hint="Street, subdivision, or building name"
+                error={errors.street}
               >
                 <TInput
                   placeholder="e.g. 123 Rizal St., Purok 4, Villa Subdivision"
                   maxLength={150}
                   value={form.street}
                   onChange={(val) => setForm({ ...form, street: val })}
+                  hasError={!!errors.street}
                 />
               </Field>
 
@@ -637,12 +641,13 @@ export default function StepEventDetails({
                   />
                 </Field>
 
-                <Field label="Landmark" hint="Helps our crew locate the venue">
+                <Field label="Landmark" hint="Helps our crew locate the venue" error={errors.landmark}>
                   <TInput
                     placeholder="e.g. Near Barangay Hall, behind Shell station"
                     maxLength={100}
                     value={form.landmark}
                     onChange={(val) => setForm({ ...form, landmark: val })}
+                    hasError={!!errors.landmark}
                   />
                 </Field>
               </div>
@@ -690,6 +695,9 @@ export default function StepEventDetails({
                     value={form.event_theme}
                     onChange={(theme) => setForm((prev) => ({ ...prev, event_theme: theme }))}
                   />
+                  {errors.event_theme && (
+                    <p className="text-xs font-semibold text-red-600 mt-1">{errors.event_theme}</p>
+                  )}
                 </div>
 
                 <div className="border-t border-slate-100 pt-2.5">

@@ -51,7 +51,7 @@ import {
   resolveVenueType,
 } from "./lib/bookingRules";
 import { OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
-import { validateName, validateAddress, validateSafeText } from "@/lib/validationRules";
+import { validateName, validateAddress, validateSafeText, PH_ZIP_REGEX } from "@/lib/validationRules";
 import {
   isSpecialOffer,
   offerBookingProblem,
@@ -993,29 +993,78 @@ export default function BookingWizard() {
       let message = "";
 
       switch (stepId) {
+        case "ServiceType": {
+          if (!form.service_type) {
+            errors.service_type = "Please select a service type.";
+            message = "Please select a service type.";
+          }
+          break;
+        }
+
         case "DateTime": {
-          if (!form.event_date) message = "Choose a date for your event.";
-          else if (!form.start_time) message = "Choose a start time.";
-          else if (isAvailabilityPending)
-            message = "We are still checking that slot. One moment.";
-          else if (availability.status === "error")
-            message =
-              "We couldn't check whether that slot is free. Try the check again before continuing.";
-          else if (isAvailabilityBlocked)
-            message =
-              availability.message ||
-              "That slot isn't available. Pick another date or time.";
+          if (!form.event_date) {
+            errors.event_date = "Choose a date for your event.";
+            message = "Choose a date for your event.";
+          } else if (minDate && form.event_date < minDate) {
+            errors.event_date = `Event date must be at least ${MIN_DATE_OFFSET_DAYS} days from today (${minDate} or later).`;
+            message = errors.event_date;
+          }
+          if (!form.start_time) {
+            errors.start_time = "Choose a start time.";
+            if (!message) message = "Choose a start time.";
+          }
+          if (!message) {
+            if (isAvailabilityPending) {
+              message = "We are still checking that slot. One moment.";
+            } else if (availability.status === "error") {
+              message =
+                "We couldn't check whether that slot is free. Try the check again before continuing.";
+            } else if (isAvailabilityBlocked) {
+              message =
+                availability.message ||
+                "That slot isn't available. Pick another date or time.";
+              errors.start_time = message;
+            }
+          }
           break;
         }
 
         case "PackageSelection": {
-          if (!form.is_custom_setup && (!selectedPackageId || selectedPackageId === "none")) {
-            errors.package_id = "Choose a setup package or switch to Design from Scratch.";
-            message = "Choose a setup package or switch to Design from Scratch.";
+          if (!form.is_custom_setup) {
+            if (!selectedPackageId || selectedPackageId === "none") {
+              errors.package_id = "Choose a setup package or switch to Design from Scratch.";
+              message = "Choose a setup package or switch to Design from Scratch.";
+            } else {
+              const currentPkg =
+                packages.find((entry) => String(entry._id) === String(selectedPackageId)) || packageDetails;
+              if (
+                currentPkg?.scaffold_size_options?.length > 0 &&
+                !form.selected_scaffold_option_id
+              ) {
+                errors.selected_scaffold_option_id = "Select an event space / scaffold size for this package.";
+                message = "Select an event space / scaffold size for this package.";
+              }
+            }
           }
-          if (form.is_custom_setup && !String(form.event_theme || "").trim()) {
-            errors.event_theme = "Please enter your event theme.";
-            message = "Please enter your event theme.";
+          if (form.is_custom_setup) {
+            const themeTrimmed = String(form.event_theme || "").trim();
+            if (!themeTrimmed) {
+              errors.event_theme = "Please enter your event theme or styling motif.";
+              message = "Please enter your event theme or styling motif.";
+            } else {
+              const thErr = validateSafeText(form.event_theme, "Theme or styling motif", { max: 100, required: true });
+              if (thErr) {
+                errors.event_theme = thErr;
+                message = thErr;
+              }
+            }
+            if (form.custom_setup_notes?.trim()) {
+              const snErr = validateSafeText(form.custom_setup_notes, "Setup details", { max: 500, required: false });
+              if (snErr) {
+                errors.custom_setup_notes = snErr;
+                if (!message) message = snErr;
+              }
+            }
           }
           break;
         }
@@ -1107,8 +1156,17 @@ export default function BookingWizard() {
             if (vtErr) errors.venue_type_other = vtErr;
           }
 
+          if (
+            packageDetails?.scaffold_size_options?.length > 0 &&
+            !form.selected_scaffold_option_id
+          ) {
+            errors.scaffold_size = "Please select a scaffold size.";
+          }
+
           if (guests <= 0) {
             errors.guest_count = "Enter how many guests you're expecting.";
+          } else if (guestMin && guests < guestMin) {
+            errors.guest_count = `Minimum guest count for this setup is ${guestMin}.`;
           } else if (guestMax && guests > guestMax) {
             errors.guest_count = `The maximum guest count for this package setup is ${guestMax}.`;
           }
@@ -1119,6 +1177,8 @@ export default function BookingWizard() {
           const guests = parseNumber(form.guest_count) || 0;
           if (guests <= 0) {
             errors.guest_count = "Enter how many guests you're feeding.";
+          } else if (guestMin && guests < guestMin) {
+            errors.guest_count = `Minimum guest count for this package is ${guestMin}.`;
           } else if (guestMax && guests > guestMax) {
             errors.guest_count = `The maximum guest count for this package is ${guestMax}.`;
           }
@@ -1132,22 +1192,17 @@ export default function BookingWizard() {
               const stErr = validateAddress(form.street, "Street and building", { max: 150, required: true });
               if (stErr) errors.street = stErr;
             }
+            if (form.zip_code?.trim() && !PH_ZIP_REGEX.test(form.zip_code.trim())) {
+              errors.zip_code = "ZIP code must be 4 digits.";
+            }
             if (form.landmark?.trim()) {
               const lmErr = validateAddress(form.landmark, "Landmark", { max: 100, required: false });
               if (lmErr) errors.landmark = lmErr;
             }
-          }
-          break;
-        }
-
-        case "DietaryNeeds": {
-          if (form.allergies?.trim()) {
-            const alErr = validateSafeText(form.allergies, "Allergies note", { max: 300, required: false });
-            if (alErr) errors.allergies = alErr;
-          }
-          if (form.dietary_restrictions?.trim()) {
-            const drErr = validateSafeText(form.dietary_restrictions, "Dietary restrictions", { max: 300, required: false });
-            if (drErr) errors.dietary_restrictions = drErr;
+            if (form.delivery_instructions?.trim()) {
+              const diErr = validateSafeText(form.delivery_instructions, "Delivery instructions", { max: 250, required: false });
+              if (diErr) errors.delivery_instructions = diErr;
+            }
           }
           break;
         }
@@ -1174,6 +1229,36 @@ export default function BookingWizard() {
               message = `Please select your dish for: ${missing.join(", ")}`;
               errors.menu = message;
             }
+          } else if (isFoodOnly || form.include_food !== false) {
+            if (!form.selected_menu || form.selected_menu.length === 0) {
+              errors.selected_menu = "Please select at least one dish for your menu.";
+              message = "Please select at least one dish for your menu.";
+            }
+          }
+          if (form.special_requests?.trim()) {
+            const srErr = validateSafeText(form.special_requests, "Additional requests", { max: 500, required: false });
+            if (srErr) errors.special_requests = srErr;
+          }
+          break;
+        }
+
+        case "DietaryNeeds": {
+          if (form.allergies?.trim()) {
+            const alErr = validateSafeText(form.allergies, "Allergies note", { max: 300, required: false });
+            if (alErr) errors.allergies = alErr;
+          }
+          if (form.dietary_restrictions?.trim()) {
+            const drErr = validateSafeText(form.dietary_restrictions, "Dietary restrictions", { max: 300, required: false });
+            if (drErr) errors.dietary_restrictions = drErr;
+          }
+          break;
+        }
+
+        case "AddonSelection":
+        case "PackageAddOns": {
+          if (form.special_requests?.trim()) {
+            const srErr = validateSafeText(form.special_requests, "Additional notes", { max: 500, required: false });
+            if (srErr) errors.special_requests = srErr;
           }
           break;
         }
@@ -1195,8 +1280,11 @@ export default function BookingWizard() {
         }
 
         case "ReviewBooking": {
-          if (!agreements.terms) errors.terms = "Accept the terms.";
-          if (!agreements.privacy) errors.privacy = "Accept the privacy policy.";
+          if (!agreements.terms) errors.terms = "You must agree to the Terms & Conditions.";
+          if (!agreements.privacy) errors.privacy = "You must agree to the Privacy Policy.";
+          if (import.meta.env.VITE_TURNSTILE_SITE_KEY && !turnstileToken) {
+            errors.turnstile = "Please complete the security check.";
+          }
           if (Object.keys(errors).length > 0)
             message = "Read and agree to the policies before submitting.";
           break;
@@ -1204,6 +1292,10 @@ export default function BookingWizard() {
 
         default:
           break;
+      }
+
+      if (!message && Object.keys(errors).length > 0) {
+        message = Object.values(errors)[0];
       }
 
       const valid = !message && Object.keys(errors).length === 0;
@@ -1220,6 +1312,10 @@ export default function BookingWizard() {
       guestMax,
       isOffer,
       packageDetails,
+      packages,
+      minDate,
+      turnstileToken,
+      isFoodOnly,
     ],
   );
 
@@ -1227,13 +1323,16 @@ export default function BookingWizard() {
   // its own rather than sitting there until they press Continue again.
   useEffect(() => {
     if (!error && Object.keys(fieldErrors).length === 0) return;
-    const { valid } = validateStep(currentStepId);
+    const { valid, errors: nextErrors, message: nextMessage } = validateStep(currentStepId);
     if (valid) {
       setError("");
       setFieldErrors({});
+    } else {
+      setFieldErrors(nextErrors);
+      setError(nextMessage || Object.values(nextErrors)[0] || "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, agreements, availability.status]);
+  }, [form, agreements, availability.status, currentStepId]);
 
   const goToStep = (nextStep) => {
     setStep(nextStep);
@@ -1292,7 +1391,7 @@ export default function BookingWizard() {
     const { valid, errors, message } = validateStep(currentStepId);
     if (!valid) {
       setFieldErrors(errors);
-      setError(message);
+      setError(message || Object.values(errors)[0] || "Please check the required fields.");
       return;
     }
 
@@ -1356,17 +1455,23 @@ export default function BookingWizard() {
   const submitInquiry = async () => {
     if (isSubmitting || hasSubmitted.current) return;
 
-    const { valid, errors, message } = validateStep("ReviewBooking");
-    if (!valid) {
-      setFieldErrors(errors);
-      setError(message);
-      // On mobile the agreements sit well below the fold while "Send request"
-      // is pinned to the bottom bar, so the error named a control the customer
-      // could not see. Bring it into view.
-      document
-        .getElementById("booking-agreements")
-        ?.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
-      return;
+    // Validate all active wizard steps before final submission
+    for (let i = 0; i < wizardSteps.length; i++) {
+      const stepEntry = wizardSteps[i];
+      const stepValidation = validateStep(stepEntry.id);
+      if (!stepValidation.valid) {
+        if (i !== step) {
+          goToStep(i);
+        }
+        setFieldErrors(stepValidation.errors);
+        setError(stepValidation.message || Object.values(stepValidation.errors)[0] || "Please complete all required fields.");
+        if (stepEntry.id === "ReviewBooking") {
+          document
+            .getElementById("booking-agreements")
+            ?.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+        }
+        return;
+      }
     }
 
     if (!user?._id) {
@@ -1385,6 +1490,7 @@ export default function BookingWizard() {
     }
 
     setError("");
+    setIsSubmitting(true);
     const eventType =
       (form.event_type === OTHER_EVENT_TYPE
         ? String(form.event_type_other || "").trim()
@@ -1537,6 +1643,7 @@ export default function BookingWizard() {
           <StepServiceType
             form={form}
             setForm={setForm}
+            errors={fieldErrors}
             onChangeServiceType={(nextServiceType) => {
               setForm((prev) => {
                 const next = { ...prev, service_type: nextServiceType };
@@ -1563,6 +1670,7 @@ export default function BookingWizard() {
             requireAvailabilityCheck={requireAvailabilityCheck}
             onRetryAvailability={() => setAvailabilityNonce((n) => n + 1)}
             leadTimeDays={MIN_DATE_OFFSET_DAYS}
+            errors={fieldErrors}
           />
         );
 
@@ -1683,11 +1791,12 @@ export default function BookingWizard() {
             onRegisterMenuNav={setMenuNav}
             onRemoveDish={removeDish}
             onClearDishes={clearAllDishes}
+            errors={fieldErrors}
           />
         );
 
       case "DietaryNeeds":
-        return <StepDietaryNeeds form={form} setForm={setForm} />;
+        return <StepDietaryNeeds form={form} setForm={setForm} errors={fieldErrors} />;
 
       case "AddonSelection":
       case "PackageAddOns":
@@ -1698,6 +1807,7 @@ export default function BookingWizard() {
             packageDetails={packageDetails}
             addons={addons}
             estimate={estimate}
+            errors={fieldErrors}
           />
         );
 
@@ -1750,11 +1860,11 @@ export default function BookingWizard() {
           currentStepIndex={step + 1}
           steps={wizardSteps}
           onStepClick={(targetIndex) => {
-            if (isEditing) {
+            if (targetIndex > step) {
               const { valid, errors, message } = validateStep(currentStepId);
-              if (!valid && targetIndex > step) {
+              if (!valid) {
                 setFieldErrors(errors);
-                setError(message);
+                setError(message || Object.values(errors)[0] || "Please check the required fields.");
                 return;
               }
             }

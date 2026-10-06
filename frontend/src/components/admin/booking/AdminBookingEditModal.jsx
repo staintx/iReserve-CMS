@@ -17,7 +17,6 @@ import {
   Utensils,
   UtensilsCrossed,
   Sparkles,
-  Percent,
   CreditCard,
   User,
   Heart,
@@ -379,9 +378,6 @@ export default function AdminBookingEditModal({
   // Section 6: Adjustments & Logistics
   const [transportationFee, setTransportationFee] = useState("");
   const [additionalFees, setAdditionalFees] = useState([]);
-  const [taxes, setTaxes] = useState("");
-  const [discounts, setDiscounts] = useState("");
-
 
   // Section 7: Revision & Admin Notes
   const [revisionNote, setRevisionNote] = useState("");
@@ -628,10 +624,6 @@ export default function AdminBookingEditModal({
     setTransportationFee(transpo);
     setAdditionalFees(otherFees);
 
-    // Taxes & Discounts
-    setTaxes(booking.tax_amount ? String(booking.tax_amount) : "");
-    setDiscounts(booking.discount_amount ? String(booking.discount_amount) : "");
-
     // Reset revision note
     setRevisionNote("");
     setErrors({});
@@ -764,8 +756,6 @@ export default function AdminBookingEditModal({
       add_ons: activeAddOns,
       transportation_fee: transportationFee,
       additional_fees: additionalFees,
-      taxes,
-      discounts,
       deposit_amount: 0,
     });
   }, [
@@ -777,8 +767,6 @@ export default function AdminBookingEditModal({
     activeAddOns,
     transportationFee,
     additionalFees,
-    taxes,
-    discounts,
   ]);
 
   // Price difference vs original booking
@@ -1253,8 +1241,8 @@ export default function AdminBookingEditModal({
         })),
         additional_charges: allCharges,
         subtotal: totals.subtotal,
-        discount_amount: totals.discounts,
-        tax_amount: totals.taxes,
+        discount_amount: 0,
+        tax_amount: 0,
         total_price: totals.totalCost,
         revision_note:
           revisionNote.trim() || "Admin updated booking specifications and pricing via Quotation Builder interface",
@@ -2699,12 +2687,12 @@ export default function AdminBookingEditModal({
                 step={6}
                 id="qb-section-adjustments"
                 accent="sky"
-                icon={Percent}
+                icon={Truck}
                 title="Adjustments &amp; Logistics"
-                description="Transportation, delivery, custom fees, taxes, and discounts."
+                description="Transportation, delivery, and custom additional fees."
               >
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3">
                     <Field
                       label="Transportation & Logistics"
                       hint="Hauling, fuel, and crew transport fee."
@@ -2714,16 +2702,6 @@ export default function AdminBookingEditModal({
                         id="qb-transpo"
                         value={transportationFee}
                         onChange={(val) => setTransportationFee(nonNegative(val))}
-                      />
-                    </Field>
-                    <Field label="Taxes" hint="Added to subtotal." htmlFor="qb-taxes">
-                      <MoneyInput id="qb-taxes" value={taxes} onChange={(val) => setTaxes(nonNegative(val))} />
-                    </Field>
-                    <Field label="Discounts" hint="Deducted from subtotal." htmlFor="qb-discounts">
-                      <MoneyInput
-                        id="qb-discounts"
-                        value={discounts}
-                        onChange={(val) => setDiscounts(nonNegative(val))}
                       />
                     </Field>
                   </div>
@@ -2904,14 +2882,6 @@ export default function AdminBookingEditModal({
                   .map((f, idx) => (
                     <SummaryRow key={idx} label={f.name || "Custom fee"} value={formatCurrency(f.amount)} />
                   ))}
-                {money(taxes) > 0 && <SummaryRow label="Taxes" value={`+ ${formatCurrency(taxes)}`} />}
-                {money(discounts) > 0 && (
-                  <SummaryRow
-                    label="Discounts"
-                    value={`- ${formatCurrency(discounts)}`}
-                    tone="deduct"
-                  />
-                )}
               </div>
 
               {/* Subtotal and Total Cost */}

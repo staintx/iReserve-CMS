@@ -4,7 +4,6 @@ import {
   Utensils,
   Sparkles,
   Truck,
-  Percent,
   Plus,
   Trash2,
   Undo2,
@@ -111,10 +110,6 @@ export default function PricingAdjustmentsStep({
   handleFeeChange,
   handleRemoveFee,
   handleAddFee,
-  discounts,
-  setDiscounts,
-  taxes,
-  setTaxes,
   errors = {},
   onProceedToReview,
   customerNotes = "",
@@ -1442,62 +1437,7 @@ export default function PricingAdjustmentsStep({
         </div>
       </section>
 
-      {/* ------------------------------------------------------------------
-          6. DISCOUNT & TAXES
-      ------------------------------------------------------------------ */}
-      <section
-        id="pricing-discount"
-        className="bg-white rounded-lg border border-slate-200 p-4 space-y-3"
-      >
-        <div className="border-b border-slate-100 pb-2">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5 font-sans">
-            <Percent size={14} className="text-primary" /> Discount &amp; Taxes
-          </div>
-          <p className="text-[11px] text-slate-500">
-            Apply promotional discounts or optional tax adjustments.
-          </p>
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-              Discount (₱)
-            </label>
-            <MoneyInput
-              id="qb-discounts"
-              value={discounts}
-              onChange={setDiscounts}
-              placeholder="0.00"
-              className={`text-emerald-700 font-bold ${errors.discounts ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}`}
-            />
-            {errors.discounts && (
-              <p className="text-[11px] text-red-600 mt-0.5 font-medium">{errors.discounts}</p>
-            )}
-            <span className="text-[10px] text-slate-500 mt-1 block">
-              Deducted directly from the subtotal
-            </span>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-              Taxes / VAT (₱)
-            </label>
-            <MoneyInput
-              id="qb-taxes"
-              value={taxes}
-              onChange={setTaxes}
-              placeholder="0.00"
-              className={errors.taxes ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}
-            />
-            {errors.taxes && (
-              <p className="text-[11px] text-red-600 mt-0.5 font-medium">{errors.taxes}</p>
-            )}
-            <span className="text-[10px] text-slate-500 mt-1 block">
-              Leave at 0 if prices are already tax-inclusive
-            </span>
-          </div>
-        </div>
-      </section>
 
       {/* Bottom Action */}
       <div className="flex items-center justify-between pt-2">

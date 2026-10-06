@@ -226,12 +226,6 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
               {fees.map((fee, i) => (
                 <MoneyLine key={i} label={fee.name || "Additional fee"} value={formatCurrency(fee.amount)} />
               ))}
-              {Number(quotation.taxes) > 0 && (
-                <MoneyLine label="Taxes" value={`+ ${formatCurrency(quotation.taxes)}`} />
-              )}
-              {Number(quotation.discounts) > 0 && (
-                <MoneyLine label="Discount" value={`− ${formatCurrency(quotation.discounts)}`} deduct />
-              )}
               <div className="mt-2.5 border-t border-slate-200/80 pt-2.5 space-y-1.5">
                 <MoneyLine label="Total" value={formatCurrency(quotation.total_cost)} strong />
                 <MoneyLine label="Deposit" value={formatCurrency(quotation.deposit_amount)} />

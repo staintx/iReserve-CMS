@@ -72,8 +72,6 @@ function validateQuotationPayload(body, totals) {
   const numericFields = [
     { field: "package_starting_price", label: "Package starting price" },
     { field: "transportation_fee", label: "Transportation fee" },
-    { field: "taxes", label: "Taxes" },
-    { field: "discounts", label: "Discounts" },
     { field: "deposit_amount", label: "Required deposit" },
   ];
   numericFields.forEach(({ field, label }) => {
@@ -326,6 +324,10 @@ function buildQuotationPayload(body, totals, inquiry = null) {
   // customer's copy of the quotation.
   delete payload.equipment_fee;
   delete payload.decoration_fee;
+  delete payload.discount_amount;
+  delete payload.tax_amount;
+  payload.taxes = 0;
+  payload.discounts = 0;
   // Version, status and the event snapshot are decided here, never by the
   // caller. The snapshot in particular is what the customer is shown, so it
   // must come from the stored inquiry rather than from the browser.

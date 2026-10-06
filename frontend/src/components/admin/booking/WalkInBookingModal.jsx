@@ -924,7 +924,6 @@ function WalkInReviewAndQuotation({
   estimate,
   quotationItems = [],
   quotationSubtotal = 0,
-  quotationDiscount = 0,
   quotationGrandTotal = 0,
   depositAmount = 0,
   depositPercentage = 20,
@@ -1197,14 +1196,6 @@ function WalkInReviewAndQuotation({
             </span>
           </div>
 
-          {quotationDiscount > 0 && (
-            <div className="flex justify-between items-center text-emerald-700">
-              <span>Discount Applied:</span>
-              <span className="font-semibold tabular-nums">
-                -{formatCurrency(quotationDiscount)}
-              </span>
-            </div>
-          )}
 
           <div className="flex justify-between items-center text-sm font-bold text-slate-900 pt-2 border-t border-slate-200">
             <span>Total Booking Amount:</span>
@@ -1316,8 +1307,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
   const [quotationAddOns, setQuotationAddOns] = useState([]);
   const [transportationFee, setTransportationFee] = useState("");
   const [additionalFees, setAdditionalFees] = useState([]);
-  const [discounts, setDiscounts] = useState("");
-  const [taxes, setTaxes] = useState("");
   const [depositPercent, setDepositPercent] = useState(20);
   const [customDeposit, setCustomDeposit] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
@@ -1435,8 +1424,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       setQuotationAddOns([]);
       setTransportationFee("");
       setAdditionalFees([]);
-      setDiscounts("");
-      setTaxes("");
       setDepositPercent(businessInfo?.deposit_percentage ?? 20);
       setCustomDeposit("");
       setPaymentMethod("cash");
@@ -1854,8 +1841,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
   const handleResetQuotationToDefaults = useCallback(() => {
     syncQuotationFromWizard();
     setIsQuotationDirty(false);
-    setDiscounts("");
-    setTaxes("");
     setTransportationFee("");
     setAdditionalFees([]);
     notify("Quotation builder reset to step selections & catalog defaults.", "info");
@@ -2557,8 +2542,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       add_ons: chargeableAddOns,
       transportation_fee: transportationFee,
       additional_fees: additionalFees,
-      taxes,
-      discounts,
       deposit_amount: customDeposit !== "" ? customDeposit : undefined,
     }),
     [
@@ -2571,8 +2554,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       chargeableAddOns,
       transportationFee,
       additionalFees,
-      taxes,
-      discounts,
       customDeposit,
     ]
   );
@@ -3282,8 +3263,8 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         additional_fees: additionalFees
           .filter((fee) => String(fee.name || "").trim() || numberOf(fee.amount))
           .map((fee) => ({ name: String(fee.name || "").trim(), amount: money(fee.amount) })),
-        taxes: quotationTotals.taxes,
-        discounts: quotationTotals.discounts,
+        taxes: 0,
+        discounts: 0,
         subtotal: quotationTotals.subtotal,
         total_cost: quotationTotals.totalCost,
         deposit_amount: quotationTotals.depositAmount,
@@ -3645,16 +3626,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                   handleFeeChange={handleFeeChange}
                   handleRemoveFee={handleRemoveFee}
                   handleAddFee={handleAddFee}
-                  discounts={discounts}
-                  setDiscounts={(val) => {
-                    setIsQuotationDirty(true);
-                    setDiscounts(val);
-                  }}
-                  taxes={taxes}
-                  setTaxes={(val) => {
-                    setIsQuotationDirty(true);
-                    setTaxes(val);
-                  }}
                   errors={stepErrors}
                   onProceedToReview={handleNext}
                   customerNotes={form.special_requests}
@@ -3690,7 +3661,6 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                   estimate={estimate}
                   quotationItems={reviewQuotationItems}
                   quotationSubtotal={quotationTotals.subtotal}
-                  quotationDiscount={quotationTotals.discounts}
                   quotationGrandTotal={quotationTotals.totalCost}
                   depositAmount={quotationTotals.depositAmount}
                   depositPercentage={depositPercent}

@@ -29,7 +29,6 @@ const SECTION_IDS = [
   "pricing-menu",
   "pricing-addons",
   "pricing-charges",
-  "pricing-discount",
   "pricing-terms",
 ];
 
@@ -82,10 +81,6 @@ export default function WalkInQuotationStep({
   handleFeeChange,
   handleRemoveFee,
   handleAddFee,
-  discounts,
-  setDiscounts,
-  taxes,
-  setTaxes,
   errors = {},
   onProceedToReview,
 
@@ -275,10 +270,6 @@ export default function WalkInQuotationStep({
             handleFeeChange={handleFeeChange}
             handleRemoveFee={handleRemoveFee}
             handleAddFee={handleAddFee}
-            discounts={discounts}
-            setDiscounts={setDiscounts}
-            taxes={taxes}
-            setTaxes={setTaxes}
             errors={errors}
             onProceedToReview={onProceedToReview}
             customerNotes={customerNotes}
@@ -288,7 +279,7 @@ export default function WalkInQuotationStep({
             deliveryNotes={deliveryNotes}
           />
 
-          {/* ── Payment Terms & Status Settlement Card (Workflow Step 7) ── */}
+          {/* ── Payment Terms & Status Settlement Card (Workflow Step 6) ── */}
           <div id="pricing-terms" className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs space-y-5">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <Receipt size={17} className="text-blue-600" />

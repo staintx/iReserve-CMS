@@ -260,7 +260,7 @@ export default function AdminReservations() {
           }
         }
         if (basePackagePrice === 0 && (b.total_price || 0) > 0) {
-          basePackagePrice = Math.max(0, Number(b.total_price || 0) + Number(b.discount_amount || 0) - addOnsPrice);
+          basePackagePrice = Math.max(0, Number(b.total_price || 0) - addOnsPrice);
         }
 
         const total = Number(b.total_price || 0);
@@ -326,7 +326,6 @@ export default function AdminReservations() {
           paymentMethod: b.payment_method || "cash",
           basePackagePrice,
           addOnsPrice,
-          discountAmount: Number(b.discount_amount || 0),
           total,
           depositAmount,
           paidAmount,
@@ -1219,12 +1218,6 @@ export default function AdminReservations() {
                             <span>Add-ons & Services</span>
                             <span className="font-mono font-medium text-foreground">{fmt(selectedBooking.addOnsPrice)}</span>
                           </div>
-                          {selectedBooking.discountAmount > 0 && (
-                            <div className="flex justify-between py-0.5 text-emerald-600">
-                              <span>Discount Applied</span>
-                              <span className="font-mono font-semibold">-{fmt(selectedBooking.discountAmount)}</span>
-                            </div>
-                          )}
                           <div className="flex justify-between pt-1.5 border-t border-border/60 font-bold text-xs">
                             <span className="text-foreground">Grand Total</span>
                             <span className="font-mono text-primary text-sm">{fmt(selectedBooking.total)}</span>

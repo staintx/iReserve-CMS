@@ -214,22 +214,7 @@ export default function QuotationLiveSummary({
           })}
         </div>
 
-        {/* Discounts & Taxes */}
-        {(totals.discounts > 0 || totals.taxes > 0) && (
-          <div className="space-y-0.5 border-t border-white/10 pt-2">
-            <SummaryRow label="Subtotal" value={formatCurrency(totals.subtotal)} strong />
-            {totals.taxes > 0 && (
-              <SummaryRow label="Taxes" value={`+${formatCurrency(totals.taxes)}`} />
-            )}
-            {totals.discounts > 0 && (
-              <SummaryRow
-                label="Discount"
-                value={`-${formatCurrency(totals.discounts)}`}
-                tone="deduct"
-              />
-            )}
-          </div>
-        )}
+
 
         {/* Totals Summary Box */}
         <div className="rounded-lg border border-white/15 bg-white/5 p-3 space-y-2">

@@ -126,7 +126,6 @@ function normalizeDocumentData({ booking, quotation, inquiry, payments = [], bus
   const pkgType = pkg?.package_type || "Catering Package";
 
   const grandTotal = Number(source.total_price || source.total_cost || 0);
-  const discountAmount = Number(source.discount_amount || 0);
 
   // Inclusions adjustments & deductions (from quotation)
   const removedInclusions = Array.isArray(quotation?.removed_inclusions) 
@@ -196,7 +195,7 @@ function normalizeDocumentData({ booking, quotation, inquiry, payments = [], bus
     : 0;
 
   if (basePackageSubtotal === 0 && grandTotal > 0) {
-    basePackageSubtotal = Math.max(0, grandTotal + discountAmount - (serviceItemsSubtotal + additionalChargesSubtotal + menuSubtotal));
+    basePackageSubtotal = Math.max(0, grandTotal - (serviceItemsSubtotal + additionalChargesSubtotal + menuSubtotal));
     pkgRateDescription = `${guestCount} Guests Catering Baseline`;
   }
 
@@ -262,7 +261,6 @@ function normalizeDocumentData({ booking, quotation, inquiry, payments = [], bus
     additionalChargesSubtotal,
     menuItems,
     menuSubtotal,
-    discountAmount,
     grandTotal,
     approvedPayments,
     totalPaid,
@@ -720,15 +718,6 @@ export default function CateringInvoiceDocument({
                 <span>Add-ons &amp; Logistics:</span>
                 <span className="font-mono font-semibold text-slate-900 tabular-nums">
                   {formatCurrency(doc.serviceItemsSubtotal + doc.additionalChargesSubtotal)}
-                </span>
-              </div>
-            )}
-
-            {doc.discountAmount > 0 && (
-              <div className="flex justify-between py-0.5 text-emerald-700 font-medium">
-                <span>Applied Discount:</span>
-                <span className="font-mono tabular-nums">
-                  −{formatCurrency(doc.discountAmount)}
                 </span>
               </div>
             )}
@@ -1231,12 +1220,6 @@ export default function CateringInvoiceDocument({
                         <span className="font-mono font-semibold text-slate-900 tabular-nums">
                           {formatCurrency(doc.serviceItemsSubtotal + doc.additionalChargesSubtotal)}
                         </span>
-                      </div>
-                    )}
-                    {doc.discountAmount > 0 && (
-                      <div className="flex justify-between text-emerald-700 font-medium">
-                        <span>Applied Discount:</span>
-                        <span className="font-mono tabular-nums">−{formatCurrency(doc.discountAmount)}</span>
                       </div>
                     )}
                     <div className="flex justify-between items-baseline pt-1 border-t-2 border-slate-900 text-[10pt] font-bold text-slate-900">

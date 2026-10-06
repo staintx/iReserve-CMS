@@ -38,9 +38,7 @@ const FINANCIAL_FIELDS = [
   // honestly. Nothing writes these fields any more.
   { key: "equipment_fee", label: "Equipment rental", format: money },
   { key: "decoration_fee", label: "Venue styling", format: money },
-  { key: "discounts", label: "Discount", format: money },
   { key: "subtotal", label: "Subtotal", format: money },
-  { key: "taxes", label: "Taxes and VAT", format: money },
   { key: "total_cost", label: "Total", format: money },
   { key: "deposit_amount", label: "Deposit required", format: money },
 ];

@@ -150,9 +150,7 @@ function computeQuotationTotals(input = {}) {
   );
 
   const subtotal = money(packagePrice + menuSubtotal + addOnsSubtotal + additionalFeesTotal);
-  const taxes = money(input.taxes);
-  const discounts = money(input.discounts);
-  const totalCost = money(Math.max(0, subtotal + taxes - discounts));
+  const totalCost = money(Math.max(0, subtotal));
 
   const depositAmount = money(Math.min(totalCost, money(input.deposit_amount)));
   const remainingBalance = money(Math.max(0, totalCost - depositAmount));
@@ -167,8 +165,8 @@ function computeQuotationTotals(input = {}) {
     addOnsSubtotal,
     additionalFeesTotal,
     subtotal,
-    taxes,
-    discounts,
+    taxes: 0,
+    discounts: 0,
     totalCost,
     depositAmount,
     remainingBalance,

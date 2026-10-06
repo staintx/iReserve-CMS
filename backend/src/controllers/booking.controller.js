@@ -3396,8 +3396,8 @@ exports.executeInquiryConversion = async ({
     removed_inclusions: quotation?.removed_inclusions || [],
     inclusion_adjustments: quotation?.inclusion_adjustments || [],
     subtotal: quotation?.subtotal || inquiry.subtotal || 0,
-    discount_amount: quotation?.discounts || inquiry.discount_amount || 0,
-    tax_amount: quotation?.taxes || inquiry.tax_amount || 0,
+    discount_amount: 0,
+    tax_amount: 0,
 
     allergies: inquiry.allergies || "",
     dietary_restrictions: inquiry.dietary_restrictions || inquiry.dietary_requirements || "",

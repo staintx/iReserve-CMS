@@ -5,7 +5,6 @@ import {
   Utensils,
   Sparkles,
   Truck,
-  Percent,
   Receipt,
   Check,
   AlertCircle,
@@ -22,8 +21,7 @@ import { cn } from "@/lib/utils";
  * 3. Menu Pricing
  * 4. Extra Services & Notes
  * 5. Other Charges
- * 6. Discount & Taxes
- * 7. Review & Terms
+ * 6. Review & Terms
  */
 export default function WalkInQuotationNavigation({
   activeSection = "pricing-package",
@@ -42,7 +40,6 @@ export default function WalkInQuotationNavigation({
   const hasMenuErrors = Object.keys(errors).some((k) => k.startsWith("menu_items."));
   const hasAddonErrors = Object.keys(errors).some((k) => k.startsWith("add_ons."));
   const hasChargesErrors = Object.keys(errors).some((k) => k.startsWith("additional_fees."));
-  const hasDiscountErrors = Boolean(errors.discounts || errors.taxes);
   const hasTermsErrors = Boolean(errors.deposit_amount || errors.payment_method);
 
   const sections = [
@@ -94,17 +91,8 @@ export default function WalkInQuotationNavigation({
       badge: null,
     },
     {
-      id: "pricing-discount",
-      stepNumber: 6,
-      label: "Discount & Taxes",
-      desc: "Deductions & tax",
-      icon: Percent,
-      hasError: hasDiscountErrors,
-      badge: null,
-    },
-    {
       id: "pricing-terms",
-      stepNumber: 7,
+      stepNumber: 6,
       label: "Review & Terms",
       desc: "Deposit & status",
       icon: Receipt,
@@ -123,7 +111,7 @@ export default function WalkInQuotationNavigation({
           Workflow Steps
         </span>
         <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-          7 Areas
+          6 Areas
         </span>
       </div>
 

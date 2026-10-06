@@ -459,10 +459,9 @@ export default function CustomerEventDashboard() {
   }
 
   const grandTotal = Number(booking?.total_price || 0);
-  const discountAmount = Number(booking?.discount_amount || 0);
 
   if (basePackageSubtotal === 0 && grandTotal > 0) {
-    basePackageSubtotal = Math.max(0, grandTotal + discountAmount - addOnsSubtotal);
+    basePackageSubtotal = Math.max(0, grandTotal - addOnsSubtotal);
     pkgLabelText = `Base Package Subtotal (${guestCount} guests)`;
   }
 
@@ -1958,13 +1957,6 @@ export default function CustomerEventDashboard() {
                       <span className="shrink-0 font-sans font-semibold tabular-nums text-slate-900">
                         {formatCurrency(additionalChargesSubtotal)}
                       </span>
-                    </div>
-                  )}
-
-                  {discountAmount > 0 && (
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="text-slate-600">Discount</span>
-                      <span className="shrink-0 font-sans font-semibold tabular-nums text-emerald-700">− {formatCurrency(discountAmount)}</span>
                     </div>
                   )}
 

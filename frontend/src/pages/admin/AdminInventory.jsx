@@ -207,37 +207,6 @@ export default function AdminInventory() {
     setActiveItem(null);
   };
 
-  const handleToggleStatus = async (item) => {
-    const nextStatus = !item.available;
-    // Optimistic update
-    setInventory((prev) =>
-      prev.map((i) => {
-        if (i._id === item._id) {
-          return {
-            ...i,
-            available: nextStatus,
-          };
-        }
-        return i;
-      })
-    );
-
-    if (drawerRow && drawerRow._id === item._id) {
-      setDrawerRow((prev) => (prev ? { ...prev, available: nextStatus } : prev));
-    }
-
-    try {
-      await AdminAPI.updateInventory(item._id, {
-        available: nextStatus,
-        reason: nextStatus ? "Item marked as Available" : "Item marked as Unavailable",
-      });
-      notify(`"${item.item_name}" is now ${nextStatus ? "Available" : "Unavailable"}`, "success");
-    } catch {
-      notify("Failed to update status", "error");
-      loadData(selectedDate);
-    }
-  };
-
   const handleDelete = (id) => {
     AdminAPI.deleteInventory(id)
       .then(() => {
@@ -628,13 +597,10 @@ export default function AdminInventory() {
                           />
                         </td>
 
-                        {/* Availability Status */}
+                        {/* Availability Status (display-only) */}
                         <td className="px-5 py-3.5 text-left" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleStatus(i)}
-                            title={`Click to mark ${isAvailable ? "Unavailable" : "Available"}`}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border shadow-2xs transition-all cursor-pointer hover:opacity-85 ${
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border shadow-2xs select-none ${
                               isAvailable
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200/80"
                                 : "bg-rose-50 text-rose-700 border-rose-200/80"
@@ -646,7 +612,7 @@ export default function AdminInventory() {
                               }`}
                             />
                             <span>{isAvailable ? "Available" : "Unavailable"}</span>
-                          </button>
+                          </span>
                         </td>
 
                         <td className="px-5 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>

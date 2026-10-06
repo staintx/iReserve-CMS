@@ -12,7 +12,6 @@ import {
   DollarSign,
   FileCheck2,
   Truck,
-  Percent,
 } from "lucide-react";
 
 /**
@@ -77,7 +76,6 @@ export default function QuotationNavigation({
         ...(cateringIncluded ? [{ id: "pricing-menu", label: isSpecial ? "Included Food" : "Menu Pricing", icon: Utensils }] : []),
         { id: "pricing-addons", label: "Extra Services", icon: Sparkles },
         { id: "pricing-charges", label: "Other Charges", icon: Truck },
-        { id: "pricing-discount", label: "Discount & Taxes", icon: Percent },
       ],
     },
     {

@@ -1226,24 +1226,6 @@ export default function CustomerQuotationModal({
                       </div>
                     )}
 
-                    {quotation.discounts > 0 && (
-                      <div className="flex justify-between text-emerald-700">
-                        <span>Discount Applied</span>
-                        <span className="font-semibold">
-                          − {formatCurrency(quotation.discounts)}
-                        </span>
-                      </div>
-                    )}
-
-                    {quotation.taxes > 0 && (
-                      <div className="flex justify-between text-slate-600">
-                        <span>Taxes &amp; VAT</span>
-                        <span className="font-medium text-slate-900">
-                          {formatCurrency(quotation.taxes)}
-                        </span>
-                      </div>
-                    )}
-
                     <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-slate-500 font-medium text-[11.5px]">
                       <span className="flex items-center gap-1.5 text-emerald-700">
                         <Check className="h-3.5 w-3.5" /> Matches your quoted total

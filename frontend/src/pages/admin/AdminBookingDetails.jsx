@@ -715,10 +715,9 @@ export default function AdminBookingDetails() {
   }
 
   const grandTotal = Number(booking.total_price) || 0;
-  const discountAmount = Number(booking.discount_amount || 0);
 
   if (basePackageSubtotal === 0 && grandTotal > 0) {
-    basePackageSubtotal = Math.max(0, grandTotal + discountAmount - addOnsSubtotal);
+    basePackageSubtotal = Math.max(0, grandTotal - addOnsSubtotal);
     pkgRateText = `Base Package (${guestCount} pax)`;
   }
 
@@ -2771,12 +2770,6 @@ export default function AdminBookingDetails() {
                       <span>Add-ons &amp; Services Subtotal:</span>
                       <strong className="font-mono text-foreground">{fmt(addOnsSubtotal)}</strong>
                     </div>
-                    {discountAmount > 0 && (
-                      <div className="flex justify-between py-1 text-emerald-700">
-                        <span>Discount / Special Reduction:</span>
-                        <strong className="font-mono">- {fmt(discountAmount)}</strong>
-                      </div>
-                    )}
                     <div className="flex justify-between pt-2 border-t border-border font-bold text-sm text-foreground">
                       <span>Grand Total:</span>
                       <span className="font-mono text-primary">{fmt(grandTotal)}</span>

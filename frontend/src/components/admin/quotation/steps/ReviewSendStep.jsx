@@ -365,23 +365,7 @@ export default function ReviewSendStep({
               </span>
             </div>
 
-            {totals.discounts > 0 && (
-              <div className="flex justify-between py-1 border-b border-slate-200 text-emerald-700">
-                <span>Discount Applied</span>
-                <span className="font-mono font-semibold">
-                  -{formatCurrency(totals.discounts)}
-                </span>
-              </div>
-            )}
 
-            {totals.taxes > 0 && (
-              <div className="flex justify-between py-1 border-b border-slate-200">
-                <span className="text-slate-600">Taxes</span>
-                <span className="font-mono text-slate-800 font-semibold">
-                  +{formatCurrency(totals.taxes)}
-                </span>
-              </div>
-            )}
 
             <div className="flex justify-between py-1.5 pt-2 text-sm font-bold text-slate-900">
               <span>Total Quoted Amount</span>

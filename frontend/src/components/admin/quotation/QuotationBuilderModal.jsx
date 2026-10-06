@@ -304,8 +304,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   // Logistics & Adjustments (Step 2)
   const [transportationFee, setTransportationFee] = useState("");
   const [additionalFees, setAdditionalFees] = useState([]);
-  const [taxes, setTaxes] = useState("");
-  const [discounts, setDiscounts] = useState("");
 
 
   // Payment Terms & Expiration (Step 3)
@@ -750,8 +748,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               }))
           );
 
-          setTaxes(latest.taxes ? String(latest.taxes) : "");
-          setDiscounts(latest.discounts ? String(latest.discounts) : "");
           const storedDeposit = Number(latest.deposit_amount) || 0;
           const storedTotal = Number(latest.total_cost) || 0;
           if (storedDeposit > 0 && storedTotal > 0 && storedDeposit >= storedTotal * 0.5 - 0.01) {
@@ -939,8 +935,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       add_ons: chargeableAddOns,
       transportation_fee: transportationFee,
       additional_fees: additionalFees,
-      taxes,
-      discounts,
       deposit_amount: depositAmount,
     }),
     [
@@ -953,8 +947,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       chargeableAddOns,
       transportationFee,
       additionalFees,
-      taxes,
-      discounts,
       depositAmount,
     ]
   );
@@ -1055,8 +1047,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       additional_fees: additionalFees
         .filter((fee) => String(fee.name || "").trim() || numberOf(fee.amount))
         .map((fee) => ({ name: String(fee.name || "").trim(), amount: money(fee.amount) })),
-      taxes: totals.taxes,
-      discounts: totals.discounts,
+      taxes: 0,
+      discounts: 0,
       subtotal: totals.subtotal,
       total_cost: totals.totalCost,
       deposit_amount: totals.depositAmount,
@@ -1689,7 +1681,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       tone: "confirm",
       title: "Send Quotation?",
       description:
-        "Are you sure you want to send this quotation to the customer? Please make sure all prices, charges, discounts, and quotation details are correct before sending.",
+        "Are you sure you want to send this quotation to the customer? Please make sure all prices, charges, and quotation details are correct before sending.",
       confirmLabel: "Yes, Send Quotation",
       cancelLabel: "Cancel",
       busyLabel: "Sending...",
@@ -1898,10 +1890,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               handleFeeChange={handleFeeChange}
               handleRemoveFee={handleRemoveFee}
               handleAddFee={handleAddFee}
-              discounts={discounts}
-              setDiscounts={setDiscounts}
-              taxes={taxes}
-              setTaxes={setTaxes}
               errors={errors}
               onProceedToReview={() => setActiveStep(3)}
             />

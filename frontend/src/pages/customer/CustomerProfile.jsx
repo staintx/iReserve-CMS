@@ -9,7 +9,7 @@ import PasswordRequirements from "../../components/auth/PasswordRequirements";
 import { describePasswordGap } from "../../components/auth/passwordPolicy";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { cn } from "@/lib/utils";
+import { Label } from "../../components/ui/label";
 import { maskEmail, maskPhone } from "@/lib/privacyMask";
 import { validateName, validatePhone, validateUsername } from "@/lib/validationRules";
 

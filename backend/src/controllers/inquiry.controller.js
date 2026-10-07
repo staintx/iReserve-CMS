@@ -501,7 +501,6 @@ const CUSTOMER_EDITABLE_FIELDS = [
   "selected_scaffold_option_id",
   "custom_setup_scope",
   "custom_setup_notes",
-  "budget_range",
   "inspiration_images",
 ];
 

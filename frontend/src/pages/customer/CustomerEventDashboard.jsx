@@ -301,7 +301,7 @@ export default function CustomerEventDashboard() {
     }
   }, [id, searchParams]);
 
-  useRealTimeRefresh(() => {
+  useRealTimeRefresh((, ["booking","inquiry","quotation","payment","conversation","systemLog","businessInfo"]) => {
     fetchBooking();
     fetchPayments();
   });

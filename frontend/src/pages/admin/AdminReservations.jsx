@@ -215,7 +215,7 @@ export default function AdminReservations() {
     loadData();
   }, []);
 
-  useRealTimeRefresh(loadData);
+  useRealTimeRefresh(loadData, ["booking"]);
 
   // Close details drawer on Escape key press
   useEffect(() => {

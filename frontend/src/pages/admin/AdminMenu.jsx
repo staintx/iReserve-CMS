@@ -98,7 +98,7 @@ export default function AdminMenu() {
     loadData();
   }, []);
 
-  useRealTimeRefresh(loadData);
+  useRealTimeRefresh(loadData, ["menu"]);
 
   // Map each dish (by ID and normalized name) to all packages that use it
   const packageUsageMap = useMemo(() => {

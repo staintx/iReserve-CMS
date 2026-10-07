@@ -63,7 +63,7 @@ export default function AdminGallery() {
     loadData();
   }, []);
 
-  useRealTimeRefresh(loadData);
+  useRealTimeRefresh(loadData, ["gallery"]);
 
   const handleOpenModal = (item = null) => {
     setActiveItem(item);

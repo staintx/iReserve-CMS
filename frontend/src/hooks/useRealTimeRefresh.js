@@ -6,7 +6,7 @@ import { getSocket } from "../api/socket";
  * Uses a callback ref to avoid unnecessary re-subscriptions on component re-render,
  * and debounces rapid burst emissions to prevent API request storms.
  */
-export default function useRealTimeRefresh(onRefresh, debounceMs = 350) {
+export default function useRealTimeRefresh(onRefresh, types = null, debounceMs = 350) {
   const callbackRef = useRef(onRefresh);
   callbackRef.current = onRefresh;
   const timerRef = useRef(null);
@@ -19,6 +19,13 @@ export default function useRealTimeRefresh(onRefresh, debounceMs = 350) {
     }
 
     const handleRefresh = (data) => {
+      // Filter out events that do not match the specified types
+      if (types && Array.isArray(types) && types.length > 0 && data?.type) {
+        if (!types.includes(data.type)) {
+          return;
+        }
+      }
+
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
@@ -39,5 +46,5 @@ export default function useRealTimeRefresh(onRefresh, debounceMs = 350) {
       socket.off("system:refresh", handleRefresh);
       socket.off("notification:new", handleRefresh);
     };
-  }, [debounceMs]);
+  }, [debounceMs, JSON.stringify(types)]);
 }

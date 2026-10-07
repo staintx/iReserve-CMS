@@ -108,7 +108,7 @@ export default function AdminPayments() {
     loadData();
   }, []);
 
-  useRealTimeRefresh(loadData);
+  useRealTimeRefresh(loadData, ["payment"]);
 
   // Helper formatting functions
   const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 2 });

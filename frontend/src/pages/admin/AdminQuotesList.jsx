@@ -222,7 +222,7 @@ export default function AdminQuotesList() {
     loadData();
   }, [loadData]);
 
-  useRealTimeRefresh(loadData);
+  useRealTimeRefresh(loadData, ["quotation"]);
 
   // Close details drawer on Escape key press
   useEffect(() => {

@@ -121,7 +121,7 @@ export default function AdminSystemLogs() {
     loadLogs();
   }, [loadLogs]);
 
-  useRealTimeRefresh(loadLogs);
+  useRealTimeRefresh(loadLogs, ["systemLog"]);
 
   // Close drawer on Escape
   useEffect(() => {

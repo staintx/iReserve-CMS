@@ -364,7 +364,7 @@ export default function AdminInquiries() {
     loadData();
   }, []);
 
-  useRealTimeRefresh(loadData);
+  useRealTimeRefresh(loadData, ["inquiry"]);
 
   // Close details drawer on Escape key press
   useEffect(() => {

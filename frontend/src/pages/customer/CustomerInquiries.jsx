@@ -175,7 +175,7 @@ export default function CustomerInquiries() {
     }
   }, [location.search]);
 
-  useRealTimeRefresh(() => fetchInquiries(true));
+  useRealTimeRefresh((, ["inquiry"]) => fetchInquiries(true));
 
   // Sort helper function
   const sortInquiriesList = (list, isCancelledSection = false) => {

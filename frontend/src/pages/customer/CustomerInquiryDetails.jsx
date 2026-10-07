@@ -206,7 +206,7 @@ export default function CustomerInquiryDetails() {
     fetchInquiryDetails();
   }, [id]);
 
-  useRealTimeRefresh(fetchInquiryDetails);
+  useRealTimeRefresh(fetchInquiryDetails, ["inquiry"]);
 
   const meta = useMemo(() => inquiryStatusMeta(inquiry), [inquiry]);
 

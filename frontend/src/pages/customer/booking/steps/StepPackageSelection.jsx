@@ -243,6 +243,7 @@ export default function StepPackageSelection({
         ...prev,
         is_custom_setup: false,
         package_id: prev.package_id === "none" ? "" : prev.package_id,
+        is_custom_scaffold: false,
       }));
     }
   };

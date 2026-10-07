@@ -395,27 +395,29 @@ export default function PricingAdjustmentsStep({
           </div>
 
           {/* Event Space Size Selector if applicable */}
-          {!isFoodOnly && !offerContext && scaffoldOptions.length > 0 && (
+          {!isFoodOnly && !offerContext && (scaffoldOptions.length > 0 || isCustomScaffold || scaffoldWidth || scaffoldLength) && (
             <div>
               <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Event Space Dimensions
+                {scaffoldOptions.length > 0 ? "Event Space Dimensions" : "Event Space Dimensions / Scaffold Size"}
               </label>
-              <select
-                value={isCustomScaffold ? "custom" : selectedScaffoldId}
-                onChange={(e) => handleScaffoldOptionChange(e.target.value)}
-                className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/40"
-              >
-                {scaffoldOptions.map((opt, idx) => (
-                  <option key={String(opt._id || idx)} value={String(opt._id || idx)}>
-                    {opt.label || `${opt.width_ft || 0}×${opt.length_ft || 0} ft`}{" "}
-                    {opt.price ? `(₱${Number(opt.price).toLocaleString()})` : ""}
-                  </option>
-                ))}
-                <option value="custom">Custom Dimensions...</option>
-              </select>
+              {scaffoldOptions.length > 0 && (
+                <select
+                  value={isCustomScaffold ? "custom" : selectedScaffoldId}
+                  onChange={(e) => handleScaffoldOptionChange(e.target.value)}
+                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                >
+                  {scaffoldOptions.map((opt, idx) => (
+                    <option key={String(opt._id || idx)} value={String(opt._id || idx)}>
+                      {opt.label || `${opt.width_ft || 0}×${opt.length_ft || 0} ft`}{" "}
+                      {opt.price ? `(₱${Number(opt.price).toLocaleString()})` : ""}
+                    </option>
+                  ))}
+                  <option value="custom">Custom Dimensions...</option>
+                </select>
+              )}
 
-              {isCustomScaffold && (
-                <div className="flex items-center gap-1.5 mt-1.5">
+              {(isCustomScaffold || scaffoldOptions.length === 0) && (
+                <div className={`flex items-center gap-1.5 ${scaffoldOptions.length > 0 ? "mt-1.5" : ""}`}>
                   <input
                     type="number"
                     placeholder="Width (ft)"
@@ -433,6 +435,11 @@ export default function PricingAdjustmentsStep({
                   />
                 </div>
               )}
+              {(isCustomScaffold || scaffoldOptions.length === 0) && scaffoldWidth && scaffoldLength ? (
+                <span className="text-[10px] text-slate-500 mt-1 block">
+                  Requested setup: {scaffoldWidth}×{scaffoldLength} ft ({Number(scaffoldWidth) * Number(scaffoldLength)} sq ft)
+                </span>
+              ) : null}
             </div>
           )}
         </div>

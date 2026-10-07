@@ -180,6 +180,7 @@ const EMPTY_FORM = {
   selected_package_addons: [],
   inventory_items: [],
   selected_scaffold_option_id: "",
+  scaffold_size: "",
   scaffold_width: undefined,
   scaffold_length: undefined,
   scaffold_base_area: undefined,
@@ -1065,11 +1066,15 @@ function WalkInReviewAndQuotation({
           <p className="text-slate-500">
             {SERVICE_LABELS[form.service_type] || form.service_type}
           </p>
-          {form.scaffold_width && form.scaffold_length && (
+          {(form.scaffold_width && form.scaffold_length) ? (
             <p className="text-slate-500">
               Setup Size: {form.scaffold_width}×{form.scaffold_length} ft
             </p>
-          )}
+          ) : form.scaffold_size ? (
+            <p className="text-slate-500">
+              Setup Size: {form.scaffold_size}
+            </p>
+          ) : null}
         </SummaryCard>
 
         {/* Food & Add-ons */}
@@ -1552,7 +1557,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
   // Sync scaffold options when packageDetails loads
   useEffect(() => {
-    if (!packageDetails || isOffer) return;
+    if (!packageDetails || isOffer || form.is_custom_setup) return;
     const opts = packageDetails.scaffold_size_options;
     if (!Array.isArray(opts) || opts.length === 0) return;
 
@@ -1591,7 +1596,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         guest_count: nextGuests,
       };
     });
-  }, [packageDetails, isOffer]);
+  }, [packageDetails, isOffer, form.is_custom_setup]);
 
 
   // Seed menu from package
@@ -1743,12 +1748,26 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     } else if (form.is_custom_setup) {
       setStartingPrice("");
     } else {
+      const selectedScaffoldOption = Array.isArray(packageDetails?.scaffold_size_options)
+        ? packageDetails.scaffold_size_options.find(
+            (o) => String(o._id) === String(form.selected_scaffold_option_id)
+          )
+        : null;
+      const effectiveScaffoldPrice = selectedScaffoldOption?.price ?? form.scaffold_price;
+
       const derived = derivePackageStartingPrice(
-        { package_id: packageDetails, guest_count: form.guest_count },
+        {
+          ...form,
+          package_id: packageDetails,
+          guest_count: form.guest_count,
+          scaffold_price: effectiveScaffoldPrice,
+        },
         guests
       );
       if (derived) {
         setStartingPrice(String(derived));
+      } else if (effectiveScaffoldPrice && Number(effectiveScaffoldPrice) > 0) {
+        setStartingPrice(String(effectiveScaffoldPrice));
       } else if (packageDetails?.setup_price) {
         setStartingPrice(String(packageDetails.setup_price));
       } else if (packageDetails?.price_per_guest) {
@@ -1759,16 +1778,35 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     }
 
     // 4. Scaffold size & options
-    setSelectedScaffoldId(
-      form.selected_scaffold_option_id
+    if (form.is_custom_setup) {
+      const parsedDims = form.scaffold_size
+        ? String(form.scaffold_size).match(/^(\d+(?:\.\d+)?)\s*[×xX*]\s*(\d+(?:\.\d+)?)/)
+        : null;
+      const effectiveWidth = form.scaffold_width || (parsedDims ? parsedDims[1] : undefined);
+      const effectiveLength = form.scaffold_length || (parsedDims ? parsedDims[2] : undefined);
+
+      setSelectedScaffoldId("custom");
+      setIsCustomScaffold(true);
+      setScaffoldWidth(effectiveWidth ? String(effectiveWidth) : "");
+      setScaffoldLength(effectiveLength ? String(effectiveLength) : "");
+    } else {
+      const preMadeOptId = form.selected_scaffold_option_id
         ? String(form.selected_scaffold_option_id)
         : packageDetails?.scaffold_size_options?.[0]?._id
           ? String(packageDetails.scaffold_size_options[0]._id)
-          : ""
-    );
-    setScaffoldWidth(form.scaffold_width ? String(form.scaffold_width) : "");
-    setScaffoldLength(form.scaffold_length ? String(form.scaffold_length) : "");
-    setIsCustomScaffold(Boolean(form.is_custom_scaffold || form.selected_scaffold_option_id === "custom"));
+          : "";
+      const chosenOpt = packageDetails?.scaffold_size_options?.find(
+        (o) => String(o._id) === String(preMadeOptId)
+      );
+      setSelectedScaffoldId(preMadeOptId);
+      setIsCustomScaffold(Boolean(form.is_custom_scaffold || form.selected_scaffold_option_id === "custom"));
+      setScaffoldWidth(
+        form.scaffold_width ? String(form.scaffold_width) : (chosenOpt?.width_ft ? String(chosenOpt.width_ft) : "")
+      );
+      setScaffoldLength(
+        form.scaffold_length ? String(form.scaffold_length) : (chosenOpt?.length_ft ? String(chosenOpt.length_ft) : "")
+      );
+    }
 
     // 5. Menu Items
     if (isOffer) {
@@ -1990,8 +2028,9 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
   };
 
   const scaffoldOptions = useMemo(() => {
+    if (form.is_custom_setup) return [];
     return Array.isArray(packageDetails?.scaffold_size_options) ? packageDetails.scaffold_size_options : [];
-  }, [packageDetails]);
+  }, [form.is_custom_setup, packageDetails]);
 
   const handleScaffoldOptionChange = (optionId) => {
     setIsQuotationDirty(true);
@@ -2020,6 +2059,13 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     setSelectedScaffoldId("custom");
     setScaffoldWidth(w);
     setScaffoldLength(l);
+    setForm((prev) => ({
+      ...prev,
+      scaffold_width: w ? Number(w) : undefined,
+      scaffold_length: l ? Number(l) : undefined,
+      scaffold_base_area: (w && l) ? Number(w) * Number(l) : undefined,
+      scaffold_size: (w && l) ? `${w}×${l}` : prev.scaffold_size,
+    }));
   };
 
   const handleMenuChange = (index, field, value) => {
@@ -2693,8 +2739,11 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     if (scaffoldWidth && scaffoldLength) {
       return `${scaffoldWidth}×${scaffoldLength}`;
     }
+    if (form.scaffold_size) {
+      return form.scaffold_size;
+    }
     return eventSpaceLabel(form, packageDetails);
-  }, [scaffoldWidth, scaffoldLength, form, packageDetails]);
+  }, [scaffoldWidth, scaffoldLength, form.scaffold_size, form, packageDetails]);
 
   // Review table line items constructed from authoritative quotation data
   const reviewQuotationItems = useMemo(() => {
@@ -3316,6 +3365,8 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         selected_scaffold_option_id: selectedScaffoldId !== "custom" && selectedScaffoldId ? selectedScaffoldId : undefined,
         scaffold_width: scaffoldWidth ? Number(scaffoldWidth) : undefined,
         scaffold_length: scaffoldLength ? Number(scaffoldLength) : undefined,
+        scaffold_base_area: (scaffoldWidth && scaffoldLength) ? Number(scaffoldWidth) * Number(scaffoldLength) : undefined,
+        scaffold_size: form.scaffold_size || (scaffoldWidth && scaffoldLength ? `${scaffoldWidth}×${scaffoldLength}` : undefined),
       };
 
       const inqRes = await AdminAPI.createInquiry(inquiryPayload);

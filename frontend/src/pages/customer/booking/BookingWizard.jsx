@@ -733,7 +733,7 @@ export default function BookingWizard() {
 
   // Sync scaffold options when regular packageDetails loads
   useEffect(() => {
-    if (!packageDetails || isOffer) return;
+    if (!packageDetails || isOffer || form.is_custom_setup) return;
     const opts = packageDetails.scaffold_size_options;
     if (!Array.isArray(opts) || opts.length === 0) return;
 
@@ -782,7 +782,7 @@ export default function BookingWizard() {
         guest_count: nextGuests,
       };
     });
-  }, [packageDetails, isOffer]);
+  }, [packageDetails, isOffer, form.is_custom_setup]);
 
   // A setup package brings its own equipment; carry it onto the inquiry so the
   // team sees what has to be reserved. A combo brings none — it is food, and
@@ -1157,6 +1157,7 @@ export default function BookingWizard() {
           }
 
           if (
+            !form.is_custom_setup &&
             packageDetails?.scaffold_size_options?.length > 0 &&
             !form.selected_scaffold_option_id
           ) {

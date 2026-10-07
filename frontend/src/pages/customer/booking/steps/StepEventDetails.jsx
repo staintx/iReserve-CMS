@@ -61,13 +61,14 @@ export default function StepEventDetails({
   // For Special Offers
   const isOffer = Boolean(offer);
   const perPax = isOffer ? offerPricePerPax(offer) : 0;
+  const isDesignFromScratch = Boolean(form.is_custom_setup || form.package_id === "none");
 
   const scaffoldOptions = useMemo(() => {
-    if (isOffer || !packageDetails?.scaffold_size_options) return [];
+    if (isOffer || isDesignFromScratch || !packageDetails?.scaffold_size_options) return [];
     return packageDetails.scaffold_size_options.filter(
       (o) => o?.width_ft || o?.price || o?.label,
     );
-  }, [isOffer, packageDetails]);
+  }, [isOffer, isDesignFromScratch, packageDetails]);
 
   const activeScaffoldOption = useMemo(() => {
     if (!scaffoldOptions.length) return null;
@@ -112,7 +113,7 @@ export default function StepEventDetails({
   };
 
   useEffect(() => {
-    if (!isOffer && scaffoldOptions.length > 0) {
+    if (!isOffer && !isDesignFromScratch && scaffoldOptions.length > 0) {
       const exists = scaffoldOptions.some(
         (o) => String(o._id) === String(form.selected_scaffold_option_id),
       );
@@ -126,11 +127,43 @@ export default function StepEventDetails({
         }
       }
     }
-  }, [scaffoldOptions, isOffer, form.selected_scaffold_option_id, packageDetails?.default_scaffold_option_id]);
+  }, [scaffoldOptions, isOffer, isDesignFromScratch, form.selected_scaffold_option_id, packageDetails?.default_scaffold_option_id]);
+
+  const SCAFFOLD_QUICK_OPTIONS = ["20×20", "20×40", "40×40", "40×60"];
+
+  const parseScaffoldDims = (raw) => {
+    if (!raw || typeof raw !== "string") return null;
+    const match = raw.trim().match(/^(\d+(?:\.\d+)?)\s*[×xX*]\s*(\d+(?:\.\d+)?)/);
+    if (match) {
+      return {
+        width: Number(match[1]),
+        length: Number(match[2]),
+      };
+    }
+    return null;
+  };
+
+  const handleCustomScaffoldTextChange = (val) => {
+    const dims = parseScaffoldDims(val);
+    setForm((prev) => ({
+      ...prev,
+      scaffold_size: val,
+      scaffold_width: dims ? dims.width : (val === "" ? undefined : prev.scaffold_width),
+      scaffold_length: dims ? dims.length : (val === "" ? undefined : prev.scaffold_length),
+      scaffold_base_area: (dims?.width && dims?.length) ? dims.width * dims.length : (val === "" ? undefined : prev.scaffold_base_area),
+      selected_scaffold_option_id: "custom",
+      is_custom_scaffold: true,
+      scaffold_price: undefined,
+    }));
+  };
 
   // Selected fulfillment option for Special Offers
   const isWithSetup = form.service_type === SERVICE_TYPES.FULL_SERVICE;
-  const isFoodOnly = form.service_type === SERVICE_TYPES.FOOD_ONLY;
+  const isFoodOnly =
+    form.service_type === SERVICE_TYPES.FOOD_ONLY ||
+    form.service_type === "Food Only" ||
+    form.service_type === "food_only";
+  const hasEventSetup = !isOffer && !isFoodOnly;
   const isPickup = isFoodOnly && form.delivery_method === "pickup";
   const isDelivery = isFoodOnly && form.delivery_method !== "pickup";
 
@@ -211,7 +244,7 @@ export default function StepEventDetails({
             : "Specify your event type, guest count, and venue location."
         }
         aside={
-          !isCustomBooking && selectedPackageName ? (
+          !isDesignFromScratch && selectedPackageName ? (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs">
               <Package size={13} className="text-[#4C81E0]" />
               <span className="text-slate-500">{isOffer ? "Combo:" : "Package:"}</span>
@@ -524,7 +557,8 @@ export default function StepEventDetails({
               )}
 
               {/* Scaffold Size Selection */}
-              {!isOffer && scaffoldOptions.length > 0 && (
+              {/* 1. Pre-made Package: Keep existing scaffold dropdown and admin-configured pricing */}
+              {!isOffer && !isDesignFromScratch && scaffoldOptions.length > 0 && (
                 <Field
                   label="Scaffold size"
                   required
@@ -553,6 +587,54 @@ export default function StepEventDetails({
                     placeholder="Select scaffold size"
                     hasError={!!errors.scaffold_size}
                   />
+                </Field>
+              )}
+
+              {/* 2. Design from Scratch: New Scaffold Size text field + quick presets (no preset price) */}
+              {isDesignFromScratch && hasEventSetup && (
+                <Field
+                  label="Scaffold Size"
+                  error={errors.scaffold_size}
+                >
+                  <TInput
+                    placeholder="What's the size of scaffold?"
+                    value={
+                      form.scaffold_size !== undefined && form.scaffold_size !== null
+                        ? form.scaffold_size
+                        : (form.scaffold_width && form.scaffold_length
+                          ? `${form.scaffold_width}×${form.scaffold_length}`
+                          : "")
+                    }
+                    onChange={handleCustomScaffoldTextChange}
+                    hasError={!!errors.scaffold_size}
+                  />
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {SCAFFOLD_QUICK_OPTIONS.map((size) => {
+                      const currentVal = (
+                        form.scaffold_size !== undefined && form.scaffold_size !== null
+                          ? form.scaffold_size
+                          : (form.scaffold_width && form.scaffold_length
+                            ? `${form.scaffold_width}×${form.scaffold_length}`
+                            : "")
+                      ).trim();
+                      const isSelected = currentVal === size;
+                      return (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => handleCustomScaffoldTextChange(size)}
+                          className={cn(
+                            "rounded-md border px-2.5 py-1 text-xs font-semibold tabular-nums transition-colors cursor-pointer",
+                            isSelected
+                              ? "border-[#4C81E0] bg-[#4C81E0]/10 text-[#4C81E0]"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                          )}
+                        >
+                          {size}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </Field>
               )}
 

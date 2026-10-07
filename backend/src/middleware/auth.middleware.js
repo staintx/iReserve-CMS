@@ -49,3 +49,32 @@ exports.optionalProtect = async (req, res, next) => {
 
   next();
 };
+
+// Protect check for passive session polling (GET /users/me).
+// Silently returns null (200 OK) for unauthenticated guests to avoid 401 console noise,
+// but still returns 401 TOKEN_EXPIRED if the user has an expired session with a refresh token.
+exports.protectOrNull = async (req, res, next) => {
+  const token = req.cookies?.token || (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.split(" ")[1] : null);
+  if (!token) {
+    if (req.cookies?.refreshToken || req.headers["x-refresh-token"]) {
+      return res.status(401).json({ message: "Session expired. Please sign in again.", code: "TOKEN_EXPIRED" });
+    }
+    req.user = null;
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = await User.findById(decoded.id).select("-password");
+    if (!req.user || !req.user.is_active) {
+      req.user = null;
+    }
+    next();
+  } catch (err) {
+    if (err.name === "TokenExpiredError" || req.cookies?.refreshToken || req.headers["x-refresh-token"]) {
+      return res.status(401).json({ message: "Session expired. Please sign in again.", code: "TOKEN_EXPIRED" });
+    }
+    req.user = null;
+    next();
+  }
+};

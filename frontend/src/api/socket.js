@@ -1,5 +1,5 @@
 import { io } from "socket.io-client";
-import api from "./axios";
+import api, { getAccessToken } from "./axios";
 
 let socket;
 
@@ -17,6 +17,8 @@ export const getSocket = () => {
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
+      // Send in-memory token so Safari (no cross-site cookies) still authenticates
+      auth: (cb) => cb({ token: getAccessToken() }),
     });
 
     // Handle expired JWT by attempting silent refresh before giving up

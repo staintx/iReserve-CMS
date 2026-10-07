@@ -1,5 +1,5 @@
 import { createContext, useCallback, useEffect, useState } from "react";
-import api from "../api/axios";
+import api, { setTokens, clearTokens } from "../api/axios";
 import { getSocket, resetSocket } from "../api/socket";
 
 export const AuthContext = createContext();
@@ -13,10 +13,15 @@ export default function AuthProvider({ children }) {
     api.get("/users/me")
       .then(({ data }) => {
         if (data) {
-          const { token, ...userData } = data;
+          const { token, refreshToken, ...userData } = data;
+          // Capture tokens if the /me endpoint returns them (it doesn't normally,
+          // but the login response does — this is just defensive)
+          if (token) setTokens(token, refreshToken);
           setUser(userData);
           resetSocket();
           getSocket().connect();
+        } else {
+          setUser(null);
         }
       })
       .catch((err) => {
@@ -36,6 +41,8 @@ export default function AuthProvider({ children }) {
       password,
       "cf-turnstile-response": turnstileToken 
     });
+    // Store tokens in memory so all subsequent API calls use headers
+    if (data.token) setTokens(data.token, data.refreshToken);
     setUser(data.user);
     setSessionExpired(false);
     resetSocket();
@@ -49,6 +56,7 @@ export default function AuthProvider({ children }) {
     } catch (error) {
       console.error("Logout failed", error);
     }
+    clearTokens();
     localStorage.removeItem("booking_wizard_form");
     localStorage.removeItem("booking_wizard_step");
     sessionStorage.removeItem("booking_wizard_form");

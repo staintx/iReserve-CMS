@@ -223,7 +223,6 @@ export default function BookingWizard() {
       custom_setup_scope: [],
       inspiration_images: [],
       custom_setup_notes: "",
-      budget_range: prefill.budget_range || "",
       event_date: normalizeDate(prefill.event_date) || "",
       start_time: normalizeStartTime(prefill.start_time) || "",
       duration_hours: "4",

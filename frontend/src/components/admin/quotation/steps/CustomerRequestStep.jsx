@@ -259,7 +259,7 @@ export default function CustomerRequestStep({
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className={`grid gap-3 text-xs ${inquiry?.budget_range ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                     Theme &amp; Motif
@@ -269,14 +269,16 @@ export default function CustomerRequestStep({
                   </span>
                 </div>
 
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Target Budget
-                  </span>
-                  <span className="font-bold font-mono text-blue-900 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded inline-block text-[11px]">
-                    {inquiry?.budget_range || "On Quotation"}
-                  </span>
-                </div>
+                {inquiry?.budget_range && (
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      Target Budget
+                    </span>
+                    <span className="font-bold font-mono text-blue-900 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded inline-block text-[11px]">
+                      {inquiry.budget_range}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Setup Scope Elements */}

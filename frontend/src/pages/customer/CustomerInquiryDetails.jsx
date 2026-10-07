@@ -1635,7 +1635,6 @@ export default function CustomerInquiryDetails() {
 
             {/* 5. CUSTOM STYLING & INSPIRATION PHOTOS */}
             {(inquiry.custom_setup_notes ||
-              inquiry.budget_range ||
               (Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0) ||
               (Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0)) && (
               <div className="space-y-3 pt-2 border-t border-slate-100">

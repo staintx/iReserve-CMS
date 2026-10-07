@@ -1209,14 +1209,16 @@ export default function AdminQuoteDetails() {
                       </div>
                     </div>
 
-                    <div className="text-left sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-blue-100 shrink-0">
-                      <span className="text-[9.5px] uppercase tracking-wider text-slate-500 font-semibold block">
-                        Target Budget
-                      </span>
-                      <span className="text-xs sm:text-sm font-bold font-mono text-slate-900 bg-white px-2.5 py-1 rounded-md border border-slate-200/80 inline-block mt-0.5">
-                        {quote.budget_range || "Flexible / On Quotation"}
-                      </span>
-                    </div>
+                    {quote.budget_range && (
+                      <div className="text-left sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-blue-100 shrink-0">
+                        <span className="text-[9.5px] uppercase tracking-wider text-slate-500 font-semibold block">
+                          Target Budget
+                        </span>
+                        <span className="text-xs sm:text-sm font-bold font-mono text-slate-900 bg-white px-2.5 py-1 rounded-md border border-slate-200/80 inline-block mt-0.5">
+                          {quote.budget_range}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Styling Direction Specs */}

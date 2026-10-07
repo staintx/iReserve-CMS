@@ -290,9 +290,11 @@ export default function PricingAdjustmentsStep({
                   Customer Styling Vision Reference
                 </span>
               </div>
-              <span className="text-[10px] font-bold font-mono text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs">
-                Budget: {inquiry.budget_range || "On Quotation"}
-              </span>
+              {inquiry.budget_range && (
+                <span className="text-[10px] font-bold font-mono text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs">
+                  Budget: {inquiry.budget_range}
+                </span>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">

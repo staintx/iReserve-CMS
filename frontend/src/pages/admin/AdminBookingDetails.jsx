@@ -1494,7 +1494,7 @@ export default function AdminBookingDetails() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className={`grid gap-3 text-xs ${booking.budget_range ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"}`}>
                     <div>
                       <span className="text-[10px] uppercase font-bold text-blue-700/80 block">Styling Theme</span>
                       <strong className="text-slate-900">{booking.event_theme || "Custom Event Styling"}</strong>
@@ -1513,12 +1513,14 @@ export default function AdminBookingDetails() {
                         <span className="text-slate-500 font-normal">Standard Palette</span>
                       )}
                     </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-blue-700/80 block">Target Budget</span>
-                      <span className="font-bold font-mono text-blue-900 bg-white px-2 py-0.5 rounded border border-blue-200 inline-block text-[11px] mt-0.5">
-                        {booking.budget_range || "Agreed upon quotation"}
-                      </span>
-                    </div>
+                    {booking.budget_range && (
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-blue-700/80 block">Target Budget</span>
+                        <span className="font-bold font-mono text-blue-900 bg-white px-2 py-0.5 rounded border border-blue-200 inline-block text-[11px] mt-0.5">
+                          {booking.budget_range}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Setup Scope Badges */}
@@ -1849,13 +1851,15 @@ export default function AdminBookingDetails() {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Customer Budget</span>
-                        <strong className="text-emerald-700 font-mono">
-                          {sourceInquiry.budget_range || "Flexible / Not specified"}
-                        </strong>
-                      </div>
+                    <div className={`grid gap-3 ${sourceInquiry.budget_range ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"}`}>
+                      {sourceInquiry.budget_range && (
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Customer Budget</span>
+                          <strong className="text-emerald-700 font-mono">
+                            {sourceInquiry.budget_range}
+                          </strong>
+                        </div>
+                      )}
                       <div>
                         <span className="text-[10px] uppercase font-bold text-muted-foreground block">Celebrant / For</span>
                         <strong className="text-foreground">

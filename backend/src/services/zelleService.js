@@ -1,4 +1,4 @@
-const { getGenAI, getCandidateModels, isTransientError } = require("./geminiClient");
+const { generateContentWithRetry } = require("./geminiClient");
 const ZelleConversation = require("../models/ZelleConversation");
 const { CUSTOMER_SYSTEM_PROMPT, ADMIN_SYSTEM_PROMPT } = require("./zellePrompts");
 const { CUSTOMER_TOOLS, ADMIN_TOOLS } = require("./zelleTools");
@@ -124,33 +124,15 @@ async function chatWithZelle({
   const systemInstruction = isCustomer ? CUSTOMER_SYSTEM_PROMPT : ADMIN_SYSTEM_PROMPT;
   const toolDeclarations = isCustomer ? CUSTOMER_TOOLS : ADMIN_TOOLS;
 
-  const candidateModels = getCandidateModels();
-  const ai = getGenAI();
-
   const callChatTurn = async (chatContents) => {
-    let lastErr = null;
-    for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
-      const modelName = candidateModels[mIdx];
-      try {
-        const m = ai.getGenerativeModel({
-          model: modelName,
-          systemInstruction: {
-            role: "system",
-            parts: [{ text: systemInstruction }],
-          },
-          tools: [{ functionDeclarations: toolDeclarations }],
-        });
-        return await m.generateContent({ contents: chatContents });
-      } catch (err) {
-        lastErr = err;
-        if (isTransientError(err) && mIdx < candidateModels.length - 1) {
-          console.warn(`[Zelle AI] Model "${modelName}" busy (${err.message}). Trying "${candidateModels[mIdx + 1]}"...`);
-          continue;
-        }
-        throw err;
-      }
-    }
-    throw lastErr;
+    const { result } = await generateContentWithRetry({
+      contents: chatContents,
+      systemInstruction,
+      tools: [{ functionDeclarations: toolDeclarations }],
+      maxRetriesPerModel: 3,
+      baseDelayMs: 1500,
+    });
+    return result;
   };
 
   // 3. Format history and start conversation contents

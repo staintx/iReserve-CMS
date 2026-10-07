@@ -296,7 +296,7 @@ export default function CustomerEventDashboard() {
     } else if (paymentStatus === "cancelled") {
       if (!verifyingPaymentRef.current.has("cancelled")) {
         verifyingPaymentRef.current.add("cancelled");
-        notify("Payment was cancelled. You can retry paying the balance anytime.", "info", { id: "payment-cancelled" });
+        notify("Payment checkout was cancelled. Deposit or balance payment is still required.", "warning", { id: "payment-cancelled" });
       }
     }
   }, [id, searchParams]);
@@ -304,7 +304,7 @@ export default function CustomerEventDashboard() {
   useRealTimeRefresh(() => {
     fetchBooking();
     fetchPayments();
-  });
+  }, ["booking","inquiry","quotation","payment","conversation","systemLog","businessInfo"]);
 
   const canModifyBooking = useMemo(() => {
     if (!booking || !booking.event_date) return false;

@@ -40,7 +40,9 @@ import {
   UserCheck,
   MessageSquare,
   ExternalLink,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Store,
+  Globe
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
@@ -57,6 +59,7 @@ import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
 import { menuLineTotal } from "../../utils/quotationPricing";
 import { recordTitle, isFoodOnly } from "../../components/customer/portal/statusMeta";
+import { isWalkInRecord } from "../../lib/packageDisplay";
 
 /**
  * Format currency to PHP string (e.g. ₱12,500.00)
@@ -164,6 +167,7 @@ export default function AdminReservations() {
   // Filter & Search
   const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const [filter, setFilter] = useState("all"); // 'all' | 'upcoming' | 'this_week' | 'completed' | 'cancelled' | 'cancellations'
+  const [sourceFilter, setSourceFilter] = useState(() => searchParams.get("source") || "all"); // 'all' | 'walk_in' | 'online'
   const [archetypeFilter, setArchetypeFilter] = useState("all"); // 'all' | 'package' | 'bespoke' | 'food_only'
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [sortBy, setSortBy] = useState("event_date"); // 'event_date' | 'newest' | 'total_amount' | 'guests'
@@ -211,7 +215,7 @@ export default function AdminReservations() {
     loadData();
   }, []);
 
-  useRealTimeRefresh(loadData);
+  useRealTimeRefresh(loadData, ["booking"]);
 
   // Close details drawer on Escape key press
   useEffect(() => {
@@ -347,6 +351,7 @@ export default function AdminReservations() {
             : [],
           budgetRange: b.budget_range || "",
           ocularVisit: b.ocular_visit || null,
+          isWalkIn: isWalkInRecord(b) || isWalkInRecord(b.inquiry_id),
           createdAt: b.createdAt,
           updatedAt: b.updatedAt || b.createdAt,
           updatedRelative: getRelativeTime(b.updatedAt || b.createdAt),
@@ -442,9 +447,13 @@ export default function AdminReservations() {
   }, [inScope]);
 
   // Active filter tracking & global reset
+  const walkInReservationsCount = useMemo(() => inScope.filter((r) => r.isWalkIn).length, [inScope]);
+  const onlineReservationsCount = useMemo(() => inScope.filter((r) => !r.isWalkIn).length, [inScope]);
+
   const hasActiveFilters = Boolean(
     search.trim() ||
     filter !== "all" ||
+    sourceFilter !== "all" ||
     archetypeFilter !== "all" ||
     eventTypeFilter !== "all" ||
     sortBy !== "event_date"
@@ -453,6 +462,7 @@ export default function AdminReservations() {
   const clearFilters = () => {
     setSearch("");
     setFilter("all");
+    setSourceFilter("all");
     setArchetypeFilter("all");
     setEventTypeFilter("all");
     setSortBy("event_date");
@@ -488,6 +498,10 @@ export default function AdminReservations() {
       if (archetypeFilter === "bespoke" && !r.isCustomSetup) return false;
       if (archetypeFilter === "food_only" && !r.isFoodOnly) return false;
 
+      // Booking Source filter (Walk-in vs Online)
+      if (sourceFilter === "walk_in" && !r.isWalkIn) return false;
+      if (sourceFilter === "online" && r.isWalkIn) return false;
+
       // Event Type Filter
       if (eventTypeFilter !== "all" && r.eventType !== eventTypeFilter) return false;
 
@@ -507,7 +521,7 @@ export default function AdminReservations() {
 
       return true;
     });
-  }, [inScope, filter, archetypeFilter, eventTypeFilter, search]);
+  }, [inScope, filter, sourceFilter, archetypeFilter, eventTypeFilter, search]);
 
   // Sort Logic
   const sortedBookings = useMemo(() => {
@@ -742,6 +756,23 @@ export default function AdminReservations() {
                 ]}
               />
 
+              {/* Source / Channel Filter Pill */}
+              <FilterPill
+                label="Source"
+                icon={Store}
+                value={sourceFilter}
+                defaultValue="all"
+                onSelect={(val) => {
+                  setSourceFilter(val);
+                  setPage(1);
+                }}
+                options={[
+                  { value: "all", label: "All Sources", count: inScope.length },
+                  { value: "walk_in", label: "Walk-in", count: walkInReservationsCount, icon: Store },
+                  { value: "online", label: "Online", count: onlineReservationsCount, icon: Globe },
+                ]}
+              />
+
               {/* Format / Archetype Filter Pill */}
               <FilterPill
                 label="Format"
@@ -872,8 +903,16 @@ export default function AdminReservations() {
                             </td>
 
                             {/* Booking ID */}
-                            <td className="py-2.5 px-3 font-mono font-bold text-primary whitespace-nowrap">
-                              {r.id}
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-bold text-primary">{r.id}</span>
+                                {r.isWalkIn && (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs" title="Walk-in Client">
+                                    <Store size={9} />
+                                    <span>Walk-in</span>
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             {/* Customer */}
@@ -1085,6 +1124,11 @@ export default function AdminReservations() {
                             {selectedBooking.quotationBacked && (
                               <span className="text-[9.5px] font-bold text-primary bg-primary/10 px-1.5 py-0.2 rounded border border-primary/20">
                                 Quoted
+                              </span>
+                            )}
+                            {selectedBooking.isWalkIn && (
+                              <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 inline-flex items-center gap-0.5">
+                                <Store size={9} /> Walk-in
                               </span>
                             )}
                           </div>

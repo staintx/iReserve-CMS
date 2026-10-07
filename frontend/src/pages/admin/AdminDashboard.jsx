@@ -106,7 +106,7 @@ export default function AdminDashboard() {
     loadData();
   }, []);
 
-  useRealTimeRefresh(loadData);
+  useRealTimeRefresh(loadData, ["booking","inquiry","quotation","payment","conversation","systemLog","businessInfo"]);
 
   const greetingTime = (() => {
     const hr = new Date().getHours();

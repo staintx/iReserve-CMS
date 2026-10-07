@@ -24,6 +24,7 @@ const sanitizeUser = (user) => {
   delete data.profile_otp_last_sent_at;
   delete data.reset_password_token;
   delete data.reset_password_expires;
+  delete data.refresh_token;
   return data;
 };
 
@@ -144,30 +145,98 @@ exports.login = async (req, res, next) => {
       return res.status(403).json({ message: "Account is disabled" });
     }
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "1d" });
-    
-    res.cookie("token", token, {
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "15m" });
+    const refreshToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+    user.refresh_token = hashToken(refreshToken);
+    await user.save();
+
+    const cookieBase = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 24 * 60 * 60 * 1000, // 1 day
       path: "/"
+    };
+
+    res.cookie("token", token, {
+      ...cookieBase,
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      ...cookieBase,
+      maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
     // Also return token in response body so native mobile clients can store it in SecureStore
-    res.json({ user: sanitizeUser(user), token });
+    res.json({ user: sanitizeUser(user), token, refreshToken });
   } catch (err) {
     next(err);
   }
 };
 
-exports.logout = (req, res) => {
-  res.clearCookie("token", {
+exports.refreshToken = async (req, res, next) => {
+  try {
+    const rawRefreshToken = req.cookies?.refreshToken || req.body?.refreshToken || req.headers["x-refresh-token"];
+    if (!rawRefreshToken) {
+      return res.status(401).json({ message: "Authentication required. Please sign in to continue.", code: "NO_REFRESH_TOKEN" });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(rawRefreshToken, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ message: "Session expired. Please sign in again.", code: "REFRESH_TOKEN_EXPIRED" });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user || !user.is_active) {
+      return res.status(401).json({ message: "User account inactive or not found", code: "USER_INACTIVE" });
+    }
+
+    if (!user.refresh_token || user.refresh_token !== hashToken(rawRefreshToken)) {
+      return res.status(401).json({ message: "Session expired or was signed out. Please sign in again.", code: "REFRESH_TOKEN_REVOKED" });
+    }
+
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "15m" });
+
+    const cookieBase = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      path: "/"
+    };
+
+    res.cookie("token", token, {
+      ...cookieBase,
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    res.json({ token, user: sanitizeUser(user) });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.logout = async (req, res) => {
+  try {
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+    if (refreshToken) {
+      const hashed = hashToken(refreshToken);
+      await User.updateOne({ refresh_token: hashed }, { $unset: { refresh_token: 1 } });
+    }
+  } catch (err) {
+    // Ignore db logout cleanup failure
+  }
+
+  const cookieBase = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     path: "/"
-  });
+  };
+  res.clearCookie("token", cookieBase);
+  res.clearCookie("refreshToken", cookieBase);
   res.json({ message: "Logged out successfully" });
 };
 

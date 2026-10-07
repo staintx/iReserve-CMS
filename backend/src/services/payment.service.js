@@ -238,4 +238,4 @@ exports.extractWebhookData = (payload = {}) => {
 
 exports.isPaidEvent = (eventType = "") => eventType === "checkout_session.payment.paid" || eventType === "payment.paid";
 
-exports.isFailedEvent = (eventType = "") => eventType === "checkout_session.payment.failed" || eventType === "payment.failed";
+exports.isFailedEvent = (eventType = "") => eventType === "checkout_session.payment.failed" || eventType === "payment.failed" || eventType === "checkout_session.expired";

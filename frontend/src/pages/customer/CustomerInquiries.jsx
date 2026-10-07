@@ -55,6 +55,8 @@ import {
   Tag,
   Layers,
   Sparkles,
+  AlertCircle,
+  X,
 } from "lucide-react";
 
 export default function CustomerInquiries() {
@@ -66,6 +68,7 @@ export default function CustomerInquiries() {
   const [inquiries, setInquiries] = useState([]);
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [paymentCancelledNotice, setPaymentCancelledNotice] = useState(false);
 
   // Search, Filter, Sort State
   const [searchQuery, setSearchQuery] = useState("");
@@ -165,13 +168,14 @@ export default function CustomerInquiries() {
       const cancelKey = `cancelled_${location.search}`;
       if (!verifyingPaymentRef.current.has(cancelKey)) {
         verifyingPaymentRef.current.add(cancelKey);
-        notify("Payment checkout was cancelled.", "warning", { id: "payment-cancelled" });
+        setPaymentCancelledNotice(true);
+        notify("Payment checkout was cancelled. Deposit is still required to confirm.", "warning", { id: "payment-cancelled" });
         navigate(location.pathname, { replace: true });
       }
     }
   }, [location.search]);
 
-  useRealTimeRefresh(() => fetchInquiries(true));
+  useRealTimeRefresh(() => fetchInquiries(true), ["inquiry"]);
 
   // Sort helper function
   const sortInquiriesList = (list, isCancelledSection = false) => {
@@ -431,8 +435,8 @@ export default function CustomerInquiries() {
     let label = meta.label;
 
     if (isQuoteAcceptedAwaitingPayment) {
-      badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200/80";
-      label = "Accepted";
+      badgeClass = "bg-amber-50 text-amber-800 border-amber-200/80";
+      label = "Quote Accepted · Deposit Due";
     } else if (isQuotationSent) {
       badgeClass = "bg-blue-50 text-[#4C81E0] border-blue-200/80";
       label = "Quotation Ready";
@@ -929,6 +933,28 @@ export default function CustomerInquiries() {
               </DropdownMenu>
             </div>
           </div>
+
+          {/* PAYMENT CANCELLED REMINDER BANNER */}
+          {paymentCancelledNotice && (
+            <div className="bg-amber-50 border border-amber-200/90 rounded-xl p-3.5 flex items-start justify-between gap-3 shadow-2xs shrink-0">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-bold text-amber-900">Deposit Payment Was Not Completed</h4>
+                  <p className="text-[11px] text-amber-800 mt-0.5">
+                    Your quotation acceptance has been recorded, but your event date is <strong>not reserved</strong> until your deposit is received. Click <strong>Pay Deposit</strong> below to secure your date.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPaymentCancelledNotice(false)}
+                className="text-amber-600 hover:text-amber-800 p-1 shrink-0 cursor-pointer"
+                aria-label="Dismiss notice"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* UNBOXED INQUIRIES CARDS LIST */}
           <div className="flex-1 overflow-y-auto space-y-3 pr-1 [scrollbar-width:thin]">

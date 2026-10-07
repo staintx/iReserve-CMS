@@ -2995,7 +2995,8 @@ exports.acceptQuote = asyncHandler(async (req, res) => {
     return res.status(409).json({ message: `Inventory conflict: Not enough '${invCheck.itemName}' available.` });
   }
 
-  booking.status = "customer_accepted";
+  booking.status = "Deposit Pending";
+  booking.payment_status = "pending";
 
   // Set payment method if provided
   if (req.body.payment_method) {

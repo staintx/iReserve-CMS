@@ -33,7 +33,8 @@ const UserSchema = new mongoose.Schema({
   reset_password_expires: Date,
   accepted_terms: { type: Boolean, default: false },
   acceptedTerms: { type: Boolean, default: false },
-  terms_accepted_at: Date
+  terms_accepted_at: Date,
+  refresh_token: String
 }, { timestamps: true });
 
 /**

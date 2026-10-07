@@ -75,7 +75,7 @@ export default function AdminAddons() {
     loadData();
   }, []);
 
-  useRealTimeRefresh(loadData);
+  useRealTimeRefresh(loadData, ["addon"]);
 
   // Keep drawerRow synchronized when addons data updates
   useEffect(() => {

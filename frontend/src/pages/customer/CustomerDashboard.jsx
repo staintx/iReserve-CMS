@@ -86,7 +86,7 @@ export default function CustomerDashboard() {
     loadData();
   }, [loadData, user]);
 
-  useRealTimeRefresh(() => loadData(true));
+  useRealTimeRefresh(() => loadData(true), ["booking","inquiry","quotation","payment","conversation","systemLog","businessInfo"]);
 
   const now = useMemo(() => new Date(), []);
   const todayKey = useMemo(() => formatDateToYYYYMMDD(now), [now]);

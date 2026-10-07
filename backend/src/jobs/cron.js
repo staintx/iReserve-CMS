@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
-const { notifyAdmins, createNotification } = require('../utils/notify');
+const { notifyAdmins, notifyAdminsOnly, createNotification } = require('../utils/notify');
 const { createCheckoutSession } = require('../services/payment.service');
 const { sendFinalInvoiceEmail } = require('../utils/booking-emails');
 
@@ -132,7 +132,47 @@ const startCronJobs = (io) => {
                         invoiceCount++;
                     }
                 }
+
+                // 3. Remind assigned manager if staff is not yet assigned
+                if (booking.event_manager_id && (!Array.isArray(booking.staff_assignments) || booking.staff_assignments.length === 0)) {
+                    await createNotification({
+                        userId: booking.event_manager_id,
+                        title: "Staff Assignment Pending",
+                        body: `Event on ${inThreeDaysStart.toLocaleDateString()} has no staff assigned yet. Please assign event staff.`,
+                        type: "warning",
+                        link: "/manager/bookings",
+                        meta: { booking_id: booking._id }
+                    }, io);
+                }
+
                 count++;
+            }
+
+            // 1-day escalation: Alert admins if event tomorrow has no staff assigned
+            const tomorrowStart = new Date();
+            tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+            tomorrowStart.setHours(0, 0, 0, 0);
+            const tomorrowEnd = new Date(tomorrowStart);
+            tomorrowEnd.setHours(23, 59, 59, 999);
+
+            const tomorrowUnstaffed = await Booking.find({
+                event_date: { $gte: tomorrowStart, $lte: tomorrowEnd },
+                status: { $in: ACTIVE_UPCOMING_STATUSES },
+                event_manager_id: { $exists: true, $ne: null },
+                $or: [
+                    { staff_assignments: { $exists: false } },
+                    { staff_assignments: { $size: 0 } }
+                ]
+            });
+
+            for (const booking of tomorrowUnstaffed) {
+                await notifyAdminsOnly({
+                    title: "Unstaffed Event Tomorrow",
+                    body: `Booking ${booking.reference || booking._id} on ${tomorrowStart.toLocaleDateString()} has no staff assigned by the manager.`,
+                    type: "warning",
+                    link: `/admin/bookings/${booking._id}/details`,
+                    meta: { booking_id: booking._id }
+                }, io);
             }
 
             console.log(`Sent notifications for ${count} upcoming bookings. Generated ${invoiceCount} final invoices.`);
@@ -201,6 +241,27 @@ const startCronJobs = (io) => {
             const todayEnd = new Date(todayStart);
             todayEnd.setHours(23, 59, 59, 999);
 
+            // Alert Admins if an event starting today has an assigned manager but no staff
+            const todayUnstaffed = await Booking.find({
+                event_date: { $gte: todayStart, $lte: todayEnd },
+                status: { $in: ACTIVE_UPCOMING_STATUSES },
+                event_manager_id: { $exists: true, $ne: null },
+                $or: [
+                    { staff_assignments: { $exists: false } },
+                    { staff_assignments: { $size: 0 } }
+                ]
+            });
+
+            for (const booking of todayUnstaffed) {
+                await notifyAdminsOnly({
+                    title: "Event Today Unstaffed",
+                    body: `Booking ${booking.reference || booking._id} starts today with zero assigned staff. Immediate attention required.`,
+                    type: "warning",
+                    link: `/admin/bookings/${booking._id}/details`,
+                    meta: { booking_id: booking._id }
+                }, io);
+            }
+
             // Events happening today → ongoing
             const todayResult = await Booking.updateMany(
                 { event_date: { $gte: todayStart, $lte: todayEnd }, status: { $in: ACTIVE_UPCOMING_STATUSES } },
@@ -211,7 +272,7 @@ const startCronJobs = (io) => {
                 console.log(`Transitioned ${todayResult.modifiedCount} bookings to 'ongoing'.`);
             }
 
-            // Events from yesterday → completed (guarded against unverified equipment returns)
+            // Events from yesterday → completed (guarded against unverified equipment returns and unstaffed manager events)
             const yesterdayStart = new Date(todayStart);
             yesterdayStart.setDate(yesterdayStart.getDate() - 1);
             const yesterdayEnd = new Date(yesterdayStart);
@@ -224,6 +285,24 @@ const startCronJobs = (io) => {
 
             let completedCount = 0;
             for (const b of yesterdayCandidates) {
+                const isUnstaffedManagerEvent = b.event_manager_id &&
+                    (!Array.isArray(b.staff_assignments) || b.staff_assignments.length === 0);
+
+                if (isUnstaffedManagerEvent) {
+                    if (b.status !== "ongoing") {
+                        b.status = "ongoing";
+                        await b.save();
+                    }
+                    await notifyAdminsOnly({
+                        title: "Event Completion Blocked",
+                        body: `Booking ${b.reference || b._id} concluded yesterday but staff was never assigned. Held in ongoing state for administrative review.`,
+                        type: "warning",
+                        link: `/admin/bookings/${b._id}/details`,
+                        meta: { booking_id: b._id }
+                    }, io);
+                    continue;
+                }
+
                 const hasPendingEquipment = (Array.isArray(b.inventory_items) && b.inventory_items.length > 0) &&
                     (!b.equipment_manager_verified?.confirmed &&
                      Array.isArray(b.equipment_returns) &&

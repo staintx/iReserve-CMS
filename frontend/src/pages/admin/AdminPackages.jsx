@@ -139,7 +139,7 @@ export default function AdminPackages() {
     loadData();
   }, []);
 
-  useRealTimeRefresh(loadData);
+  useRealTimeRefresh(loadData, ["package"]);
 
   // Automatically select tab and open package modal if ?id=... or ?tab=... is present
   useEffect(() => {

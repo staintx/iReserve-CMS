@@ -148,7 +148,7 @@ export default function AdminInventory() {
     loadData(selectedDate);
   }, [selectedDate]);
 
-  useRealTimeRefresh(() => loadData(selectedDate));
+  useRealTimeRefresh(() => loadData(selectedDate), ["inventory"]);
 
   const getAssociatedPackages = (item) => {
     if (!item || !packages.length) return [];

@@ -59,7 +59,7 @@ exports.getCustomerHistory = asyncHandler(async (req, res) => {
 
 // Get All Customer Conversation Sessions
 exports.getCustomerConversations = asyncHandler(async (req, res) => {
-  let query = { context: "customer" };
+  let query = { context: "customer", "messages.0": { $exists: true } };
   if (req.user) {
     query.user_id = req.user._id;
   } else if (req.query.session_id) {
@@ -70,7 +70,7 @@ exports.getCustomerConversations = asyncHandler(async (req, res) => {
 
   const convs = await ZelleConversation.find(query)
     .sort({ updatedAt: -1 })
-    .limit(25)
+    .limit(20)
     .lean();
 
   const list = convs.map((c) => {
@@ -81,11 +81,23 @@ exports.getCustomerConversations = asyncHandler(async (req, res) => {
       ? firstUserMsg.parts.map((p) => p?.text || "").join(" ")
       : firstUserMsg?.parts?.text || "";
     
-    const title = text ? text.slice(0, 45) : "New Catering Consultation";
+    const title = text ? text.slice(0, 45) : "Catering Consultation";
+
+    // Extract readable snippet from the last message in thread
+    const lastMsg = c.messages[c.messages.length - 1];
+    const lastText = typeof lastMsg?.parts === "string"
+      ? lastMsg.parts
+      : Array.isArray(lastMsg?.parts)
+      ? lastMsg.parts.map((p) => p?.text || "").join(" ")
+      : lastMsg?.parts?.text || "";
+    const snippet = lastText
+      ? lastText.replace(/[#*`_]/g, "").replace(/\s+/g, " ").trim().slice(0, 65)
+      : "Planning inquiry with Zelle AI";
 
     return {
       id: c._id,
       title,
+      snippet,
       updatedAt: c.updatedAt,
       createdAt: c.createdAt,
       message_count: c.messages.length,

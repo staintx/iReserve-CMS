@@ -159,7 +159,7 @@ export function RichMarkdownRenderer({ text }) {
   const blocks = parseMarkdownBlocks(text);
 
   return (
-    <div className="space-y-2 text-xs leading-relaxed break-words">
+    <div className="space-y-2 text-xs leading-relaxed break-words min-w-0 w-full">
       {blocks.map((block, idx) => {
         if (block.type === "h1") {
           return (
@@ -188,7 +188,7 @@ export function RichMarkdownRenderer({ text }) {
               {block.items.map((item, iIdx) => (
                 <li key={iIdx} className="flex items-start gap-2 text-foreground/90">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                  <span className="leading-snug">{formatInline(item)}</span>
+                  <span className="leading-snug break-words">{formatInline(item)}</span>
                 </li>
               ))}
             </ul>
@@ -200,7 +200,7 @@ export function RichMarkdownRenderer({ text }) {
               {block.items.map((item, iIdx) => (
                 <li key={iIdx} className="flex items-start gap-2 text-foreground/90">
                   <span className="font-mono font-bold text-primary shrink-0">{iIdx + 1}.</span>
-                  <span className="leading-snug">{formatInline(item)}</span>
+                  <span className="leading-snug break-words">{formatInline(item)}</span>
                 </li>
               ))}
             </ol>
@@ -208,22 +208,22 @@ export function RichMarkdownRenderer({ text }) {
         }
         if (block.type === "table") {
           return (
-            <div key={idx} className="my-2.5 overflow-x-auto rounded-2xl border border-border/80 shadow-2xs bg-card">
-              <table className="w-full text-left text-xs border-collapse">
+            <div key={idx} className="my-2.5 w-full max-w-full overflow-x-auto rounded-xl border border-slate-200/90 shadow-2xs bg-white [scrollbar-width:thin]">
+              <table className="w-full text-left text-xs border-collapse min-w-[280px]">
                 <thead>
-                  <tr className="bg-muted/60 border-b border-border/60">
+                  <tr className="bg-slate-50 border-b border-slate-200">
                     {block.headers.map((h, hIdx) => (
-                      <th key={hIdx} className="p-2.5 font-bold uppercase tracking-wider text-[10px] text-muted-foreground">
+                      <th key={hIdx} className="p-2.5 font-bold uppercase tracking-wider text-[10px] text-slate-500 whitespace-nowrap">
                         {formatInline(h)}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/40">
+                <tbody className="divide-y divide-slate-100">
                   {block.rows.map((row, rIdx) => (
-                    <tr key={rIdx} className="hover:bg-muted/30 transition-colors">
+                    <tr key={rIdx} className="hover:bg-slate-50/50 transition-colors">
                       {row.map((cell, cIdx) => (
-                        <td key={cIdx} className="p-2.5 text-foreground/90 leading-snug">
+                        <td key={cIdx} className="p-2.5 text-slate-800 leading-snug">
                           {formatInline(cell)}
                         </td>
                       ))}
@@ -238,7 +238,7 @@ export function RichMarkdownRenderer({ text }) {
           return <div key={idx} className="h-1" />;
         }
         return (
-          <p key={idx} className="text-foreground/90 leading-relaxed">
+          <p key={idx} className="text-foreground/90 leading-relaxed break-words">
             {formatInline(block.text)}
           </p>
         );
@@ -273,8 +273,8 @@ export function ToolExecutionStepper({ toolExecutions, isExpandedDefault = false
         className="w-full flex items-center justify-between gap-2 text-left cursor-pointer"
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-5 h-5 rounded-full border-2 border-emerald-500 border-t-amber-400 border-r-blue-500 border-b-[#2C4B8A] flex items-center justify-center shrink-0">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          <div className="w-5 h-5 rounded-full border-2 border-[#2C4B8A] border-t-amber-400 border-r-blue-500 border-b-[#1E3563] flex items-center justify-center shrink-0">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#2C4B8A]" />
           </div>
           <span className="font-semibold text-xs text-slate-800 truncate">
             Completed {toolExecutions.length} {toolExecutions.length === 1 ? "step" : "steps"} across catering database
@@ -308,7 +308,7 @@ export function ToolExecutionStepper({ toolExecutions, isExpandedDefault = false
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 text-emerald-600 text-[10px] font-semibold shrink-0">
+                <div className="flex items-center gap-1 text-[#2C4B8A] text-[10px] font-semibold shrink-0">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Done</span>
                 </div>
@@ -335,12 +335,12 @@ export default function ZelleMessage({
   return (
     <div
       className={cn(
-        "flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-1 duration-200 font-sans",
+        "flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-1 duration-200 font-sans w-full min-w-0",
         isMe ? "justify-end" : "justify-start"
       )}
     >
       {!isMe && (
-        <div className="w-7 h-7 rounded-md bg-[#2C4B8A]/10 flex items-center justify-center shadow-2xs shrink-0 mt-0.5 overflow-hidden">
+        <div className="w-7 h-7 rounded-full bg-[#2C4B8A]/10 flex items-center justify-center shadow-2xs shrink-0 mt-0.5 overflow-hidden border border-[#2C4B8A]/20">
           <img
             src={assistantAvatar}
             alt="Zelle AI"
@@ -349,22 +349,22 @@ export default function ZelleMessage({
         </div>
       )}
 
-      <div className={cn("flex flex-col max-w-[88%]", isMe ? "items-end" : "items-start")}>
+      <div className={cn("flex flex-col min-w-0", isMe ? "items-end max-w-[85%]" : "items-start max-w-[94%] sm:max-w-[92%] flex-1")}>
         {/* User Bubble */}
         {isMe ? (
-          <div className="px-3.5 py-2 rounded-md bg-[#2C4B8A] text-white text-xs font-medium shadow-2xs leading-relaxed">
+          <div className="px-3.5 py-2.5 rounded-2xl rounded-tr-sm bg-[#2C4B8A] text-white text-xs font-medium shadow-2xs leading-relaxed break-words max-w-full">
             {message.text}
           </div>
         ) : (
           /* AI Response Container */
-          <div className="w-full space-y-2">
+          <div className="w-full min-w-0 space-y-2">
             {/* Multi-step execution stepper */}
             {message.tool_executions?.length > 0 && (
               <ToolExecutionStepper toolExecutions={message.tool_executions} />
             )}
 
             {/* Markdown Body */}
-            <div className="p-3.5 rounded-md bg-white border border-slate-200 text-slate-800 shadow-2xs w-full text-xs leading-relaxed">
+            <div className="p-3.5 rounded-2xl rounded-tl-sm bg-white border border-slate-200 text-slate-800 shadow-2xs w-full min-w-0 text-xs leading-relaxed">
               <RichMarkdownRenderer text={message.text} />
 
               {/* Generative UI Cards */}

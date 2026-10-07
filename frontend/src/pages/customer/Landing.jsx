@@ -439,8 +439,8 @@ export default function Landing() {
             <div className="ls-card-grid ls-reveal ls-stagger">
               {packageShowcase.map((pkg) => {
                 /* One promoted offer sits among the packages rather than in a
-                   band of its own. It is the same card with the offer
-                   treatment — dark ground, badge, rate per pax — so it is
+                   band of its own. It is the same card with the combo
+                   treatment — cohesive deeper slate-blue ground, badge, rate per pax — so it is
                    unmistakable without becoming a different component. */
                 if (isSpecialOffer(pkg)) {
                   const perPax = offerPricePerPax(pkg);
@@ -462,7 +462,7 @@ export default function Landing() {
                 const priceInfo = packagePriceParts(pkg);
 
                 return (
-                  <article className="ls-pkg" key={pkg._id || pkg.name}>
+                  <article className="ls-pkg ls-pkg--standard" key={pkg._id || pkg.name}>
                     <div className="ls-pkg-media">
                       {pkg.image_url ? (
                         <img src={pkg.image_url} alt={`${pkg.name} package`} loading="lazy" />
@@ -1024,7 +1024,7 @@ function CustomerReviewCard({ review, index = 0, formatReviewDate }) {
 
 function LandingComboCard({ pkg, perPax, pax, peso, navigate }) {
   return (
-    <article className="ls-pkg ls-offer" key={pkg._id || pkg.name}>
+    <article className="ls-pkg ls-offer ls-pkg--combo" key={pkg._id || pkg.name}>
       <div className="ls-pkg-media">
         {pkg.image_url ? (
           <img
@@ -1046,12 +1046,6 @@ function LandingComboCard({ pkg, perPax, pax, peso, navigate }) {
             <strong>{peso(perPax)}</strong>
             <span>per pax</span>
           </p>
-        )}
-
-        {pkg.badge_text && (
-          <div className="ls-offer-chips">
-            <span className="ls-offer-chip">{pkg.badge_text}</span>
-          </div>
         )}
 
         {pkg.description && (

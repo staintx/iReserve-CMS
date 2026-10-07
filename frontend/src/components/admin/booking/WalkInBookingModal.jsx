@@ -247,12 +247,6 @@ function WalkInPackageCard({ pkg, isSelected, onSelect }) {
             </p>
           )}
 
-          {pkg.badge_text && (
-            <div className="ls-offer-chips">
-              <span className="ls-offer-chip">{pkg.badge_text}</span>
-            </div>
-          )}
-
           {pkg.description && (
             <p className="ls-pkg-desc">{pkg.description}</p>
           )}

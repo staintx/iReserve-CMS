@@ -7,6 +7,7 @@ import PaymentChoiceModal from "../../components/customer/PaymentChoiceModal";
 import CustomerPolicyModal from "../../components/policy/CustomerPolicyModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
 import useToast from "../../hooks/useToast";
+import useMediaQuery from "../../hooks/useMediaQuery";
 import StatTile from "../../components/customer/portal/StatTile";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -63,6 +64,7 @@ export default function CustomerPayments() {
 
   // View Mode: 'events' (By Event) | 'transactions' (All Transactions)
   const [viewMode, setViewMode] = useState("events");
+  const isMobile = useMediaQuery("(max-width: 639px)");
 
   // Accordion Expand State for By Event view: Set of booking IDs
   const [expandedEvents, setExpandedEvents] = useState(new Set());
@@ -437,6 +439,17 @@ export default function CustomerPayments() {
     return filteredPayments.slice(startIndex, endIndex);
   }, [filteredPayments, startIndex, endIndex]);
 
+  // Mobile vs Desktop responsive card lists:
+  // On mobile: display all available items in the stacked card UI directly without pagination controls.
+  // On desktop/tablet: preserve cursor/page pagination behavior.
+  const displayedEvents = useMemo(() => {
+    return isMobile ? paymentsByBooking : paginatedEvents;
+  }, [isMobile, paymentsByBooking, paginatedEvents]);
+
+  const displayedTransactions = useMemo(() => {
+    return isMobile ? filteredPayments : paginatedTransactions;
+  }, [isMobile, filteredPayments, paginatedTransactions]);
+
   // Status badge renderer
   const renderPaymentStatusBadge = (status) => {
     const s = String(status || "").toLowerCase();
@@ -484,6 +497,10 @@ export default function CustomerPayments() {
     const start = (balancePage - 1) * BALANCES_PER_PAGE;
     return actionableBalanceBookings.slice(start, start + BALANCES_PER_PAGE);
   }, [actionableBalanceBookings, balancePage, showAllBalances]);
+
+  const displayedBalances = useMemo(() => {
+    return isMobile ? actionableBalanceBookings : currentBalances;
+  }, [isMobile, actionableBalanceBookings, currentBalances]);
 
   // Payment method badge
   const renderMethodBadge = (p) => {
@@ -586,9 +603,9 @@ export default function CustomerPayments() {
                   </span>
                 </div>
 
-                {/* Compact Pagination / View All Controls for Scalable Dataset */}
+                {/* Compact Pagination / View All Controls for Scalable Dataset (Desktop / Tablet only) */}
                 {actionableBalanceBookings.length > BALANCES_PER_PAGE && (
-                  <div className="flex items-center gap-2 self-end sm:self-auto text-xs text-slate-500">
+                  <div className="hidden sm:flex items-center gap-2 self-end sm:self-auto text-xs text-slate-500">
                     <button
                       type="button"
                       onClick={() => setShowAllBalances(!showAllBalances)}
@@ -629,11 +646,11 @@ export default function CustomerPayments() {
               </div>
 
               {/* Outstanding Balance Cards: Customer-First Visual Hierarchy */}
-              <div className="grid grid-cols-1 gap-3.5">
-                {currentBalances.map((b) => (
+              <div className="grid grid-cols-1 gap-3 sm:gap-3.5">
+                {displayedBalances.map((b) => (
                   <div
                     key={b._id}
-                    className="p-5 rounded-xl border border-slate-200/90 bg-white hover:border-slate-300 transition-all shadow-2xs space-y-3.5"
+                    className="p-4 sm:p-5 rounded-xl border border-slate-200/90 bg-white hover:border-slate-300 transition-all shadow-2xs space-y-3 sm:space-y-3.5"
                   >
                     {/* Top: Event Name, Reference & Date, Package Name */}
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 min-w-0">
@@ -871,14 +888,14 @@ export default function CustomerPayments() {
               {/* ── View 1: By Event (Grouped Accordions) ── */}
               {viewMode === "events" && (
                 <div className="space-y-3">
-                  {paginatedEvents.length === 0 ? (
+                  {displayedEvents.length === 0 ? (
                     <div className="text-center py-10 text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
                       <CreditCard className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                       <p className="text-sm font-semibold text-slate-700">No matching events or payments</p>
                       <p className="text-xs text-slate-400 mt-0.5">Try adjusting your filters or search keywords.</p>
                     </div>
                   ) : (
-                    paginatedEvents.map(({ booking, payments: groupPayments, totalPrice, paidAmount }) => {
+                    displayedEvents.map(({ booking, payments: groupPayments, totalPrice, paidAmount }) => {
                       const bId = String(booking._id || "");
                       const isExpanded = expandedEvents.has(bId);
                       const eventTitle = booking.event_type || "Catering Event";
@@ -1085,124 +1102,220 @@ export default function CustomerPayments() {
                 </div>
               )}
 
-              {/* ── View 2: All Transactions (Flat Table View) ── */}
+              {/* ── View 2: All Transactions ── */}
               {viewMode === "transactions" && (
-                <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-2xs">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                          <th className="py-3 px-4">Date & Time</th>
-                          <th className="py-3 px-4 min-w-[200px]">Event / Reference</th>
-                          <th className="py-3 px-4">Payment Type</th>
-                          <th className="py-3 px-4">Method</th>
-                          <th className="py-3 px-4">Amount</th>
-                          <th className="py-3 px-4">Status</th>
-                          <th className="py-3 px-4 text-right">Receipt</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {paginatedTransactions.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="py-12 text-center text-slate-400">
-                              <CreditCard className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                              <p className="text-sm font-semibold text-slate-700">No payment transactions found</p>
-                              <p className="text-xs text-slate-400 mt-0.5">Try adjusting your filters or search terms.</p>
-                            </td>
-                          </tr>
-                        ) : (
-                          paginatedTransactions.map((p) => {
-                            const b = bookings.find(
-                              (item) => String(item._id) === String(p.booking_id?._id || p.booking_id)
-                            );
-                            const eventTitle = b?.event_type || p.inquiry_id?.event_type || "Catering Event";
-                            const refCode = b?.reference || p.inquiry_id?.reference || "-";
-                            const dateStr = p.createdAt
-                              ? new Date(p.createdAt).toLocaleDateString("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                })
-                              : "-";
-                            const timeStr = p.createdAt
-                              ? new Date(p.createdAt).toLocaleTimeString("en-US", {
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                  hour12: true,
-                                })
-                              : "";
+                <>
+                  {/* Mobile View: Natural Vertically Stacked Transaction Cards */}
+                  <div className="space-y-3 sm:hidden">
+                    {displayedTransactions.length === 0 ? (
+                      <div className="text-center py-10 text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                        <CreditCard className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                        <p className="text-sm font-semibold text-slate-700">No payment transactions found</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Try adjusting your filters or search terms.</p>
+                      </div>
+                    ) : (
+                      displayedTransactions.map((p) => {
+                        const b = bookings.find(
+                          (item) => String(item._id) === String(p.booking_id?._id || p.booking_id)
+                        );
+                        const eventTitle = b?.event_type || p.inquiry_id?.event_type || "Catering Event";
+                        const refCode = b?.reference || p.inquiry_id?.reference || "-";
+                        const dateStr = p.createdAt
+                          ? new Date(p.createdAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })
+                          : "-";
+                        const timeStr = p.createdAt
+                          ? new Date(p.createdAt).toLocaleTimeString("en-US", {
+                              hour: "numeric",
+                              minute: "2-digit",
+                              hour12: true,
+                            })
+                          : "";
 
-                            return (
-                              <tr key={p._id} className="hover:bg-slate-50/60 transition-colors">
-                                <td className="py-3.5 px-4 text-xs text-slate-600">
-                                  <div className="font-semibold text-slate-900 flex items-center gap-1.5">
-                                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        return (
+                          <div
+                            key={p._id}
+                            className="rounded-xl border border-slate-200/90 bg-white p-3.5 space-y-2.5 shadow-2xs"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="font-bold text-sm text-slate-900 truncate leading-snug">
+                                  {eventTitle}
+                                </div>
+                                <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5 flex-wrap">
+                                  <span className="font-mono text-[11px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                                    {refCode}
+                                  </span>
+                                  <span>•</span>
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="w-3 h-3 text-slate-400" />
                                     <span>{dateStr}</span>
-                                  </div>
-                                  {timeStr && <span className="text-[10px] text-slate-400 pl-5">{timeStr}</span>}
-                                </td>
-
-                                <td className="py-3.5 px-4 text-xs">
-                                  <div className="font-bold text-slate-900">{eventTitle}</div>
-                                  <div className="flex items-center gap-1 text-[11px] text-slate-500 font-mono mt-0.5">
-                                    {b?._id ? (
-                                      <Link
-                                        to={`/customer/bookings/${b._id}`}
-                                        className="text-[#4C81E0] hover:underline inline-flex items-center gap-0.5"
-                                      >
-                                        <span>{refCode}</span>
-                                        <ExternalLink className="w-2.5 h-2.5 opacity-70" />
-                                      </Link>
-                                    ) : (
-                                      <span>{refCode}</span>
-                                    )}
-                                  </div>
-                                </td>
-
-                                <td className="py-3.5 px-4 text-xs">
-                                  <span className="font-semibold text-slate-800">
-                                    {renderMilestoneLabel(p.payment_type)}
+                                    {timeStr && <span className="text-slate-400">{timeStr}</span>}
                                   </span>
-                                </td>
+                                </div>
+                              </div>
+                              <div className="shrink-0">
+                                {renderPaymentStatusBadge(p.status)}
+                              </div>
+                            </div>
 
-                                <td className="py-3.5 px-4 text-xs">
-                                  {renderMethodBadge(p)}
-                                </td>
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-slate-800">
+                                  {renderMilestoneLabel(p.payment_type)}
+                                </span>
+                                <span>•</span>
+                                {renderMethodBadge(p)}
+                              </div>
+                            </div>
 
-                                <td className="py-3.5 px-4 text-xs">
-                                  <span className="font-bold text-slate-900 tabular-nums text-sm">
-                                    {formatCurrency(p.amount)}
-                                  </span>
-                                </td>
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                              <div>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                                  Amount
+                                </span>
+                                <span className="font-extrabold text-base text-slate-900 tabular-nums font-sans">
+                                  {formatCurrency(p.amount)}
+                                </span>
+                              </div>
 
-                                <td className="py-3.5 px-4 text-xs">
-                                  {renderPaymentStatusBadge(p.status)}
-                                </td>
-
-                                <td className="py-3.5 px-4 text-xs text-right">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleOpenReceipt(p, b)}
-                                    className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3B6EC6] hover:bg-blue-50 px-2.5 rounded-lg cursor-pointer"
-                                  >
-                                    <Receipt className="w-3.5 h-3.5" />
-                                    <span>Receipt</span>
-                                  </Button>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOpenReceipt(p, b)}
+                                className="h-8 text-xs font-semibold gap-1.5 text-[#4C81E0] border-blue-200 hover:bg-blue-50 px-3 rounded-lg cursor-pointer"
+                              >
+                                <Receipt className="w-3.5 h-3.5" />
+                                <span>Receipt</span>
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
-                </div>
+
+                  {/* Desktop / Tablet View: Flat Table View */}
+                  <div className="hidden sm:block rounded-xl border border-slate-200/80 overflow-hidden bg-white shadow-2xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            <th className="py-3 px-4">Date &amp; Time</th>
+                            <th className="py-3 px-4 min-w-[200px]">Event / Reference</th>
+                            <th className="py-3 px-4">Payment Type</th>
+                            <th className="py-3 px-4">Method</th>
+                            <th className="py-3 px-4">Amount</th>
+                            <th className="py-3 px-4">Status</th>
+                            <th className="py-3 px-4 text-right">Receipt</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {displayedTransactions.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="py-12 text-center text-slate-400">
+                                <CreditCard className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                                <p className="text-sm font-semibold text-slate-700">No payment transactions found</p>
+                                <p className="text-xs text-slate-400 mt-0.5">Try adjusting your filters or search terms.</p>
+                              </td>
+                            </tr>
+                          ) : (
+                            displayedTransactions.map((p) => {
+                              const b = bookings.find(
+                                (item) => String(item._id) === String(p.booking_id?._id || p.booking_id)
+                              );
+                              const eventTitle = b?.event_type || p.inquiry_id?.event_type || "Catering Event";
+                              const refCode = b?.reference || p.inquiry_id?.reference || "-";
+                              const dateStr = p.createdAt
+                                ? new Date(p.createdAt).toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  })
+                                : "-";
+                              const timeStr = p.createdAt
+                                ? new Date(p.createdAt).toLocaleTimeString("en-US", {
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  })
+                                : "";
+
+                              return (
+                                <tr key={p._id} className="hover:bg-slate-50/60 transition-colors">
+                                  <td className="py-3.5 px-4 text-xs text-slate-600">
+                                    <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                      <span>{dateStr}</span>
+                                    </div>
+                                    {timeStr && <span className="text-[10px] text-slate-400 pl-5">{timeStr}</span>}
+                                  </td>
+
+                                  <td className="py-3.5 px-4 text-xs">
+                                    <div className="font-bold text-slate-900">{eventTitle}</div>
+                                    <div className="flex items-center gap-1 text-[11px] text-slate-500 font-mono mt-0.5">
+                                      {b?._id ? (
+                                        <Link
+                                          to={`/customer/bookings/${b._id}`}
+                                          className="text-[#4C81E0] hover:underline inline-flex items-center gap-0.5"
+                                        >
+                                          <span>{refCode}</span>
+                                          <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+                                        </Link>
+                                      ) : (
+                                        <span>{refCode}</span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  <td className="py-3.5 px-4 text-xs">
+                                    <span className="font-semibold text-slate-800">
+                                      {renderMilestoneLabel(p.payment_type)}
+                                    </span>
+                                  </td>
+
+                                  <td className="py-3.5 px-4 text-xs">
+                                    {renderMethodBadge(p)}
+                                  </td>
+
+                                  <td className="py-3.5 px-4 text-xs">
+                                    <span className="font-bold text-slate-900 tabular-nums text-sm">
+                                      {formatCurrency(p.amount)}
+                                    </span>
+                                  </td>
+
+                                  <td className="py-3.5 px-4 text-xs">
+                                    {renderPaymentStatusBadge(p.status)}
+                                  </td>
+
+                                  <td className="py-3.5 px-4 text-xs text-right">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleOpenReceipt(p, b)}
+                                      className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3B6EC6] hover:bg-blue-50 px-2.5 rounded-lg cursor-pointer"
+                                    >
+                                      <Receipt className="w-3.5 h-3.5" />
+                                      <span>Receipt</span>
+                                    </Button>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
               )}
 
-              {/* ── Clean Pagination Bar ── */}
+              {/* ── Clean Pagination Bar (Desktop / Tablet only) ── */}
               {totalItems > 0 && (
-                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 border-t border-slate-100">
+                <div className="hidden sm:flex pt-2 flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 border-t border-slate-100">
                   <div>
                     Showing <span className="font-semibold text-slate-800">{startIndex + 1}</span>–
                     <span className="font-semibold text-slate-800">{endIndex}</span> of{" "}
@@ -1331,6 +1444,7 @@ export default function CustomerPayments() {
               setReceiptBooking(null);
             }}
             formatCurrency={formatCurrency}
+            businessInfo={businessInfo}
           />
         )}
 

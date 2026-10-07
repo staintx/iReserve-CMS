@@ -1480,30 +1480,69 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   };
 
   const handleAddCatalogAddon = (addon) => {
-    setAddOns((prev) => [
-      ...prev,
-      {
-        name: addon.name,
-        price: addon.price ? String(addon.price) : "",
-        quantity: 1,
-        note: "",
-        pricing_type: "quantity",
-      },
-    ]);
+    const addonName = (addon.name || "").trim();
+    if (!addonName) return;
+    setAddOns((prev) => {
+      const activeIdx = prev.findIndex(
+        (a) => !a.removed && (a.name || "").trim().toLowerCase() === addonName.toLowerCase()
+      );
+      if (activeIdx !== -1) {
+        return prev;
+      }
+      const removedIdx = prev.findIndex(
+        (a) => a.removed && (a.name || "").trim().toLowerCase() === addonName.toLowerCase()
+      );
+      if (removedIdx !== -1) {
+        return prev.map((a, i) =>
+          i === removedIdx
+            ? { ...a, removed: false, quantity: 1, price: addon.price ? String(addon.price) : a.price }
+            : a
+        );
+      }
+      return [
+        ...prev,
+        {
+          name: addonName,
+          price: addon.price ? String(addon.price) : "",
+          quantity: 1,
+          note: "",
+          pricing_type: "quantity",
+          removed: false,
+        },
+      ];
+    });
   };
 
   const handleAddCustomAddon = (name) => {
-    if (!name.trim()) return;
-    setAddOns((prev) => [
-      ...prev,
-      {
-        name: name.trim(),
-        price: "",
-        quantity: 1,
-        note: "",
-        pricing_type: "quantity",
-      },
-    ]);
+    const trimmed = name?.trim();
+    if (!trimmed) return;
+    setAddOns((prev) => {
+      const activeIdx = prev.findIndex(
+        (a) => !a.removed && (a.name || "").trim().toLowerCase() === trimmed.toLowerCase()
+      );
+      if (activeIdx !== -1) {
+        return prev;
+      }
+      const removedIdx = prev.findIndex(
+        (a) => a.removed && (a.name || "").trim().toLowerCase() === trimmed.toLowerCase()
+      );
+      if (removedIdx !== -1) {
+        return prev.map((a, i) =>
+          i === removedIdx ? { ...a, removed: false, quantity: 1 } : a
+        );
+      }
+      return [
+        ...prev,
+        {
+          name: trimmed,
+          price: "",
+          quantity: 1,
+          note: "",
+          pricing_type: "quantity",
+          removed: false,
+        },
+      ];
+    });
   };
 
   /* --- Fee Handlers --- */

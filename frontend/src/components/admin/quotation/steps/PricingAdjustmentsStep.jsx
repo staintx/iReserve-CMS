@@ -43,9 +43,10 @@ function MoneyInput({ value, onChange, placeholder = "0.00", disabled, className
   const block = (e) => {
     if (e.key === "-" || e.key === "+" || e.key === "e" || e.key === "E") e.preventDefault();
   };
+  const isAutoOrFull = !className || className.includes("w-full");
   return (
-    <div className="relative">
-      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-xs text-slate-400 font-medium">
+    <div className={`relative ${isAutoOrFull ? "w-full" : "inline-block text-left"}`}>
+      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-xs text-slate-400 font-medium z-10">
         ₱
       </span>
       <input
@@ -59,7 +60,7 @@ function MoneyInput({ value, onChange, placeholder = "0.00", disabled, className
         onWheel={(e) => e.target.blur()}
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ""))}
-        className={`w-full rounded-md border border-slate-300 bg-white pl-6 pr-2.5 py-1.5 text-xs text-slate-900 font-mono font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400 ${className}`}
+        className={`rounded-md border border-slate-300 bg-white pl-6 pr-2.5 py-1.5 text-xs text-slate-900 font-mono font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isAutoOrFull ? "w-full" : ""} ${className}`}
       />
     </div>
   );
@@ -91,6 +92,7 @@ export default function PricingAdjustmentsStep({
   menuItems,
   handleMenuChange,
   toggleMenuRemoved,
+  handleDeleteMenu,
   onReplaceSpecialOfferDish,
   onRemoveSpecialOfferDish,
   onSelectSpecialOfferDish,
@@ -101,6 +103,7 @@ export default function PricingAdjustmentsStep({
   addOns,
   handleAddOnChange,
   toggleAddOnRemoved,
+  handleDeleteAddOn,
   catalogAddons = [],
   onAddCatalogAddon,
   onAddCustomAddon,
@@ -151,9 +154,21 @@ export default function PricingAdjustmentsStep({
     return dish.name?.toLowerCase().includes(q) || dish.category?.toLowerCase().includes(q);
   });
 
+  const activeAddonNames = useMemo(() => {
+    return new Set(
+      addOns
+        .filter((a) => !a.removed)
+        .map((a) => (a.name || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+  }, [addOns]);
+
   const filteredAddons = catalogAddons.filter((addon) => {
+    const name = (addon.name || "").trim().toLowerCase();
+    if (activeAddonNames.has(name)) return false;
     if (!addonSearchQuery.trim()) return true;
-    return addon.name?.toLowerCase().includes(addonSearchQuery.toLowerCase().trim());
+    const q = addonSearchQuery.toLowerCase().trim();
+    return addon.name?.toLowerCase().includes(q) || addon.category?.toLowerCase().includes(q);
   });
 
   const isSpecial = Boolean(isSpecialOffer || offerContext);
@@ -927,8 +942,8 @@ export default function PricingAdjustmentsStep({
                     <th className="py-2 px-3 min-w-[170px]">Dish &amp; Course</th>
                     <th className="py-2 px-2 w-36 min-w-[140px]">Portion Unit</th>
                     <th className="py-2 px-2 w-20 text-center">Quantity</th>
-                    <th className="py-2 px-2 w-28 text-right">Price per Unit</th>
-                    <th className="py-2 px-2 w-28 text-right">Line Total</th>
+                    <th className="py-2 px-2 w-36 min-w-[140px] text-right">Price per Unit</th>
+                    <th className="py-2 px-2 w-32 min-w-[120px] text-right">Line Total</th>
                     <th className="py-2 px-2 w-14 text-center">Action</th>
                   </tr>
                 </thead>
@@ -1055,7 +1070,7 @@ export default function PricingAdjustmentsStep({
                             disabled={item.removed}
                             onChange={(val) => handleMenuChange(index, "price", val)}
                             placeholder="0.00"
-                            className={`w-24 text-right ml-auto ${errors[`menu_items.${index}.price`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}`}
+                            className={`w-32 min-w-[128px] text-right ${errors[`menu_items.${index}.price`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}`}
                           />
                         </td>
 
@@ -1066,14 +1081,37 @@ export default function PricingAdjustmentsStep({
 
                         {/* Action */}
                         <td className="py-2 px-2 text-center align-top">
-                          <button
-                            type="button"
-                            onClick={() => toggleMenuRemoved(index)}
-                            title={item.removed ? "Restore dish" : "Remove dish"}
-                            className="p-1 rounded text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
-                          >
-                            {item.removed ? <Undo2 size={13} /> : <Trash2 size={13} />}
-                          </button>
+                          {item.removed ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => toggleMenuRemoved(index)}
+                                title="Restore dish"
+                                className="p-1 rounded text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                              >
+                                <Undo2 size={13} />
+                              </button>
+                              {handleDeleteMenu && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMenu(index)}
+                                  title="Permanently remove dish"
+                                  className="p-1 rounded text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => toggleMenuRemoved(index)}
+                              title="Remove dish"
+                              className="p-1 rounded text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -1142,17 +1180,23 @@ export default function PricingAdjustmentsStep({
                     <div className="p-3 text-center text-slate-500">
                       <span>No add-ons found.</span>
                       {addonSearchQuery.trim() && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onAddCustomAddon(addonSearchQuery.trim());
-                            setAddonSearchQuery("");
-                            setIsAddonSearchOpen(false);
-                          }}
-                          className="block mx-auto mt-2 text-xs font-semibold text-primary hover:underline cursor-pointer"
-                        >
-                          + Add &ldquo;{addonSearchQuery.trim()}&rdquo; as custom service
-                        </button>
+                        activeAddonNames.has(addonSearchQuery.trim().toLowerCase()) ? (
+                          <p className="mt-2 text-xs font-semibold text-amber-600">
+                            &ldquo;{addonSearchQuery.trim()}&rdquo; is already added. Adjust its quantity instead.
+                          </p>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onAddCustomAddon(addonSearchQuery.trim());
+                              setAddonSearchQuery("");
+                              setIsAddonSearchOpen(false);
+                            }}
+                            className="block mx-auto mt-2 text-xs font-semibold text-primary hover:underline cursor-pointer"
+                          >
+                            + Add &ldquo;{addonSearchQuery.trim()}&rdquo; as custom service
+                          </button>
+                        )
                       )}
                     </div>
                   ) : (
@@ -1198,8 +1242,8 @@ export default function PricingAdjustmentsStep({
                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   <th className="py-2 px-3 min-w-[180px]">Service / Equipment Name</th>
                   <th className="py-2 px-2 w-20 text-center">Quantity</th>
-                  <th className="py-2 px-2 w-28 text-right">Price (₱)</th>
-                  <th className="py-2 px-2 w-28 text-right">Line Total</th>
+                  <th className="py-2 px-2 w-36 min-w-[130px] text-right">Price (₱)</th>
+                  <th className="py-2 px-2 w-32 min-w-[120px] text-right">Line Total</th>
                   <th className="py-2 px-2 w-14 text-center">Action</th>
                 </tr>
               </thead>
@@ -1236,21 +1280,44 @@ export default function PricingAdjustmentsStep({
                           disabled={item.removed}
                           onChange={(val) => handleAddOnChange(index, "price", val)}
                           placeholder="0.00"
-                          className={`w-24 text-right ml-auto ${errors[`add_ons.${index}.price`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}`}
+                          className={`w-32 min-w-[128px] text-right ${errors[`add_ons.${index}.price`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}`}
                         />
                       </td>
                       <td className="py-2 px-2 text-right font-mono font-semibold text-slate-900 tabular-nums">
                         {item.removed ? "—" : formatCurrency(lineTotal)}
                       </td>
                       <td className="py-2 px-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => toggleAddOnRemoved(index)}
-                          title={item.removed ? "Restore service" : "Remove service"}
-                          className="p-1 rounded text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
-                        >
-                          {item.removed ? <Undo2 size={13} /> : <Trash2 size={13} />}
-                        </button>
+                        {item.removed ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => toggleAddOnRemoved(index)}
+                              title="Restore service"
+                              className="p-1 rounded text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                            >
+                              <Undo2 size={13} />
+                            </button>
+                            {handleDeleteAddOn && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAddOn(index)}
+                                title="Permanently delete service"
+                                className="p-1 rounded text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => toggleAddOnRemoved ? toggleAddOnRemoved(index) : (handleDeleteAddOn && handleDeleteAddOn(index))}
+                            title="Remove service"
+                            className="p-1 rounded text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

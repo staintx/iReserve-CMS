@@ -11,7 +11,7 @@ import {
   FileText, Activity, Utensils, Send, RefreshCw, Ruler,
   Package as PackageIcon, Users, AlertTriangle, Layers,
   Truck, Check, ShieldAlert, HeartPulse, ChevronDown,
-  ChevronUp, Palette, Sparkles, Printer, ExternalLink, Image as ImageIcon
+  ChevronUp, Palette, Sparkles, Printer, ExternalLink, Image as ImageIcon, X
 } from "lucide-react";
 import InvoiceModal from "../../components/common/invoice/InvoiceModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
@@ -320,6 +320,9 @@ export default function AdminQuoteDetails() {
   const [showAllInclusions, setShowAllInclusions] = useState(false);
   const [showAllMenu, setShowAllMenu] = useState(false);
 
+  // Lightbox state
+  const [lightbox, setLightbox] = useState(null);
+
   // Sticky header observation
   const headerRef = useRef(null);
   const [isStickyVisible, setIsStickyVisible] = useState(false);
@@ -365,6 +368,14 @@ export default function AdminQuoteDetails() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  // Handle lightbox escape key
+  useEffect(() => {
+    if (!lightbox) return undefined;
+    const onKey = (e) => e.key === "Escape" && setLightbox(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox]);
 
 
   if (loading) {
@@ -1292,13 +1303,12 @@ export default function AdminQuoteDetails() {
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
                         {quote.inspiration_images.map((imgUrl, i) => (
-                          <a
+                          <button
                             key={i}
-                            href={imgUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group relative aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-100 block shadow-2xs hover:ring-2 hover:ring-primary transition-all cursor-pointer"
-                            title="Open full resolution image in new tab"
+                            type="button"
+                            onClick={() => setLightbox(imgUrl)}
+                            className="group relative w-full aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-100 block shadow-2xs hover:ring-2 hover:ring-primary transition-all cursor-pointer"
+                            title="View full resolution image"
                           >
                             <img
                               src={imgUrl}
@@ -1312,7 +1322,7 @@ export default function AdminQuoteDetails() {
                             <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">
                               #{i + 1}
                             </span>
-                          </a>
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -1540,13 +1550,12 @@ export default function AdminQuoteDetails() {
                         </span>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                           {quote.inspiration_images.map((imgUrl, i) => (
-                            <a
+                            <button
                               key={i}
-                              href={imgUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="group relative aspect-video rounded-lg overflow-hidden border border-slate-200 bg-slate-50 block shadow-2xs hover:ring-2 hover:ring-primary transition-all"
-                              title="Open full resolution image"
+                              type="button"
+                              onClick={() => setLightbox(imgUrl)}
+                              className="group relative w-full aspect-video rounded-lg overflow-hidden border border-slate-200 bg-slate-50 block shadow-2xs hover:ring-2 hover:ring-primary transition-all cursor-pointer"
+                              title="View full resolution image"
                             >
                               <img
                                 src={imgUrl}
@@ -1556,7 +1565,7 @@ export default function AdminQuoteDetails() {
                               <span className="absolute bottom-1 right-1 bg-black/65 text-white text-[9.5px] px-1.5 py-0.5 rounded font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                                 <ExternalLink size={10} /> View
                               </span>
-                            </a>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -1828,6 +1837,29 @@ export default function AdminQuoteDetails() {
           businessInfo={businessInfo}
           context="admin"
         />
+      )}
+
+      {/* Lightbox for Moodboard Pegs */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm"
+          onClick={() => setLightbox(null)}
+        >
+          <img
+            src={lightbox}
+            alt="Full resolution view"
+            className="max-h-full max-w-full rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            onClick={() => setLightbox(null)}
+            className="absolute top-4 right-4 flex items-center justify-center w-9 h-9 rounded-full bg-white/90 text-slate-700 hover:bg-white cursor-pointer transition-colors"
+            aria-label="Close preview"
+          >
+            <X size={18} />
+          </button>
+        </div>
       )}
 
     </AdminLayout>

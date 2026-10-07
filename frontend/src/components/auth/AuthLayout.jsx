@@ -1,18 +1,11 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, CalendarCheck, MessageSquareText } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import logo from "../../assets/images/logo.jpg";
 import backdrop from "../../assets/images/img-bg.jpg";
 import { focusRing } from "./AuthUI";
 import { cn } from "@/lib/utils";
 
 const YEAR = new Date().getFullYear();
-
-// Two markers, not a badge wall — and both name something the account actually
-// does rather than making a generic "secure / trusted / easy" claim.
-const MARKERS = [
-  { icon: CalendarCheck, label: "Menus, guests, and payments in one place" },
-  { icon: MessageSquareText, label: "Your event coordinator, reachable in-app" },
-];
 
 const WIDTHS = {
   default: "max-w-[26rem]",
@@ -98,7 +91,7 @@ export default function AuthLayout({
           <BrandMark />
         </div>
 
-        <div className="auth-rise relative z-10 max-w-md">
+        <div className="auth-rise relative z-10 max-w-md my-auto">
           <span className="mb-4 block h-[3px] w-10 rounded-full bg-[#C5A059]" aria-hidden="true" />
           <h2
             style={{ fontFamily: "Playfair Display, serif" }}
@@ -108,21 +101,6 @@ export default function AuthLayout({
           </h2>
           {body && <p className="mt-3 text-sm leading-relaxed text-white/70">{body}</p>}
         </div>
-
-        <ul className="auth-fade relative z-10 space-y-2">
-          {MARKERS.map((marker) => {
-            const Icon = marker.icon;
-            return (
-              <li
-                key={marker.label}
-                className="flex items-center gap-2.5 text-[13px] text-white/75"
-              >
-                <Icon size={15} className="shrink-0 text-[#C5A059]" aria-hidden="true" />
-                {marker.label}
-              </li>
-            );
-          })}
-        </ul>
       </aside>
 
       {/* ── Working column ────────────────────────────────────────────── */}

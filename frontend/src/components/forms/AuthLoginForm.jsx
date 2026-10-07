@@ -91,7 +91,7 @@ export default function AuthLoginForm({ onSubmit, loading = false, formError = n
     <div className="space-y-4">
       <AuthHeading
         title="Welcome back"
-        subtitle="Sign in to manage your reservations, quotes, and messages."
+        subtitle="Sign in to manage your events, quotations, and reservations"
       />
 
       {banner}

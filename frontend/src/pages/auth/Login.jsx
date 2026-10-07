@@ -134,7 +134,7 @@ export default function Login() {
   return (
     <AuthLayout
       title="Your next delicious moment starts here."
-      body="Handcrafted menus, seamless service, and every detail of your event tracked in one place."
+      body="Create memorable events, and effortless manage your guests, bookings, and payments—all in one place."
     >
       <AuthLoginForm
         onSubmit={submit}

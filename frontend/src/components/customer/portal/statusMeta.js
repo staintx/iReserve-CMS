@@ -456,11 +456,11 @@ export const inquiryStatusMeta = (inquiry) => {
     if (isAcceptedPendingDeposit) {
       return {
         group: "quote_ready",
-        tone: "success",
-        label: "Accepted",
+        tone: "warning",
+        label: "Quote Accepted · Deposit Due",
         actionRequired: true,
         actionLabel: "Deposit Required",
-        icon: CheckCircle2,
+        icon: Clock,
         notice: {
           tone: "warning",
           title: "Quotation accepted · Deposit required",

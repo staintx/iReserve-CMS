@@ -150,7 +150,10 @@ const getNextActionInfo = (q) => {
     return { label: "Revision Required", tone: "bg-purple-50 text-purple-800 border-purple-200/80" };
   }
   if (q.status === "Accepted" || q.status === "Quote Accepted" || q.status === "Awaiting Final Confirmation") {
-    return { label: "Ready to Convert", tone: "bg-emerald-50 text-emerald-800 border-emerald-200/80" };
+    const isDepositPaid = Boolean(q.is_deposit_paid || q.inquiry_id?.payment_status === "deposit_paid" || q.inquiry_id?.payment_status === "fully_paid");
+    return isDepositPaid
+      ? { label: "Ready to Convert", tone: "bg-emerald-50 text-emerald-800 border-emerald-200/80" }
+      : { label: "Quote Accepted (Deposit Due)", tone: "bg-amber-50 text-amber-800 border-amber-200/80" };
   }
   if (q.status === "Converted to Booking" || Boolean(q.convertedBookingId)) {
     return { label: "Booking Confirmed", tone: "bg-teal-50 text-teal-800 border-teal-200/80" };

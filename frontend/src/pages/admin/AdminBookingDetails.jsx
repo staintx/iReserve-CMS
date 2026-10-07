@@ -643,7 +643,7 @@ export default function AdminBookingDetails() {
       completedIdx = 4;
     } else if (booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid") {
       completedIdx = 3;
-    } else if (rawStatus === "customer_accepted") {
+    } else if (["customer_accepted", "deposit pending", "pending deposit"].includes(rawStatus)) {
       completedIdx = 2;
     } else if (rawStatus === "quote_sent") {
       completedIdx = 1;
@@ -659,7 +659,7 @@ export default function AdminBookingDetails() {
       completedIdx = 4;
     } else if (booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid") {
       completedIdx = 3;
-    } else if (rawStatus === "customer_accepted") {
+    } else if (["customer_accepted", "deposit pending", "pending deposit"].includes(rawStatus)) {
       completedIdx = 2;
     } else if (rawStatus === "quote_sent") {
       completedIdx = 1;

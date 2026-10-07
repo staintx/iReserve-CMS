@@ -72,8 +72,9 @@ exports.remove = asyncHandler(async (req, res) => {
 
 exports.getPublic = asyncHandler(async (req, res) => {
 	const ratings = await Rating.find()
-		.select("stars review customer_id createdAt")
+		.select("stars review customer_id booking_id createdAt")
 		.populate({ path: "customer_id", select: "full_name" })
+		.populate({ path: "booking_id", select: "event_type guest_count" })
 		.sort({ createdAt: -1 });
 
 	res.json(ratings);

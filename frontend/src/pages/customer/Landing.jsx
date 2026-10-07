@@ -17,7 +17,15 @@ import {
   offerFoodItems,
   offerFoodByCategory,
 } from "../../lib/specialOffers";
-import { ChevronDown, CalendarDays, ArrowRight } from "lucide-react";
+import {
+  ChevronDown,
+  CalendarDays,
+  ArrowRight,
+  Star,
+  CheckCircle2,
+  Quote,
+  X,
+} from "lucide-react";
 
 const peso = (amount) =>
   "₱" + Number(amount || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 });
@@ -64,6 +72,7 @@ export default function Landing() {
   });
   const [businessInfo, setBusinessInfo] = useState(DEFAULT_BUSINESS_INFO);
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [allReviewsOpen, setAllReviewsOpen] = useState(false);
 
   // Re-scan for reveal targets whenever a section swaps out of its loading
   // state, since those cards do not exist on the first pass.
@@ -158,7 +167,7 @@ export default function Landing() {
     if (!rawHash) return;
 
     // Older links pointed at sections that no longer exist on their own.
-    const legacyMap = { about: "contact", testimonials: "contact", foods: "menu" };
+    const legacyMap = { about: "contact", testimonials: "reviews", foods: "menu" };
     const sectionId = legacyMap[rawHash] || rawHash;
 
     const timer = window.setTimeout(() => scrollToSection(sectionId), 0);
@@ -168,15 +177,24 @@ export default function Landing() {
   const galleryItems = content.gallery.data;
 
   useEffect(() => {
-    if (lightboxIndex === null) return undefined;
+    if (lightboxIndex === null && !allReviewsOpen) return undefined;
 
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") setLightboxIndex(null);
+      if (event.key === "Escape") {
+        if (lightboxIndex !== null) setLightboxIndex(null);
+        if (allReviewsOpen) setAllReviewsOpen(false);
+      }
     };
 
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [lightboxIndex]);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [lightboxIndex, allReviewsOpen]);
 
   const goToBooking = (payload = {}) => {
     navigate("/customer/book", { state: { resetWizard: true, ...payload } });
@@ -276,7 +294,19 @@ export default function Landing() {
     ],
   );
 
-  const reviews = content.reviews.data;
+  const validReviews = useMemo(() => {
+    return (content.reviews.data || []).filter(
+      (r) => r && typeof r.stars === "number" && r.stars >= 1 && r.stars <= 5,
+    );
+  }, [content.reviews.data]);
+
+  const totalReviews = validReviews.length;
+
+  const averageRating = useMemo(() => {
+    if (!totalReviews) return 0;
+    const sum = validReviews.reduce((acc, curr) => acc + curr.stars, 0);
+    return Number((sum / totalReviews).toFixed(1));
+  }, [validReviews, totalReviews]);
 
   const contactNumber = businessInfo.contact_number || DEFAULT_BUSINESS_INFO.contact_number;
   const contactEmail = businessInfo.email || DEFAULT_BUSINESS_INFO.email;
@@ -648,39 +678,87 @@ export default function Landing() {
       </section>
       )}
 
-      {/* ── Reviews: only rendered when there are any ──────── */}
-      {content.reviews.status === "ready" && reviews.length > 0 && (
-        <section className="ls-band ls-band--page" aria-labelledby="reviews-title">
+      {/* ── Reviews: rendered when completed-event customer ratings exist ── */}
+      {content.reviews.status === "ready" && totalReviews > 0 && (
+        <section id="reviews" className="ls-band ls-band--page" aria-labelledby="reviews-title">
           <div className="ls-inner">
-            <div className="ls-head ls-reveal">
-              <span className="ls-rule" aria-hidden="true" />
-              <p className="ls-eyebrow">Reviews</p>
-              <h2 className="ls-title" id="reviews-title">
-                What our clients say
-              </h2>
-            </div>
+            <div className="ls-reviews-header-wrap ls-reveal">
+              <div className="ls-reviews-header-info">
+                <span className="ls-rule" aria-hidden="true" />
+                <p className="ls-eyebrow">Customer Reviews</p>
+                <h2 className="ls-title" id="reviews-title">
+                  What our customers say
+                </h2>
+                <p className="ls-lede">
+                  Real feedback from clients who celebrated weddings, birthdays, and
+                  special gatherings with Caezelle's Catering.
+                </p>
+              </div>
 
-            <div className="ls-quotes ls-reveal ls-stagger">
-              {reviews.slice(0, 3).map((review) => {
-                const stars = Math.max(0, Math.min(5, Number(review.stars) || 0));
-                const name = review?.customer_id?.full_name || "Verified customer";
-
-                return (
-                  <figure className="ls-quote" key={review._id || `${name}-${review.createdAt}`}>
-                    <span className="ls-quote-stars" aria-label={`${stars} out of 5 stars`}>
-                      <span aria-hidden="true">
-                        {"★".repeat(stars)}
-                        {"☆".repeat(5 - stars)}
-                      </span>
+              {/* Integrated Trust Summary */}
+              <div className="ls-trust-summary" aria-label="Customer rating summary">
+                <div className="ls-trust-rating-row">
+                  <div className="ls-trust-score">
+                    <span className="ls-trust-score-num">{averageRating.toFixed(1)}</span>
+                    <span className="ls-trust-score-denom">/ 5</span>
+                  </div>
+                  <div className="ls-trust-stars-wrap">
+                    <StarRating rating={averageRating} size={15} />
+                    <span className="ls-trust-count-text">
+                      {totalReviews === 1
+                        ? "Based on 1 verified customer review"
+                        : `Based on ${totalReviews} verified customer reviews`}
                     </span>
-                    <blockquote>
-                      <p>{review.review}</p>
-                    </blockquote>
-                    <figcaption className="ls-quote-by">{name}</figcaption>
-                  </figure>
-                );
-              })}
+                  </div>
+                </div>
+
+                {totalReviews > 3 && (
+                  <div className="ls-trust-sub-row">
+                    <button
+                      type="button"
+                      className="ls-trust-seeall-link"
+                      onClick={() => setAllReviewsOpen(true)}
+                    >
+                      See all {totalReviews}
+                      <ArrowRight size={13} aria-hidden="true" />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Testimonials 3-Column Editorial Grid (stacked on mobile) */}
+            <div
+              className={`ls-testimonials-grid ls-reveal ls-stagger${
+                validReviews.length === 1
+                  ? " ls-testimonials-grid--single"
+                  : validReviews.length === 2
+                  ? " ls-testimonials-grid--double"
+                  : ""
+              }`}
+            >
+              {validReviews.slice(0, 3).map((review, idx) => (
+                <CustomerReviewCard
+                  key={review._id || `${review.customer_id?.full_name}-${review.createdAt}`}
+                  review={review}
+                  index={idx}
+                  formatReviewDate={formatReviewDate}
+                />
+              ))}
+            </div>
+
+            {totalReviews > 3 && (
+              <div className="ls-testimonials-actions ls-reveal">
+                <button
+                  type="button"
+                  className="ls-btn-see-all-reviews"
+                  onClick={() => setAllReviewsOpen(true)}
+                >
+                  <span>See all {totalReviews} reviews</span>
+                  <ArrowRight size={15} aria-hidden="true" />
+                </button>
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -739,7 +817,208 @@ export default function Landing() {
           />
         </div>
       )}
+
+      {/* ── All Customer Reviews Modal ─────────────────────── */}
+      {allReviewsOpen && (
+        <div
+          className="ls-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="all-reviews-title"
+          onClick={() => setAllReviewsOpen(false)}
+        >
+          <div
+            className="ls-modal-card"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="ls-modal-header">
+              <div>
+                <h3 className="ls-modal-title" id="all-reviews-title">
+                  Customer Reviews
+                </h3>
+                <div className="ls-modal-subtitle">
+                  <StarRating rating={averageRating} size={14} />
+                  <span>
+                    <strong>{averageRating.toFixed(1)}</strong> of 5.0
+                  </span>
+                  <span>•</span>
+                  <span>
+                    {totalReviews === 1
+                      ? "1 verified review"
+                      : `${totalReviews} verified reviews`}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="ls-modal-close"
+                onClick={() => setAllReviewsOpen(false)}
+                aria-label="Close reviews dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="ls-modal-body">
+              {validReviews.map((review, idx) => (
+                <CustomerReviewCard
+                  key={review._id || `${review.customer_id?.full_name}-${review.createdAt}`}
+                  review={review}
+                  index={idx}
+                  formatReviewDate={formatReviewDate}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </CustomerLayout>
+  );
+}
+
+const formatReviewDate = (dateString) => {
+  if (!dateString) return null;
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return null;
+  }
+};
+
+const getCustomerInitials = (name) => {
+  if (!name || typeof name !== "string") return "CU";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "CU";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const getCustomerEventDetails = (review) => {
+  if (!review) return null;
+
+  const rawEventType =
+    review.event_type ||
+    review.eventType ||
+    review.booking_id?.event_type ||
+    review.booking_id?.eventType ||
+    review.booking?.event_type ||
+    review.booking?.eventType ||
+    review.booking_id?.event_name ||
+    review.booking_id?.eventName ||
+    null;
+
+  const rawCount =
+    review.guest_count ??
+    review.guestCount ??
+    review.pax ??
+    review.booking_id?.guest_count ??
+    review.booking_id?.guestCount ??
+    review.booking_id?.pax ??
+    review.booking?.guest_count ??
+    review.booking?.guestCount ??
+    review.booking?.pax ??
+    null;
+
+  const eventType =
+    typeof rawEventType === "string" && rawEventType.trim().length > 0
+      ? rawEventType.trim()
+      : null;
+
+  const countNum = Number(rawCount);
+  const guestCount =
+    !isNaN(countNum) && countNum > 0
+      ? `${countNum} ${countNum === 1 ? "Guest" : "Guests"}`
+      : null;
+
+  if (eventType && guestCount) {
+    return `${eventType} · ${guestCount}`;
+  }
+  if (eventType) {
+    return eventType;
+  }
+  if (guestCount) {
+    return guestCount;
+  }
+  return null;
+};
+
+function EditorialQuoteMark() {
+  return (
+    <div className="ls-testimonial-quote-mark" aria-hidden="true">
+      <Quote size={15} className="ls-testimonial-quote-symbol ls-testimonial-quote-svg" />
+    </div>
+  );
+}
+
+function StarRating({ rating = 0, size = 15, className = "" }) {
+  const clamped = Math.max(0, Math.min(5, Number(rating) || 0));
+  return (
+    <div
+      className={`ls-stars-row ${className}`}
+      aria-label={`${clamped} out of 5 stars`}
+    >
+      {[1, 2, 3, 4, 5].map((starIndex) => {
+        const isFilled = starIndex <= Math.round(clamped);
+        return (
+          <Star
+            key={starIndex}
+            size={size}
+            className={`ls-star-icon ${isFilled ? "is-filled" : "is-empty"}`}
+            aria-hidden="true"
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function CustomerReviewCard({ review, index = 0, formatReviewDate }) {
+  const stars = Math.max(0, Math.min(5, Number(review.stars) || 0));
+  const name = review?.customer_id?.full_name?.trim() || "Customer";
+  const dateFormatted = formatReviewDate(review.createdAt);
+  const initials = getCustomerInitials(name);
+  const eventDetails = getCustomerEventDetails(review);
+  const avatarVariant = `ls-testimonial-avatar--${index % 4}`;
+
+  return (
+    <article className="ls-testimonial-card" key={review._id || `${name}-${review.createdAt}`}>
+      <div className="ls-testimonial-card-header">
+        <StarRating rating={stars} size={15} />
+        {dateFormatted && <span className="ls-testimonial-date">{dateFormatted}</span>}
+      </div>
+
+      <div className="ls-testimonial-quote-mark" aria-hidden="true">
+        <Quote size={15} className="ls-testimonial-quote-symbol ls-testimonial-quote-svg" />
+      </div>
+
+      <div className="ls-testimonial-body">
+        <p className="ls-testimonial-text">
+          {review.review || "Rating submitted for completed event."}
+        </p>
+      </div>
+
+      <div className="ls-testimonial-footer">
+        <div className={`ls-testimonial-avatar ${avatarVariant}`} aria-hidden="true">
+          {initials}
+        </div>
+        <div className="ls-testimonial-identity">
+          <span className="ls-testimonial-name">{name}</span>
+          <span className="ls-testimonial-verified">
+            <CheckCircle2 size={12.5} className="ls-testimonial-verified-icon" aria-hidden="true" />
+            <span>Verified Booking</span>
+          </span>
+          {eventDetails && (
+            <span className="ls-testimonial-event">{eventDetails}</span>
+          )}
+        </div>
+      </div>
+    </article>
   );
 }
 

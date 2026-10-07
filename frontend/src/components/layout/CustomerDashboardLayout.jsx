@@ -1,4 +1,4 @@
-import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef, useCallback } from "react";
 import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
@@ -9,13 +9,11 @@ import {
   Calendar, 
   MessageSquare, 
   LogOut, 
-  ChevronLeft, 
   FileText, 
   Menu, 
   X, 
   UserRound, 
   Sparkles,
-  Bot,
   CreditCard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,22 +22,20 @@ import { CustomerAPI } from "../../api/customer";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
 
 const navGroups = [
   {
     title: "Main",
     items: [
       { to: "/customer/dashboard", label: "Dashboard", desc: "Overview of your events", icon: LayoutDashboard },
-      { to: "/customer/agent", label: "Agent", desc: "AI catering concierge", icon: Sparkles },
       { to: "/customer/inquiries", label: "My Inquiries", desc: "View quote requests", icon: FileText },
       { to: "/customer/bookings", label: "My Bookings", desc: "Track your event status", icon: Calendar },
-      { to: "/customer/payments", label: "Payments", desc: "View payments & receipts", icon: CreditCard },
-      { to: "/customer/messages", label: "Messages", desc: "Chat with our team", icon: MessageSquare, hasBadge: "messages" }
+      { to: "/customer/payments", label: "Payments", desc: "View payments & receipts", icon: CreditCard }
     ]
   },
   {
@@ -53,7 +49,6 @@ const navGroups = [
 export default function CustomerDashboardLayout({ title, subtitle, actions, fullBleed = false, children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -213,9 +208,68 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
 
           <div className="flex-1" />
 
-          {/* Right Header Utilities: Bell */}
+          {/* Right Header Utilities: Messages → Agent → Notification */}
           <div className="flex items-center gap-2 shrink-0">
-            <NotificationBell />
+            <TooltipProvider delayDuration={150}>
+              {/* Messages */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <NavLink
+                    to="/customer/messages"
+                    aria-label={unreadMessages > 0 ? `Messages, ${unreadMessages} unread` : "Messages"}
+                    className={({ isActive }) => cn(
+                      "relative flex h-10 w-10 sm:h-8 sm:w-8 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C4B8A]",
+                      isActive
+                        ? "border-[#4C81E0]/50 bg-[#4C81E0]/10 text-[#4C81E0]"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    )}
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    {unreadMessages > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-[#4C81E0] text-[10px] font-bold text-white ring-2 ring-white">
+                        {unreadMessages > 9 ? "9+" : unreadMessages}
+                      </span>
+                    )}
+                  </NavLink>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={6} className="text-xs font-medium bg-slate-900 text-white border-slate-800">
+                  Messages
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Agent */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <NavLink
+                    to="/customer/agent"
+                    aria-label="Agent"
+                    className={({ isActive }) => cn(
+                      "relative flex h-10 w-10 sm:h-8 sm:w-8 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C4B8A]",
+                      isActive
+                        ? "border-[#4C81E0]/50 bg-[#4C81E0]/10 text-[#4C81E0]"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    )}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                  </NavLink>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={6} className="text-xs font-medium bg-slate-900 text-white border-slate-800">
+                  Agent
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Notification */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <NotificationBell tooltipTitle="" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={6} className="text-xs font-medium bg-slate-900 text-white border-slate-800">
+                  Notification
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </header>
 

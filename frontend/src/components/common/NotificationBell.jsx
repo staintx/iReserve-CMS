@@ -22,7 +22,7 @@ const formatTime = (value) => {
   return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 };
 
-export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSidebar, placement }) {
+export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSidebar, placement, tooltipTitle = "Notification" }) {
   // A sidebar row opens its panel to the right; the same row inside the
   // mobile menu sheet has no room to the right, so it opens upward.
   const menuSide = placement || (isSidebarItem ? "right" : "bottom");
@@ -164,8 +164,8 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
           <button
             type="button"
             className="relative flex h-10 w-10 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C4B8A]"
-            title="Notifications"
-            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+            title={tooltipTitle || undefined}
+            aria-label={unreadCount > 0 ? `${tooltipTitle || "Notification"}, ${unreadCount} unread` : (tooltipTitle || "Notification")}
           >
             <Bell className={cn("w-4 h-4", unreadCount > 0 && "text-slate-700")} />
             {unreadCount > 0 && (

@@ -127,7 +127,7 @@ app.use(cookieParser());
 app.use(compression());
 app.use(morgan(process.env.NODE_ENV === "production" ? "tiny" : "dev"));
 
-app.get("/", (req, res) => res.send("iReserve API Running ✅"));
+app.get("/healthz", (req, res) => res.send("iReserve API Running ✅"));
 
 app.use("/api/auth", authRoutes);
 
@@ -156,23 +156,29 @@ app.use("/api/zelle", zelleRoutes);
 // UNIFIED DEPLOYMENT: Serve Frontend Static Files
 // ---------------------------------------------------------------------------
 const path = require("path");
+const fs = require("fs");
 // Assuming the frontend build is located at ../frontend/dist relative to backend root
 const frontendDistPath = path.join(__dirname, "../../frontend/dist");
+const indexPath = path.join(frontendDistPath, "index.html");
 
-// Serve static assets (js, css, images)
-app.use(express.static(frontendDistPath));
+if (fs.existsSync(frontendDistPath)) {
+	app.use(express.static(frontendDistPath));
+}
 
 // Catch-all route to serve React's index.html for all non-API routes (Frontend Routing)
-app.get("*", (req, res, next) => {
-	if (req.originalUrl.startsWith("/api") || req.originalUrl.startsWith("/socket.io")) {
+// Note: In Express 5 (path-to-regexp v8), app.get("*") throws PathError.
+// Using app.use without a path parameter is the standard, future-proof approach.
+app.use((req, res, next) => {
+	if (req.method !== "GET" || req.originalUrl.startsWith("/api") || req.originalUrl.startsWith("/socket.io")) {
 		return next();
 	}
-	res.sendFile(path.join(frontendDistPath, "index.html"), (err) => {
-		if (err) {
-			// If index.html is missing (e.g., frontend hasn't been built), pass to errorHandler
-			next();
-		}
-	});
+	if (fs.existsSync(indexPath)) {
+		return res.sendFile(indexPath);
+	}
+	if (req.path === "/") {
+		return res.send("iReserve API Running ✅");
+	}
+	next();
 });
 
 app.use(errorHandler);

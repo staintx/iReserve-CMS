@@ -90,4 +90,20 @@ const notifyAdmins = async ({ title, body, type = "info", link, meta }, io) => {
   return notifications.filter(Boolean);
 };
 
-module.exports = { createNotification, notifyAdmins, setIo, getIo };
+const notifyAdminsOnly = async ({ title, body, type = "info", link, meta }, io) => {
+  const users = await getCachedAdmins();
+  const admins = users.filter(u => u.role === "admin");
+  const notifications = await Promise.all(
+    admins.map(admin => createNotification({
+      userId: admin._id,
+      title,
+      body,
+      type,
+      link,
+      meta
+    }, io))
+  );
+  return notifications.filter(Boolean);
+};
+
+module.exports = { createNotification, notifyAdmins, notifyAdminsOnly, setIo, getIo };

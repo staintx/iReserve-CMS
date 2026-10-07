@@ -301,10 +301,10 @@ export default function CustomerEventDashboard() {
     }
   }, [id, searchParams]);
 
-  useRealTimeRefresh((, ["booking","inquiry","quotation","payment","conversation","systemLog","businessInfo"]) => {
+  useRealTimeRefresh(() => {
     fetchBooking();
     fetchPayments();
-  });
+  }, ["booking","inquiry","quotation","payment","conversation","systemLog","businessInfo"]);
 
   const canModifyBooking = useMemo(() => {
     if (!booking || !booking.event_date) return false;

@@ -363,7 +363,7 @@ export default function Packages() {
                     const priceInfo = packagePriceParts(pkg);
 
                     return (
-                      <article className="ls-pkg" key={pkg._id || pkg.name}>
+                      <article className="ls-pkg ls-pkg--standard" key={pkg._id || pkg.name}>
                         <div className="ls-pkg-media">
                           {pkg.image_url ? (
                             <img
@@ -508,7 +508,7 @@ export default function Packages() {
 
 function ComboCard({ offer, perPax, pax, peso, navigate }) {
   return (
-    <article className="ls-pkg ls-offer" key={offer._id || offer.name}>
+    <article className="ls-pkg ls-offer ls-pkg--combo" key={offer._id || offer.name}>
       <div className="ls-pkg-media">
         {offer.image_url ? (
           <img
@@ -530,12 +530,6 @@ function ComboCard({ offer, perPax, pax, peso, navigate }) {
             <strong>{peso(perPax)}</strong>
             <span>per pax</span>
           </p>
-        )}
-
-        {offer.badge_text && (
-          <div className="ls-offer-chips">
-            <span className="ls-offer-chip">{offer.badge_text}</span>
-          </div>
         )}
 
         {offer.description && (

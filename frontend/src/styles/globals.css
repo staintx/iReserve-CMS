@@ -1244,6 +1244,14 @@
     --ls-champagne: #C5A059;
     --ls-header-h: 64px;
     --ls-header-offset: var(--ls-header-h);
+
+    /* Package cards — cohesive light blue/slate distinction */
+    --ls-pkg-standard-bg: #EFF5FB;
+    --ls-pkg-standard-border: #D2E0EE;
+    --ls-pkg-standard-border-hover: #ADC8E3;
+    --ls-pkg-combo-bg: #DCE7F4;
+    --ls-pkg-combo-border: #B8CDE3;
+    --ls-pkg-combo-border-hover: var(--ls-blue);
   }
 
   @media (min-width: 900px) {
@@ -2259,25 +2267,28 @@
     .ls-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
 
-  .ls-pkg {
+  .ls-pkg,
+  .ls-pkg--standard {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: var(--ls-surface);
-    border: 1px solid var(--ls-line);
+    background: var(--ls-pkg-standard-bg, #EFF5FB);
+    border: 1px solid var(--ls-pkg-standard-border, #D2E0EE);
     border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(22, 38, 74, 0.05);
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
-  .ls-pkg:hover {
-    border-color: #CBD5E1;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
+  .ls-pkg:hover,
+  .ls-pkg--standard:hover {
+    border-color: var(--ls-pkg-standard-border-hover, #ADC8E3);
+    box-shadow: 0 8px 24px rgba(22, 38, 74, 0.09);
   }
 
   .ls-pkg-media {
     position: relative;
     aspect-ratio: 16 / 10;
-    background: var(--ls-tint);
+    background: #E4EEF8;
     overflow: hidden;
   }
 
@@ -2306,9 +2317,11 @@
     font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: var(--ls-navy);
+    color: var(--ls-ink);
     background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(210, 224, 238, 0.8);
     border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(22, 38, 74, 0.08);
   }
 
   .ls-pkg-body {
@@ -2323,6 +2336,7 @@
     font-size: 1.25rem;
     font-weight: 600;
     line-height: 1.25;
+    color: var(--ls-ink);
   }
 
   /* What the package covers — food, setup, or both. */
@@ -2332,7 +2346,7 @@
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--ls-champagne);
+    color: var(--ls-blue-deep);
   }
 
   .ls-pkg-desc {
@@ -2348,7 +2362,7 @@
     gap: 12px;
     margin: 18px 0 20px;
     padding-top: 16px;
-    border-top: 1px solid var(--ls-line);
+    border-top: 1px solid var(--ls-pkg-standard-border, #D2E0EE);
     font-size: 0.8125rem;
     color: var(--ls-ink-soft);
   }
@@ -2412,37 +2426,42 @@
 
   .ls-pkg-actions { margin-top: auto; }
 
-  /* ── Special Offers ─────────────────────────────────────────
-     A dark card against the light package grid. The contrast is the
-     signal: an offer is not a slightly better package, it is a fixed
-     price on a dark ground, and it reads as its own thing from across
-     the page without inventing a second visual language. Navy and
-     champagne are both already in the palette. */
-  .ls-offer {
-    background: var(--ls-navy);
-    border-color: var(--ls-navy);
-    color: #FFFFFF;
-    box-shadow: 0 12px 32px rgba(22, 38, 74, 0.22);
+  /* ── Combo Packs / Special Offers ───────────────────────────
+     Cohesive light blue/slate distinction: slightly deeper blue/slate
+     ground than Standard Packages, signalling a distinct package tier
+     while remaining unified within the same cool slate-blue family.
+     Maintains dark ink readability and shared brand blue CTA buttons. */
+  .ls-offer,
+  .ls-pkg.ls-offer,
+  .ls-pkg--combo {
+    background: var(--ls-pkg-combo-bg, #DCE7F4);
+    border: 1px solid var(--ls-pkg-combo-border, #B8CDE3);
+    color: var(--ls-ink);
+    box-shadow: 0 6px 20px rgba(22, 38, 74, 0.08);
   }
 
-  .ls-offer:hover {
-    border-color: var(--ls-champagne);
-    box-shadow: 0 16px 40px rgba(22, 38, 74, 0.3);
+  .ls-offer:hover,
+  .ls-pkg.ls-offer:hover,
+  .ls-pkg--combo:hover {
+    border-color: var(--ls-pkg-combo-border-hover, var(--ls-blue));
+    box-shadow: 0 12px 30px rgba(22, 38, 74, 0.12);
   }
 
   .ls-offer .ls-pkg-media {
-    background: rgba(255, 255, 255, 0.06);
+    background: #CBDCEF;
   }
 
   .ls-offer .ls-pkg-media-empty {
-    color: rgba(255, 255, 255, 0.62);
-    background: rgba(255, 255, 255, 0.06);
+    color: #476282;
+    background: #CBDCEF;
   }
 
-  .ls-offer .ls-pkg-body h3 { color: #FFFFFF; }
+  .ls-offer .ls-pkg-body h3 {
+    color: var(--ls-ink);
+  }
 
   .ls-offer .ls-pkg-desc {
-    color: rgba(255, 255, 255, 0.68);
+    color: var(--ls-ink-soft);
   }
 
   .ls-offer-tag {
@@ -2457,20 +2476,14 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--ls-navy);
-    background: var(--ls-champagne);
+    color: #FFFFFF;
+    background: var(--ls-blue);
     border-radius: 4px;
+    box-shadow: 0 2px 6px rgba(76, 129, 224, 0.28);
   }
 
-  /* The headline number. An offer's whole proposition is its rate,
-     so it is stated once, large, instead of buried in the facts.
-
-     Sans, not the display serif: this is a figure to be read and
-     compared, not a title. Playfair's old-style numerals render ₱500
-     with a descending 5 and uneven heights, which is handsome in a
-     heading and wrong on a price. White carries it instead of gold —
-     maximum contrast on the navy ground, and it stops the card from
-     reading as three competing gold elements. */
+  /* The headline rate per pax for combo meals. Clean dark numerals on the
+     deeper slate-blue ground for effortless comparison with standard packages. */
   .ls-offer-price {
     display: flex;
     align-items: baseline;
@@ -2481,16 +2494,17 @@
   .ls-offer-price strong {
     font-family: var(--font-sans);
     font-size: 2rem;
-    font-weight: 600;
+    font-weight: 700;
     line-height: 1;
     letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
-    color: #FFFFFF;
+    color: var(--ls-ink);
   }
 
   .ls-offer-price span {
     font-size: 0.8125rem;
-    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+    color: var(--ls-ink-soft);
   }
 
   .ls-offer-chips {
@@ -2501,19 +2515,19 @@
   }
 
   .ls-offer-chip {
-    padding: 4px 9px;
+    padding: 4px 10px;
     font-size: 0.75rem;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #244C8F;
+    background: rgba(76, 129, 224, 0.1);
+    border: 1px solid rgba(76, 129, 224, 0.22);
     border-radius: 999px;
   }
 
   .ls-offer-chip--free {
-    color: #7FE3BC;
-    background: rgba(127, 227, 188, 0.12);
-    border-color: rgba(127, 227, 188, 0.34);
+    color: #0E7453;
+    background: rgba(16, 148, 105, 0.1);
+    border-color: rgba(16, 148, 105, 0.24);
   }
 
   .ls-offer-toggle-wrap {
@@ -2530,17 +2544,18 @@
     padding: 9px 16px;
     font-size: 0.8125rem;
     font-weight: 600;
-    color: #FFFFFF;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--ls-ink);
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid var(--ls-pkg-combo-border, #B8CDE3);
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
   }
 
   .ls-offer-toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.16);
-    border-color: rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.95);
+    border-color: var(--ls-blue);
+    color: var(--ls-blue-deep);
   }
 
   .ls-toggle-icon {
@@ -2566,10 +2581,10 @@
   .ls-offer-includes {
     margin: 10px 0 16px;
     padding-top: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    border-top: 1px solid var(--ls-pkg-combo-border, #B8CDE3);
     font-size: 0.8125rem;
     line-height: 1.7;
-    color: rgba(255, 255, 255, 0.74);
+    color: var(--ls-ink-soft);
   }
 
   .ls-offer-includes li {
@@ -2584,15 +2599,9 @@
     height: 5px;
     margin-top: 9px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.35);
+    background: var(--ls-blue);
   }
 
-  /* The CTA keeps the product's action colour rather than taking the
-     accent. Every other primary button in the product is this blue, and
-     an offer's button doing something different asks the customer to
-     re-learn what a primary action looks like. It has enough lift off
-     the navy to read as raised, which gold was doing by brightness
-     alone. */
   .ls-offer .ls-btn--primary {
     color: #FFFFFF;
     background: var(--ls-blue);
@@ -2600,22 +2609,22 @@
   }
 
   .ls-offer .ls-btn--primary:hover {
-    background: #5F91E8;
-    border-color: #5F91E8;
+    background: var(--ls-blue-deep);
+    border-color: var(--ls-blue-deep);
   }
 
   /* On the detail page the chips sit on the normal light ground, so
      they keep the light treatment rather than inheriting the card's. */
   .ls-detail-head .ls-offer-chip {
-    color: var(--ls-navy);
-    background: rgba(197, 160, 89, 0.14);
-    border-color: rgba(197, 160, 89, 0.34);
+    color: #244C8F;
+    background: rgba(76, 129, 224, 0.1);
+    border-color: rgba(76, 129, 224, 0.22);
   }
 
   .ls-detail-head .ls-offer-chip--free {
-    color: #0F6E4F;
+    color: #0E7453;
     background: rgba(16, 148, 105, 0.1);
-    border-color: rgba(16, 148, 105, 0.28);
+    border-color: rgba(16, 148, 105, 0.24);
   }
 
   .ls-detail-body .ls-offer-includes,

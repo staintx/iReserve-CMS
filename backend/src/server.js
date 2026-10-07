@@ -150,8 +150,30 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/blocked-dates", blockedDateRoutes);
 app.use("/api/addons", addonRoutes);
-app.use("/api/services", serviceRoutes);
 app.use("/api/zelle", zelleRoutes);
+
+// ---------------------------------------------------------------------------
+// UNIFIED DEPLOYMENT: Serve Frontend Static Files
+// ---------------------------------------------------------------------------
+const path = require("path");
+// Assuming the frontend build is located at ../frontend/dist relative to backend root
+const frontendDistPath = path.join(__dirname, "../../frontend/dist");
+
+// Serve static assets (js, css, images)
+app.use(express.static(frontendDistPath));
+
+// Catch-all route to serve React's index.html for all non-API routes (Frontend Routing)
+app.get("*", (req, res, next) => {
+	if (req.originalUrl.startsWith("/api") || req.originalUrl.startsWith("/socket.io")) {
+		return next();
+	}
+	res.sendFile(path.join(frontendDistPath, "index.html"), (err) => {
+		if (err) {
+			// If index.html is missing (e.g., frontend hasn't been built), pass to errorHandler
+			next();
+		}
+	});
+});
 
 app.use(errorHandler);
 

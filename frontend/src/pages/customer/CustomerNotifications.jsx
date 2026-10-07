@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Bell } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Check, ChevronLeft, ChevronRight, Bell, Loader2 } from "lucide-react";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { Button } from "../../components/ui/button";
 import { NotificationAPI } from "../../api/notifications";
 import { getSocket } from "../../api/socket";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import useMediaQuery from "../../hooks/useMediaQuery";
 import { formatCustomerNotification, groupNotificationsByDay } from "../../components/common/notificationMeta";
 
 const PAGE_SIZE = 20;
@@ -16,25 +17,43 @@ const FILTERS = [
 
 export default function CustomerNotifications() {
   const navigate = useNavigate();
+  const isMobile = useMediaQuery("(max-width: 639px)");
+  const prevIsMobileRef = useRef(isMobile);
+  const sentinelRef = useRef(null);
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState(null);
+  const [loadMoreError, setLoadMoreError] = useState(null);
+
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
+  const [mobilePage, setMobilePage] = useState(1);
   const [unreadCount, setUnreadCount] = useState(0);
   const [filter, setFilter] = useState("all");
 
-  const load = useCallback(async () => {
+  const hasMoreMobile = isMobile && items.length < total && mobilePage < pages;
+
+  const load = useCallback(async (targetPage, targetFilter) => {
+    const fetchPage = typeof targetPage === "number" ? targetPage : page;
+    const fetchFilter = typeof targetFilter === "string" ? targetFilter : filter;
+
     setLoading(true);
+    setError(null);
+    setLoadMoreError(null);
     try {
-      const params = { page, limit: PAGE_SIZE };
-      if (filter === "unread") params.unread = "true";
+      const params = { page: fetchPage, limit: PAGE_SIZE };
+      if (fetchFilter === "unread") params.unread = "true";
       const { data } = await NotificationAPI.getMine(params);
-      setItems(data.items || []);
-      setTotal(data.total || 0);
-      setPages(data.pages || 1);
-      setUnreadCount(data.unreadCount || 0);
+      setItems(data?.items || []);
+      setTotal(data?.total || 0);
+      setPages(data?.pages || 1);
+      setUnreadCount(data?.unreadCount || 0);
+      setMobilePage(1);
     } catch {
+      setError("Failed to load notifications.");
       setItems([]);
       setTotal(0);
       setPages(1);
@@ -43,31 +62,144 @@ export default function CustomerNotifications() {
     }
   }, [page, filter]);
 
+  // Initial load or when page/filter changes
   useEffect(() => {
     load();
   }, [load]);
 
+  // Sync state when viewport crosses between desktop and mobile
+  useEffect(() => {
+    if (prevIsMobileRef.current !== isMobile) {
+      prevIsMobileRef.current = isMobile;
+      setPage(1);
+      setMobilePage(1);
+      load(1, filter);
+    }
+  }, [isMobile, filter, load]);
+
+  // Load more notifications for mobile (appends rather than replaces)
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMore) return;
+    if (items.length >= total) return;
+    const nextPage = mobilePage + 1;
+    if (nextPage > pages) return;
+
+    setLoadingMore(true);
+    setLoadMoreError(null);
+    try {
+      const params = { page: nextPage, limit: PAGE_SIZE };
+      if (filter === "unread") params.unread = "true";
+      const { data } = await NotificationAPI.getMine(params);
+      const incoming = data?.items || [];
+      setItems((prev) => {
+        const existingIds = new Set(prev.map((i) => String(i._id)));
+        const unique = incoming.filter((i) => !existingIds.has(String(i._id)));
+        return [...prev, ...unique];
+      });
+      setMobilePage(nextPage);
+      if (typeof data?.total === "number") setTotal(data.total);
+      if (typeof data?.pages === "number") setPages(data.pages);
+      if (typeof data?.unreadCount === "number") setUnreadCount(data.unreadCount);
+    } catch {
+      setLoadMoreError("Failed to load more notifications. Tap to retry.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loading, loadingMore, items.length, total, mobilePage, pages, filter]);
+
+  // IntersectionObserver for mobile infinite scroll
+  useEffect(() => {
+    if (!isMobile) return;
+    if (loading || loadingMore) return;
+    if (!hasMoreMobile) return;
+
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting) {
+          loadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "200px",
+        threshold: 0.05,
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [isMobile, loading, loadingMore, hasMoreMobile, loadMore]);
+
+  // Real-time socket events
   useEffect(() => {
     const socket = getSocket();
     if (!socket.connected) socket.connect();
 
-    const handleNew = () => load();
-    const handleRead = () => load();
+    const handleNew = async () => {
+      if (isMobile) {
+        try {
+          const params = { page: 1, limit: PAGE_SIZE };
+          if (filter === "unread") params.unread = "true";
+          const { data } = await NotificationAPI.getMine(params);
+          const incoming = data?.items || [];
+          setItems((prev) => {
+            const incomingIds = new Set(incoming.map((i) => String(i._id)));
+            const keptPrev = prev.filter((i) => !incomingIds.has(String(i._id)));
+            return [...incoming, ...keptPrev];
+          });
+          if (typeof data?.total === "number") setTotal(data.total);
+          if (typeof data?.pages === "number") setPages(data.pages);
+          if (typeof data?.unreadCount === "number") setUnreadCount(data.unreadCount);
+        } catch {
+          // silent fallback
+        }
+      } else {
+        load();
+      }
+    };
+
+    const handleRead = (payload) => {
+      const readId = payload?.id || payload?._id;
+      if (readId) {
+        setItems((prev) =>
+          prev.map((i) => (i._id === readId ? { ...i, is_read: true } : i))
+        );
+        setUnreadCount((c) => Math.max(0, c - 1));
+      } else {
+        if (isMobile) {
+          NotificationAPI.getMine({ page: 1, limit: 1 }).then(({ data }) => {
+            if (typeof data?.unreadCount === "number") setUnreadCount(data.unreadCount);
+          }).catch(() => {});
+        } else {
+          load();
+        }
+      }
+    };
+
+    const handleReadAll = () => {
+      setItems((prev) => prev.map((i) => ({ ...i, is_read: true })));
+      setUnreadCount(0);
+    };
 
     socket.on("notification:new", handleNew);
     socket.on("notification:read", handleRead);
-    socket.on("notification:read_all", handleRead);
+    socket.on("notification:read_all", handleReadAll);
     return () => {
       socket.off("notification:new", handleNew);
       socket.off("notification:read", handleRead);
-      socket.off("notification:read_all", handleRead);
+      socket.off("notification:read_all", handleReadAll);
     };
-  }, [load]);
+  }, [isMobile, filter, load]);
 
   const changeFilter = (key) => {
     if (key === filter) return;
     setFilter(key);
     setPage(1);
+    setMobilePage(1);
   };
 
   const formatDate = (value) => {
@@ -170,8 +302,20 @@ export default function CustomerNotifications() {
         {/* Notifications Card Container */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-muted-foreground text-sm">
-              Loading notifications...
+            <div className="p-8 text-center text-muted-foreground text-sm flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-[#4C81E0]" />
+              <span>Loading notifications...</span>
+            </div>
+          ) : error && items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground px-4 text-center">
+              <Bell className="w-9 h-9 mb-3 opacity-20 text-rose-500" />
+              <p className="text-sm font-medium text-slate-800">{error}</p>
+              <p className="text-xs mt-1 text-muted-foreground/70 mb-4">
+                An error occurred while fetching your notifications.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => load()}>
+                Try again
+              </Button>
             </div>
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
@@ -189,7 +333,7 @@ export default function CustomerNotifications() {
             <div className="divide-y divide-border">
               {groups.map(([label, groupItems]) => (
                 <div key={label}>
-                  <div className="px-5 pt-3 pb-2 bg-muted/40 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                  <div className="px-4 py-2 sm:px-5 sm:pt-3 sm:pb-2 bg-muted/40 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
                     {label}
                   </div>
                   {groupItems.map((item) => {
@@ -200,7 +344,7 @@ export default function CustomerNotifications() {
                         key={item._id}
                         onClick={() => handleItemClick(item)}
                         className={cn(
-                          "w-full text-left px-5 py-4 flex gap-3 hover:bg-muted transition-colors border-b border-border last:border-b-0 cursor-pointer",
+                          "w-full text-left px-4 py-3.5 sm:px-5 sm:py-4 flex gap-3 hover:bg-muted/70 active:bg-muted transition-colors border-b border-border last:border-b-0 cursor-pointer",
                           !item.is_read && "bg-powder/40"
                         )}
                       >
@@ -213,10 +357,10 @@ export default function CustomerNotifications() {
                           <Icon className={cn("w-4 h-4", formatted.iconClass)} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-0.5 sm:gap-2">
                             <p
                               className={cn(
-                                "text-sm",
+                                "text-sm break-words",
                                 !item.is_read
                                   ? "font-bold text-foreground"
                                   : "font-semibold text-foreground/80"
@@ -224,11 +368,11 @@ export default function CustomerNotifications() {
                             >
                               {formatted.formattedTitle}
                             </p>
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            <span className="text-[11px] sm:text-xs text-muted-foreground shrink-0">
                               {formatDate(item.createdAt)}
                             </span>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-3">
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-3 break-words">
                             {formatted.formattedBody}
                           </p>
                           {formatted.cta && (
@@ -251,8 +395,9 @@ export default function CustomerNotifications() {
             </div>
           )}
 
+          {/* Desktop/Tablet Pagination Controls */}
           {!loading && total > 0 && (
-            <div className="flex items-center justify-between px-5 py-3 border-t border-border text-xs text-muted-foreground">
+            <div className="hidden sm:flex items-center justify-between px-5 py-3 border-t border-border text-xs text-muted-foreground">
               <span>
                 Showing {startEntry}–{endEntry} of {total}
               </span>
@@ -261,6 +406,7 @@ export default function CustomerNotifications() {
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent cursor-pointer"
+                  aria-label="Previous page"
                 >
                   <ChevronLeft size={14} />
                 </button>
@@ -271,10 +417,60 @@ export default function CustomerNotifications() {
                   disabled={page >= pages}
                   onClick={() => setPage((p) => Math.min(pages, p + 1))}
                   className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent cursor-pointer"
+                  aria-label="Next page"
                 >
                   <ChevronRight size={14} />
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Mobile Infinite Scroll Sentinel & Load More Controls */}
+          {!loading && items.length > 0 && (
+            <div className="sm:hidden">
+              {/* Sentinel for IntersectionObserver to trigger infinite scroll */}
+              {hasMoreMobile && (
+                <div ref={sentinelRef} className="h-1 w-full" aria-hidden="true" />
+              )}
+
+              {loadingMore && (
+                <div className="px-4 py-3.5 flex items-center justify-center gap-2 border-t border-slate-100 text-xs font-medium text-slate-500 bg-slate-50/50">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#4C81E0]" />
+                  <span>Loading older notifications...</span>
+                </div>
+              )}
+
+              {!loadingMore && loadMoreError && (
+                <div className="px-4 py-3 flex flex-col items-center justify-center gap-1.5 border-t border-slate-100 bg-rose-50/30">
+                  <span className="text-xs text-rose-600 font-medium">{loadMoreError}</span>
+                  <button
+                    onClick={loadMore}
+                    className="px-3 py-1 text-xs font-semibold text-[#4C81E0] hover:text-[#3B6EC6] rounded-md transition-colors cursor-pointer"
+                  >
+                    Tap to retry
+                  </button>
+                </div>
+              )}
+
+              {!loadingMore && !loadMoreError && hasMoreMobile && (
+                <div className="p-3 border-t border-slate-100">
+                  <button
+                    onClick={loadMore}
+                    className="w-full py-2.5 px-4 text-xs font-semibold text-[#4C81E0] hover:text-[#3B6EC6] bg-[#4C81E0]/8 active:bg-[#4C81E0]/20 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
+                  >
+                    <span>Load more notifications</span>
+                    <span className="text-[11px] text-slate-400 font-normal">
+                      ({items.length} of {total})
+                    </span>
+                  </button>
+                </div>
+              )}
+
+              {!hasMoreMobile && items.length > PAGE_SIZE && (
+                <div className="px-4 py-3 text-center text-xs text-slate-400 border-t border-slate-100 bg-slate-50/30">
+                  All {total} notifications loaded
+                </div>
+              )}
             </div>
           )}
         </div>

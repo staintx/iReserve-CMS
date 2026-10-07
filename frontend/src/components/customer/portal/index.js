@@ -7,5 +7,7 @@ export { default as PortalSection } from "./PortalSection";
 export { default as StatTile } from "./StatTile";
 export { default as EmptyState } from "./EmptyState";
 export { default as LoadingState } from "./LoadingState";
+export { default as CustomerReceiptModal } from "./CustomerReceiptModal";
+export { default as CustomerPrintReceipt } from "./CustomerPrintReceipt";
 export * from "./statusMeta";
 export * from "./tones";

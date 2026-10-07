@@ -1,10 +1,35 @@
-import { Printer, X, CheckCircle2, Calendar, FileText, CreditCard } from "lucide-react";
+import { useEffect } from "react";
+import { Printer, X, CheckCircle2, Calendar, CreditCard, Receipt, FileText, User } from "lucide-react";
 import { Button } from "../../ui/button";
+import useBusinessInfo from "../../../hooks/useBusinessInfo";
+import CustomerPrintReceipt from "./CustomerPrintReceipt";
 
-export default function CustomerReceiptModal({ payment, booking, onClose, formatCurrency }) {
+export default function CustomerReceiptModal({
+  payment,
+  booking,
+  onClose,
+  formatCurrency,
+  businessInfo: propBusinessInfo,
+}) {
+  const fetchedBusinessInfo = useBusinessInfo(propBusinessInfo);
+  const businessInfo = propBusinessInfo || fetchedBusinessInfo || {};
+
+  useEffect(() => {
+    document.body.classList.add("has-receipt-modal");
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.classList.remove("has-receipt-modal");
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
   if (!payment) return null;
 
-  const fmt = (val) => (formatCurrency ? formatCurrency(val) : `₱${Number(val || 0).toLocaleString()}`);
+  const fmt = (val) =>
+    formatCurrency ? formatCurrency(val) : `₱${Number(val || 0).toLocaleString()}`;
 
   const formatDateTime = (dateStr) => {
     if (!dateStr) return "-";
@@ -27,7 +52,7 @@ export default function CustomerReceiptModal({ payment, booking, onClose, format
       ? "-"
       : d.toLocaleDateString("en-US", {
           year: "numeric",
-          month: "long",
+          month: "short",
           day: "numeric",
         });
   };
@@ -47,182 +72,307 @@ export default function CustomerReceiptModal({ payment, booking, onClose, format
     if (m.includes("card")) return "Credit / Debit Card";
     if (m.includes("cash")) return "Cash Payment";
     if (m.includes("bank")) return "Bank Transfer";
-    return "PayMongo Online Payment";
+    return "Online Payment";
   };
 
   const b = booking || payment.booking_id || {};
-  const bookingRef = b.reference || (b._id ? `BK-${b._id.slice(-6).toUpperCase()}` : payment.inquiry_id?.reference || "N/A");
-  const eventType = b.event_type || payment.inquiry_id?.event_type || "Catering Event";
-  const packageName = b.package_name_snapshot || b.package_id?.name || payment.inquiry_id?.package_name_snapshot || "";
-  const eventDate = b.event_date || payment.inquiry_id?.event_date;
-  const payerName = payment.customer_id?.full_name || (b.contact_first_name ? `${b.contact_first_name} ${b.contact_last_name || ""}`.trim() : "Valued Customer");
+  const inquiryObj =
+    typeof payment.inquiry_id === "object" && payment.inquiry_id !== null
+      ? payment.inquiry_id
+      : {};
+
+  const bookingRef =
+    b.reference ||
+    (b._id ? `BK-${b._id.slice(-6).toUpperCase()}` : inquiryObj.reference || "N/A");
+  const eventType = b.event_type || inquiryObj.event_type || "Catering Event";
+  const packageName =
+    b.package_name_snapshot ||
+    b.package_id?.name ||
+    inquiryObj.package_name_snapshot ||
+    "";
+  const eventDate = b.event_date || inquiryObj.event_date;
+  const payerName =
+    payment.customer_id?.full_name ||
+    (b.contact_first_name
+      ? `${b.contact_first_name} ${b.contact_last_name || ""}`.trim()
+      : "Valued Customer");
   const payerEmail = payment.customer_id?.email || b.contact_email || "-";
+  const payerPhone = payment.customer_id?.phone || b.contact_phone || null;
   const receiptNumber = `REC-${(payment._id || "").slice(-8).toUpperCase()}`;
+  const transactionRef =
+    payment.gateway_reference ||
+    payment.gateway_checkout_id ||
+    payment.reference_number ||
+    null;
+  const paidAt = payment.paid_at || payment.createdAt;
+  const paymentStatus = payment.status || "approved";
 
   const handlePrint = () => {
     window.print();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
-      <div className="bg-card text-card-foreground border border-border rounded-xl max-w-xl w-full p-5 sm:p-7 shadow-2xl space-y-5 my-6">
-        {/* Receipt Action Header (Hidden in print) */}
-        <div className="flex items-center justify-between border-b border-border pb-3.5 print:hidden">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 flex items-center justify-center">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
-                Official Payment Receipt
-              </span>
-              <span className="text-xs text-muted-foreground font-mono">{receiptNumber}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={handlePrint} className="gap-1.5 h-8 text-xs font-medium">
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print / Save PDF</span>
-            </Button>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
-              aria-label="Close receipt"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Printable Canvas */}
-        <div className="space-y-5 print:p-0 print:m-0" id="receipt-print-area">
-          {/* Brand Header */}
-          <div className="text-center border-b border-border/80 pb-4">
-            <h2 className="text-2xl font-serif font-bold tracking-tight text-foreground">
-              Caezelle's Catering
-            </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Official Payment Voucher & E-Receipt
-            </p>
-          </div>
-
-          {/* Receipt Numbers & Dates */}
-          <div className="grid grid-cols-2 gap-4 text-xs bg-muted/20 p-3 rounded-lg border border-border/50">
-            <div>
-              <span className="text-[10px] uppercase font-bold text-muted-foreground block tracking-wider">
-                Receipt Number
-              </span>
-              <span className="font-mono font-bold text-sm text-foreground">{receiptNumber}</span>
-            </div>
-            <div className="text-right">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground block tracking-wider">
-                Date & Time Paid
-              </span>
-              <span className="font-semibold text-foreground">
-                {formatDateTime(payment.paid_at || payment.createdAt)}
-              </span>
-            </div>
-          </div>
-
-          {/* Event & Customer Context */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div className="p-3.5 rounded-lg border border-border/60 bg-muted/10 space-y-1">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground block tracking-wider">
-                Event Details
-              </span>
-              <div className="font-bold text-sm text-foreground">{eventType}</div>
-              {packageName && (
-                <div className="text-xs text-muted-foreground">
-                  Package: <span className="text-foreground font-medium">{packageName}</span>
+    <>
+      {/* ── Screen Modal Preview ── */}
+      <div
+        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto caz-receipt-modal-backdrop animate-in fade-in duration-150"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose?.();
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Payment Receipt"
+      >
+        <div className="w-full sm:max-w-[500px] max-sm:max-h-[92vh] sm:max-h-[90vh] bg-white text-slate-900 max-sm:rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col my-0 sm:my-auto animate-in zoom-in-95 duration-200">
+          
+          {/* ── Modal Top Header & Actions ── */}
+          <div className="px-4 py-3 sm:px-5 sm:py-3.5 bg-slate-50/90 border-b border-slate-200/80 flex items-center justify-between gap-2.5 shrink-0 select-none print:hidden">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-[#2C4B8A]/10 text-[#2C4B8A] flex items-center justify-center shrink-0">
+                <Receipt className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
+                    Payment Receipt
+                  </h3>
+                  <span className="text-[10px] font-mono font-semibold text-[#2C4B8A] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60 leading-none">
+                    {receiptNumber}
+                  </span>
                 </div>
-              )}
-              <div className="text-xs text-muted-foreground flex items-center gap-1 pt-0.5">
-                <Calendar className="w-3 h-3 text-muted-foreground shrink-0" />
-                <span>Event Date: {formatEventDate(eventDate)}</span>
-              </div>
-              <div className="text-xs font-mono text-muted-foreground">
-                Ref: <span className="font-semibold text-foreground">{bookingRef}</span>
+                <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
+                  Official Acknowledgment
+                </p>
               </div>
             </div>
 
-            <div className="p-3.5 rounded-lg border border-border/60 bg-muted/10 space-y-1">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground block tracking-wider">
-                Billed To
-              </span>
-              <div className="font-bold text-sm text-foreground">{payerName}</div>
-              <div className="text-xs text-muted-foreground">{payerEmail}</div>
-              {b.contact_phone && (
-                <div className="text-xs text-muted-foreground font-mono">{b.contact_phone}</div>
-              )}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                size="sm"
+                onClick={handlePrint}
+                className="h-8 px-2.5 sm:px-3 text-xs font-semibold bg-[#2C4B8A] hover:bg-[#203766] text-white gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                title="Print Receipt or Save as PDF"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span className="hidden xs:inline sm:inline">Print</span>
+              </Button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                aria-label="Close receipt"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          {/* Transaction Table Breakdown */}
-          <div className="border border-border/80 rounded-lg overflow-hidden">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-muted/40 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                <tr>
-                  <th className="py-2.5 px-3">Description</th>
-                  <th className="py-2.5 px-3">Method</th>
-                  <th className="py-2.5 px-3 text-right">Amount Paid</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                <tr>
-                  <td className="py-3 px-3">
-                    <div className="font-semibold text-foreground">
-                      {getMilestoneLabel(payment.payment_type)}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      Payment for {eventType} ({bookingRef})
-                    </div>
-                  </td>
-                  <td className="py-3 px-3">
-                    <span className="inline-flex items-center gap-1 font-medium text-foreground">
-                      <CreditCard className="w-3 h-3 text-muted-foreground" />
-                      {getPaymentMethod(payment)}
+          {/* ── Scrollable Receipt Content Workspace ── */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 space-y-4 [scrollbar-width:thin]">
+            
+            {/* 1. Business Header (Compact & Centered) */}
+            <div className="text-center pt-0.5 pb-1">
+              <h2 className="text-base sm:text-lg font-bold font-serif tracking-tight text-slate-900">
+                Caezelle's Catering
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Food, Catering &amp; Services • {businessInfo.address || "123 Culinary Street Food City"}
+              </p>
+            </div>
+
+            {/* 2. Amount Paid (Focused Visual Emphasis without oversized card) */}
+            <div className="flex flex-col xs:flex-row sm:flex-row items-start xs:items-center sm:items-center justify-between gap-2 p-3 sm:p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/70">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block leading-tight">
+                  Amount Paid
+                </span>
+                <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-0.5 tabular-nums leading-none">
+                  {fmt(payment.amount)}
+                </div>
+              </div>
+              <div className="flex xs:flex-col sm:flex-col items-center xs:items-end sm:items-end gap-1 w-full xs:w-auto sm:w-auto justify-between xs:justify-start">
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  {paymentStatus === "approved" || paymentStatus === "paid" ? "Paid & Approved" : paymentStatus}
+                </span>
+                <span className="text-[10px] text-slate-500 font-medium">
+                  {formatDateTime(paidAt)}
+                </span>
+              </div>
+            </div>
+
+            {/* ── Divider ── */}
+            <div className="border-t border-dashed border-slate-200" />
+
+            {/* 3. Section 1: Payment Information */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-slate-500">
+                <CreditCard className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                  Payment Details
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-500 font-medium block">
+                    Payment Type
+                  </span>
+                  <span className="font-semibold text-slate-900">
+                    {getMilestoneLabel(payment.payment_type)}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-slate-500 font-medium block">
+                    Payment Method
+                  </span>
+                  <span className="font-medium text-slate-900 inline-flex items-center gap-1">
+                    {getPaymentMethod(payment)}
+                  </span>
+                </div>
+
+                {transactionRef && (
+                  <div className="sm:col-span-2">
+                    <span className="text-[10px] text-slate-500 font-medium block">
+                      Transaction Reference
                     </span>
-                    {(payment.gateway_reference || payment.gateway_checkout_id) && (
-                      <div className="text-[10px] font-mono text-muted-foreground mt-0.5 truncate max-w-[140px]">
-                        {payment.gateway_reference || payment.gateway_checkout_id}
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-3 px-3 text-right">
-                    <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400 tabular-nums">
-                      {fmt(payment.amount)}
+                    <span
+                      className="font-mono text-[11px] text-slate-700 break-all select-all block"
+                      title={transactionRef}
+                    >
+                      {transactionRef}
                     </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* Status & Confirmation Footer */}
-          <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
-            <div>
-              <span className="text-[10px] uppercase font-bold text-muted-foreground block tracking-wider">
-                Payment Status
-              </span>
-              <span className="font-bold text-xs uppercase tracking-wider inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                {payment.status === "approved" ? "Approved / Paid" : payment.status}
-              </span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="text-right text-[11px] text-muted-foreground">
-              <span>Electronic Receipt Generated</span>
-              <p className="text-[10px] text-muted-foreground/70">Thank you for choosing Caezelle's Catering!</p>
-            </div>
-          </div>
-        </div>
 
-        {/* Footer close button (hidden in print) */}
-        <div className="pt-1 flex justify-end print:hidden">
-          <Button variant="outline" size="sm" onClick={onClose}>
-            Close
-          </Button>
+            {/* ── Divider ── */}
+            <div className="border-t border-dashed border-slate-200" />
+
+            {/* 4. Section 2: Booking / Event Information */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-slate-500">
+                <Calendar className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                  Booking &amp; Event
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-500 font-medium block">
+                    Booking Reference
+                  </span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {bookingRef}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-slate-500 font-medium block">
+                    Event Type
+                  </span>
+                  <span className="font-medium text-slate-900">
+                    {eventType}
+                  </span>
+                </div>
+
+                {packageName && (
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-medium block">
+                      Catering Package
+                    </span>
+                    <span className="font-medium text-slate-900 truncate block" title={packageName}>
+                      {packageName}
+                    </span>
+                  </div>
+                )}
+
+                {eventDate && (
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-medium block">
+                      Event Date
+                    </span>
+                    <span className="font-medium text-slate-900">
+                      {formatEventDate(eventDate)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Divider ── */}
+            <div className="border-t border-dashed border-slate-200" />
+
+            {/* 5. Section 3: Customer Information */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-slate-500">
+                <User className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                  Customer Information
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-500 font-medium block">
+                    Billed To
+                  </span>
+                  <span className="font-bold text-slate-900">
+                    {payerName}
+                  </span>
+                </div>
+
+                {payerPhone && (
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-medium block">
+                      Contact Number
+                    </span>
+                    <span className="font-mono text-slate-700">
+                      {payerPhone}
+                    </span>
+                  </div>
+                )}
+
+                {payerEmail && payerEmail !== "-" && (
+                  <div className="sm:col-span-2">
+                    <span className="text-[10px] text-slate-500 font-medium block">
+                      Email Address
+                    </span>
+                    <span className="text-slate-700 break-all select-all block">
+                      {payerEmail}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Divider ── */}
+            <div className="border-t border-slate-100" />
+
+            {/* 6. Footer Note */}
+            <div className="text-center pt-0.5 pb-1 space-y-0.5 text-slate-500">
+              <p className="text-[11px] font-medium text-slate-700">
+                Thank you for choosing Caezelle's Catering!
+              </p>
+              <p className="text-[10px] text-slate-400">
+                Official electronic payment acknowledgment • iReserve
+              </p>
+            </div>
+
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* ── Dedicated Print-Only Layout (Preserved Portal) ── */}
+      <CustomerPrintReceipt
+        payment={payment}
+        booking={b}
+        formatCurrency={formatCurrency}
+        businessInfo={businessInfo}
+      />
+    </>
   );
 }

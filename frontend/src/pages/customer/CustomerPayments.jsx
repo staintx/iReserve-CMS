@@ -1444,6 +1444,7 @@ export default function CustomerPayments() {
               setReceiptBooking(null);
             }}
             formatCurrency={formatCurrency}
+            businessInfo={businessInfo}
           />
         )}
 

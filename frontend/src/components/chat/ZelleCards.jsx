@@ -317,7 +317,7 @@ export function DateAvailabilityCard({ data, onStartInquiry }) {
       {isAvailable && onStartInquiry && (
         <Button
           size="xs"
-          className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs rounded-md cursor-pointer font-semibold"
+          className="w-full h-8 text-xs bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-2xs rounded-md cursor-pointer font-semibold"
           onClick={() => onStartInquiry(data.date)}
         >
           Book this Date with Zelle <ArrowRight className="w-3.5 h-3.5 ml-1" />

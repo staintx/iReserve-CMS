@@ -6,16 +6,61 @@ const api = axios.create({
   timeout: 45000,
 });
 
-// Auto-logout on expired JWT: fires a custom event that AuthContext listens for
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve();
+    }
+  });
+  failedQueue = [];
+};
+
+// Auto-refresh on expired JWT; transparently queues and retries pending requests
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+
     if (
       error.response?.status === 401 &&
-      error.response?.data?.code === "TOKEN_EXPIRED"
+      error.response?.data?.code === "TOKEN_EXPIRED" &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes("/auth/refresh") &&
+      !originalRequest.url?.includes("/auth/login")
     ) {
-      window.dispatchEvent(new CustomEvent("session-expired"));
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(() => api(originalRequest))
+          .catch((err) => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        await axios.post(
+          `${api.defaults.baseURL}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
+        processQueue(null);
+        return api(originalRequest);
+      } catch (refreshErr) {
+        processQueue(refreshErr);
+        window.dispatchEvent(new CustomEvent("session-expired"));
+        return Promise.reject(refreshErr);
+      } finally {
+        isRefreshing = false;
+      }
     }
+
     return Promise.reject(error);
   }
 );

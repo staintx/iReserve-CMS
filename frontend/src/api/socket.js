@@ -1,4 +1,5 @@
 import { io } from "socket.io-client";
+import api from "./axios";
 
 let socket;
 
@@ -18,11 +19,16 @@ export const getSocket = () => {
       reconnectionDelayMax: 5000,
     });
 
-    // Auto-logout when the server rejects the socket due to an expired JWT
-    socket.on("connect_error", (err) => {
+    // Handle expired JWT by attempting silent refresh before giving up
+    socket.on("connect_error", async (err) => {
       console.error("[Socket] connect_error:", err.message);
       if (err.message === "TOKEN_EXPIRED") {
-        window.dispatchEvent(new CustomEvent("session-expired"));
+        try {
+          await api.post("/auth/refresh");
+          socket.connect();
+        } catch {
+          window.dispatchEvent(new CustomEvent("session-expired"));
+        }
       }
     });
 

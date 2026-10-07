@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const ctrl = require("../controllers/booking.controller");
-const { protect } = require("../middleware/auth.middleware");
+const { protect, optionalProtect } = require("../middleware/auth.middleware");
 const { authorize } = require("../middleware/role.middleware");
 const validate = require("../middleware/validate.middleware");
 const { bookingSchema } = require("../validations/booking.validation");
@@ -27,10 +27,10 @@ router.post("/:id/ocular/skip", protect, authorize("customer"), ctrl.skipOcular)
 router.post("/:id/request-cancellation", protect, authorize("customer"), ctrl.requestCancellation);
 router.post("/:id/cancellation/approve", protect, authorize("admin", "manager", "staff"), ctrl.approveCancellation);
 router.post("/:id/cancellation/reject", protect, authorize("admin", "manager", "staff"), ctrl.rejectCancellation);
-router.get("/availability", protect, ctrl.checkAvailability);
+router.get("/availability", optionalProtect, ctrl.checkAvailability);
 router.get("/booked-dates", ctrl.getBookedDates);
 router.get("/available-times", ctrl.getAvailableTimes);
-router.get("/availability/suggestions", protect, ctrl.suggestDates);
+router.get("/availability/suggestions", optionalProtect, ctrl.suggestDates);
 router.get("/", protect, authorize("admin", "manager", "staff"), ctrl.getAll);
 router.get("/me", protect, ctrl.getMine);
 router.get("/:id", protect, ctrl.getById);

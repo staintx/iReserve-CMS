@@ -108,7 +108,7 @@ app.use("/api", apiLimiter);
 // Stricter auth rate limiter: login/register/otp protection
 const authLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000,
-	max: process.env.NODE_ENV === "production" ? 50 : 2000,
+	max: process.env.NODE_ENV === "production" ? 300 : 2000,
 	standardHeaders: true,
 	legacyHeaders: false,
 	keyGenerator: getClientIp,

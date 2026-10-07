@@ -6,6 +6,7 @@ const { turnstileMiddleware } = require("../middleware/turnstile.middleware");
 
 router.post("/register", turnstileMiddleware, validate(registerSchema), authCtrl.register);
 router.post("/login", turnstileMiddleware, validate(loginSchema), authCtrl.login);
+router.post("/refresh", authCtrl.refreshToken);
 router.post("/logout", authCtrl.logout);
 router.get("/verify-email", authCtrl.verifyEmail);
 router.post("/verify-otp", validate(verifyOtpSchema), authCtrl.verifyOtp);

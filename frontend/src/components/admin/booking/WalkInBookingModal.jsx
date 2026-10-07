@@ -1882,7 +1882,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
     setQuotationMenuItems((prevQuoted) => {
       const selectedList = Array.isArray(form.selected_menu) ? form.selected_menu : [];
-      return selectedList.map((selectedItem) => {
+      const updated = selectedList.map((selectedItem) => {
         const itemName = typeof selectedItem === "object" ? selectedItem.name : String(selectedItem || "");
         const existing = prevQuoted.find(
           (q) => (q.name || "").trim().toLowerCase() === (itemName || "").trim().toLowerCase()
@@ -1909,6 +1909,14 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
             resolveDishImageUrl({ name: itemName }, menuItems),
         });
       });
+      // Also preserve dishes added manually in the Quotation step that aren't in selectedList
+      const extraManual = prevQuoted.filter(
+        (pq) => !selectedList.some((s) => {
+          const sName = typeof s === "object" ? s.name : String(s || "");
+          return (sName || "").trim().toLowerCase() === (pq.name || "").trim().toLowerCase();
+        })
+      );
+      return [...updated, ...extraManual];
     });
   }, [open, isOffer, isQuotationDirty, form.selected_menu, menuItems]);
 
@@ -1920,7 +1928,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
     setQuotationAddOns((prevAddOns) => {
       const selectedList = Array.isArray(form.selected_package_addons) ? form.selected_package_addons : [];
-      return selectedList.map((selectedItem) => {
+      const updated = selectedList.map((selectedItem) => {
         const itemName = selectedItem.name || "";
         const existing = prevAddOns.find(
           (a) => (a.name || "").trim().toLowerCase() === (itemName || "").trim().toLowerCase()
@@ -1940,6 +1948,11 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
           removed: false,
         };
       });
+      // Also preserve add-ons added manually in the Quotation step that aren't in selectedList
+      const extraManualAddons = prevAddOns.filter(
+        (pa) => !selectedList.some((s) => (s.name || "").trim().toLowerCase() === (pa.name || "").trim().toLowerCase())
+      );
+      return [...updated, ...extraManualAddons];
     });
   }, [open, isQuotationDirty, form.selected_package_addons]);
 
@@ -2011,9 +2024,43 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
   const handleMenuChange = (index, field, value) => {
     setIsQuotationDirty(true);
-    setQuotationMenuItems((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
-    );
+    setQuotationMenuItems((prev) => {
+      const next = prev.map((item, i) => {
+        if (i !== index) return item;
+        if (typeof field === "object" && field !== null) {
+          return { ...item, ...field };
+        }
+        return { ...item, [field]: value };
+      });
+
+      const updatedItem = next[index];
+      if (updatedItem?.name) {
+        setForm((prevForm) => {
+          if (!Array.isArray(prevForm.selected_menu)) return prevForm;
+          return {
+            ...prevForm,
+            selected_menu: prevForm.selected_menu.map((sm) => {
+              const smName = typeof sm === "object" ? sm.name : String(sm || "");
+              if ((smName || "").trim().toLowerCase() === (updatedItem.name || "").trim().toLowerCase()) {
+                if (typeof sm === "object") {
+                  return {
+                    ...sm,
+                    unit: updatedItem.unit,
+                    portion_unit: updatedItem.unit,
+                    isCustomUnit: updatedItem.isCustomUnit,
+                    quantity: updatedItem.quantity,
+                    price: updatedItem.price,
+                  };
+                }
+              }
+              return sm;
+            }),
+          };
+        });
+      }
+
+      return next;
+    });
   };
 
   const toggleMenuRemoved = (index) => {
@@ -2153,9 +2200,37 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
   const handleAddOnChange = (index, field, value) => {
     setIsQuotationDirty(true);
-    setQuotationAddOns((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
-    );
+    setQuotationAddOns((prev) => {
+      const next = prev.map((item, i) => {
+        if (i !== index) return item;
+        if (typeof field === "object" && field !== null) {
+          return { ...item, ...field };
+        }
+        return { ...item, [field]: value };
+      });
+
+      const updatedAddon = next[index];
+      if (updatedAddon?.name) {
+        setForm((prevForm) => {
+          if (!Array.isArray(prevForm.selected_package_addons)) return prevForm;
+          return {
+            ...prevForm,
+            selected_package_addons: prevForm.selected_package_addons.map((sa) => {
+              if ((sa.name || "").trim().toLowerCase() === (updatedAddon.name || "").trim().toLowerCase()) {
+                return {
+                  ...sa,
+                  quantity: updatedAddon.quantity,
+                  price: updatedAddon.price,
+                };
+              }
+              return sa;
+            }),
+          };
+        });
+      }
+
+      return next;
+    });
   };
 
   const toggleAddOnRemoved = (index) => {
@@ -2171,34 +2246,71 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
   };
 
   const handleAddCatalogAddon = (addon) => {
+    const addonName = (addon.name || "").trim();
+    if (!addonName) return;
     setIsQuotationDirty(true);
-    setQuotationAddOns((prev) => [
-      ...prev,
-      {
-        name: addon.name,
-        price: addon.price ? String(addon.price) : "",
-        quantity: 1,
-        note: "",
-        pricing_type: "quantity",
-        removed: false,
-      },
-    ]);
+    setQuotationAddOns((prev) => {
+      const activeIdx = prev.findIndex(
+        (a) => !a.removed && (a.name || "").trim().toLowerCase() === addonName.toLowerCase()
+      );
+      if (activeIdx !== -1) {
+        return prev;
+      }
+      const removedIdx = prev.findIndex(
+        (a) => a.removed && (a.name || "").trim().toLowerCase() === addonName.toLowerCase()
+      );
+      if (removedIdx !== -1) {
+        return prev.map((a, i) =>
+          i === removedIdx
+            ? { ...a, removed: false, quantity: 1, price: addon.price ? String(addon.price) : a.price }
+            : a
+        );
+      }
+      return [
+        ...prev,
+        {
+          name: addonName,
+          price: addon.price ? String(addon.price) : "",
+          quantity: 1,
+          note: "",
+          pricing_type: "quantity",
+          removed: false,
+        },
+      ];
+    });
   };
 
   const handleAddCustomAddon = (name) => {
-    if (!name?.trim()) return;
+    const trimmed = name?.trim();
+    if (!trimmed) return;
     setIsQuotationDirty(true);
-    setQuotationAddOns((prev) => [
-      ...prev,
-      {
-        name: name.trim(),
-        price: "",
-        quantity: 1,
-        note: "",
-        pricing_type: "quantity",
-        removed: false,
-      },
-    ]);
+    setQuotationAddOns((prev) => {
+      const activeIdx = prev.findIndex(
+        (a) => !a.removed && (a.name || "").trim().toLowerCase() === trimmed.toLowerCase()
+      );
+      if (activeIdx !== -1) {
+        return prev;
+      }
+      const removedIdx = prev.findIndex(
+        (a) => a.removed && (a.name || "").trim().toLowerCase() === trimmed.toLowerCase()
+      );
+      if (removedIdx !== -1) {
+        return prev.map((a, i) =>
+          i === removedIdx ? { ...a, removed: false, quantity: 1 } : a
+        );
+      }
+      return [
+        ...prev,
+        {
+          name: trimmed,
+          price: "",
+          quantity: 1,
+          note: "",
+          pricing_type: "quantity",
+          removed: false,
+        },
+      ];
+    });
   };
 
   const handleFeeChange = (index, field, value) => {

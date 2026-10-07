@@ -23,6 +23,9 @@ const maskEmail = (email) => {
 };
 
 exports.getMe = asyncHandler(async (req, res) => {
+  if (!req.user) {
+    return res.status(200).json(null);
+  }
   const token = req.cookies?.token || (req.headers.authorization ? req.headers.authorization.split(" ")[1] : null);
   const userData = req.user.toObject ? req.user.toObject() : { ...req.user };
   delete userData.password;

@@ -17,6 +17,8 @@ export default function AuthProvider({ children }) {
           setUser(userData);
           resetSocket();
           getSocket().connect();
+        } else {
+          setUser(null);
         }
       })
       .catch((err) => {

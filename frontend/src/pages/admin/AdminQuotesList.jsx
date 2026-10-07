@@ -46,9 +46,11 @@ import {
   Tag,
   Sliders,
   Ruler,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Store,
+  Globe
 } from "lucide-react";
-import { eventSpaceLabel } from "../../lib/packageDisplay";
+import { eventSpaceLabel, isWalkInRecord } from "../../lib/packageDisplay";
 
 /** Avatar Initials with deterministic background color */
 const AvatarInitials = ({ name, className = "w-9 h-9 text-xs" }) => {
@@ -177,6 +179,7 @@ export default function AdminQuotesList() {
   const [dateRangeFilter, setDateRangeFilter] = useState("all");
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [archetypeFilter, setArchetypeFilter] = useState("all"); // 'all' | 'package' | 'bespoke' | 'food_only'
+  const [sourceFilter, setSourceFilter] = useState("all"); // 'all' | 'walk_in' | 'online'
   const [activeTab, setActiveTab] = useState("all");
   const [expandedRows, setExpandedRows] = useState({});
 
@@ -237,6 +240,7 @@ export default function AdminQuotesList() {
   const hasActiveFilters = Boolean(
     search.trim() ||
     activeTab !== "all" ||
+    sourceFilter !== "all" ||
     archetypeFilter !== "all" ||
     eventTypeFilter !== "all" ||
     dateRangeFilter !== "all" ||
@@ -246,6 +250,7 @@ export default function AdminQuotesList() {
   const clearFilters = () => {
     setSearch("");
     setActiveTab("all");
+    setSourceFilter("all");
     setArchetypeFilter("all");
     setEventTypeFilter("all");
     setDateRangeFilter("all");
@@ -388,6 +393,7 @@ export default function AdminQuotesList() {
         payment_method: latest.payment_method || inq.payment_method || "cash",
         isAwaitingDeposit: isAwaitingDeposit(latest),
         convertedBookingId: inq.converted_booking_id || null,
+        isWalkIn: isWalkInRecord(latest) || isWalkInRecord(inq),
         createdAt: latest.createdAt || inq.createdAt,
         updatedAt: updatedTime,
         updatedRelative: getRelativeTime(updatedTime),
@@ -458,6 +464,10 @@ export default function AdminQuotesList() {
         q.status === "Accepted" || q.status === "Quote Accepted"
       )) return false;
 
+      // Booking Source filter (Walk-in vs Online)
+      if (sourceFilter === "walk_in" && !q.isWalkIn) return false;
+      if (sourceFilter === "online" && q.isWalkIn) return false;
+
       // Event Type filter
       if (eventTypeFilter !== "all" && q.eventType !== eventTypeFilter) return false;
 
@@ -517,7 +527,7 @@ export default function AdminQuotesList() {
     });
 
     return items;
-  }, [groupedQuotations, activeTab, eventTypeFilter, archetypeFilter, dateRangeFilter, search, sortBy]);
+  }, [groupedQuotations, activeTab, sourceFilter, eventTypeFilter, archetypeFilter, dateRangeFilter, search, sortBy]);
 
   // Pagination calculation
   const totalItems = filteredQuotations.length;
@@ -696,6 +706,23 @@ export default function AdminQuotesList() {
                 ]}
               />
 
+              {/* Source / Channel Filter Pill */}
+              <FilterPill
+                label="Source"
+                icon={Store}
+                value={sourceFilter}
+                defaultValue="all"
+                onSelect={(val) => {
+                  setSourceFilter(val);
+                  setCurrentPage(1);
+                }}
+                options={[
+                  { value: "all", label: "All Sources", count: groupedQuotations.length },
+                  { value: "walk_in", label: "Walk-in", count: groupedQuotations.filter((q) => q.isWalkIn).length, icon: Store },
+                  { value: "online", label: "Online", count: groupedQuotations.filter((q) => !q.isWalkIn).length, icon: Globe },
+                ]}
+              />
+
               {/* Format / Archetype Filter Pill */}
               <FilterPill
                 label="Format"
@@ -836,6 +863,12 @@ export default function AdminQuotesList() {
                                     {item.version && (
                                       <span className="px-1 py-0.2 text-[9px] font-bold font-mono bg-muted text-muted-foreground rounded border border-border/70">
                                         v{item.version}
+                                      </span>
+                                    )}
+                                    {item.isWalkIn && (
+                                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs" title="Walk-in Client">
+                                        <Store size={9} />
+                                        <span>Walk-in</span>
                                       </span>
                                     )}
                                   </div>
@@ -1121,8 +1154,13 @@ export default function AdminQuotesList() {
                         </button>
                       </div>
                     </div>
-                    <div className="shrink-0">
+                    <div className="shrink-0 flex flex-col items-end gap-1">
                       {renderStatusBadge(selectedQuotation.status, selectedQuotation.expInfo?.isExpired)}
+                      {selectedQuotation.isWalkIn && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <Store size={9} /> Walk-in
+                        </span>
+                      )}
                     </div>
                   </div>
 

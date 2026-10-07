@@ -449,3 +449,42 @@ export function eventTypeForPackage(pkg) {
   if (name.includes("corporate")) return "Corporate";
   return "";
 }
+
+/**
+ * Detects whether an inquiry, quotation, or reservation originates from a walk-in customer.
+ */
+export function isWalkInRecord(item) {
+  if (!item) return false;
+  const method = String(
+    item.contact_method ||
+    item.contactMethod ||
+    item.raw?.contact_method ||
+    item.rawInquiry?.contact_method ||
+    item.rawBooking?.contact_method ||
+    item.inquiry_id?.contact_method ||
+    ""
+  ).trim().toLowerCase();
+  if (method === "walk-in" || method === "walk in" || method === "walkin") return true;
+
+  const firstName = String(
+    item.contact_first_name ||
+    item.raw?.contact_first_name ||
+    item.rawInquiry?.contact_first_name ||
+    item.rawBooking?.contact_first_name ||
+    ""
+  ).trim().toLowerCase();
+  if (firstName === "walk-in" || firstName === "walkin") return true;
+
+  const email = String(
+    item.contact_email ||
+    item.email ||
+    item.raw?.contact_email ||
+    item.rawInquiry?.contact_email ||
+    item.rawBooking?.contact_email ||
+    ""
+  ).trim().toLowerCase();
+  if (email.startsWith("walkin_") || email.includes("@ireserve.local")) return true;
+
+  return false;
+}
+

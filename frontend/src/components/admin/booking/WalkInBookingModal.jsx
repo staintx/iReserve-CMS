@@ -191,7 +191,7 @@ const EMPTY_FORM = {
   contact_email: "",
   contact_phone: "",
   contact_alt_phone: "",
-  contact_method: "email",
+  contact_method: "Walk-in",
   payment_method: "cash",
   total_price: "",
   balance_payment_preference: "in_person",
@@ -3185,7 +3185,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         contact_email: form.contact_email,
         contact_phone: cleanPhone(form.contact_phone) || form.contact_phone,
         contact_alt_phone: cleanPhone(form.contact_alt_phone),
-        contact_method: form.contact_method || "Walk-in",
+        contact_method: form.contact_method && form.contact_method.toLowerCase() !== "email" ? form.contact_method : "Walk-in",
         selected_menu: form.selected_menu?.map((m) => m._id || m) || [],
         offer_food_snapshot: isOffer && offerContext
           ? offerContext.foodItems.map((f) => ({ menu_category: f.category, item_name: f.name }))

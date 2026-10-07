@@ -5,7 +5,7 @@ import {
   FileText, Send, Archive, ArchiveRestore, AlertCircle,
   Palette, Sparkles, Utensils, RefreshCw, ArrowUpRight, ChevronLeft, Check, Info,
   AlertTriangle, Tag, Package, Sliders, CheckCircle2, ExternalLink,
-  User, History, Ruler, Image as ImageIcon
+  User, History, Ruler, Image as ImageIcon, Store, Globe
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
@@ -19,7 +19,7 @@ import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { bookingIdentity } from "../../lib/specialOffers";
 import { resolveServiceType } from "../../components/customer/portal/statusMeta";
-import { eventSpaceLabel } from "../../lib/packageDisplay";
+import { eventSpaceLabel, isWalkInRecord } from "../../lib/packageDisplay";
 import WalkInBookingModal from "../../components/admin/booking/WalkInBookingModal";
 
 /**
@@ -325,6 +325,7 @@ export default function AdminInquiries() {
   // Filters & Search
   const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") || "all");
+  const [sourceFilter, setSourceFilter] = useState(() => searchParams.get("source") || "all"); // 'all' | 'walk_in' | 'online'
   const [archetypeFilter, setArchetypeFilter] = useState("all"); // 'all' | 'package' | 'bespoke' | 'food_only'
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [dateRangeFilter, setDateRangeFilter] = useState("all");
@@ -441,6 +442,7 @@ export default function AdminInquiries() {
         customSetupScope: Array.isArray(b.custom_setup_scope) ? b.custom_setup_scope : [],
         customSetupNotes: b.custom_setup_notes || "",
         eventSpaceSize: eventSpaceLabel(b, b.package_id) || (b.scaffold_width && b.scaffold_length ? `${b.scaffold_width}×${b.scaffold_length}` : ""),
+        isWalkIn: isWalkInRecord(b),
       };
     });
   }, [bookings]);
@@ -451,10 +453,15 @@ export default function AdminInquiries() {
     return Array.from(types).sort((a, b) => a.localeCompare(b));
   }, [formattedBookings]);
 
+  // Source counts for filter pill
+  const walkInInquiriesCount = useMemo(() => formattedBookings.filter((b) => b.isWalkIn).length, [formattedBookings]);
+  const onlineInquiriesCount = useMemo(() => formattedBookings.filter((b) => !b.isWalkIn).length, [formattedBookings]);
+
   // Active filter tracking & global reset
   const hasActiveFilters = Boolean(
     search.trim() ||
     statusFilter !== "all" ||
+    sourceFilter !== "all" ||
     archetypeFilter !== "all" ||
     eventTypeFilter !== "all" ||
     dateRangeFilter !== "all" ||
@@ -466,6 +473,7 @@ export default function AdminInquiries() {
   const clearFilters = () => {
     setSearch("");
     setStatusFilter("all");
+    setSourceFilter("all");
     setArchetypeFilter("all");
     setEventTypeFilter("all");
     setDateRangeFilter("all");
@@ -539,9 +547,13 @@ export default function AdminInquiries() {
         }
       }
 
+      // Booking Source filter (Walk-in vs Online)
+      if (sourceFilter === "walk_in" && !r.isWalkIn) return false;
+      if (sourceFilter === "online" && r.isWalkIn) return false;
+
       return true;
     });
-  }, [formattedBookings, statusFilter, archetypeFilter, eventTypeFilter, dateRangeFilter, customDateRange, search]);
+  }, [formattedBookings, statusFilter, sourceFilter, archetypeFilter, eventTypeFilter, dateRangeFilter, customDateRange, search]);
 
   // Sort logic
   const sortedBookings = useMemo(() => {
@@ -775,6 +787,23 @@ export default function AdminInquiries() {
                 { value: "Converted to Booking", label: "Converted", count: convertedCount, icon: CheckCircle2 },
                 { value: "Cancelled", label: "Cancelled", icon: AlertTriangle },
                 { value: "Archived", label: "Archived", count: archivedCount, icon: Archive },
+              ]}
+            />
+
+            {/* Source / Channel Filter Pill */}
+            <FilterPill
+              label="Source"
+              icon={Store}
+              value={sourceFilter}
+              defaultValue="all"
+              onSelect={(val) => {
+                setSourceFilter(val);
+                setPage(1);
+              }}
+              options={[
+                { value: "all", label: "All Sources", count: formattedBookings.length },
+                { value: "walk_in", label: "Walk-in", count: walkInInquiriesCount, icon: Store },
+                { value: "online", label: "Online", count: onlineInquiriesCount, icon: Globe },
               ]}
             />
 
@@ -1015,6 +1044,12 @@ export default function AdminInquiries() {
                                   <span>#{r.id}</span>
                                   <ExternalLink size={10} className="opacity-70" />
                                 </button>
+                                {r.isWalkIn && (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs" title="Walk-in Client">
+                                    <Store size={9} />
+                                    <span>Walk-in</span>
+                                  </span>
+                                )}
                                 {r.isNew && (
                                   <span className="w-2 h-2 rounded-full bg-primary shrink-0" title="Recent activity" />
                                 )}
@@ -1314,7 +1349,14 @@ export default function AdminInquiries() {
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <Badge status={selectedInquiry.status} />
-                      <PackageTypeTag type={selectedInquiry.bookingType} label={selectedInquiry.bookingTypeLabel} />
+                      <div className="flex items-center gap-1">
+                        {selectedInquiry.isWalkIn && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <Store size={9} /> Walk-in
+                          </span>
+                        )}
+                        <PackageTypeTag type={selectedInquiry.bookingType} label={selectedInquiry.bookingTypeLabel} />
+                      </div>
                     </div>
                   </div>
 

@@ -1,24 +1,24 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Printer, 
-  Check, 
-  Phone, 
-  Mail, 
-  MapPin, 
-  AlertCircle, 
-  Edit, 
-  Calendar, 
-  Clock, 
-  Users, 
-  CreditCard, 
-  Send, 
-  Utensils, 
-  FileText, 
-  XCircle, 
-  CheckCircle2, 
+import {
+  ChevronLeft,
+  ChevronRight,
+  Printer,
+  Check,
+  Phone,
+  Mail,
+  MapPin,
+  AlertCircle,
+  Edit,
+  Calendar,
+  Clock,
+  Users,
+  CreditCard,
+  Send,
+  Utensils,
+  FileText,
+  XCircle,
+  CheckCircle2,
   RefreshCw,
   MessageSquare,
   UserCheck,
@@ -83,7 +83,7 @@ export default function AdminBookingDetails() {
   const navigate = useNavigate();
   const { notify } = useToast();
   const { user } = useAuth();
-  
+
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState([]);
@@ -213,6 +213,49 @@ export default function AdminBookingDetails() {
 
     return { totalAssigned, totalReturned, totalDamaged, totalMissing, hasIssues, hasReturnsLogged };
   }, [equipmentItems]);
+
+  const resolvedThemeAndPalette = useMemo(() => {
+    if (!booking) return "Standard Styling";
+
+    const theme = (
+      booking.event_theme ||
+      sourceInquiry?.event_theme ||
+      (typeof booking.inquiry_id === "object" ? booking.inquiry_id?.event_theme : "") ||
+      (typeof booking.quotation_id === "object" ? booking.quotation_id?.event_theme : "") ||
+      sourceQuotation?.quotation?.event_theme ||
+      ""
+    ).trim();
+
+    const rawPalette =
+      (Array.isArray(booking.event_palette) && booking.event_palette.length > 0 ? booking.event_palette : null) ||
+      (typeof booking.event_palette === "string" && booking.event_palette.trim() ? booking.event_palette : null) ||
+      (Array.isArray(sourceInquiry?.event_palette) && sourceInquiry.event_palette.length > 0 ? sourceInquiry.event_palette : null) ||
+      (typeof sourceInquiry?.event_palette === "string" && sourceInquiry.event_palette.trim() ? sourceInquiry.event_palette : null) ||
+      (typeof booking.inquiry_id === "object" ? booking.inquiry_id?.event_palette : null) ||
+      (typeof booking.quotation_id === "object" ? booking.quotation_id?.event_palette : null) ||
+      sourceQuotation?.quotation?.event_palette ||
+      null;
+
+    let palette = "";
+    if (Array.isArray(rawPalette)) {
+      palette = rawPalette
+        .filter(Boolean)
+        .map((s) => String(s).trim())
+        .filter(Boolean)
+        .join(" · ");
+    } else if (typeof rawPalette === "string") {
+      palette = rawPalette.trim();
+    }
+
+    if (theme && palette) {
+      if (palette.toLowerCase().includes(theme.toLowerCase())) {
+        return palette;
+      }
+      return `${theme} · ${palette}`;
+    }
+
+    return theme || palette || "Standard Styling";
+  }, [booking, sourceInquiry, sourceQuotation]);
 
   const resolveStaffReporter = (item) => {
     if (item.verified_by?.full_name && item.verified_by?.role === "staff") {
@@ -607,17 +650,17 @@ export default function AdminBookingDetails() {
 
   const TIMELINE_STEPS = isFoodOnlyService
     ? [
-        "Inquiry",
-        "Quotation",
-        "Accepted",
-        "Deposit Paid",
-        "Confirmed",
-        "Food Prep",
-        "Out for Delivery",
-        "Completed",
-      ]
+      "Inquiry",
+      "Quotation",
+      "Accepted",
+      "Deposit Paid",
+      "Confirmed",
+      "Food Prep",
+      "Out for Delivery",
+      "Completed",
+    ]
     : isSetupOnlyService
-    ? [
+      ? [
         "Inquiry",
         "Quotation",
         "Accepted",
@@ -627,7 +670,7 @@ export default function AdminBookingDetails() {
         "Setup Prep",
         "Completed",
       ]
-    : [
+      : [
         "Inquiry",
         "Quotation",
         "Accepted",
@@ -637,7 +680,7 @@ export default function AdminBookingDetails() {
         "Ready for Event",
         "Completed",
       ];
-  
+
   let completedIdx = 0;
   const rawStatus = (booking.status || "").toLowerCase();
   const ocularStatus = (booking.ocular_visit?.status || "").toLowerCase();
@@ -680,7 +723,7 @@ export default function AdminBookingDetails() {
 
   const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const customerName = booking.customer_id?.full_name || `${booking.contact_first_name || ""} ${booking.contact_last_name || ""}`.trim() || "Customer";
-  
+
   const totalPaid = payments.filter(p => p.status === "approved").reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   const remainingBalance = Math.max(0, (booking.total_price || 0) - totalPaid);
 
@@ -712,7 +755,7 @@ export default function AdminBookingDetails() {
     0
   );
   const addOnsSubtotal = serviceItemsSubtotal + additionalChargesSubtotal + menuItemsAddonSubtotal;
-  
+
   let basePackageSubtotal = 0;
   let pkgRateText = "";
   if (pkg) {
@@ -748,16 +791,16 @@ export default function AdminBookingDetails() {
       notify("Please enter the total price for the quote.", "error");
       return;
     }
-    AdminAPI.sendQuote(booking._id, { 
-      total_price: Number(quoteForm.total_price), 
-      notes: quoteForm.notes 
+    AdminAPI.sendQuote(booking._id, {
+      total_price: Number(quoteForm.total_price),
+      notes: quoteForm.notes
     })
-    .then(() => {
-      notify("Quote sent to customer successfully.", "success");
-      setShowQuoteModal(false);
-      loadData();
-    })
-    .catch((err) => notify(err.response?.data?.message || "Failed to send quote.", "error"));
+      .then(() => {
+        notify("Quote sent to customer successfully.", "success");
+        setShowQuoteModal(false);
+        loadData();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to send quote.", "error"));
   };
 
   const handleOpenEditModal = () => {
@@ -821,11 +864,11 @@ export default function AdminBookingDetails() {
         });
         notify("Revised booking proposal sent to customer for confirmation!", "success");
       } else {
-        await AdminAPI.updateBooking(booking._id, { 
-          ...editForm, 
+        await AdminAPI.updateBooking(booking._id, {
+          ...editForm,
           guest_count: Number(editForm.guest_count),
           total_price: Number(editForm.total_price),
-          revision_note: revisionNote ? revisionNote.trim() : undefined 
+          revision_note: revisionNote ? revisionNote.trim() : undefined
         });
         notify("Booking details updated successfully.", "success");
       }
@@ -862,12 +905,12 @@ export default function AdminBookingDetails() {
       scheduled_date: ocularDate,
       scheduled_time: ocularTime
     })
-    .then(() => {
-      notify("Ocular schedule updated.", "success");
-      setShowRescheduleModal(false);
-      loadData();
-    })
-    .catch(err => notify(err.response?.data?.message || "Failed to confirm ocular schedule", "error"));
+      .then(() => {
+        notify("Ocular schedule updated.", "success");
+        setShowRescheduleModal(false);
+        loadData();
+      })
+      .catch(err => notify(err.response?.data?.message || "Failed to confirm ocular schedule", "error"));
   };
 
   const handleCompleteOcular = async (e) => {
@@ -931,7 +974,7 @@ export default function AdminBookingDetails() {
   return (
     <AdminLayout>
       <div className="w-full max-w-[1600px] mx-auto space-y-4 pb-16">
-        
+
         {/* ============================================================ */}
         {/* 1. TOP COMMAND HEADER & ACTION BAR                           */}
         {/* ============================================================ */}
@@ -940,8 +983,8 @@ export default function AdminBookingDetails() {
             <div className="space-y-1">
               {/* Breadcrumbs */}
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <button 
-                  onClick={() => navigate("/admin/bookings/reservations")} 
+                <button
+                  onClick={() => navigate("/admin/bookings/reservations")}
                   className="hover:text-foreground flex items-center gap-1 font-medium transition-colors cursor-pointer"
                 >
                   <ChevronLeft size={13} /> Reservations
@@ -966,13 +1009,12 @@ export default function AdminBookingDetails() {
                   {customerName}
                 </h1>
                 <Badge status={booking.status} />
-                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md uppercase tracking-tight border ${
-                  booking.payment_status === "fully_paid"
+                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md uppercase tracking-tight border ${booking.payment_status === "fully_paid"
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : ["deposit_paid"].includes(booking.payment_status)
-                    ? "bg-blue-50 text-blue-700 border-blue-200"
-                    : "bg-amber-50 text-amber-700 border-amber-200"
-                }`}>
+                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                      : "bg-amber-50 text-amber-700 border-amber-200"
+                  }`}>
                   {booking.payment_status === "fully_paid" ? "Fully Paid" : booking.payment_status === "deposit_paid" ? "Deposit Paid" : "Unpaid"}
                 </span>
                 {booking.is_revised && (
@@ -1234,16 +1276,14 @@ export default function AdminBookingDetails() {
               {TIMELINE_STEPS.map((step, i) => (
                 <div key={step} className="flex items-center flex-shrink-0">
                   <div className="flex items-center gap-1.5">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors ${
-                      i <= completedIdx ? "bg-primary text-primary-foreground font-bold shadow-2xs" :
-                      i === completedIdx + 1 ? "border border-primary text-primary bg-primary/5" :
-                      "border border-border text-muted-foreground bg-muted/30"
-                    }`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors ${i <= completedIdx ? "bg-primary text-primary-foreground font-bold shadow-2xs" :
+                        i === completedIdx + 1 ? "border border-primary text-primary bg-primary/5" :
+                          "border border-border text-muted-foreground bg-muted/30"
+                      }`}>
                       {i <= completedIdx ? <Check size={11} strokeWidth={3} /> : i + 1}
                     </div>
-                    <span className={`text-[11px] whitespace-nowrap ${
-                      i <= completedIdx ? "font-bold text-foreground" : "text-muted-foreground font-medium"
-                    }`}>
+                    <span className={`text-[11px] whitespace-nowrap ${i <= completedIdx ? "font-bold text-foreground" : "text-muted-foreground font-medium"
+                      }`}>
                       {step}
                     </span>
                   </div>
@@ -1338,22 +1378,22 @@ export default function AdminBookingDetails() {
           <div className="flex items-center gap-1 px-3 sm:px-4 pt-2.5 border-b border-border/70 overflow-x-auto bg-muted/20">
             {[
               { id: "overview", label: "Overview & Operations", icon: Layers },
-              { 
-                id: "inquiry_quote", 
-                label: "Inquiry & Quotation Lineage", 
+              {
+                id: "inquiry_quote",
+                label: "Inquiry & Quotation Lineage",
                 icon: FileText,
                 badge: sourceInquiry ? "Linked" : undefined
               },
-              { 
-                id: "staff_equipment", 
-                label: isFoodOnlyService ? "Kitchen & Delivery Dispatch" : "Staff & Equipment", 
+              {
+                id: "staff_equipment",
+                label: isFoodOnlyService ? "Kitchen & Delivery Dispatch" : "Staff & Equipment",
                 icon: isFoodOnlyService ? Truck : Users,
                 badge: !isFoodOnlyService && equipmentSummary.hasIssues ? "Issue Reported" : (!isFoodOnlyService && equipmentSummary.hasReturnsLogged ? "Turnover Logged" : undefined),
                 count: (booking.staff_assignments?.length || 0) + (isFoodOnlyService ? 0 : (equipmentItems.length || 0)) || undefined
               },
-              { 
-                id: "financials_history", 
-                label: "Financials & History", 
+              {
+                id: "financials_history",
+                label: "Financials & History",
                 icon: CreditCard,
                 count: booking.revision_count || undefined
               },
@@ -1364,11 +1404,10 @@ export default function AdminBookingDetails() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-1.5 py-2 px-3.5 border-b-2 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                    isActive
+                  className={`flex items-center gap-1.5 py-2 px-3.5 border-b-2 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${isActive
                       ? "border-primary text-primary font-bold bg-card"
                       : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                  }`}
+                    }`}
                 >
                   <TabIcon size={13} className={isActive ? "text-primary" : "text-muted-foreground"} />
                   <span>{tab.label}</span>
@@ -1392,7 +1431,7 @@ export default function AdminBookingDetails() {
           {/* ============================================================ */}
           {activeTab === "overview" && (
             <div className="p-4 sm:p-5 space-y-4">
-              
+
               {/* Equipment Turnover Alert / Banner in Overview */}
               {equipmentSummary.hasIssues ? (
                 <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
@@ -1451,7 +1490,7 @@ export default function AdminBookingDetails() {
                   <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
                     <Calendar size={13} className="text-primary" /> Event &amp; Venue Details
                   </h3>
-                  <button 
+                  <button
                     onClick={handleOpenEditModal}
                     className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
                   >
@@ -1470,7 +1509,7 @@ export default function AdminBookingDetails() {
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-bold text-muted-foreground block">Theme &amp; Palette</span>
-                    <strong className="text-foreground">{booking.event_theme || "Standard Styling"}</strong>
+                    <strong className="text-foreground">{resolvedThemeAndPalette}</strong>
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-bold text-muted-foreground block">Venue Type</span>
@@ -1493,118 +1532,118 @@ export default function AdminBookingDetails() {
                 booking.inspiration_images?.length > 0 ||
                 booking.custom_setup_scope?.length > 0 ||
                 booking.custom_setup_notes) && (
-                <div className="bg-gradient-to-br from-blue-50/60 to-indigo-50/30 border border-blue-200/80 rounded-xl p-4 space-y-3.5 shadow-2xs">
-                  <div className="flex items-center justify-between border-b border-blue-200/60 pb-2">
-                    <div className="flex items-center gap-2">
-                      <Palette size={14} className="text-blue-600" />
-                      <h3 className="font-bold text-xs text-blue-950 uppercase tracking-wider">
-                        Custom Styling Concept &amp; Specifications
-                      </h3>
+                  <div className="bg-gradient-to-br from-blue-50/60 to-indigo-50/30 border border-blue-200/80 rounded-xl p-4 space-y-3.5 shadow-2xs">
+                    <div className="flex items-center justify-between border-b border-blue-200/60 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Palette size={14} className="text-blue-600" />
+                        <h3 className="font-bold text-xs text-blue-950 uppercase tracking-wider">
+                          Custom Styling Concept &amp; Specifications
+                        </h3>
+                      </div>
+                      <span className="px-2 py-0.5 rounded font-mono bg-blue-100 text-blue-800 text-[10px] font-bold border border-blue-200">
+                        Design From Scratch
+                      </span>
                     </div>
-                    <span className="px-2 py-0.5 rounded font-mono bg-blue-100 text-blue-800 text-[10px] font-bold border border-blue-200">
-                      Design From Scratch
-                    </span>
-                  </div>
 
-                  <div className={`grid gap-3 text-xs ${booking.budget_range ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"}`}>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-blue-700/80 block">Styling Theme</span>
-                      <strong className="text-slate-900">{booking.event_theme || "Custom Event Styling"}</strong>
+                    <div className={`grid gap-3 text-xs ${booking.budget_range ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"}`}>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-blue-700/80 block">Styling Theme</span>
+                        <strong className="text-slate-900">{booking.event_theme || "Custom Event Styling"}</strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-blue-700/80 block">Color Palette</span>
+                        {Array.isArray(booking.event_palette) && booking.event_palette.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {booking.event_palette.map((col, idx) => (
+                              <span key={idx} className="px-1.5 py-0.2 rounded bg-white text-slate-800 text-[10.5px] font-medium border border-blue-200/60 shadow-2xs">
+                                {col}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-500 font-normal">Standard Palette</span>
+                        )}
+                      </div>
+                      {booking.budget_range && (
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-blue-700/80 block">Target Budget</span>
+                          <span className="font-bold font-mono text-blue-900 bg-white px-2 py-0.5 rounded border border-blue-200 inline-block text-[11px] mt-0.5">
+                            {booking.budget_range}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-blue-700/80 block">Color Palette</span>
-                      {Array.isArray(booking.event_palette) && booking.event_palette.length > 0 ? (
-                        <div className="flex flex-wrap gap-1 mt-0.5">
-                          {booking.event_palette.map((col, idx) => (
-                            <span key={idx} className="px-1.5 py-0.2 rounded bg-white text-slate-800 text-[10.5px] font-medium border border-blue-200/60 shadow-2xs">
-                              {col}
+
+                    {/* Setup Scope Badges */}
+                    {Array.isArray(booking.custom_setup_scope) && booking.custom_setup_scope.length > 0 && (
+                      <div className="pt-2 border-t border-blue-200/50 space-y-1.5">
+                        <span className="text-[10px] uppercase font-bold text-blue-800 tracking-wider block">
+                          Requested Scope Elements ({booking.custom_setup_scope.length})
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {booking.custom_setup_scope.map((scope, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-50 text-blue-950 border border-blue-200 text-xs font-semibold shadow-2xs"
+                            >
+                              <Check size={12} className="text-blue-600 shrink-0" />
+                              {scope}
                             </span>
                           ))}
                         </div>
-                      ) : (
-                        <span className="text-slate-500 font-normal">Standard Palette</span>
-                      )}
-                    </div>
-                    {booking.budget_range && (
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-blue-700/80 block">Target Budget</span>
-                        <span className="font-bold font-mono text-blue-900 bg-white px-2 py-0.5 rounded border border-blue-200 inline-block text-[11px] mt-0.5">
-                          {booking.budget_range}
+                      </div>
+                    )}
+
+                    {/* Stylist Notes */}
+                    {booking.custom_setup_notes && (
+                      <div className="pt-2 border-t border-blue-200/50 space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-blue-800 tracking-wider block">
+                          Stylist Vision &amp; Execution Notes
                         </span>
+                        <p className="bg-white/90 p-3 rounded-lg border border-blue-200/70 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-normal">
+                          {booking.custom_setup_notes}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Inspiration Pegs Gallery */}
+                    {Array.isArray(booking.inspiration_images) && booking.inspiration_images.length > 0 && (
+                      <div className="pt-2.5 border-t border-blue-200/50 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10.5px] font-bold text-blue-950 uppercase tracking-wider flex items-center gap-1.5">
+                            <ImageIcon size={13} className="text-blue-600" /> Customer Inspiration Moodboard Pegs ({booking.inspiration_images.length})
+                          </span>
+                          <span className="text-[10px] text-blue-700/80">Click photo to view full size</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
+                          {booking.inspiration_images.map((imgUrl, idx) => (
+                            <a
+                              key={idx}
+                              href={imgUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group relative aspect-square rounded-lg overflow-hidden border border-blue-200 bg-white block hover:ring-2 hover:ring-blue-500 shadow-2xs transition-all cursor-pointer"
+                              title="Open full resolution image in new tab"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Inspiration ${idx + 1}`}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-medium gap-1">
+                                <ExternalLink size={12} />
+                                <span>View</span>
+                              </div>
+                              <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1 py-0.2 rounded font-mono font-bold">
+                                #{idx + 1}
+                              </span>
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
-
-                  {/* Setup Scope Badges */}
-                  {Array.isArray(booking.custom_setup_scope) && booking.custom_setup_scope.length > 0 && (
-                    <div className="pt-2 border-t border-blue-200/50 space-y-1.5">
-                      <span className="text-[10px] uppercase font-bold text-blue-800 tracking-wider block">
-                        Requested Scope Elements ({booking.custom_setup_scope.length})
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {booking.custom_setup_scope.map((scope, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-50 text-blue-950 border border-blue-200 text-xs font-semibold shadow-2xs"
-                          >
-                            <Check size={12} className="text-blue-600 shrink-0" />
-                            {scope}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Stylist Notes */}
-                  {booking.custom_setup_notes && (
-                    <div className="pt-2 border-t border-blue-200/50 space-y-1">
-                      <span className="text-[10px] uppercase font-bold text-blue-800 tracking-wider block">
-                        Stylist Vision &amp; Execution Notes
-                      </span>
-                      <p className="bg-white/90 p-3 rounded-lg border border-blue-200/70 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-normal">
-                        {booking.custom_setup_notes}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Inspiration Pegs Gallery */}
-                  {Array.isArray(booking.inspiration_images) && booking.inspiration_images.length > 0 && (
-                    <div className="pt-2.5 border-t border-blue-200/50 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10.5px] font-bold text-blue-950 uppercase tracking-wider flex items-center gap-1.5">
-                          <ImageIcon size={13} className="text-blue-600" /> Customer Inspiration Moodboard Pegs ({booking.inspiration_images.length})
-                        </span>
-                        <span className="text-[10px] text-blue-700/80">Click photo to view full size</span>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
-                        {booking.inspiration_images.map((imgUrl, idx) => (
-                          <a
-                            key={idx}
-                            href={imgUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group relative aspect-square rounded-lg overflow-hidden border border-blue-200 bg-white block hover:ring-2 hover:ring-blue-500 shadow-2xs transition-all cursor-pointer"
-                            title="Open full resolution image in new tab"
-                          >
-                            <img
-                              src={imgUrl}
-                              alt={`Inspiration ${idx + 1}`}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-medium gap-1">
-                              <ExternalLink size={12} />
-                              <span>View</span>
-                            </div>
-                            <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1 py-0.2 rounded font-mono font-bold">
-                              #{idx + 1}
-                            </span>
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
 
               {/* Itemized Menu & Service Breakdown */}
               <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
@@ -1804,257 +1843,257 @@ export default function AdminBookingDetails() {
             const customScope = Array.isArray(booking?.custom_setup_scope) && booking.custom_setup_scope.length > 0
               ? booking.custom_setup_scope
               : Array.isArray(sourceInquiry?.custom_setup_scope) && sourceInquiry.custom_setup_scope.length > 0
-              ? sourceInquiry.custom_setup_scope
-              : [];
+                ? sourceInquiry.custom_setup_scope
+                : [];
             const customNotes = booking?.custom_setup_notes || sourceInquiry?.custom_setup_notes || "";
             const inspirationImages = Array.isArray(booking?.inspiration_images) && booking.inspiration_images.length > 0
               ? booking.inspiration_images
               : Array.isArray(sourceInquiry?.inspiration_images) && sourceInquiry.inspiration_images.length > 0
-              ? sourceInquiry.inspiration_images
-              : [];
+                ? sourceInquiry.inspiration_images
+                : [];
 
             return (
-            <div className="p-4 sm:p-5 space-y-4">
-              
-              {/* Original Customer Request */}
-              <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <FileText size={13} className="text-primary" /> Original Customer Request
-                    </h3>
+              <div className="p-4 sm:p-5 space-y-4">
+
+                {/* Original Customer Request */}
+                <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <FileText size={13} className="text-primary" /> Original Customer Request
+                      </h3>
+                      {sourceInquiry && (
+                        <span className="font-mono text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+                          #{sourceInquiry.reference || String(sourceInquiry._id).slice(-6).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
                     {sourceInquiry && (
-                      <span className="font-mono text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
-                        #{sourceInquiry.reference || String(sourceInquiry._id).slice(-6).toUpperCase()}
-                      </span>
+                      <button
+                        onClick={() => navigate(`/admin/bookings/inquiries/${sourceInquiry._id}/details`)}
+                        className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <ArrowUpRight size={11} /> Open Inquiry Page
+                      </button>
                     )}
                   </div>
-                  {sourceInquiry && (
-                    <button
-                      onClick={() => navigate(`/admin/bookings/inquiries/${sourceInquiry._id}/details`)}
-                      className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <ArrowUpRight size={11} /> Open Inquiry Page
-                    </button>
-                  )}
-                </div>
 
-                {sourceInquiry ? (
-                  <div className="space-y-3 text-xs">
-                    {/* Health & Safety Safety Alerts */}
-                    {(sourceInquiry.allergies || sourceInquiry.dietary_restrictions || booking.allergies || booking.dietary_restrictions) && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-lg bg-red-50/70 border border-red-200">
-                        <div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 flex items-center gap-1">
-                            <ShieldAlert size={12} /> Allergies Reported
-                          </span>
-                          <p className="text-red-900 font-semibold mt-0.5">
-                            {sourceInquiry.allergies || booking.allergies || "None reported"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1">
-                            <HeartPulse size={12} /> Dietary Restrictions
-                          </span>
-                          <p className="text-amber-900 font-semibold mt-0.5">
-                            {sourceInquiry.dietary_restrictions || booking.dietary_restrictions || "Standard diet"}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className={`grid gap-3 ${sourceInquiry.budget_range ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"}`}>
-                      {sourceInquiry.budget_range && (
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Customer Budget</span>
-                          <strong className="text-emerald-700 font-mono">
-                            {sourceInquiry.budget_range}
-                          </strong>
-                        </div>
-                      )}
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Celebrant / For</span>
-                        <strong className="text-foreground">
-                          {sourceInquiry.celebrant_name || (sourceInquiry.booking_for === "someone_else" ? "Someone Else" : "Client")}
-                        </strong>
-                      </div>
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Inquiry Submitted</span>
-                        <strong className="text-foreground">
-                          {sourceInquiry.createdAt ? new Date(sourceInquiry.createdAt).toLocaleDateString() : "N/A"}
-                        </strong>
-                      </div>
-                    </div>
-
-                    {(customScope.length > 0 || customNotes) && (
-                      <div className="p-3 bg-purple-50/50 border border-purple-200/80 rounded-lg space-y-2.5">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
-                          <Palette size={13} className="text-purple-600" />
-                          <span>Custom Styling Brief &amp; Scope</span>
-                        </div>
-                        {customScope.length > 0 && (
-                          <div className="space-y-1">
-                            <span className="text-[10px] uppercase font-bold text-purple-700 block">Requested Scope:</span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {customScope.map((scope, idx) => (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white text-purple-900 border border-purple-200 text-[11px] font-medium shadow-2xs"
-                                >
-                                  <Check size={10} className="text-purple-600" />
-                                  <span>{scope}</span>
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {customNotes && (
-                          <div className="space-y-0.5">
-                            <span className="text-[10px] uppercase font-bold text-purple-700 block">Styling Vision Notes:</span>
-                            <p className="text-xs text-slate-800 bg-white p-2.5 rounded border border-purple-100 leading-relaxed">
-                              {customNotes}
+                  {sourceInquiry ? (
+                    <div className="space-y-3 text-xs">
+                      {/* Health & Safety Safety Alerts */}
+                      {(sourceInquiry.allergies || sourceInquiry.dietary_restrictions || booking.allergies || booking.dietary_restrictions) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-lg bg-red-50/70 border border-red-200">
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 flex items-center gap-1">
+                              <ShieldAlert size={12} /> Allergies Reported
+                            </span>
+                            <p className="text-red-900 font-semibold mt-0.5">
+                              {sourceInquiry.allergies || booking.allergies || "None reported"}
                             </p>
                           </div>
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1">
+                              <HeartPulse size={12} /> Dietary Restrictions
+                            </span>
+                            <p className="text-amber-900 font-semibold mt-0.5">
+                              {sourceInquiry.dietary_restrictions || booking.dietary_restrictions || "Standard diet"}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className={`grid gap-3 ${sourceInquiry.budget_range ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"}`}>
+                        {sourceInquiry.budget_range && (
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Customer Budget</span>
+                            <strong className="text-emerald-700 font-mono">
+                              {sourceInquiry.budget_range}
+                            </strong>
+                          </div>
                         )}
-                      </div>
-                    )}
-
-                    {sourceInquiry.special_requests && (
-                      <div className="p-3 bg-card border border-border/60 rounded-lg">
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">
-                          Special Requests &amp; Notes
-                        </span>
-                        <p className="text-foreground whitespace-pre-line leading-relaxed">
-                          {sourceInquiry.special_requests}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Inspiration Pegs & Moodboard */}
-                    {inspirationImages.length > 0 && (
-                      <div className="space-y-1.5 pt-1">
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block flex items-center gap-1">
-                          <Palette size={11} className="text-primary" /> Customer Inspiration Pegs ({inspirationImages.length})
-                        </span>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                          {inspirationImages.map((imgUrl, i) => (
-                            <a
-                              key={i}
-                              href={imgUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="group relative aspect-video rounded-lg overflow-hidden border border-border bg-card shadow-2xs hover:ring-2 hover:ring-primary transition-all block"
-                              title="Click to open full resolution image"
-                            >
-                              <img
-                                src={imgUrl}
-                                alt={`Inspiration Peg ${i + 1}`}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                              />
-                              <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
-                                <ExternalLink size={10} /> View
-                              </span>
-                            </a>
-                          ))}
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Celebrant / For</span>
+                          <strong className="text-foreground">
+                            {sourceInquiry.celebrant_name || (sourceInquiry.booking_for === "someone_else" ? "Someone Else" : "Client")}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Inquiry Submitted</span>
+                          <strong className="text-foreground">
+                            {sourceInquiry.createdAt ? new Date(sourceInquiry.createdAt).toLocaleDateString() : "N/A"}
+                          </strong>
                         </div>
                       </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="p-6 text-center text-xs text-muted-foreground space-y-1">
-                    <Info size={20} className="mx-auto text-muted-foreground/60 mb-1" />
-                    <p className="font-semibold text-foreground">Direct Admin Reservation</p>
-                    <p>This booking was created directly by the admin without a customer-submitted web inquiry.</p>
-                  </div>
-                )}
-              </div>
 
-              {/* Quotation Lineage & Versions */}
-              <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <CreditCard size={13} className="text-primary" /> Official Quotation Lineage
-                    </h3>
-                    {quotationVersions.length > 0 && (
-                      <span className="font-mono text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
-                        {quotationVersions.length} Version{quotationVersions.length === 1 ? "" : "s"} Issued
-                      </span>
-                    )}
-                  </div>
-                  {latestQuotation && (
-                    <Btn
-                      size="xs"
-                      variant="secondary"
-                      onClick={() => setShowInvoiceModal(true)}
-                    >
-                      <Printer size={12} /> View Official Quote PDF
-                    </Btn>
+                      {(customScope.length > 0 || customNotes) && (
+                        <div className="p-3 bg-purple-50/50 border border-purple-200/80 rounded-lg space-y-2.5">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
+                            <Palette size={13} className="text-purple-600" />
+                            <span>Custom Styling Brief &amp; Scope</span>
+                          </div>
+                          {customScope.length > 0 && (
+                            <div className="space-y-1">
+                              <span className="text-[10px] uppercase font-bold text-purple-700 block">Requested Scope:</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {customScope.map((scope, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white text-purple-900 border border-purple-200 text-[11px] font-medium shadow-2xs"
+                                  >
+                                    <Check size={10} className="text-purple-600" />
+                                    <span>{scope}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {customNotes && (
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] uppercase font-bold text-purple-700 block">Styling Vision Notes:</span>
+                              <p className="text-xs text-slate-800 bg-white p-2.5 rounded border border-purple-100 leading-relaxed">
+                                {customNotes}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {sourceInquiry.special_requests && (
+                        <div className="p-3 bg-card border border-border/60 rounded-lg">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">
+                            Special Requests &amp; Notes
+                          </span>
+                          <p className="text-foreground whitespace-pre-line leading-relaxed">
+                            {sourceInquiry.special_requests}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Inspiration Pegs & Moodboard */}
+                      {inspirationImages.length > 0 && (
+                        <div className="space-y-1.5 pt-1">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block flex items-center gap-1">
+                            <Palette size={11} className="text-primary" /> Customer Inspiration Pegs ({inspirationImages.length})
+                          </span>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            {inspirationImages.map((imgUrl, i) => (
+                              <a
+                                key={i}
+                                href={imgUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group relative aspect-video rounded-lg overflow-hidden border border-border bg-card shadow-2xs hover:ring-2 hover:ring-primary transition-all block"
+                                title="Click to open full resolution image"
+                              >
+                                <img
+                                  src={imgUrl}
+                                  alt={`Inspiration Peg ${i + 1}`}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                />
+                                <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
+                                  <ExternalLink size={10} /> View
+                                </span>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center text-xs text-muted-foreground space-y-1">
+                      <Info size={20} className="mx-auto text-muted-foreground/60 mb-1" />
+                      <p className="font-semibold text-foreground">Direct Admin Reservation</p>
+                      <p>This booking was created directly by the admin without a customer-submitted web inquiry.</p>
+                    </div>
                   )}
                 </div>
 
-                {latestQuotation ? (
-                  <div className="space-y-3 text-xs">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-card border border-border/60 rounded-lg">
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Quotation Ref</span>
-                        <strong className="font-mono text-foreground">{latestQuotation.quotation_number || "QTN"}</strong>
-                      </div>
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Issued Date</span>
-                        <strong className="text-foreground">
-                          {latestQuotation.createdAt ? new Date(latestQuotation.createdAt).toLocaleDateString() : "N/A"}
-                        </strong>
-                      </div>
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Quoted Amount</span>
-                        <strong className="font-mono text-foreground">{fmt(latestQuotation.total_cost)}</strong>
-                      </div>
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Required Deposit</span>
-                        <strong className="font-mono text-emerald-700">{fmt(latestQuotation.deposit_amount)}</strong>
-                      </div>
-                    </div>
-
-                    {/* Version History pills */}
-                    {quotationVersions.length > 1 && (
-                      <div className="space-y-1.5 pt-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                          Quotation Version Revisions
+                {/* Quotation Lineage & Versions */}
+                <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <CreditCard size={13} className="text-primary" /> Official Quotation Lineage
+                      </h3>
+                      {quotationVersions.length > 0 && (
+                        <span className="font-mono text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
+                          {quotationVersions.length} Version{quotationVersions.length === 1 ? "" : "s"} Issued
                         </span>
-                        <div className="flex flex-wrap gap-2">
-                          {quotationVersions.map((q, idx) => (
-                            <div key={q._id || idx} className="p-2.5 rounded-lg border border-border/60 bg-card text-xs space-y-0.5">
-                              <div className="flex items-center justify-between gap-3">
-                                <span className="font-bold text-foreground">v{q.version_number || (idx + 1)}</span>
-                                <span className="font-mono font-bold text-foreground">{fmt(q.total_cost)}</span>
-                              </div>
-                              <span className="text-[10.5px] text-muted-foreground block">
-                                {q.createdAt ? new Date(q.createdAt).toLocaleDateString() : ""} · {q.status || "Issued"}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                      )}
+                    </div>
+                    {latestQuotation && (
+                      <Btn
+                        size="xs"
+                        variant="secondary"
+                        onClick={() => setShowInvoiceModal(true)}
+                      >
+                        <Printer size={12} /> View Official Quote PDF
+                      </Btn>
                     )}
                   </div>
-                ) : (
-                  <div className="p-6 text-center text-xs text-muted-foreground space-y-1">
-                    <Info size={20} className="mx-auto text-muted-foreground/60 mb-1" />
-                    <p className="font-semibold text-foreground">No Quotation Records</p>
-                    <p>This reservation was created with fixed pricing and did not undergo quotation drafting.</p>
-                  </div>
-                )}
+
+                  {latestQuotation ? (
+                    <div className="space-y-3 text-xs">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-card border border-border/60 rounded-lg">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Quotation Ref</span>
+                          <strong className="font-mono text-foreground">{latestQuotation.quotation_number || "QTN"}</strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Issued Date</span>
+                          <strong className="text-foreground">
+                            {latestQuotation.createdAt ? new Date(latestQuotation.createdAt).toLocaleDateString() : "N/A"}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Quoted Amount</span>
+                          <strong className="font-mono text-foreground">{fmt(latestQuotation.total_cost)}</strong>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Required Deposit</span>
+                          <strong className="font-mono text-emerald-700">{fmt(latestQuotation.deposit_amount)}</strong>
+                        </div>
+                      </div>
+
+                      {/* Version History pills */}
+                      {quotationVersions.length > 1 && (
+                        <div className="space-y-1.5 pt-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                            Quotation Version Revisions
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            {quotationVersions.map((q, idx) => (
+                              <div key={q._id || idx} className="p-2.5 rounded-lg border border-border/60 bg-card text-xs space-y-0.5">
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="font-bold text-foreground">v{q.version_number || (idx + 1)}</span>
+                                  <span className="font-mono font-bold text-foreground">{fmt(q.total_cost)}</span>
+                                </div>
+                                <span className="text-[10.5px] text-muted-foreground block">
+                                  {q.createdAt ? new Date(q.createdAt).toLocaleDateString() : ""} · {q.status || "Issued"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center text-xs text-muted-foreground space-y-1">
+                      <Info size={20} className="mx-auto text-muted-foreground/60 mb-1" />
+                      <p className="font-semibold text-foreground">No Quotation Records</p>
+                      <p>This reservation was created with fixed pricing and did not undergo quotation drafting.</p>
+                    </div>
+                  )}
+                </div>
+
               </div>
+            );
+          })()}
 
-            </div>
-          );
-        })()}
-
-        {/* ============================================================ */}
-        {/* TAB 3: STAFF & EQUIPMENT / KITCHEN & DELIVERY DISPATCH       */}
-        {/* ============================================================ */}
-        {activeTab === "staff_equipment" && (
+          {/* ============================================================ */}
+          {/* TAB 3: STAFF & EQUIPMENT / KITCHEN & DELIVERY DISPATCH       */}
+          {/* ============================================================ */}
+          {activeTab === "staff_equipment" && (
             <div className="p-4 sm:p-5 space-y-4">
               {isFoodOnlyService ? (
                 <>
@@ -2117,7 +2156,7 @@ export default function AdminBookingDetails() {
                         </div>
                       </div>
                     ) : (
-                      <div 
+                      <div
                         onClick={() => {
                           setSelectedManagerId("");
                           setShowAssignManagerModal(true);
@@ -2162,19 +2201,17 @@ export default function AdminBookingDetails() {
 
                           return (
                             <div key={idx} className="p-3 bg-card border border-border/60 rounded-lg flex items-start gap-2.5 text-xs shadow-2xs">
-                              <div className={`w-8 h-8 rounded-md font-bold text-xs flex items-center justify-center shrink-0 border ${
-                                isHeadCook ? "bg-amber-100 text-amber-900 border-amber-300" :
-                                isDriver ? "bg-blue-100 text-blue-900 border-blue-200" :
-                                "bg-emerald-100 text-emerald-900 border-emerald-200"
-                              }`}>
+                              <div className={`w-8 h-8 rounded-md font-bold text-xs flex items-center justify-center shrink-0 border ${isHeadCook ? "bg-amber-100 text-amber-900 border-amber-300" :
+                                  isDriver ? "bg-blue-100 text-blue-900 border-blue-200" :
+                                    "bg-emerald-100 text-emerald-900 border-emerald-200"
+                                }`}>
                                 {memberName.slice(0, 2).toUpperCase()}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center justify-between gap-1">
                                   <span className="font-bold text-foreground truncate">{memberName}</span>
-                                  <span className={`text-[9px] font-bold uppercase tracking-tight px-1.5 py-0.2 rounded ${
-                                    isDriver ? "bg-blue-100 text-blue-800 border border-blue-200" : isHeadCook ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-muted text-muted-foreground"
-                                  }`}>
+                                  <span className={`text-[9px] font-bold uppercase tracking-tight px-1.5 py-0.2 rounded ${isDriver ? "bg-blue-100 text-blue-800 border border-blue-200" : isHeadCook ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-muted text-muted-foreground"
+                                    }`}>
                                     {memberRole}
                                   </span>
                                 </div>
@@ -2188,7 +2225,7 @@ export default function AdminBookingDetails() {
                         })}
                       </div>
                     ) : (
-                      <div 
+                      <div
                         onClick={() => setShowAssignTeamModal(true)}
                         className="p-5 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
                       >
@@ -2305,7 +2342,7 @@ export default function AdminBookingDetails() {
                         </div>
                       </div>
                     ) : (
-                      <div 
+                      <div
                         onClick={() => {
                           setSelectedManagerId("");
                           setShowAssignManagerModal(true);
@@ -2351,12 +2388,11 @@ export default function AdminBookingDetails() {
 
                           return (
                             <div key={idx} className="p-3 bg-card border border-border/60 rounded-lg flex items-start gap-2.5 text-xs shadow-2xs">
-                              <div className={`w-8 h-8 rounded-md font-bold text-xs flex items-center justify-center shrink-0 border ${
-                                isHeadCook ? "bg-amber-100 text-amber-900 border-amber-300" :
-                                isServer ? "bg-blue-100 text-blue-900 border-blue-200" :
-                                isSetup ? "bg-emerald-100 text-emerald-900 border-emerald-200" :
-                                "bg-muted text-muted-foreground border-border"
-                              }`}>
+                              <div className={`w-8 h-8 rounded-md font-bold text-xs flex items-center justify-center shrink-0 border ${isHeadCook ? "bg-amber-100 text-amber-900 border-amber-300" :
+                                  isServer ? "bg-blue-100 text-blue-900 border-blue-200" :
+                                    isSetup ? "bg-emerald-100 text-emerald-900 border-emerald-200" :
+                                      "bg-muted text-muted-foreground border-border"
+                                }`}>
                                 {memberName.slice(0, 2).toUpperCase()}
                               </div>
                               <div className="min-w-0 flex-1">
@@ -2376,7 +2412,7 @@ export default function AdminBookingDetails() {
                         })}
                       </div>
                     ) : (
-                      <div 
+                      <div
                         onClick={() => setShowAssignTeamModal(true)}
                         className="p-5 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
                       >
@@ -2539,11 +2575,10 @@ export default function AdminBookingDetails() {
                           return (
                             <div
                               key={idx}
-                              className={`p-3.5 bg-card border rounded-lg space-y-2.5 shadow-2xs transition-all ${
-                                isDamaged ? "border-rose-300/80 bg-rose-50/15" :
-                                isMissing ? "border-amber-300/80 bg-amber-50/15" :
-                                "border-border/60 hover:border-border"
-                              }`}
+                              className={`p-3.5 bg-card border rounded-lg space-y-2.5 shadow-2xs transition-all ${isDamaged ? "border-rose-300/80 bg-rose-50/15" :
+                                  isMissing ? "border-amber-300/80 bg-amber-50/15" :
+                                    "border-border/60 hover:border-border"
+                                }`}
                             >
                               {/* Item Header & Condition Badge */}
                               <div className="flex items-start justify-between gap-2">
@@ -2710,11 +2745,10 @@ export default function AdminBookingDetails() {
                                       size="xs"
                                       variant="primary"
                                       onClick={() => handleOpenDamageModal(item)}
-                                      className={`w-full font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs ${
-                                        hasExisting
+                                      className={`w-full font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs ${hasExisting
                                           ? "bg-amber-600 hover:bg-amber-700 text-white"
                                           : "bg-rose-600 hover:bg-rose-700 text-white"
-                                      }`}
+                                        }`}
                                       data-testid="damage-charge-btn"
                                       id={`damage-charge-btn-${idx}`}
                                       title={hasExisting ? `Adjust Damage / Loss Fee for ${item.name}` : `Assess Damage / Loss Fee for ${item.name}`}
@@ -2760,7 +2794,7 @@ export default function AdminBookingDetails() {
           {/* ============================================================ */}
           {activeTab === "financials_history" && (
             <div className="p-4 sm:p-5 space-y-4">
-              
+
               {/* Unified Single Financial Breakdown (No double cards!) */}
               <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between border-b border-border/50 pb-2">
@@ -2884,22 +2918,22 @@ export default function AdminBookingDetails() {
               <div className="space-y-4 py-4">
                 <div>
                   <label className="text-xs font-semibold text-foreground block mb-1">Total Cost (₱)</label>
-                  <Input 
-                    type="number" 
+                  <Input
+                    type="number"
                     placeholder="e.g. 55000"
-                    value={quoteForm.total_price} 
-                    onChange={(e) => setQuoteForm({ ...quoteForm, total_price: e.target.value })} 
+                    value={quoteForm.total_price}
+                    onChange={(e) => setQuoteForm({ ...quoteForm, total_price: e.target.value })}
                   />
                 </div>
 
                 <div>
                   <label className="text-xs font-semibold text-foreground block mb-1">Notes / Terms</label>
-                  <textarea 
+                  <textarea
                     rows={4}
                     className="w-full text-xs rounded-xl border border-border p-3 focus:outline-none focus:ring-1 focus:ring-primary"
                     placeholder="Include terms e.g. Requires 20% deposit..."
-                    value={quoteForm.notes} 
-                    onChange={(e) => setQuoteForm({ ...quoteForm, notes: e.target.value })} 
+                    value={quoteForm.notes}
+                    onChange={(e) => setQuoteForm({ ...quoteForm, notes: e.target.value })}
                   />
                 </div>
               </div>
@@ -2973,12 +3007,12 @@ export default function AdminBookingDetails() {
 
                 <div>
                   <label className="text-xs font-semibold text-foreground block mb-1">Inspection Notes &amp; Place Measurements</label>
-                  <textarea 
+                  <textarea
                     rows={4}
                     className="w-full text-xs rounded-xl border border-border p-3 focus:outline-none focus:ring-1 focus:ring-primary"
                     placeholder="Log venue area dimensions, scaffold sizing, power outlets, kitchen access..."
-                    value={ocularInspectionNotes} 
-                    onChange={(e) => setOcularInspectionNotes(e.target.value)} 
+                    value={ocularInspectionNotes}
+                    onChange={(e) => setOcularInspectionNotes(e.target.value)}
                   />
                 </div>
               </div>
@@ -3014,11 +3048,10 @@ export default function AdminBookingDetails() {
               {/* Option: Unassigned */}
               <div
                 onClick={() => setSelectedManagerId("")}
-                className={`p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${
-                  selectedManagerId === ""
+                className={`p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${selectedManagerId === ""
                     ? "border-primary bg-primary/5 ring-1 ring-primary text-foreground"
                     : "border-border hover:border-border/80 bg-card text-muted-foreground"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold bg-muted text-muted-foreground">
@@ -3045,11 +3078,10 @@ export default function AdminBookingDetails() {
                   <div
                     key={mgr._id}
                     onClick={() => setSelectedManagerId(mgr._id)}
-                    className={`p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${
-                      isSelected
+                    className={`p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${isSelected
                         ? "border-primary bg-primary/5 ring-1 ring-primary text-foreground shadow-2xs"
                         : "border-border hover:border-border/80 bg-card text-foreground"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 bg-primary/10 text-primary border border-primary/20">
@@ -3086,17 +3118,17 @@ export default function AdminBookingDetails() {
             </div>
 
             <DialogFooter className="gap-2 sm:gap-0">
-              <Btn 
-                type="button" 
-                variant="secondary" 
+              <Btn
+                type="button"
+                variant="secondary"
                 onClick={() => setShowAssignManagerModal(false)}
                 disabled={savingManager}
               >
                 Cancel
               </Btn>
-              <Btn 
-                type="button" 
-                variant="primary" 
+              <Btn
+                type="button"
+                variant="primary"
                 onClick={handleUpdateManager}
                 disabled={savingManager}
               >
@@ -3177,11 +3209,10 @@ export default function AdminBookingDetails() {
                     <button
                       type="button"
                       onClick={() => setRefundMode("queue")}
-                      className={`p-2.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${
-                        refundMode === "queue"
+                      className={`p-2.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "queue"
                           ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary"
                           : "border-border bg-background text-muted-foreground hover:border-border/80"
-                      }`}
+                        }`}
                     >
                       <div className="font-bold text-xs text-foreground mb-0.5">Send to Refund Queue</div>
                       <p className="text-[10px] text-muted-foreground leading-tight">
@@ -3192,11 +3223,10 @@ export default function AdminBookingDetails() {
                     <button
                       type="button"
                       onClick={() => setRefundMode("custom")}
-                      className={`p-2.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${
-                        refundMode === "custom"
+                      className={`p-2.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "custom"
                           ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary"
                           : "border-border bg-background text-muted-foreground hover:border-border/80"
-                      }`}
+                        }`}
                     >
                       <div className="font-bold text-xs text-foreground mb-0.5">Direct Refund Now</div>
                       <p className="text-[10px] text-muted-foreground leading-tight">
@@ -3363,16 +3393,14 @@ export default function AdminBookingDetails() {
                 <>
                   <DialogHeader>
                     <div className="flex items-center justify-between">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-1 ${
-                        isAdjustment ? "bg-amber-50 border border-amber-200 text-amber-700" : "bg-rose-50 border border-rose-200 text-rose-600"
-                      }`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-1 ${isAdjustment ? "bg-amber-50 border border-amber-200 text-amber-700" : "bg-rose-50 border border-rose-200 text-rose-600"
+                        }`}>
                         <DollarSign className="w-5 h-5" />
                       </div>
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                        isAdjustment
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${isAdjustment
                           ? "bg-amber-100 text-amber-900 border-amber-300"
                           : "bg-rose-100 text-rose-900 border-rose-300"
-                      }`}>
+                        }`}>
                         {isAdjustment ? "Existing Charge / Adjustment" : "New Charge"}
                       </span>
                     </div>
@@ -3512,16 +3540,15 @@ export default function AdminBookingDetails() {
                               ₱{enteredFee.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                             </span>
                           </div>
-                          <div className={`p-2 rounded-md border flex items-center justify-between font-semibold ${
-                            netDifference > 0 ? "bg-rose-50 border-rose-200 text-rose-900" :
-                            netDifference < 0 ? "bg-emerald-50 border-emerald-200 text-emerald-900" :
-                            "bg-muted/60 border-border/60 text-muted-foreground"
-                          }`}>
+                          <div className={`p-2 rounded-md border flex items-center justify-between font-semibold ${netDifference > 0 ? "bg-rose-50 border-rose-200 text-rose-900" :
+                              netDifference < 0 ? "bg-emerald-50 border-emerald-200 text-emerald-900" :
+                                "bg-muted/60 border-border/60 text-muted-foreground"
+                            }`}>
                             <span>Actual Financial Effect (Net Change):</span>
                             <span className="font-mono font-bold text-sm">
                               {netDifference > 0 ? `+ ₱${netDifference.toLocaleString("en-PH", { minimumFractionDigits: 2 })}` :
-                               netDifference < 0 ? `- ₱${Math.abs(netDifference).toLocaleString("en-PH", { minimumFractionDigits: 2 })}` :
-                               "₱0.00 (Unchanged)"}
+                                netDifference < 0 ? `- ₱${Math.abs(netDifference).toLocaleString("en-PH", { minimumFractionDigits: 2 })}` :
+                                  "₱0.00 (Unchanged)"}
                             </span>
                           </div>
                         </>
@@ -3600,9 +3627,8 @@ export default function AdminBookingDetails() {
                     <Btn
                       type="button"
                       variant="primary"
-                      className={`font-bold text-white cursor-pointer ${
-                        isAdjustment ? "bg-amber-600 hover:bg-amber-700" : "bg-rose-600 hover:bg-rose-700"
-                      }`}
+                      className={`font-bold text-white cursor-pointer ${isAdjustment ? "bg-amber-600 hover:bg-amber-700" : "bg-rose-600 hover:bg-rose-700"
+                        }`}
                       onClick={handleConfirmDamageCharge}
                       disabled={damageChargeSubmitting || damageFeeInput === "" || Number(damageFeeInput) < 0 || Number(damageFeeInput) > MAX_FINANCIAL_AMOUNT || makesTotalLessThanPaid || isPaidBooking}
                       id="confirm-damage-charge-btn"
@@ -3611,10 +3637,10 @@ export default function AdminBookingDetails() {
                       {damageChargeSubmitting
                         ? "Saving..."
                         : isAdjustment
-                        ? netDifference === 0
-                          ? "Confirm Damage Charge"
-                          : `Confirm Fee Adjustment (${netDifference > 0 ? "+" : ""}${netDifference.toLocaleString()})`
-                        : "Confirm Damage Charge"}
+                          ? netDifference === 0
+                            ? "Confirm Damage Charge"
+                            : `Confirm Fee Adjustment (${netDifference > 0 ? "+" : ""}${netDifference.toLocaleString()})`
+                          : "Confirm Damage Charge"}
                     </Btn>
                   </DialogFooter>
                 </>
@@ -3655,11 +3681,10 @@ export default function AdminBookingDetails() {
                   ].map((opt) => (
                     <label
                       key={opt.id}
-                      className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
-                        selectedNewStatus?.toLowerCase() === opt.id
+                      className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${selectedNewStatus?.toLowerCase() === opt.id
                           ? "border-primary ring-2 ring-primary/20 bg-primary/5"
                           : opt.tone
-                      }`}
+                        }`}
                     >
                       <input
                         type="radio"

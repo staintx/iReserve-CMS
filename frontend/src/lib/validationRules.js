@@ -147,3 +147,43 @@ export function validateCatalogName(value, label = "Item name", { min = 2, max =
   }
   return "";
 }
+
+/**
+ * Reasonable maximum financial transaction limit for catering business (₱10,000,000).
+ */
+export const MAX_FINANCIAL_AMOUNT = 10000000;
+export const MIN_FINANCIAL_AMOUNT = 0;
+export const MIN_PAYMENT_AMOUNT = 0.01;
+
+/**
+ * Validates monetary inputs (payments, deposits, balances, quotations, charges).
+ * Enforces valid numbers, bounds (₱0 to ₱10,000,000), and maximum 2 decimal places.
+ */
+export function validateFinancialAmount(
+  value,
+  label = "Amount",
+  { min = 0, max = MAX_FINANCIAL_AMOUNT, required = true, allowZero = false } = {}
+) {
+  const str = String(value === undefined || value === null ? "" : value).trim();
+  if (!str) {
+    return required ? `Enter ${label.toLowerCase()}.` : "";
+  }
+  if (/[eE]/.test(str)) {
+    return `${label} cannot use scientific notation.`;
+  }
+  const num = Number(str);
+  if (!Number.isFinite(num) || Number.isNaN(num)) {
+    return `${label} must be a valid number.`;
+  }
+  const lowerBound = allowZero ? 0 : 0.01;
+  if (num < lowerBound) {
+    return allowZero ? `${label} cannot be negative.` : `${label} must be greater than ₱0.`;
+  }
+  if (num > max) {
+    return `${label} cannot exceed ₱${max.toLocaleString("en-PH")}.`;
+  }
+  if (str.includes(".") && str.split(".")[1].length > 2) {
+    return `${label} cannot have more than 2 decimal places.`;
+  }
+  return "";
+}

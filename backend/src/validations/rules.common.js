@@ -154,6 +154,60 @@ const catalogNameRule = (label = "Item name", { min = 2, max = 100, required = t
   return required ? rule.required() : rule.optional();
 };
 
+/**
+ * Reasonable maximum financial transaction limit for catering business (₱10,000,000).
+ */
+const MAX_FINANCIAL_AMOUNT = 10000000;
+const MIN_FINANCIAL_AMOUNT = 0;
+const MIN_PAYMENT_AMOUNT = 0.01;
+
+/**
+ * Validates a monetary value (numeric, within bounds, maximum 2 decimal places).
+ */
+const isValidMonetaryAmount = (val, { min = 0, max = MAX_FINANCIAL_AMOUNT, allowZero = true, allowNegative = false } = {}) => {
+  if (val === undefined || val === null || val === "") return false;
+  const num = Number(val);
+  if (!Number.isFinite(num) || Number.isNaN(num)) return false;
+  if (/[eE]/.test(String(val))) return false;
+  if (!allowNegative && num < (allowZero ? 0 : 0.01)) return false;
+  if (allowNegative && (num < -max || num > max)) return false;
+  if (!allowNegative && (num < min || num > max)) return false;
+  const str = String(val).trim();
+  if (str.includes(".") && str.split(".")[1].length > 2) return false;
+  return true;
+};
+
+/**
+ * Creates a Joi monetary amount rule with strict 2-decimal enforcement and upper cap (₱10,000,000).
+ */
+const monetaryRule = (label = "Amount", { min = 0, max = MAX_FINANCIAL_AMOUNT, required = true, allowZero = true } = {}) => {
+  return Joi.any().custom((val, helpers) => {
+    if (val === undefined || val === null || val === "") {
+      if (required) return helpers.message(`${label} is required.`);
+      return undefined;
+    }
+    const str = String(val).trim();
+    if (/[eE]/.test(str)) {
+      return helpers.message(`${label} cannot use scientific notation.`);
+    }
+    const num = Number(val);
+    if (!Number.isFinite(num) || Number.isNaN(num)) {
+      return helpers.message(`${label} must be a valid number.`);
+    }
+    const lowerBound = allowZero ? 0 : 0.01;
+    if (num < lowerBound) {
+      return helpers.message(allowZero ? `${label} cannot be negative.` : `${label} must be greater than ₱0.`);
+    }
+    if (num > max) {
+      return helpers.message(`${label} cannot exceed ₱${max.toLocaleString("en-PH")}.`);
+    }
+    if (str.includes(".") && str.split(".")[1].length > 2) {
+      return helpers.message(`${label} cannot have more than 2 decimal places.`);
+    }
+    return Math.round(num * 100) / 100;
+  });
+};
+
 module.exports = {
   NAME_REGEX,
   PHONE_REGEX,
@@ -163,6 +217,11 @@ module.exports = {
   CATALOG_NAME_REGEX,
   EMOJI_REGEX,
   HTML_TAGS_REGEX,
+  MAX_FINANCIAL_AMOUNT,
+  MIN_FINANCIAL_AMOUNT,
+  MIN_PAYMENT_AMOUNT,
+  isValidMonetaryAmount,
+  monetaryRule,
   nameRule,
   phoneRule,
   usernameRule,

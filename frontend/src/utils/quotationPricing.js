@@ -12,11 +12,14 @@
  * calculated differently from an added service.
  */
 
-import { isSpecialOffer, offerBaseFoodPrice } from "@/lib/specialOffers";
+import { isSpecialOffer, offerBaseFoodPrice } from "../lib/specialOffers.js";
+
+export const MAX_FINANCIAL_AMOUNT = 10000000;
 
 export const money = (value) => {
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount < 0) return 0;
+  if (amount > MAX_FINANCIAL_AMOUNT) return MAX_FINANCIAL_AMOUNT;
   return Math.round(amount * 100) / 100;
 };
 

@@ -38,6 +38,7 @@ import {
   STANDARD_PORTION_UNITS,
   findStandardPortionUnit,
 } from "../../../../utils/quotationPricing";
+import { MAX_FINANCIAL_AMOUNT } from "../../../../lib/validationRules";
 
 function MoneyInput({ value, onChange, placeholder = "0.00", disabled, className = "", id }) {
   const block = (e) => {
@@ -53,6 +54,7 @@ function MoneyInput({ value, onChange, placeholder = "0.00", disabled, className
         id={id}
         type="number"
         min="0"
+        max={MAX_FINANCIAL_AMOUNT}
         step="0.01"
         disabled={disabled}
         placeholder={placeholder}

@@ -13,9 +13,12 @@
  * show the admin the same numbers while they type. Change one, change the other.
  */
 
+const MAX_FINANCIAL_AMOUNT = 10000000;
+
 const money = (value) => {
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount < 0) return 0;
+  if (amount > MAX_FINANCIAL_AMOUNT) return MAX_FINANCIAL_AMOUNT;
   // Two decimals: quotations are stated in pesos and centavos, and floating
   // point sums of prices would otherwise drift into 0.30000000000000004.
   return Math.round(amount * 100) / 100;
@@ -184,4 +187,5 @@ module.exports = {
   addOnsSubtotalOf,
   additionalFeesTotalOf,
   money,
+  MAX_FINANCIAL_AMOUNT,
 };

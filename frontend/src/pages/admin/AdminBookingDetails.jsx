@@ -66,6 +66,7 @@ import useAuth from "../../hooks/useAuth";
 import { createConversation } from "../../api/messages";
 import { menuAmountLabel, menuLineTotal } from "../../utils/quotationPricing";
 import { isFoodOnly, isSetupOnly, resolveServiceType } from "../../components/customer/portal/statusMeta";
+import { MAX_FINANCIAL_AMOUNT } from "../../lib/validationRules";
 
 const safeDateToIsoString = (val) => {
   if (!val) return "";
@@ -388,6 +389,10 @@ export default function AdminBookingDetails() {
       notify("Please enter a valid damage/loss fee amount (0 or greater).", "error");
       return;
     }
+    if (numFee > MAX_FINANCIAL_AMOUNT) {
+      notify("Amount cannot exceed ₱10,000,000.", "error");
+      return;
+    }
 
     const existing = findExistingDamageCharge(selectedDamageItem);
     const existingAmount = existing ? Number(existing.amount) || 0 : 0;
@@ -401,6 +406,10 @@ export default function AdminBookingDetails() {
       }
       const netDelta = numFee - existingAmount;
       const projectedTotal = (booking.total_price || 0) + netDelta;
+      if (projectedTotal > MAX_FINANCIAL_AMOUNT) {
+        notify("Resulting total amount cannot exceed ₱10,000,000.", "error");
+        return;
+      }
       if (projectedTotal < totalPaid) {
         notify(
           `Cannot adjust damage fee because the resulting total (₱${projectedTotal.toLocaleString()}) would be less than total amount already paid (₱${totalPaid.toLocaleString()}).`,
@@ -408,6 +417,9 @@ export default function AdminBookingDetails() {
         );
         return;
       }
+    } else if (!isAdjustment && ((booking.total_price || 0) + numFee) > MAX_FINANCIAL_AMOUNT) {
+      notify("Resulting total amount cannot exceed ₱10,000,000.", "error");
+      return;
     }
 
     setDamageChargeSubmitting(true);
@@ -3453,6 +3465,7 @@ export default function AdminBookingDetails() {
                         <input
                           type="number"
                           min="0"
+                          max={MAX_FINANCIAL_AMOUNT}
                           step="1"
                           value={damageFeeInput}
                           onChange={(e) => setDamageFeeInput(e.target.value)}
@@ -3545,6 +3558,13 @@ export default function AdminBookingDetails() {
                         </div>
                       </div>
 
+                      {enteredFee > MAX_FINANCIAL_AMOUNT && (
+                        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+                          <AlertCircle size={14} className="shrink-0 mt-0.5 text-rose-600" />
+                          <span>Amount cannot exceed ₱10,000,000.</span>
+                        </div>
+                      )}
+
                       {makesTotalLessThanPaid && (
                         <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
                           <AlertCircle size={14} className="shrink-0 mt-0.5 text-rose-600" />
@@ -3584,7 +3604,7 @@ export default function AdminBookingDetails() {
                         isAdjustment ? "bg-amber-600 hover:bg-amber-700" : "bg-rose-600 hover:bg-rose-700"
                       }`}
                       onClick={handleConfirmDamageCharge}
-                      disabled={damageChargeSubmitting || damageFeeInput === "" || Number(damageFeeInput) < 0 || makesTotalLessThanPaid || isPaidBooking}
+                      disabled={damageChargeSubmitting || damageFeeInput === "" || Number(damageFeeInput) < 0 || Number(damageFeeInput) > MAX_FINANCIAL_AMOUNT || makesTotalLessThanPaid || isPaidBooking}
                       id="confirm-damage-charge-btn"
                       data-testid="confirm-damage-charge-btn"
                     >

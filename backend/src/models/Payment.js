@@ -4,7 +4,20 @@ const PaymentSchema = new mongoose.Schema({
   booking_id: { type: mongoose.Schema.Types.ObjectId, ref: "Booking" },
   inquiry_id: { type: mongoose.Schema.Types.ObjectId, ref: "Inquiry" },
   customer_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  amount: Number,
+  amount: {
+    type: Number,
+    required: true,
+    validate: {
+      validator: function(val) {
+        if (typeof val !== "number" || !Number.isFinite(val) || Number.isNaN(val)) return false;
+        if (this.payment_type === "refund") {
+          return val >= -10000000 && val <= 0;
+        }
+        return val >= 0 && val <= 10000000;
+      },
+      message: "Amount cannot exceed ₱10,000,000."
+    }
+  },
   currency: { type: String, default: "PHP" },
   payment_type: String,
   method: String,

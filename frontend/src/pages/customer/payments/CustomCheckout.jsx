@@ -10,6 +10,7 @@ import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { ShieldCheck, CreditCard, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MAX_FINANCIAL_AMOUNT } from "@/lib/validationRules";
 
 export default function CustomCheckout() {
   const location = useLocation();
@@ -41,6 +42,12 @@ export default function CustomCheckout() {
   useEffect(() => {
     if (!bookingId || !amount) {
       notify("Missing payment details. Redirecting...", "error");
+      navigate("/customer/bookings");
+      return;
+    }
+
+    if (Number(amount) <= 0 || Number(amount) > MAX_FINANCIAL_AMOUNT) {
+      notify("Amount cannot exceed ₱10,000,000.", "error");
       navigate("/customer/bookings");
       return;
     }

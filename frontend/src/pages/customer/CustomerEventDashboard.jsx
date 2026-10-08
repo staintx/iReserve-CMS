@@ -2319,33 +2319,6 @@ export default function CustomerEventDashboard() {
                 <BookingVersionHistory booking={booking} sourceQuotation={sourceQuotation} />
               </CardContent>
             </Card>
-
-            {sourceQuotation && (
-              <Card className="border-slate-200/80 shadow-xs rounded-xl bg-white">
-                <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between text-xs">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-900">Source quotation</p>
-                    <p className="text-slate-500 mt-0.5">
-                      <span className="tabular-nums">
-                        {sourceQuotation.quotation.quotation_number || "Quotation"} · Version{" "}
-                        {Number(sourceQuotation.quotation.version_number) || 1}.0
-                      </span>
-                      {sourceQuotation.quotation.status === "Accepted" && sourceQuotation.quotation.updatedAt && (
-                        <> · Accepted {formatShortDate(sourceQuotation.quotation.updatedAt)}</>
-                      )}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0 text-xs h-8 px-3 border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 hover:text-[#4C81E0] rounded-lg transition-all"
-                    onClick={() => navigate("/customer/inquiries")}
-                  >
-                    <FileText className="h-3.5 w-3.5 mr-1 text-slate-400" /> View original quote
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
           </TabsContent>
         </Tabs>
       </div>

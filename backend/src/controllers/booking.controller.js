@@ -972,28 +972,280 @@ exports.update = asyncHandler(async (req, res) => {
     }
   }
 
-  // Contract-level revision fields (only track customer-facing contract terms)
-  const contractRevisionFields = [
-    "event_date",
-    "start_time",
-    "guest_count",
-    "duration_hours",
-    "total_price",
-    "venue_type",
-    "service_type",
-    "province",
-    "municipality",
-    "barangay",
-    "street",
-  ];
+  // Contract-level revision diff helper
+  const normDateStr = (d) => {
+    if (!d) return "";
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d).trim();
+    const offset = dt.getTimezoneOffset() * 60000;
+    return new Date(dt.getTime() - offset).toISOString().slice(0, 10);
+  };
+
   const revisionChanges = {};
-  for (const field of contractRevisionFields) {
-    if (
-      req.body[field] !== undefined &&
-      String(current[field] ?? "") !== String(req.body[field] ?? "")
-    ) {
-      revisionChanges[field] = { from: current[field], to: req.body[field] };
+  const changedItems = [];
+
+  // 1. Date comparison
+  if (req.body.event_date !== undefined) {
+    const fromDate = normDateStr(current.event_date);
+    const toDate = normDateStr(req.body.event_date);
+    if (fromDate !== toDate && toDate) {
+      revisionChanges.event_date = { from: current.event_date, to: req.body.event_date };
     }
+  }
+
+  // 2. Scalar fields
+  const scalarMap = [
+    { key: "start_time", isNum: false },
+    { key: "guest_count", isNum: true },
+    { key: "duration_hours", isNum: true },
+    { key: "venue_type", isNum: false },
+    { key: "service_type", isNum: false },
+    { key: "event_theme", isNum: false },
+    { key: "event_palette", isNum: false },
+    { key: "delivery_method", isNum: false },
+    { key: "package_name_snapshot", isNum: false },
+    { key: "package_price", isNum: true },
+    { key: "package_starting_price", isNum: true },
+  ];
+
+  for (const { key, isNum } of scalarMap) {
+    if (req.body[key] !== undefined) {
+      const fromVal = current[key];
+      const toVal = req.body[key];
+      const isDifferent = isNum
+        ? Number(fromVal || 0) !== Number(toVal || 0)
+        : String(fromVal || "").trim() !== String(toVal || "").trim();
+      if (isDifferent) {
+        revisionChanges[key] = { from: fromVal, to: toVal };
+      }
+    }
+  }
+
+  // 3. Address comparison
+  const addressFields = ["street", "barangay", "municipality", "province", "landmark"];
+  const addressChanged = addressFields.some(
+    (f) => req.body[f] !== undefined && String(current[f] || "").trim() !== String(req.body[f] || "").trim()
+  );
+  if (addressChanged) {
+    const fromAddr = [current.street, current.barangay, current.municipality, current.province].filter(Boolean).join(", ");
+    const toAddr = [req.body.street ?? current.street, req.body.barangay ?? current.barangay, req.body.municipality ?? current.municipality, req.body.province ?? current.province].filter(Boolean).join(", ");
+    if (fromAddr !== toAddr && toAddr) {
+      revisionChanges.venue_address = { from: fromAddr || "Pending", to: toAddr || "Pending" };
+    }
+  }
+
+  // 4. Menu Items diff
+  if (Array.isArray(req.body.menu_items)) {
+    const prevMenu = Array.isArray(current.menu_items) ? current.menu_items : [];
+    const currMenu = req.body.menu_items;
+    const prevByName = new Map(prevMenu.map((m) => [String(m?.name || "").trim().toLowerCase(), m]));
+    const currByName = new Map(currMenu.map((m) => [String(m?.name || "").trim().toLowerCase(), m]));
+
+    currByName.forEach((currItem, nameKey) => {
+      if (!nameKey) return;
+      const prevItem = prevByName.get(nameKey);
+      const currQty = Number(currItem?.quantity) || 1;
+      const currPrice = Number(currItem?.price) || 0;
+      const currGuestCount = Number(req.body.guest_count || current.guest_count) || 1;
+      const currTotal = currItem?.pricing_type === "per_guest" ? currPrice * currGuestCount : currPrice * currQty;
+
+      if (!prevItem) {
+        changedItems.push({
+          kind: "added",
+          category: "Food Menu Dish",
+          name: currItem?.name || "Dish",
+          quantity: currQty,
+          unit: currItem?.unit || "Per Pax",
+          price: currPrice,
+          total: currTotal,
+          pricing_type: currItem?.pricing_type,
+        });
+      } else {
+        const prevQty = Number(prevItem?.quantity) || 1;
+        const prevPrice = Number(prevItem?.price) || 0;
+        const prevGuestCount = Number(current.guest_count) || 1;
+        const prevTotal = prevItem?.pricing_type === "per_guest" ? prevPrice * prevGuestCount : prevPrice * prevQty;
+
+        const qtyDiff = prevQty !== currQty && currItem?.pricing_type !== "per_guest";
+        const priceDiff = prevPrice !== currPrice;
+        const unitDiff = String(prevItem?.unit || "").trim() !== String(currItem?.unit || "").trim();
+        const totalDiff = prevTotal !== currTotal;
+
+        if (qtyDiff || priceDiff || unitDiff || totalDiff) {
+          changedItems.push({
+            kind: "updated",
+            category: "Food Menu Dish",
+            name: currItem?.name || prevItem?.name || "Dish",
+            fromQty: prevQty,
+            toQty: currQty,
+            fromPrice: prevPrice,
+            toPrice: currPrice,
+            fromUnit: prevItem?.unit || "Per Pax",
+            toUnit: currItem?.unit || "Per Pax",
+            fromTotal: prevTotal,
+            toTotal: currTotal,
+            priceDiff: currTotal - prevTotal,
+            pricing_type: currItem?.pricing_type,
+          });
+        }
+      }
+    });
+
+    prevByName.forEach((prevItem, nameKey) => {
+      if (!nameKey || currByName.has(nameKey)) return;
+      const prevQty = Number(prevItem?.quantity) || 1;
+      const prevPrice = Number(prevItem?.price) || 0;
+      const prevGuestCount = Number(current.guest_count) || 1;
+      const prevTotal = prevItem?.pricing_type === "per_guest" ? prevPrice * prevGuestCount : prevPrice * prevQty;
+      changedItems.push({
+        kind: "removed",
+        category: "Food Menu Dish",
+        name: prevItem?.name || "Dish",
+        quantity: prevQty,
+        unit: prevItem?.unit || "Per Pax",
+        price: prevPrice,
+        total: prevTotal,
+      });
+    });
+  }
+
+  // 5. Service Items (Add-ons) diff
+  if (Array.isArray(req.body.service_items)) {
+    const prevServices = Array.isArray(current.service_items) && current.service_items.length > 0
+      ? current.service_items
+      : Array.isArray(current.add_ons)
+      ? current.add_ons
+      : [];
+    const currServices = req.body.service_items;
+    const prevByName = new Map(prevServices.map((s) => [String(s?.name || "").trim().toLowerCase(), s]));
+    const currByName = new Map(currServices.map((s) => [String(s?.name || "").trim().toLowerCase(), s]));
+
+    currByName.forEach((currItem, nameKey) => {
+      if (!nameKey) return;
+      const prevItem = prevByName.get(nameKey);
+      const currQty = Number(currItem?.quantity) || 1;
+      const currPrice = Number(currItem?.price) || 0;
+      const currTotal = currPrice * currQty;
+
+      if (!prevItem) {
+        changedItems.push({
+          kind: "added",
+          category: "Add-on & Service",
+          name: currItem?.name || "Add-on",
+          quantity: currQty,
+          price: currPrice,
+          total: currTotal,
+        });
+      } else {
+        const prevQty = Number(prevItem?.quantity) || 1;
+        const prevPrice = Number(prevItem?.price) || 0;
+        const prevTotal = prevPrice * prevQty;
+
+        if (prevQty !== currQty || prevPrice !== currPrice || prevTotal !== currTotal) {
+          changedItems.push({
+            kind: "updated",
+            category: "Add-on & Service",
+            name: currItem?.name || prevItem?.name || "Add-on",
+            fromQty: prevQty,
+            toQty: currQty,
+            fromPrice: prevPrice,
+            toPrice: currPrice,
+            fromTotal: prevTotal,
+            toTotal: currTotal,
+            priceDiff: currTotal - prevTotal,
+          });
+        }
+      }
+    });
+
+    prevByName.forEach((prevItem, nameKey) => {
+      if (!nameKey || currByName.has(nameKey)) return;
+      const prevQty = Number(prevItem?.quantity) || 1;
+      const prevPrice = Number(prevItem?.price) || 0;
+      changedItems.push({
+        kind: "removed",
+        category: "Add-on & Service",
+        name: prevItem?.name || "Add-on",
+        quantity: prevQty,
+        price: prevPrice,
+        total: prevPrice * prevQty,
+      });
+    });
+  }
+
+  // 6. Additional charges diff
+  if (Array.isArray(req.body.additional_charges)) {
+    const prevCharges = Array.isArray(current.additional_charges) && current.additional_charges.length > 0
+      ? current.additional_charges
+      : Array.isArray(current.additional_fees)
+      ? current.additional_fees
+      : [];
+    const currCharges = req.body.additional_charges;
+
+    const chargeKey = (name) => {
+      const s = String(name || "").trim().toLowerCase();
+      if (/transport|logistics/i.test(s)) return "__fee_transport__";
+      if (/equipment/i.test(s)) return "__fee_equipment__";
+      if (/styling|decor/i.test(s)) return "__fee_decor__";
+      return s;
+    };
+
+    const prevByName = new Map(prevCharges.map((c) => [chargeKey(c?.name), c]));
+    const currByName = new Map(currCharges.map((c) => [chargeKey(c?.name), c]));
+
+    currByName.forEach((currItem, key) => {
+      if (!key) return;
+      const prevItem = prevByName.get(key);
+      const currAmt = Number(currItem?.amount) || 0;
+      if (!prevItem) {
+        changedItems.push({
+          kind: "added",
+          category: "Adjustment / Fee",
+          name: currItem?.name || "Fee",
+          price: currAmt,
+          total: currAmt,
+        });
+      } else {
+        const prevAmt = Number(prevItem?.amount) || 0;
+        if (prevAmt !== currAmt) {
+          changedItems.push({
+            kind: "updated",
+            category: "Adjustment / Fee",
+            name: currItem?.name || prevItem?.name || "Fee",
+            fromPrice: prevAmt,
+            toPrice: currAmt,
+            fromTotal: prevAmt,
+            toTotal: currAmt,
+            priceDiff: currAmt - prevAmt,
+          });
+        }
+      }
+    });
+
+    prevByName.forEach((prevItem, key) => {
+      if (!key || currByName.has(key)) return;
+      const prevAmt = Number(prevItem?.amount) || 0;
+      changedItems.push({
+        kind: "removed",
+        category: "Adjustment / Fee",
+        name: prevItem?.name || "Fee",
+        price: prevAmt,
+        total: prevAmt,
+      });
+    });
+  }
+
+  // 7. Total Price comparison
+  if (req.body.total_price !== undefined) {
+    const fromTotal = Number(current.total_price) || 0;
+    const toTotal = Number(req.body.total_price) || 0;
+    if (fromTotal !== toTotal) {
+      revisionChanges.total_price = { from: fromTotal, to: toTotal };
+    }
+  }
+
+  if (changedItems.length > 0) {
+    revisionChanges.items = changedItems;
   }
 
   const changedFieldNames = Object.keys(changes);
@@ -1083,6 +1335,9 @@ exports.update = asyncHandler(async (req, res) => {
           venue_type: updated.venue_type,
           service_type: updated.service_type,
           status: updated.status,
+          menu_items: updated.menu_items,
+          service_items: updated.service_items,
+          additional_charges: updated.additional_charges,
         },
         created_at: new Date(),
       });

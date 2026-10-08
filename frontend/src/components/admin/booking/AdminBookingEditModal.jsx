@@ -235,12 +235,29 @@ const nonNegative = (value) => {
   return String(value);
 };
 
-const STANDARD_UNITS = ["Bilao", "Piece", "Kilo", "Gallon", "Tray", "Plate", "Pax", "Set"];
+const STANDARD_UNITS = [
+  "Per Piece",
+  "Per Kilo",
+  "Per Gallon",
+  "Per Tray",
+  "Per Bilao",
+  "Per Pax",
+  "Per Set",
+  "Per Plate",
+];
 
 const findStandardUnit = (unit) => {
   if (!unit) return null;
-  const lower = String(unit).trim().toLowerCase();
-  return STANDARD_UNITS.find((u) => u.toLowerCase() === lower) || null;
+  const raw = String(unit).trim().toLowerCase();
+  if (!raw) return null;
+  const exact = STANDARD_UNITS.find((u) => u.toLowerCase() === raw);
+  if (exact) return exact;
+  const stripped = raw.replace(/^per[\s_]+/i, "").replace(/[\s_]+/g, "");
+  const match = STANDARD_UNITS.find(
+    (u) => u.toLowerCase().replace(/^per[\s_]+/i, "").replace(/[\s_]+/g, "") === stripped
+  );
+  if (match) return match;
+  return null;
 };
 
 const inclusionText = (inclusion) =>
@@ -577,14 +594,16 @@ export default function AdminBookingEditModal({
     setMenuItems(
       rawMenu.map((m) => {
         const perGuest = m?.pricing_type === MENU_PRICING.PER_GUEST;
-        const rawUnit = perGuest ? "pax" : m?.unit || "";
-        const isStd = Boolean(findStandardUnit(rawUnit));
+        const rawUnit = perGuest ? (m?.unit || "Per Pax") : (m?.unit || "");
+        const stdUnit = findStandardUnit(rawUnit);
+        const resolvedUnit = stdUnit || rawUnit;
+        const isStd = Boolean(stdUnit);
         return menuRow({
           name: m?.name || "",
           category: m?.category || "Main Course",
           note: m?.note || "",
           quantity: perGuest ? guests : Number(m?.quantity) > 0 ? Number(m.quantity) : 1,
-          unit: rawUnit,
+          unit: resolvedUnit,
           isCustomUnit: !isStd && Boolean(String(rawUnit).trim()),
           pricing_type: m?.pricing_type || MENU_PRICING.PER_GUEST,
           price: m?.price ? String(m.price) : "",
@@ -896,13 +915,24 @@ export default function AdminBookingEditModal({
 
   const handleAddCatalogDish = () => {
     if (!selectedCatalogDishObj) return;
-    const existing = menuItems.find(
+    const existingIndex = menuItems.findIndex(
       (m) => m.name.toLowerCase().trim() === selectedCatalogDishObj.name.toLowerCase().trim()
     );
-    if (existing) {
+    if (existingIndex !== -1) {
+      if (menuItems[existingIndex].removed) {
+        setMenuItems((prev) =>
+          prev.map((m, idx) => (idx === existingIndex ? { ...m, removed: false } : m))
+        );
+        notify(`"${selectedCatalogDishObj.name}" has been restored to the menu list.`, "success");
+        setSelectedCatalogDish("");
+        setIsCatalogDropdownOpen(false);
+        return;
+      }
       notify(`"${selectedCatalogDishObj.name}" is already in the menu list.`, "info");
       return;
     }
+    const resolvedUnit =
+      findStandardUnit(selectedCatalogDishObj.unit) || selectedCatalogDishObj.unit || "Per Pax";
     setMenuItems((prev) => [
       ...prev,
       menuRow({
@@ -910,7 +940,7 @@ export default function AdminBookingEditModal({
         category: selectedCatalogDishObj.category || "Main Course",
         note: selectedCatalogDishObj.description || "",
         quantity: 1,
-        unit: selectedCatalogDishObj.unit || "Pax",
+        unit: resolvedUnit,
         pricing_type: selectedCatalogDishObj.pricing_type || MENU_PRICING.QUANTITY,
         price: selectedCatalogDishObj.price ? String(selectedCatalogDishObj.price) : "",
         image_url: selectedCatalogDishObj.image_url || "",
@@ -927,7 +957,7 @@ export default function AdminBookingEditModal({
         name: "Custom Dish",
         category: "Main Course",
         quantity: 1,
-        unit: "Pax",
+        unit: "Per Pax",
         pricing_type: MENU_PRICING.QUANTITY,
         price: "",
       }),
@@ -949,6 +979,12 @@ export default function AdminBookingEditModal({
         }
         return { ...item, isCustomUnit: false, unit: val };
       })
+    );
+  };
+
+  const toggleMenuRemoved = (index) => {
+    setMenuItems((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, removed: !item.removed } : item))
     );
   };
 
@@ -986,13 +1022,22 @@ export default function AdminBookingEditModal({
 
   const handleAddCatalogAddon = () => {
     if (!selectedCatalogAddonObj) return;
-    const existing = addOns.find(
+    const existingIndex = addOns.findIndex(
       (a) => a.name.toLowerCase().trim() === selectedCatalogAddonObj.name.toLowerCase().trim()
     );
-    if (existing) {
+    if (existingIndex !== -1) {
+      if (addOns[existingIndex].removed) {
+        setAddOns((prev) =>
+          prev.map((a, idx) => (idx === existingIndex ? { ...a, removed: false } : a))
+        );
+        notify(`"${selectedCatalogAddonObj.name}" has been restored to add-ons.`, "success");
+        setSelectedCatalogAddon("");
+        setIsAddonDropdownOpen(false);
+        return;
+      }
       setAddOns((prev) =>
-        prev.map((a) =>
-          a.name.toLowerCase().trim() === selectedCatalogAddonObj.name.toLowerCase().trim()
+        prev.map((a, idx) =>
+          idx === existingIndex
             ? { ...a, quantity: (Number(a.quantity) || 1) + 1 }
             : a
         )
@@ -1031,6 +1076,12 @@ export default function AdminBookingEditModal({
   const handleAddOnChange = (index, field, value) => {
     setAddOns((prev) =>
       prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const toggleAddonRemoved = (index) => {
+    setAddOns((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, removed: !item.removed } : item))
     );
   };
 
@@ -2225,7 +2276,7 @@ export default function AdminBookingEditModal({
                 aside={
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
-                      {activeMenuItems.length} dishes
+                      {activeMenuItems.length} kept{menuItems.length > activeMenuItems.length ? `, ${menuItems.length - activeMenuItems.length} removed` : " dishes"}
                     </span>
                     <button
                       type="button"
@@ -2354,7 +2405,7 @@ export default function AdminBookingEditModal({
                     </div>
 
                     {/* Grouped Menu Dish List */}
-                    {activeMenuItems.length === 0 ? (
+                    {menuItems.length === 0 ? (
                       <p className="text-center text-xs text-slate-400 italic py-4">
                         No dishes added yet. Pick a dish from the catalog above or click &ldquo;+ Custom dish&rdquo;.
                       </p>
@@ -2374,7 +2425,7 @@ export default function AdminBookingEditModal({
                                 const isOthers = Boolean(
                                   item.isCustomUnit || (!standard && String(item.unit || "").trim())
                                 );
-                                const selectedDropdownValue = standard || (isOthers ? "Others" : "Pax");
+                                const selectedDropdownValue = standard || (isOthers ? "Others" : "Per Pax");
                                 const lineTotal = menuLineTotal(item, details.guest_count);
 
                                 return (
@@ -2382,7 +2433,7 @@ export default function AdminBookingEditModal({
                                     key={originalIndex}
                                     className={`rounded-lg border p-2.5 transition-colors ${
                                       item.removed
-                                        ? "border-slate-300 bg-slate-50"
+                                        ? "border-slate-300 bg-slate-50 opacity-75"
                                         : "border-violet-200 bg-white"
                                     }`}
                                   >
@@ -2455,6 +2506,19 @@ export default function AdminBookingEditModal({
                                               className="pointer-events-none absolute right-1 text-slate-400"
                                             />
                                           </div>
+                                          {isOthers && (
+                                            <input
+                                              type="text"
+                                              disabled={item.removed}
+                                              placeholder="e.g. Per Tub"
+                                              value={item.unit || ""}
+                                              onChange={(e) =>
+                                                handleMenuChange(originalIndex, "unit", e.target.value)
+                                              }
+                                              className="w-20 rounded border border-violet-200 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                              autoFocus={item.isCustomUnit && !item.unit}
+                                            />
+                                          )}
                                         </div>
 
                                         {/* Pricing Mode Toggle */}
@@ -2499,17 +2563,27 @@ export default function AdminBookingEditModal({
                                             Line total
                                           </span>
                                           <span className="text-xs font-bold tabular-nums text-slate-800">
-                                            {formatCurrency(lineTotal)}
+                                            {item.removed ? "—" : formatCurrency(lineTotal)}
                                           </span>
                                         </div>
 
-                                        <RowAction
-                                          onClick={() => handleDeleteMenu(originalIndex)}
-                                          icon={Trash2}
-                                          label="Delete"
-                                          tone="danger"
-                                          title="Delete dish from menu"
-                                        />
+                                        {item.removed ? (
+                                          <RowAction
+                                            onClick={() => toggleMenuRemoved(originalIndex)}
+                                            icon={Undo2}
+                                            label="Restore"
+                                            tone="neutral"
+                                            title="Restore this dish"
+                                          />
+                                        ) : (
+                                          <RowAction
+                                            onClick={() => toggleMenuRemoved(originalIndex)}
+                                            icon={Trash2}
+                                            label="Delete"
+                                            tone="danger"
+                                            title="Delete dish from menu"
+                                          />
+                                        )}
                                       </div>
                                     </div>
                                   </li>
@@ -2535,7 +2609,7 @@ export default function AdminBookingEditModal({
                 aside={
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
-                      {activeAddOns.length} items
+                      {activeAddOns.length} kept{addOns.length > activeAddOns.length ? `, ${addOns.length - activeAddOns.length} removed` : " items"}
                     </span>
                     <button
                       type="button"
@@ -2621,23 +2695,32 @@ export default function AdminBookingEditModal({
                 </div>
 
                 {/* Add-ons List */}
-                {activeAddOns.length === 0 ? (
+                {addOns.length === 0 ? (
                   <p className="text-center text-xs text-slate-400 italic py-4">
                     No add-ons or extra services added to this booking.
                   </p>
                 ) : (
                   <ul className="space-y-2">
                     {addOns.map((item, index) => {
-                      if (item.removed) return null;
                       return (
-                        <li key={index} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                        <li
+                          key={index}
+                          className={`rounded-lg border p-2.5 transition-colors ${
+                            item.removed
+                              ? "border-slate-300 bg-slate-50 opacity-75"
+                              : "border-slate-200 bg-white"
+                          }`}
+                        >
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                             <input
                               type="text"
+                              disabled={item.removed}
                               value={item.name}
                               onChange={(e) => handleAddOnChange(index, "name", e.target.value)}
                               placeholder="Add-on name"
-                              className={`${inputClass(false)} flex-1 py-1.5 text-xs font-semibold`}
+                              className={`${inputClass(false)} flex-1 py-1.5 text-xs font-semibold ${
+                                item.removed ? "line-through decoration-slate-400" : ""
+                              }`}
                             />
                             <div className="flex items-center gap-2">
                               <div className="flex items-center gap-1">
@@ -2647,6 +2730,7 @@ export default function AdminBookingEditModal({
                                 <input
                                   type="number"
                                   min="1"
+                                  disabled={item.removed}
                                   value={item.quantity}
                                   onWheel={(e) => e.target.blur()}
                                   onChange={(e) => handleAddOnChange(index, "quantity", e.target.value)}
@@ -2657,6 +2741,7 @@ export default function AdminBookingEditModal({
                               <div className="w-28">
                                 <MoneyInput
                                   value={item.price}
+                                  disabled={item.removed}
                                   placeholder="Price"
                                   onChange={(val) => handleAddOnChange(index, "price", val)}
                                   className="py-1.5 text-xs"
@@ -2668,17 +2753,27 @@ export default function AdminBookingEditModal({
                                   Line total
                                 </span>
                                 <span className="text-xs font-bold tabular-nums text-slate-800">
-                                  {formatCurrency(addOnLineTotal(item))}
+                                  {item.removed ? "—" : formatCurrency(addOnLineTotal(item))}
                                 </span>
                               </div>
 
-                              <RowAction
-                                onClick={() => handleDeleteAddOn(index)}
-                                icon={Trash2}
-                                label="Delete"
-                                tone="danger"
-                                title="Remove add-on"
-                              />
+                              {item.removed ? (
+                                <RowAction
+                                  onClick={() => toggleAddonRemoved(index)}
+                                  icon={Undo2}
+                                  label="Restore"
+                                  tone="neutral"
+                                  title="Restore this add-on"
+                                />
+                              ) : (
+                                <RowAction
+                                  onClick={() => toggleAddonRemoved(index)}
+                                  icon={Trash2}
+                                  label="Delete"
+                                  tone="danger"
+                                  title="Remove add-on"
+                                />
+                              )}
                             </div>
                           </div>
                         </li>

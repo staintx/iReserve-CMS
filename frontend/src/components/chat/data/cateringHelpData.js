@@ -73,7 +73,7 @@ Dates are officially locked only once the initial reservation downpayment is ver
         title: "How do I check if my target date is open?",
         summary: "Use Zelle AI or the booking calendar to check live date status.",
         content: `You can check availability right here in this assistant! Simply ask Zelle:
-- Type your date and guests: *"Is December 15, 2026 available for 150 guests?"*
+- Type your date and guests: *"Is [Your Target Date] available for 150 guests?"*
 - Zelle connects directly to our real-time calendar and confirms whether the date is open, booked, or near capacity.`,
         relatedPrompt: "Check if my date is available for catering"
       }

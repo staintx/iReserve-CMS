@@ -76,7 +76,7 @@ const CUSTOMER_TOOLS = [
       properties: {
         date: {
           type: "STRING",
-          description: "The date to check in YYYY-MM-DD format (e.g., '2026-12-15').",
+          description: "The date to check in YYYY-MM-DD format.",
         },
       },
       required: ["date"],

@@ -173,11 +173,16 @@ export default function CustomerReceiptModal({
             {/* 1. Business Header (Compact & Centered) */}
             <div className="text-center pt-0.5 pb-1">
               <h2 className="text-base sm:text-lg font-bold font-serif tracking-tight text-slate-900">
-                Caezelle's Catering
+                {businessInfo.business_name || "Caezelle's Catering"}
               </h2>
               <p className="text-[11px] text-slate-500">
-                Food, Catering &amp; Services • {businessInfo.address || "123 Culinary Street Food City"}
+                Food, Catering &amp; Services{businessInfo.address ? ` • ${businessInfo.address}` : ""}
               </p>
+              {(businessInfo.contact_number || businessInfo.email) && (
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {[businessInfo.contact_number ? `Tel: ${businessInfo.contact_number}` : null, businessInfo.email].filter(Boolean).join(" • ")}
+                </p>
+              )}
             </div>
 
             {/* 2. Amount Paid (Focused Visual Emphasis without oversized card) */}

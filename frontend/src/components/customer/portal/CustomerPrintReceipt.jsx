@@ -87,11 +87,11 @@ export default function CustomerPrintReceipt({
   const paidAt = payment.paid_at || payment.createdAt;
   const paymentStatus = payment.status || "approved";
 
-  const bizName = "CAEZELLE'S CATERING";
-  const bizSub = "Food, Catering & Services";
-  const bizAddress = businessInfo.address || "123 Culinary Street Food City";
-  const bizPhone = businessInfo.contact_number || "09123456789";
-  const bizEmail = businessInfo.email || "info@caezelle.com";
+  const bizName = (businessInfo.business_name || "CAEZELLE'S CATERING").toUpperCase();
+  const bizSub = "FOOD, CATERING & SERVICES";
+  const bizAddress = businessInfo.address?.trim() || null;
+  const bizPhone = businessInfo.contact_number?.trim() || null;
+  const bizEmail = businessInfo.email?.trim() || null;
 
   return createPortal(
     <div id="caz-receipt-print-root" className="caz-receipt-print-container" aria-hidden="true">

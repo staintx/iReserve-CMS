@@ -52,6 +52,7 @@ import Pagination from "../../components/admin/table/Pagination";
 import usePagination from "../../hooks/usePagination";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import RecordPaymentModal from "../../components/admin/payment/RecordPaymentModal";
+import AdminReceiptModal from "../../components/admin/payment/AdminReceiptModal";
 
 export default function AdminPayments() {
   const navigate = useNavigate();
@@ -61,6 +62,7 @@ export default function AdminPayments() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [payments, setPayments] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [businessInfo, setBusinessInfo] = useState({});
   const [depositPercentage, setDepositPercentage] = useState(20);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -92,6 +94,7 @@ export default function AdminPayments() {
       ]);
       setPayments(pRes.data || []);
       setBookings(bRes.data || []);
+      setBusinessInfo(bizRes.data || {});
       if (bizRes?.data?.deposit_percentage) {
         setDepositPercentage(Number(bizRes.data.deposit_percentage));
       }
@@ -1165,118 +1168,18 @@ export default function AdminPayments() {
         />
 
         {/* Official Printable Receipt / Refund Voucher Modal */}
-        {receiptModalRow && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-lg max-w-xl w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 my-6">
-              {(() => {
-                const isRefund = receiptModalRow.payment_type === "refund";
-                const typeInfo = getPaymentTypeInfo(receiptModalRow);
-                const statusLabel = getTransactionStatusLabel(receiptModalRow);
-
-                return (
-                  <>
-                    {/* Action Header */}
-                    <div className="flex items-center justify-between border-b border-gray-200 pb-4 print:hidden">
-                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                        {isRefund ? "Refund Voucher Preview" : "Official Receipt Preview"}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Btn variant="primary" size="sm" onClick={() => window.print()}>
-                          <Printer size={13} /> {isRefund ? "Print Voucher" : "Print Receipt"}
-                        </Btn>
-                        <button onClick={() => setReceiptModalRow(null)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700">
-                          <X size={18} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Receipt Layout Printable Canvas */}
-                    <div className="space-y-6 text-foreground" id="receipt-print-area">
-                      {/* Header Branding */}
-                      <div className="text-center border-b border-gray-200 pb-4">
-                        <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-accent">
-                          iReserve Events & Catering
-                        </h2>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {isRefund
-                            ? "Cavite, Philippines • Official Refund Voucher & Credit Memo"
-                            : "Cavite, Philippines • Official Payment Voucher"}
-                        </p>
-                      </div>
-
-                      {/* Receipt Metadata */}
-                      <div className="grid grid-cols-2 gap-4 text-xs">
-                        <div>
-                          <span className="text-gray-400 block">{isRefund ? "VOUCHER NUMBER" : "RECEIPT NUMBER"}</span>
-                          <span className="font-mono font-bold text-sm text-foreground">
-                            {isRefund ? "VCH-" : "REC-"}{receiptModalRow._id.slice(-8).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-gray-400 block">DATE & TIME</span>
-                          <span className="font-semibold">{formatDateTime(receiptModalRow.paid_at || receiptModalRow.createdAt)}</span>
-                        </div>
-                      </div>
-
-                      {/* Billed To */}
-                      <div className="bg-gray-50 p-4 rounded-xl space-y-1 text-xs border border-gray-100">
-                        <div className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">
-                          {isRefund ? "Refund Beneficiary Details" : "Payer Details"}
-                        </div>
-                        <div className="font-bold text-sm text-foreground">{getCustomerName(receiptModalRow)}</div>
-                        <div className="text-gray-500">{getCustomerEmail(receiptModalRow)}</div>
-                        <div className="text-gray-500 font-mono">Booking Ref: {getBookingRef(receiptModalRow)}</div>
-                        {isRefund && receiptModalRow.metadata?.reason && (
-                          <div className="text-xs text-rose-700 pt-1 font-medium">
-                            Refund Reason: {receiptModalRow.metadata.reason}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Financial Table Breakdown */}
-                      <table className="w-full text-xs text-left">
-                        <thead>
-                          <tr className="border-b border-gray-200 text-gray-400 text-[10px] uppercase">
-                            <th className="py-2">Description / Type</th>
-                            <th className="py-2">Method</th>
-                            <th className="py-2 text-right">{isRefund ? "Amount Refunded" : "Amount Paid"}</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          <tr>
-                            <td className="py-3 font-semibold text-foreground">
-                              {typeInfo.label}
-                            </td>
-                            <td className="py-3 text-gray-600">
-                              {getMethodBadge(receiptModalRow.method).label}
-                            </td>
-                            <td className={`py-3 text-right font-bold text-sm ${isRefund ? "text-rose-600 font-mono" : "text-emerald-600"}`}>
-                              {formatTransactionAmount(receiptModalRow)}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-
-                      {/* Status & Signature Footer */}
-                      <div className="border-t border-gray-200 pt-4 flex items-center justify-between text-xs">
-                        <div>
-                          <span className="text-gray-400 block text-[10px]">TRANSACTION STATUS</span>
-                          <span className={`font-bold uppercase tracking-wider ${isRefund ? "text-rose-600" : "text-emerald-600"}`}>
-                            {statusLabel}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <div className="border-b border-gray-400 w-32 ml-auto mb-1"></div>
-                          <span className="text-[10px] text-gray-400 block uppercase">Authorized Signature</span>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-          </div>
-        )}
+        <AdminReceiptModal
+          isOpen={Boolean(receiptModalRow)}
+          payment={receiptModalRow}
+          booking={
+            bookings.find(
+              (b) => b._id === (receiptModalRow?.booking_id?._id || receiptModalRow?.booking_id)
+            ) || receiptModalRow?.booking_id
+          }
+          businessInfo={businessInfo}
+          onClose={() => setReceiptModalRow(null)}
+          onViewProof={(url) => setProofModalUrl(url)}
+        />
 
         {/* Fullscreen Proof Image Lightbox Modal */}
         {proofModalUrl && (

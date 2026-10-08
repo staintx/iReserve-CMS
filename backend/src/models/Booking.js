@@ -131,7 +131,7 @@ const BookingSchema = new mongoose.Schema(
     additional_charges: [
       {
         name: String,
-        amount: Number,
+        amount: { type: Number, min: 0, max: 10000000 },
         charge_type: { type: String, default: "general" },
         inventory_id: { type: mongoose.Schema.Types.ObjectId, ref: "Inventory" },
         equipment_return_id: { type: mongoose.Schema.Types.ObjectId },
@@ -186,12 +186,12 @@ const BookingSchema = new mongoose.Schema(
       },
     ],
 
-    subtotal: { type: Number, default: 0 },
+    subtotal: { type: Number, default: 0, min: 0, max: 10000000 },
     tax_amount: { type: Number, default: 0 },
-    total_price: Number,
+    total_price: { type: Number, min: 0, max: 10000000 },
     discount_amount: { type: Number, default: 0 },
     payment_method: String,
-    deposit_amount: { type: Number, default: 0 },
+    deposit_amount: { type: Number, default: 0, min: 0, max: 10000000 },
     balance_payment_preference: {
       type: String,
       enum: ["online", "in_person", "unselected"],

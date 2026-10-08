@@ -763,7 +763,7 @@ export default function StepEventDetails({
             <Card className="p-3.5 sm:p-4 lg:col-span-2">
               <SectionTitle
                 icon={Palette}
-                right={<FieldStatusPill value={form.event_theme} />}
+                right={<FieldStatusPill value={form.event_theme} optionalLabel="Required" />}
               >
                 Theme &amp; styling motif
               </SectionTitle>
@@ -771,11 +771,15 @@ export default function StepEventDetails({
               <div className="space-y-3">
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                    Theme or styling motif
+                    Theme or styling motif{" "}
+                    <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
+                      *
+                    </span>
                   </label>
                   <ThemePicker
                     value={form.event_theme}
                     onChange={(theme) => setForm((prev) => ({ ...prev, event_theme: theme }))}
+                    hasError={!!errors.event_theme}
                   />
                   {errors.event_theme && (
                     <p className="text-xs font-semibold text-red-600 mt-1">{errors.event_theme}</p>

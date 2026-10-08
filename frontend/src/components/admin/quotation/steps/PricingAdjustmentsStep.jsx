@@ -38,6 +38,7 @@ import {
   STANDARD_PORTION_UNITS,
   findStandardPortionUnit,
 } from "../../../../utils/quotationPricing";
+import { MAX_FINANCIAL_AMOUNT } from "../../../../lib/validationRules";
 
 function MoneyInput({ value, onChange, placeholder = "0.00", disabled, className = "", id }) {
   const block = (e) => {
@@ -53,6 +54,7 @@ function MoneyInput({ value, onChange, placeholder = "0.00", disabled, className
         id={id}
         type="number"
         min="0"
+        max={MAX_FINANCIAL_AMOUNT}
         step="0.01"
         disabled={disabled}
         placeholder={placeholder}
@@ -290,9 +292,11 @@ export default function PricingAdjustmentsStep({
                   Customer Styling Vision Reference
                 </span>
               </div>
-              <span className="text-[10px] font-bold font-mono text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs">
-                Budget: {inquiry.budget_range || "On Quotation"}
-              </span>
+              {inquiry.budget_range && (
+                <span className="text-[10px] font-bold font-mono text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs">
+                  Budget: {inquiry.budget_range}
+                </span>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">

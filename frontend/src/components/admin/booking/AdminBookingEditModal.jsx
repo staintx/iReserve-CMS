@@ -66,7 +66,7 @@ import {
 import { resolveServiceType } from "../../customer/portal/statusMeta";
 import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
 import { formatCurrency, formatShortDate } from "../../../utils/format";
-import { validateName, validatePhone, validateAddress, validateSafeText } from "@/lib/validationRules";
+import { validateName, validatePhone, validateAddress, validateSafeText, MAX_FINANCIAL_AMOUNT } from "@/lib/validationRules";
 import FeedbackDialog from "../../feedback/FeedbackDialog";
 import InlineMessage from "../../feedback/InlineMessage";
 
@@ -139,6 +139,7 @@ function MoneyInput({ id, value, onChange, error, disabled, placeholder, classNa
         id={id}
         type="number"
         min="0"
+        max={MAX_FINANCIAL_AMOUNT}
         step="0.01"
         inputMode="decimal"
         disabled={disabled}
@@ -1134,6 +1135,11 @@ export default function AdminBookingEditModal({
       const firstErrorMessage = Object.values(newErrors)[0];
       notify(`Please resolve required fields: ${firstErrorMessage}`, "error");
       scrollToSection("qb-section-details");
+      return;
+    }
+
+    if (totals.totalCost > MAX_FINANCIAL_AMOUNT) {
+      notify("Amount cannot exceed ₱10,000,000.", "error");
       return;
     }
 

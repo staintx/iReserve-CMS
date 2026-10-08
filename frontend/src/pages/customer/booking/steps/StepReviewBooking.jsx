@@ -262,9 +262,6 @@ export default function StepReviewBooking({
                         wide
                       />
                     )}
-                  {form.budget_range && (
-                    <Row label="Target Budget" value={form.budget_range} />
-                  )}
                   {form.custom_setup_notes && (
                     <Row label="Styling Vision & Notes" value={form.custom_setup_notes} wide />
                   )}

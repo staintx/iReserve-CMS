@@ -38,6 +38,7 @@ import Badge from "../../components/admin/ui/Badge";
 
 import { AdminAPI } from "../../api/admin";
 import { useNavigate } from "react-router-dom";
+import { MAX_FINANCIAL_AMOUNT } from "../../lib/validationRules";
 import useToast from "../../hooks/useToast";
 import DataTable from "../../components/admin/table/DataTable";
 import TableToolbar from "../../components/admin/table/TableToolbar";
@@ -276,6 +277,11 @@ export default function AdminRefunds() {
   const handleApproveRefund = async () => {
     if (!activeRefund) return;
     const refundAmount = (activeRefund.totalPaid * calcPct) / 100;
+
+    if (refundAmount > MAX_FINANCIAL_AMOUNT) {
+      notify("Amount cannot exceed ₱10,000,000.", "error");
+      return;
+    }
 
     setActionLoading(true);
     try {

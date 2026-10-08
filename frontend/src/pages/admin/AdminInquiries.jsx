@@ -427,7 +427,7 @@ export default function AdminInquiries() {
         specialRequests: b.special_requests || b.custom_setup_notes || "",
         allergies: b.allergies || "",
         dietaryRestrictions: b.dietary_restrictions || b.dietary_requirements || "",
-        budgetRange: b.budget_range || "N/A",
+        budgetRange: b.budget_range || "",
         estimatedTotal: b.estimated_total || b.offer_base_price || b.total_price || 0,
         latestQuote: b.latestQuote || null,
         convertedBookingId: b.converted_booking_id || null,

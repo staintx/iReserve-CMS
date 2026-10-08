@@ -21,6 +21,7 @@ const {
 const BusinessInfo = require("../models/BusinessInfo");
 const { sendPaymentReceiptEmail, sendBookingConfirmationEmail } = require("../utils/booking-emails");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
+const { MAX_FINANCIAL_AMOUNT } = require("../validations/rules.common");
 
 const isSuccessfulPaymentStatus = (status) =>
 	["paid", "succeeded"].includes(String(status || "").toLowerCase());
@@ -343,6 +344,23 @@ exports.create = asyncHandler(async (req, res) => {
 		return res.status(403).json({ message: "Forbidden" });
 	}
 
+	const rawAmount = req.body.amount;
+	const numAmount = Number(rawAmount);
+	if (!Number.isFinite(numAmount) || Number.isNaN(numAmount)) {
+		return res.status(400).json({ message: "Amount must be a valid number." });
+	}
+	if (numAmount <= 0) {
+		return res.status(400).json({ message: "Amount must be greater than ₱0." });
+	}
+	if (numAmount > MAX_FINANCIAL_AMOUNT) {
+		return res.status(400).json({ message: `Amount cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
+	}
+	const strAmount = String(rawAmount).trim();
+	if (strAmount.includes(".") && strAmount.split(".")[1].length > 2) {
+		return res.status(400).json({ message: "Amount cannot have more than 2 decimal places." });
+	}
+	req.body.amount = Math.round(numAmount * 100) / 100;
+
 	const { booking_id, inquiry_id, payment_type, status } = req.body;
 	let payment;
 	if (status === "approved" && payment_type) {
@@ -409,7 +427,22 @@ exports.getById = asyncHandler(async (req, res) => {
 });
 
 exports.update = asyncHandler(async (req, res) => {
-	const payment = await Payment.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+	if (req.body.amount !== undefined) {
+		const num = Number(req.body.amount);
+		if (!Number.isFinite(num) || Number.isNaN(num)) {
+			return res.status(400).json({ message: "Amount must be a valid number." });
+		}
+		if (Math.abs(num) > MAX_FINANCIAL_AMOUNT) {
+			return res.status(400).json({ message: `Amount cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
+		}
+		const str = String(req.body.amount).trim();
+		if (str.includes(".") && str.split(".")[1].length > 2) {
+			return res.status(400).json({ message: "Amount cannot have more than 2 decimal places." });
+		}
+		req.body.amount = Math.round(num * 100) / 100;
+	}
+
+	const payment = await Payment.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true });
 	const io = req.app.get("io");
 
 	if (req.body.status && payment) {
@@ -505,7 +538,7 @@ async function checkDuplicatePayment({ booking_id, inquiry_id, payment_type = "d
 const calculatePayableAmount = async ({ targetDoc, payment_type, isCustomer, requestedAmount, isInquiry }) => {
 	// If privileged user and requestedAmount is a valid positive number, allow custom amount
 	if (!isCustomer && Number.isFinite(Number(requestedAmount)) && Number(requestedAmount) > 0) {
-		return Number(requestedAmount);
+		return Math.min(MAX_FINANCIAL_AMOUNT, Math.round(Number(requestedAmount) * 100) / 100);
 	}
 
 	const isTargetInquiry = isInquiry !== undefined
@@ -581,6 +614,8 @@ const calculatePayableAmount = async ({ targetDoc, payment_type, isCustomer, req
 	if ((!Number.isFinite(expectedAmount) || expectedAmount <= 0) && Number.isFinite(Number(requestedAmount)) && Number(requestedAmount) > 0) {
 		expectedAmount = Number(requestedAmount);
 	}
+
+	expectedAmount = Math.min(MAX_FINANCIAL_AMOUNT, Math.max(0, Math.round(expectedAmount * 100) / 100));
 
 	return expectedAmount;
 };
@@ -755,6 +790,10 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		return res.status(400).json({ message: "Invalid payment amount" });
 	}
 
+	if (payableAmount > MAX_FINANCIAL_AMOUNT) {
+		return res.status(400).json({ message: `Amount cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
+	}
+
 	if (targetDoc.payment_status === "unpaid") {
 		targetDoc.payment_status = "pending";
 		await targetDoc.save();
@@ -927,6 +966,7 @@ exports.createIntent = asyncHandler(async (req, res) => {
 		isInquiry: Boolean(inquiry_id)
 	});
 	if (!Number.isFinite(payableAmount) || payableAmount <= 0) return res.status(400).json({ message: "Invalid amount" });
+	if (payableAmount > MAX_FINANCIAL_AMOUNT) return res.status(400).json({ message: `Amount cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
 
 	const pendingQuery = {
 		payment_type: normalizedPaymentType,

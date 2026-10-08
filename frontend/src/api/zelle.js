@@ -23,8 +23,10 @@ export const getZelleConversations = async (session_id) => {
   return data;
 };
 
-export const getZelleConversationById = async (id) => {
-  const { data } = await api.get(`/zelle/customer/conversations/${id}`);
+export const getZelleConversationById = async (id, session_id) => {
+  const { data } = await api.get(`/zelle/customer/conversations/${id}`, {
+    params: session_id ? { session_id } : undefined,
+  });
   return data;
 };
 

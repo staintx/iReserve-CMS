@@ -250,7 +250,7 @@ export default function CustomerInquiryDetailModal({
               {/* TAB 2: Package & Inclusions */}
               {activeTab === "menu" && (
                 <div className="space-y-4">
-                  {data?.is_custom_setup || (!data?.package_id && (data?.custom_setup_scope?.length || data?.inspiration_images?.length || data?.custom_setup_notes || data?.budget_range)) ? (
+                  {data?.is_custom_setup || (!data?.package_id && (data?.custom_setup_scope?.length || data?.inspiration_images?.length || data?.custom_setup_notes)) ? (
                     <div className="p-4 bg-white border border-blue-200 rounded-md shadow-2xs space-y-3.5">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                         <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
@@ -261,17 +261,11 @@ export default function CustomerInquiryDetailModal({
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div className="text-xs">
                         <div>
                           <span className="text-[10.5px] text-slate-400 block font-medium">Styling Theme</span>
                           <span className="font-semibold text-slate-900 block mt-0.5">
                             {data?.event_theme || "Custom Event Styling"}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10.5px] text-slate-400 block font-medium">Target Budget</span>
-                          <span className="font-bold font-mono text-blue-900 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded inline-block mt-0.5">
-                            {data?.budget_range || "On Official Quotation"}
                           </span>
                         </div>
                       </div>
@@ -469,11 +463,13 @@ export default function CustomerInquiryDetailModal({
                     <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                       <CreditCard className="w-3.5 h-3.5 text-[#2C4B8A]" /> Budget &amp; Quotation
                     </h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Client Budget Range</span>
-                        <span className="font-semibold text-slate-900 block mt-0.5">{data?.budget_range || "Flexible / Not specified"}</span>
-                      </div>
+                    <div className={cn("grid gap-3", data?.budget_range ? "grid-cols-2" : "grid-cols-1")}>
+                      {data?.budget_range && (
+                        <div>
+                          <span className="text-[11px] text-slate-400 block font-medium">Client Budget Range</span>
+                          <span className="font-semibold text-slate-900 block mt-0.5">{data.budget_range}</span>
+                        </div>
+                      )}
                       <div>
                         <span className="text-[11px] text-slate-400 block font-medium">Quoted Total</span>
                         <span className="font-bold text-sm text-[#2C4B8A] block mt-0.5">

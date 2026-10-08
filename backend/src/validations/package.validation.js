@@ -1,5 +1,5 @@
 const Joi = require("joi");
-const { catalogNameRule, safeTextRule } = require("./rules.common");
+const { catalogNameRule, safeTextRule, monetaryRule, MAX_FINANCIAL_AMOUNT } = require("./rules.common");
 
 /**
  * Fields a combo pack never carries.
@@ -30,9 +30,9 @@ exports.packageSchema = Joi.object({
   // where they would read as a second, contradicting answer.
   guest_min: packageOnly(Joi.number().min(1).optional().allow("", null)),
   guest_max: packageOnly(Joi.number().min(1).optional().allow("", null)),
-  price_per_guest: Joi.number().min(0).optional().allow(""),
+  price_per_guest: monetaryRule("Price per guest", { min: 0, max: MAX_FINANCIAL_AMOUNT, required: false, allowZero: true }).allow(""),
   // What a regular package's event set-up starts at. A combo has none.
-  setup_price: packageOnly(Joi.number().min(0).optional().allow("")),
+  setup_price: packageOnly(monetaryRule("Setup price", { min: 0, max: MAX_FINANCIAL_AMOUNT, required: false, allowZero: true }).allow("")),
   price_label: safeTextRule(100, false),
   featured: Joi.boolean().optional(),
   badge_text: safeTextRule(50, false),
@@ -51,7 +51,7 @@ exports.packageSchema = Joi.object({
             Joi.string(),
             Joi.object({
               name: Joi.string().required(),
-              price: Joi.number().optional().allow(0),
+              price: monetaryRule("Add-on price", { min: 0, max: MAX_FINANCIAL_AMOUNT, required: false, allowZero: true }).allow(null, ""),
               pricing_type: Joi.string().valid("fixed", "quantity").optional(),
               inventory_id: Joi.string().optional().allow(null, ""),
               qty: Joi.alternatives().try(Joi.string(), Joi.number()).optional().allow(""),
@@ -101,8 +101,8 @@ exports.packageSchema = Joi.object({
             width_ft: Joi.number().optional(),
             length_ft: Joi.number().optional(),
             area_ft2: Joi.number().optional(),
-            price: Joi.number().min(0).optional().allow(null, ""),
-            baseSetupPrice: Joi.number().min(0).optional().allow(null, ""),
+            price: monetaryRule("Scaffold option price", { min: 0, max: MAX_FINANCIAL_AMOUNT, required: false, allowZero: true }).allow(null, ""),
+            baseSetupPrice: monetaryRule("Base setup price", { min: 0, max: MAX_FINANCIAL_AMOUNT, required: false, allowZero: true }).allow(null, ""),
             guest_min: Joi.number().optional().allow(null, ""),
             guest_max: Joi.number().optional().allow(null, ""),
             free_setup: Joi.boolean().optional(),

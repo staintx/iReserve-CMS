@@ -112,7 +112,7 @@ const SECTION_ERROR_FIELDS = {
     "municipality",
     "barangay",
   ],
-  extras: [],
+  extras: ["event_theme"],
   contact: [
     "contact_first_name",
     "contact_last_name",
@@ -344,7 +344,6 @@ function formFromInquiry(inquiry) {
       ? [...inquiry.custom_setup_scope]
       : [],
     custom_setup_notes: inquiry?.custom_setup_notes || "",
-    budget_range: inquiry?.budget_range || "",
     inspiration_images: Array.isArray(inquiry?.inspiration_images)
       ? [...inquiry.inspiration_images]
       : [],
@@ -801,6 +800,16 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
       if (drErr) next.dietary_restrictions = drErr;
     }
 
+    if (form.service_type !== SERVICE_TYPES.FOOD_ONLY) {
+      const themeTrimmed = String(form.event_theme || "").trim();
+      if (!themeTrimmed) {
+        next.event_theme = "Please enter your event theme or styling motif.";
+      } else {
+        const thErr = validateSafeText(form.event_theme, "Theme or styling motif", { max: 100, required: true });
+        if (thErr) next.event_theme = thErr;
+      }
+    }
+
     if (
       !isOffer &&
       form.service_type === SERVICE_TYPES.FOOD_ONLY &&
@@ -913,7 +922,6 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
     if (form.is_custom_setup || inquiry.is_custom_setup || isCustomBooking) {
       payload.custom_setup_scope = form.custom_setup_scope || [];
       payload.custom_setup_notes = form.custom_setup_notes || "";
-      payload.budget_range = form.budget_range || "";
       payload.inspiration_images = form.inspiration_images || [];
     }
 
@@ -1256,20 +1264,8 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <FormField
-                        label="Target styling budget"
-                        optional
-                        hint="Estimated budget guide for our styling coordinators."
-                      >
-                        <TInput
-                          placeholder="e.g. ₱50,000 – ₱80,000"
-                          value={form.budget_range}
-                          onChange={(val) => setForm((prev) => ({ ...prev, budget_range: val }))}
-                        />
-                      </FormField>
-
-                      <div className="sm:col-span-2 space-y-2">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
                         <label className="block text-xs font-bold text-slate-800">
                           Requested Setup Scope Elements
                         </label>
@@ -2487,12 +2483,14 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
                   <div className="space-y-4">
                     <FormField
                       label="Event styling theme"
-                      optional
+                      required
+                      error={errors.event_theme}
                       hint="Preferred aesthetic for table settings, florals, and backdrops."
                     >
                       <ThemePicker
                         value={form.event_theme}
                         onChange={(theme) => setForm((prev) => ({ ...prev, event_theme: theme }))}
+                        hasError={!!errors.event_theme}
                       />
                     </FormField>
 

@@ -30,6 +30,7 @@ const {
   offerBookingProblem,
   applyComboRequestBoundary,
 } = require("../utils/specialOffers");
+const { isBookingAwaitingDeposit } = require("../utils/bookingDeposit");
 
 // Customer submits a new inquiry
 exports.createInquiry = asyncHandler(async (req, res) => {
@@ -346,6 +347,9 @@ exports.getInquiries = asyncHandler(async (req, res) => {
       inquiry.is_deposit_paid = true;
       inqIdsToUpdate.push(inquiry._id);
     }
+
+    // A converted request whose booking still awaits its deposit stays in My Inquiries.
+    inquiry.booking_awaiting_deposit = Boolean(booking && isBookingAwaitingDeposit(booking));
   });
 
   if (inqIdsToUpdate.length > 0) {
@@ -436,6 +440,15 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
     }
   }
 
+  // A converted request whose booking still awaits its deposit stays in My Inquiries.
+  inquiryObj.booking_awaiting_deposit = false;
+  if (inquiryObj.converted_booking_id) {
+    try {
+      const linkedBooking = await Booking.findById(inquiryObj.converted_booking_id).select("status payment_status").lean();
+      inquiryObj.booking_awaiting_deposit = isBookingAwaitingDeposit(linkedBooking);
+    } catch (e) { }
+  }
+
   res.json(inquiryObj);
 });
 
@@ -501,7 +514,6 @@ const CUSTOMER_EDITABLE_FIELDS = [
   "selected_scaffold_option_id",
   "custom_setup_scope",
   "custom_setup_notes",
-  "budget_range",
   "inspiration_images",
 ];
 

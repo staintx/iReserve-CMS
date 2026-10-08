@@ -12,7 +12,6 @@ import {
   Layers,
   Upload,
   Image as ImageIcon,
-  DollarSign,
   Loader2,
   AlertCircle,
 } from "lucide-react";
@@ -32,14 +31,6 @@ import ThemePicker, { ColorPalettePicker } from "../components/ThemePicker";
 import { CustomerAPI } from "@/api/customer";
 import useToast from "@/hooks/useToast";
 
-const BUDGET_PRESETS = [
-  "Below ₱30,000",
-  "₱30,000 – ₱50,000",
-  "₱50,000 – ₱80,000",
-  "₱80,000 – ₱120,000",
-  "₱120,000+",
-  "Flexible / Open to Proposal",
-];
 
 function packageInclusions(pkg) {
   const written = (pkg?.inclusions || []).filter(Boolean);
@@ -602,11 +593,12 @@ export default function StepPackageSelection({
                       *
                     </span>
                   </label>
-                  <FieldStatusPill value={form.event_theme} />
+                  <FieldStatusPill value={form.event_theme} optionalLabel="Required" />
                 </div>
                 <ThemePicker
                   value={form.event_theme}
                   onChange={(theme) => updateForm({ event_theme: theme })}
+                  hasError={!!errors.event_theme}
                 />
                 {errors.event_theme && (
                   <p className="text-xs font-semibold text-red-600 mt-1.5 flex items-center gap-1.5">
@@ -689,7 +681,7 @@ export default function StepPackageSelection({
             </div>
           </Card>
 
-          {/* Card 2: Moodboard, Budget & Vision */}
+          {/* Card 2: Moodboard & Vision Notes */}
           <Card className="p-3.5 sm:p-4">
             <SectionTitle icon={ImageIcon}>Moodboard &amp; Vision Notes</SectionTitle>
             <div className="space-y-3">
@@ -751,33 +743,6 @@ export default function StepPackageSelection({
                 <p className="mt-1 text-[10px] text-slate-400">
                   Up to 5 images (JPG, PNG, WEBP).
                 </p>
-              </div>
-
-              <div className="border-t border-slate-100 pt-2.5">
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                  Target budget range
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                  {BUDGET_PRESETS.map((budget) => {
-                    const isSelected = form.budget_range === budget;
-                    return (
-                      <button
-                        key={budget}
-                        type="button"
-                        onClick={() => updateForm({ budget_range: budget })}
-                        className={cn(
-                          "rounded-md border px-2 py-1 text-xs font-medium transition-colors text-center cursor-pointer",
-                          isSelected
-                            ? "border-[#4C81E0] bg-[#4C81E0]/10 text-[#4C81E0] font-bold"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
-                          focusRing,
-                        )}
-                      >
-                        {budget}
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
 
               <div className="border-t border-slate-100 pt-2.5">

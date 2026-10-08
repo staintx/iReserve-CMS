@@ -4,7 +4,7 @@ const { protect } = require("../middleware/auth.middleware");
 const { authorize } = require("../middleware/role.middleware");
 const validate = require("../middleware/validate.middleware");
 const upload = require("../middleware/upload.middleware");
-const { paymentSchema } = require("../validations/payment.validation");
+const { paymentSchema, paymentUpdateSchema } = require("../validations/payment.validation");
 
 router.post("/upload-proof", protect, authorize("admin", "staff"), upload.single("file"), ctrl.uploadProof);
 router.post("/", protect, authorize("admin", "staff"), validate(paymentSchema), ctrl.create);
@@ -17,7 +17,7 @@ router.get("/", protect, authorize("admin", "staff"), ctrl.getAll);
 router.get("/me", protect, ctrl.getMine);
 router.get("/:id", protect, ctrl.getById);
 router.post("/:id/verify", protect, ctrl.verifyPayment);
-router.put("/:id", protect, authorize("admin", "staff"), ctrl.update);
+router.put("/:id", protect, authorize("admin", "staff"), validate(paymentUpdateSchema), ctrl.update);
 router.delete("/:id", protect, authorize("admin"), ctrl.remove);
 
 module.exports = router;

@@ -1,5 +1,6 @@
 import { requiresPhysicalSiteInspection } from "./ocularEligibility.js";
 import { formatEventDate } from "./format.js";
+import { isBookingAwaitingDeposit } from "./bookingDeposit.js";
 
 /**
  * Returns standardized ocular action/status metadata for any booking.
@@ -100,6 +101,11 @@ export function getBookingOcularActionMeta(booking) {
 
   // If the booking itself is already marked completed, don't show action required
   if (rawStatus === "completed") {
+    return null;
+  }
+
+  // Ocular can only be scheduled once the reservation deposit has been paid
+  if (isBookingAwaitingDeposit(booking)) {
     return null;
   }
 

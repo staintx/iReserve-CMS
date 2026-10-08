@@ -60,13 +60,15 @@ function SwatchCard({ selected, swatches, title, subtitle, dashed = false, onCli
  * `event_theme`; it never touches the colour palette, which the customer
  * picks (or skips) separately below.
  */
-export default function ThemePicker({ value, onChange }) {
+export default function ThemePicker({ value, onChange, hasError, ...rest }) {
   return (
     <TInput
       placeholder="e.g. Vintage garden, rustic elegance, or royal blue (Max 100 chars)"
       maxLength={100}
       value={value || ""}
       onChange={(next) => onChange(next)}
+      hasError={hasError}
+      {...rest}
     />
   );
 }

@@ -112,7 +112,7 @@ const SECTION_ERROR_FIELDS = {
     "municipality",
     "barangay",
   ],
-  extras: [],
+  extras: ["event_theme"],
   contact: [
     "contact_first_name",
     "contact_last_name",
@@ -798,6 +798,16 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
     if (form.dietary_restrictions?.trim()) {
       const drErr = validateSafeText(form.dietary_restrictions, "Dietary restrictions", { max: 300, required: false });
       if (drErr) next.dietary_restrictions = drErr;
+    }
+
+    if (form.service_type !== SERVICE_TYPES.FOOD_ONLY) {
+      const themeTrimmed = String(form.event_theme || "").trim();
+      if (!themeTrimmed) {
+        next.event_theme = "Please enter your event theme or styling motif.";
+      } else {
+        const thErr = validateSafeText(form.event_theme, "Theme or styling motif", { max: 100, required: true });
+        if (thErr) next.event_theme = thErr;
+      }
     }
 
     if (
@@ -2473,12 +2483,14 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
                   <div className="space-y-4">
                     <FormField
                       label="Event styling theme"
-                      optional
+                      required
+                      error={errors.event_theme}
                       hint="Preferred aesthetic for table settings, florals, and backdrops."
                     >
                       <ThemePicker
                         value={form.event_theme}
                         onChange={(theme) => setForm((prev) => ({ ...prev, event_theme: theme }))}
+                        hasError={!!errors.event_theme}
                       />
                     </FormField>
 

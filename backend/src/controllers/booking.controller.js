@@ -9,6 +9,10 @@ const BusinessInfo = require("../models/BusinessInfo");
 const BlockedDate = require("../models/BlockedDate");
 const User = require("../models/User");
 const { MAX_FINANCIAL_AMOUNT } = require("../validations/rules.common");
+const {
+  isBookingAwaitingDeposit,
+  awaitingDepositInquiryBookingQuery,
+} = require("../utils/bookingDeposit");
 
 // --- Perf: batch inventory check (2 queries instead of 2N) ---
 const checkInventoryAvailability = async (
@@ -699,7 +703,12 @@ exports.getAll = asyncHandler(async (req, res) => {
 });
 
 exports.getMine = asyncHandler(async (req, res) => {
-  const bookings = await Booking.find({ customer_id: req.user._id }).populate(
+  // Until the reservation deposit is paid, an accepted quotation stays under
+  // My Inquiries; it only becomes a customer-visible booking once settled.
+  const bookings = await Booking.find({
+    customer_id: req.user._id,
+    $nor: [awaitingDepositInquiryBookingQuery()],
+  }).populate(
     "customer_id package_id event_manager_id staff_assignments.user_id inquiry_id quotation_id",
   ).lean();
   res.json(bookings);
@@ -2101,6 +2110,12 @@ exports.requestOcular = asyncHandler(async (req, res) => {
   if (!booking) return res.status(404).json({ message: "Booking not found" });
   if (String(booking.customer_id) !== String(req.user?._id)) {
     return res.status(403).json({ message: "Forbidden" });
+  }
+
+  if (isBookingAwaitingDeposit(booking)) {
+    return res.status(400).json({
+      message: "Please pay the required deposit first. An ocular visit can only be scheduled once your reservation is confirmed.",
+    });
   }
 
   const { scheduled_date, scheduled_time, notes } = req.body;

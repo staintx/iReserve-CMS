@@ -23,13 +23,17 @@ function getGenAI() {
 }
 
 /**
- * Known working flash models for CMS tasks, ordered by priority
+ * Known working flash models for CMS tasks, ordered by priority.
+ * Flash-Lite models are prioritized first because they offer the highest free-tier rate limits,
+ * lowest latency (<1s), full tool/function-calling support, and immunity to high-demand 503 throttling.
  */
 const DEFAULT_FALLBACK_CASCADE = [
   "gemini-3.5-flash-lite",
-  "gemini-3.7-flash",
+  "gemini-flash-lite-latest",
   "gemini-3.1-flash-lite",
+  "gemini-flash-latest",
   "gemini-3.8-flash",
+  "gemini-3.7-flash",
 ];
 
 /**
@@ -61,7 +65,32 @@ function isTransientError(error) {
     msg.includes("fetch failed") ||
     msg.includes("econnreset") ||
     msg.includes("timeout") ||
+    msg.includes("aborted") ||
+    msg.includes("abort") ||
     msg.includes("internal error")
+  );
+}
+
+/**
+ * Check if an error is due to high demand, queue saturation, rate limits, or timeouts.
+ * When other fallback models exist, we fail-over immediately rather than repeatedly retrying the congested model.
+ */
+function isCongestedOrQuotaError(error) {
+  if (!error) return false;
+  const status = error.status || error.statusCode;
+  if (status === 503 || status === 429) return true;
+  const msg = String(error.message || "").toLowerCase();
+  return (
+    msg.includes("503") ||
+    msg.includes("high demand") ||
+    msg.includes("service unavailable") ||
+    msg.includes("spikes in demand") ||
+    msg.includes("resource_exhausted") ||
+    msg.includes("rate limit") ||
+    msg.includes("quota") ||
+    msg.includes("timeout") ||
+    msg.includes("aborted") ||
+    msg.includes("abort")
   );
 }
 
@@ -168,7 +197,8 @@ async function generateContentWithRetry({
         }
         if (tools) modelOptions.tools = tools;
 
-        const model = genAI.getGenerativeModel(modelOptions);
+        // Set 15s timeout to prevent free-tier stalls on congested models from hanging indefinitely
+        const model = genAI.getGenerativeModel(modelOptions, { timeout: 15000 });
 
         // Standardize generateContent input for @google/generative-ai SDK:
         // Ensures multi-turn conversation arrays (Content[]) and single-turn parts (Part[])
@@ -205,6 +235,7 @@ async function generateContentWithRetry({
         lastError = err;
         const transient = isTransientError(err);
         const isNotFound = err.status === 404 || String(err.message).includes("404");
+        const isCongested = isCongestedOrQuotaError(err);
 
         console.warn(
           `⚠️ [Gemini AI] Call failed on model "${modelName}" (attempt ${attempt}/${maxRetriesPerModel}): ${err.message}`
@@ -212,6 +243,14 @@ async function generateContentWithRetry({
 
         if (isNotFound) {
           // Model does not exist or deprecated, skip retries and immediately try next fallback
+          break;
+        }
+
+        // On Free Tier, if a model is congested (503), rate-limited (429), or stalled/aborted,
+        // do not burn multiple retry delays waiting on the same saturated model.
+        // Immediately cascade to the next available fallback model.
+        if (!isLastModel && isCongested) {
+          console.warn(`⚡ [Gemini AI] Model "${modelName}" is congested or throttled. Fast-falling back to next model...`);
           break;
         }
 
@@ -248,6 +287,7 @@ module.exports = {
   DEFAULT_FALLBACK_CASCADE,
   getCandidateModels,
   isTransientError,
+  isCongestedOrQuotaError,
   cleanAndParseJson,
   generateContentWithRetry,
 };

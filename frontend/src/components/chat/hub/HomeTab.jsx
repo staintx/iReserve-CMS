@@ -79,7 +79,7 @@ export default function HomeTab({
             <span className="inline-block w-2 h-2 rounded-full bg-[#2C4B8A] animate-pulse" />
           </div>
           <p className="text-[11px] text-slate-500 mt-0.5 truncate">
-            Open for 2026–2027 Weddings, Debuts & Gatherings
+            Now Booking Weddings, Debuts & Gatherings
           </p>
         </div>
       </div>

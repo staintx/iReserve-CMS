@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Download, Plus, AlertTriangle, Clock, CheckCircle2, Calendar, FileText } from "lucide-react";
+import { Plus, AlertTriangle, Clock, CheckCircle2, Calendar, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -136,7 +136,6 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto">
-            <Btn variant="secondary" size="sm"><Download size={13} /> Export Report</Btn>
             <Btn variant="primary" size="sm" onClick={() => navigate("/admin/bookings/reservations?new=true")}><Plus size={13} /> New Booking</Btn>
           </div>
         </div>

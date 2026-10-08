@@ -1,7 +1,7 @@
 /**
- * Catering Knowledge Base & Help Collections
- * Provides instant, zero-latency answers for common customer questions
- * and can hand off directly to Zelle AI.
+ * Catering Knowledge Base & Help FAQ Topics
+ * Provides instant answers for common catering questions
+ * with direct hand-off into Zelle AI chat.
  */
 
 export const CATERING_COLLECTIONS = [
@@ -11,13 +11,13 @@ export const CATERING_COLLECTIONS = [
     description: "Buffet tiers, standard setups, and package inclusions",
     icon: "Package",
     badge: "Popular",
-    articles: [
+    faqs: [
       {
         id: "pkg-1",
         title: "What is included in a standard catering package?",
         summary: "Complete breakdown of food, table setup, linens, and service staff.",
         content: `Every standard Caezelle Catering package comes with:
-- **Full Buffet Setup**: Complete chaffing dishes, food warmers, and buffet table styling.
+- **Full Buffet Setup**: Complete chafing dishes, food warmers, and buffet table styling.
 - **Tables & Chairs**: Dressed round or rectangular tables with floor-length linens, table runners, and dressed monoblock chairs with seat covers.
 - **Complete Chinaware & Glassware**: Flatware, melamine/ceramic plates, goblets, and utensils.
 - **Trained Service Staff**: Uniformed food servers and bussers throughout the event duration (typically 4–5 hours).
@@ -39,12 +39,15 @@ export const CATERING_COLLECTIONS = [
         title: "Can I customize the items in a package?",
         summary: "Yes, swap viands, add carving stations, dessert bars, and equipment.",
         content: `Yes! While our packages have recommended starter menus, you can:
-1. **Swap Viands**: Exchange beef, pork, chicken, fish, or vegetable dishes within the same category.
-2. **Add Food Stations**: Add Lechon Belly, Roast Beef Carving, Halo-Halo Bar, or Puto Bumbong stations.
-3. **Upgrade Styling**: Add themed backdrop setups, mood lighting, or Tiffany chairs.`,
+- **Swap Viands**: Exchange beef, pork, chicken, fish, or vegetable dishes within the same category.
+- **Add Food Stations**: Add Lechon Belly, Roast Beef Carving, Halo-Halo Bar, or dessert stations.
+- **Upgrade Styling**: Add themed backdrop setups, mood lighting, or Tiffany chairs.`,
         relatedPrompt: "How can I customize a catering package menu?"
       }
-    ]
+    ],
+    get articles() {
+      return this.faqs;
+    }
   },
   {
     id: "dates",
@@ -52,7 +55,7 @@ export const CATERING_COLLECTIONS = [
     description: "Lead times, checking reserved dates, and peak season tips",
     icon: "Calendar",
     badge: "Important",
-    articles: [
+    faqs: [
       {
         id: "date-1",
         title: "How far in advance should I book my event?",
@@ -70,12 +73,14 @@ Dates are officially locked only once the initial reservation downpayment is ver
         title: "How do I check if my target date is open?",
         summary: "Use Zelle AI or the booking calendar to check live date status.",
         content: `You can check availability right here in this assistant! Simply ask Zelle:
-*"Is December 15, 2026 available for 150 guests?"*
-
-Zelle connects directly to our real-time calendar and can tell you if the date is fully booked, open, or close to kitchen capacity.`,
+- Type your date and guests: *"Is December 15, 2026 available for 150 guests?"*
+- Zelle connects directly to our real-time calendar and confirms whether the date is open, booked, or near capacity.`,
         relatedPrompt: "Check if my date is available for catering"
       }
-    ]
+    ],
+    get articles() {
+      return this.faqs;
+    }
   },
   {
     id: "billing",
@@ -83,15 +88,15 @@ Zelle connects directly to our real-time calendar and can tell you if the date i
     description: "Downpayment terms, installment milestones, and payment channels",
     icon: "CreditCard",
     badge: "Finance",
-    articles: [
+    faqs: [
       {
         id: "bill-1",
         title: "What are the payment milestones and terms?",
         summary: "Standard downpayment, milestone schedule, and balance settlement.",
         content: `Our standard payment schedule is split into clear milestones:
-1. **Reservation Deposit (20% - 30%)**: Locks your event date in our calendar and starts ingredient sourcing.
-2. **Mid-term Payment (40% - 50%)**: Due 2–3 weeks before the event upon final menu and head-count sign-off.
-3. **Final Balance Settlement**: Settled on or right before the event day as specified in your agreement.`,
+- **Reservation Deposit (20% - 30%)**: Locks your event date in our calendar and starts ingredient sourcing.
+- **Mid-term Payment (40% - 50%)**: Due 2–3 weeks before the event upon final menu and head-count sign-off.
+- **Final Balance Settlement**: Settled on or right before the event day as specified in your agreement.`,
         relatedPrompt: "What are the payment terms and downpayment rules?"
       },
       {
@@ -104,7 +109,10 @@ Zelle connects directly to our real-time calendar and can tell you if the date i
 - **Official Receipt**: Once validated by our finance team, an official digital receipt is recorded in your dashboard.`,
         relatedPrompt: "What are the payment channels and how do I submit proof of payment?"
       }
-    ]
+    ],
+    get articles() {
+      return this.faqs;
+    }
   },
   {
     id: "menu",
@@ -112,13 +120,13 @@ Zelle connects directly to our real-time calendar and can tell you if the date i
     description: "Dish options, dietary preferences, and food tasting sessions",
     icon: "Utensils",
     badge: null,
-    articles: [
+    faqs: [
       {
         id: "menu-1",
         title: "Can we schedule a Food Tasting session?",
         summary: "Complimentary tasting for confirmed wedding and debut clients.",
         content: `Yes! For major events such as Weddings and Debuts with 100+ guests, we offer food tasting sessions:
-- You get to sample signature dishes (Beef Stroganoff, Pastel de Lengua, Fish Fillet in Tartar, etc.).
+- Sample signature dishes (Beef Stroganoff, Pastel de Lengua, Fish Fillet in Tartar, and more).
 - Meet with our culinary coordinator to adjust seasonings, sweetness, or sauce consistency.
 - Inquire through Zelle AI or contact your event coordinator to book a tasting slot.`,
         relatedPrompt: "I want to inquire about scheduling a food tasting session."
@@ -128,12 +136,15 @@ Zelle connects directly to our real-time calendar and can tell you if the date i
         title: "Do you accommodate dietary restrictions (Halal, Vegetarian)?",
         summary: "Custom dishes for vegetarian, pescatarian, or pork-free requirements.",
         content: `Yes! Inform us during the inquiry stage or menu curation:
-- We can prepare pork-free catering menus.
-- Vegetarian pasta and vegetable entrées (e.g., Buttered Mixed Veggies with Cashew, Chopsuey Guisado).
-- Special kids' meals (Sweet Spaghetti, Fried Chicken, Mini Burgers) can be added.`,
+- **Pork-Free Options**: Available across beef, chicken, seafood, and pasta selections.
+- **Vegetarian Dishes**: Pasta and vegetable entrées (e.g., Buttered Mixed Veggies with Cashew, Chopsuey Guisado).
+- **Kids' Meals**: Sweet Spaghetti, Fried Chicken, and Mini Burgers can be added.`,
         relatedPrompt: "Can you provide a menu with dietary restrictions or pork-free dishes?"
       }
-    ]
+    ],
+    get articles() {
+      return this.faqs;
+    }
   },
   {
     id: "policies",
@@ -141,7 +152,7 @@ Zelle connects directly to our real-time calendar and can tell you if the date i
     description: "Guidelines on postponements, guest count changes, and venues",
     icon: "ShieldAlert",
     badge: null,
-    articles: [
+    faqs: [
       {
         id: "pol-1",
         title: "What happens if I need to reschedule my event?",
@@ -156,11 +167,14 @@ Zelle connects directly to our real-time calendar and can tell you if the date i
         id: "pol-2",
         title: "When is the final guest count deadline?",
         summary: "Deadline for confirming final head count and table arrangements.",
-        content: `Final guest count and table arrangements must be finalized at least **7 days prior** to the event date. 
+        content: `Final guest count and table arrangements must be finalized at least **7 days prior** to the event date.
 Additional guests requested within 48 hours may be accommodated subject to raw ingredient availability and a per-pax surcharge.`,
         relatedPrompt: "When do I need to submit the final guest count?"
       }
-    ]
+    ],
+    get articles() {
+      return this.faqs;
+    }
   }
 ];
 

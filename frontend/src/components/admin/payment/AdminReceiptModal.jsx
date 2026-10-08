@@ -199,10 +199,11 @@ export default function AdminReceiptModal({
               <h2 className="text-base sm:text-lg font-bold font-serif tracking-tight text-slate-900">
                 {biz.name}
               </h2>
-              <p className="text-[11px] text-slate-500">
-                {biz.subline}
-                {biz.address ? ` • ${biz.address}` : ""}
-              </p>
+              {biz.address && (
+                <p className="text-[11px] text-slate-500">
+                  {biz.address}
+                </p>
+              )}
               {(biz.phone || biz.email) && (
                 <p className="text-[10px] text-slate-400 mt-0.5">
                   {[biz.phone ? `Tel: ${biz.phone}` : null, biz.email].filter(Boolean).join(" • ")}

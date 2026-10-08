@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Printer, X, CheckCircle2, Calendar, CreditCard, Receipt, FileText, User } from "lucide-react";
 import { Button } from "../../ui/button";
 import useBusinessInfo from "../../../hooks/useBusinessInfo";
+import { getReceiptBusinessInfo } from "../../../utils/receiptHelpers";
 import CustomerPrintReceipt from "./CustomerPrintReceipt";
 
 export default function CustomerReceiptModal({
@@ -13,6 +14,7 @@ export default function CustomerReceiptModal({
 }) {
   const fetchedBusinessInfo = useBusinessInfo(propBusinessInfo);
   const businessInfo = propBusinessInfo || fetchedBusinessInfo || {};
+  const biz = getReceiptBusinessInfo(businessInfo);
 
   useEffect(() => {
     document.body.classList.add("has-receipt-modal");
@@ -173,14 +175,16 @@ export default function CustomerReceiptModal({
             {/* 1. Business Header (Compact & Centered) */}
             <div className="text-center pt-0.5 pb-1">
               <h2 className="text-base sm:text-lg font-bold font-serif tracking-tight text-slate-900">
-                {businessInfo.business_name || "Caezelle's Catering"}
+                {biz.name}
               </h2>
-              <p className="text-[11px] text-slate-500">
-                Food, Catering &amp; Services{businessInfo.address ? ` • ${businessInfo.address}` : ""}
-              </p>
-              {(businessInfo.contact_number || businessInfo.email) && (
+              {biz.address && (
+                <p className="text-[11px] text-slate-500">
+                  {biz.address}
+                </p>
+              )}
+              {(biz.phone || biz.email) && (
                 <p className="text-[10px] text-slate-400 mt-0.5">
-                  {[businessInfo.contact_number ? `Tel: ${businessInfo.contact_number}` : null, businessInfo.email].filter(Boolean).join(" • ")}
+                  {[biz.phone ? `Tel: ${biz.phone}` : null, biz.email].filter(Boolean).join(" • ")}
                 </p>
               )}
             </div>
@@ -360,7 +364,7 @@ export default function CustomerReceiptModal({
             {/* 6. Footer Note */}
             <div className="text-center pt-0.5 pb-1 space-y-0.5 text-slate-500">
               <p className="text-[11px] font-medium text-slate-700">
-                Thank you for choosing Caezelle's Catering!
+                Thank you for choosing {biz.name}!
               </p>
               <p className="text-[10px] text-slate-400">
                 Official electronic payment acknowledgment • iReserve

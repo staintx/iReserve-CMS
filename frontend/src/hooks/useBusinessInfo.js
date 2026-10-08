@@ -4,7 +4,7 @@ import useRealTimeRefresh from "./useRealTimeRefresh";
 import { DEFAULT_POLICIES } from "../components/policy/defaultPolicies";
 
 export const DEFAULT_BUSINESS_INFO = {
-  business_name: "Caezelle’s Food, Catering & Services",
+  business_name: "Caezelle's Food, Catering & Services",
   contact_number: "09123456789",
   email: "info@caezelle.com",
   address: "123 Culinary Street Food City",

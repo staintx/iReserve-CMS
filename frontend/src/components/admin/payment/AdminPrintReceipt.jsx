@@ -70,7 +70,6 @@ export default function AdminPrintReceipt({
         {/* ── Business Header ── */}
         <div className="caz-receipt-header">
           <div className="caz-receipt-biz-name">{biz.name.toUpperCase()}</div>
-          <div className="caz-receipt-biz-sub">{biz.subline.toUpperCase()}</div>
           {biz.address && <div className="caz-receipt-biz-line">{biz.address}</div>}
           {biz.phone && <div className="caz-receipt-biz-line">Tel: {biz.phone}</div>}
           {biz.email && <div className="caz-receipt-biz-line">{biz.email}</div>}

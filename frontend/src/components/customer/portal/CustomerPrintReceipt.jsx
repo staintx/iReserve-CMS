@@ -1,4 +1,5 @@
 import { createPortal } from "react-dom";
+import { getReceiptBusinessInfo } from "../../../utils/receiptHelpers";
 
 export default function CustomerPrintReceipt({
   payment,
@@ -87,11 +88,7 @@ export default function CustomerPrintReceipt({
   const paidAt = payment.paid_at || payment.createdAt;
   const paymentStatus = payment.status || "approved";
 
-  const bizName = (businessInfo.business_name || "CAEZELLE'S CATERING").toUpperCase();
-  const bizSub = "FOOD, CATERING & SERVICES";
-  const bizAddress = businessInfo.address?.trim() || null;
-  const bizPhone = businessInfo.contact_number?.trim() || null;
-  const bizEmail = businessInfo.email?.trim() || null;
+  const biz = getReceiptBusinessInfo(businessInfo);
 
   return createPortal(
     <div id="caz-receipt-print-root" className="caz-receipt-print-container" aria-hidden="true">
@@ -106,11 +103,10 @@ export default function CustomerPrintReceipt({
       <div className="caz-thermal-receipt">
         {/* ── Business Header ── */}
         <div className="caz-receipt-header">
-          <div className="caz-receipt-biz-name">{bizName}</div>
-          <div className="caz-receipt-biz-sub">{bizSub}</div>
-          {bizAddress && <div className="caz-receipt-biz-line">{bizAddress}</div>}
-          {bizPhone && <div className="caz-receipt-biz-line">Tel: {bizPhone}</div>}
-          {bizEmail && <div className="caz-receipt-biz-line">{bizEmail}</div>}
+          <div className="caz-receipt-biz-name">{biz.name.toUpperCase()}</div>
+          {biz.address && <div className="caz-receipt-biz-line">{biz.address}</div>}
+          {biz.phone && <div className="caz-receipt-biz-line">Tel: {biz.phone}</div>}
+          {biz.email && <div className="caz-receipt-biz-line">{biz.email}</div>}
         </div>
 
         {/* ── Receipt Title ── */}
@@ -209,7 +205,7 @@ export default function CustomerPrintReceipt({
         {/* ── Footer ── */}
         <div className="caz-receipt-divider" />
         <div className="caz-receipt-footer">
-          <div className="caz-footer-main">Thank you for choosing Caezelle's Catering!</div>
+          <div className="caz-footer-main">Thank you for choosing {biz.name}!</div>
           <div className="caz-footer-note">This serves as an official electronic payment acknowledgment.</div>
           <div className="caz-footer-end">*** KEEP THIS RECEIPT FOR YOUR RECORDS ***</div>
         </div>

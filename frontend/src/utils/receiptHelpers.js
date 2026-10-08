@@ -147,13 +147,18 @@ export const getReceiptBookingDetails = (payment, booking = null) => {
 };
 
 /**
+ * Official client business name standardized across all customer and admin receipts.
+ */
+export const OFFICIAL_BUSINESS_NAME = "Caezelle's Food, Catering & Services";
+
+/**
  * Resolve dynamic business information without hardcoding fake fallback data.
  */
 export const getReceiptBusinessInfo = (businessInfo = {}) => {
   const b = businessInfo || {};
   return {
-    name: b.business_name?.trim() || "iReserve Events & Catering",
-    subline: "Food, Catering & Services",
+    name: OFFICIAL_BUSINESS_NAME,
+    subline: null,
     address: b.address?.trim() || null,
     phone: b.contact_number?.trim() || null,
     email: b.email?.trim() || null,

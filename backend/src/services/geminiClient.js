@@ -1,4 +1,10 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const dns = require("node:dns");
+
+// Optimize DNS resolution on Node.js / Windows to prevent IPv6 headers timeout stalls
+if (typeof dns.setDefaultResultOrder === "function") {
+  dns.setDefaultResultOrder("ipv4first");
+}
 
 let genAIInstance = null;
 
@@ -20,17 +26,17 @@ function getGenAI() {
  * Known working flash models for CMS tasks, ordered by priority
  */
 const DEFAULT_FALLBACK_CASCADE = [
-  "gemini-3.8-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.7-flash",
   "gemini-3.1-flash-lite",
+  "gemini-3.8-flash",
 ];
 
 /**
  * Build ordered list of model candidates to try
  */
 function getCandidateModels(preferredModel) {
-  const primary = preferredModel || process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  const primary = preferredModel || process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
   const list = [primary, ...DEFAULT_FALLBACK_CASCADE];
   return Array.from(new Set(list.filter(Boolean)));
 }
@@ -164,8 +170,28 @@ async function generateContentWithRetry({
 
         const model = genAI.getGenerativeModel(modelOptions);
 
-        // Standardize generateContent input: either single argument parts/contents or object
-        const result = await model.generateContent(contents);
+        // Standardize generateContent input for @google/generative-ai SDK:
+        // Ensures multi-turn conversation arrays (Content[]) and single-turn parts (Part[])
+        // are formatted with valid JSON structure so Google API never receives nested roles in parts.
+        let requestPayload;
+        if (typeof contents === "string") {
+          requestPayload = { contents: [{ role: "user", parts: [{ text: contents }] }] };
+        } else if (contents && contents.contents) {
+          requestPayload = contents;
+        } else if (Array.isArray(contents)) {
+          if (contents.length > 0 && contents[0] && typeof contents[0] === "object" && contents[0].role) {
+            // Already array of Content objects: [{ role, parts }, ...]
+            requestPayload = { contents };
+          } else {
+            // Array of parts for a single turn: [string | Part, ...]
+            const normalizedParts = contents.map((p) => (typeof p === "string" ? { text: p } : p));
+            requestPayload = { contents: [{ role: "user", parts: normalizedParts }] };
+          }
+        } else {
+          requestPayload = { contents: [contents] };
+        }
+
+        const result = await model.generateContent(requestPayload);
         const response = await result.response;
         const text = response.text ? response.text() : "";
 

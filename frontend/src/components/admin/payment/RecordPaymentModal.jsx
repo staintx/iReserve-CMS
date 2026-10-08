@@ -20,6 +20,7 @@ import {
 import Btn from "../ui/Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
+import { MAX_FINANCIAL_AMOUNT, validateFinancialAmount } from "../../../lib/validationRules";
 
 export default function RecordPaymentModal({
   isOpen,
@@ -216,6 +217,10 @@ export default function RecordPaymentModal({
 
   // Live updated remaining balance calculation
   const enteredAmountNum = parseFloat(amount) || 0;
+  const amountValidationError = amount
+    ? validateFinancialAmount(amount, "Amount", { min: 0.01, max: MAX_FINANCIAL_AMOUNT, allowZero: false })
+    : "";
+
   const newRemainingBalance = useMemo(() => {
     if (!selectedBooking) return 0;
     if (paymentType === "additional") return currentFinancials.remaining;
@@ -258,8 +263,9 @@ export default function RecordPaymentModal({
       return;
     }
 
-    if (!enteredAmountNum || enteredAmountNum <= 0) {
-      notify("Please enter a valid payment amount greater than zero.", "error");
+    const amountErr = validateFinancialAmount(amount, "Amount", { min: 0.01, max: MAX_FINANCIAL_AMOUNT, allowZero: false });
+    if (amountErr) {
+      notify(amountErr, "error");
       return;
     }
 
@@ -575,15 +581,25 @@ export default function RecordPaymentModal({
                 <input
                   type="number"
                   min="0.01"
-                  step="any"
+                  max={MAX_FINANCIAL_AMOUNT}
+                  step="0.01"
                   required
                   placeholder={paymentType === "additional" ? "e.g. 1500" : "0.00"}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   disabled={!selectedBooking || submitting}
-                  className="w-full text-xs sm:text-sm pl-7 pr-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:bg-gray-50 transition-all font-mono"
+                  className={`w-full text-xs sm:text-sm pl-7 pr-3 py-2 border rounded-xl focus:outline-none focus:ring-2 transition-all font-mono ${
+                    amountValidationError ? "border-red-400 focus:ring-red-400/40 bg-red-50/20" : "border-gray-200 focus:ring-primary/40 disabled:bg-gray-50"
+                  }`}
                 />
               </div>
+
+              {amountValidationError && (
+                <p className="text-[11px] font-medium text-red-600 mt-1 flex items-center gap-1">
+                  <AlertCircle size={12} className="shrink-0" />
+                  <span>{amountValidationError}</span>
+                </p>
+              )}
 
               {/* Quick Amount Suggestion Chips */}
               {selectedBooking && (

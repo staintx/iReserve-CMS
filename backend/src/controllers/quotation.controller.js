@@ -10,6 +10,7 @@ const {
   money,
 } = require("../utils/quotationPricing");
 const { isSpecialOffer, offerPricePerPax } = require("../utils/specialOffers");
+const { MAX_FINANCIAL_AMOUNT } = require("../validations/rules.common");
 
 // Helper to check customer ownership of inquiry/quotation
 const verifyCustomerOwnership = (inquiry, userId) => {
@@ -76,6 +77,7 @@ function validateQuotationPayload(body, totals) {
   ];
   numericFields.forEach(({ field, label }) => {
     if (negative(body[field])) errors[field] = `${label} cannot be a negative amount.`;
+    if (money(body[field]) > MAX_FINANCIAL_AMOUNT) errors[field] = `${label} cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.`;
   });
 
   if (!String(body.package_name || "").trim()) {
@@ -101,6 +103,8 @@ function validateQuotationPayload(body, totals) {
         Number(item?.price) <= 0
       ) {
         errors[`menu_items.${index}.price`] = `Price is required for "${dishName || `Dish #${index + 1}`}".`;
+      } else if (Number(item?.price) > MAX_FINANCIAL_AMOUNT) {
+        errors[`menu_items.${index}.price`] = `Price cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.`;
       }
       // Only meaningful on a line charged by its own units; a per-guest dish
       // takes its quantity from the guest count, which is validated above.
@@ -123,6 +127,8 @@ function validateQuotationPayload(body, totals) {
       Number(item?.price) <= 0
     ) {
       errors[`add_ons.${index}.price`] = `Price is required for "${addonName || `Add-on #${index + 1}`}".`;
+    } else if (Number(item?.price) > MAX_FINANCIAL_AMOUNT) {
+      errors[`add_ons.${index}.price`] = `Price cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.`;
     }
     if (item?.quantity !== undefined && Number(item.quantity) < 1) {
       errors[`add_ons.${index}.quantity`] = "Quantity must be at least 1.";
@@ -163,6 +169,8 @@ function validateQuotationPayload(body, totals) {
           Number(item?.unit_price) <= 0
         ) {
           errors[`inclusion_adjustments.${index}.unit_price`] = `A unit price greater than ₱0 is required for extra "${incName || `Inclusion #${index + 1}`}".`;
+        } else if (Number(item?.unit_price) > MAX_FINANCIAL_AMOUNT) {
+          errors[`inclusion_adjustments.${index}.unit_price`] = `Unit price cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.`;
         }
       }
     }
@@ -181,6 +189,8 @@ function validateQuotationPayload(body, totals) {
       Number(fee?.amount) <= 0
     ) {
       errors[`additional_fees.${index}.amount`] = `A fee amount greater than ₱0 is required for "${feeName || `Fee #${index + 1}`}".`;
+    } else if (Number(fee?.amount) > MAX_FINANCIAL_AMOUNT) {
+      errors[`additional_fees.${index}.amount`] = `Fee cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.`;
     }
   });
 
@@ -201,6 +211,8 @@ function validateQuotationPayload(body, totals) {
   if (totals.totalCost <= 0) {
     errors.total_cost =
       "This quotation totals zero. Add the pricing before sending it to the customer.";
+  } else if (totals.totalCost > MAX_FINANCIAL_AMOUNT) {
+    errors.total_cost = `Quotation total cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.`;
   }
 
   if (!body.expiration_date) {
@@ -431,6 +443,16 @@ exports.saveQuotationDraft = asyncHandler(async (req, res) => {
   };
 
   const totals = computeQuotationTotals(pricingInput);
+  if (totals.totalCost > MAX_FINANCIAL_AMOUNT) {
+    return res.status(400).json({
+      message: `Quotation total cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.`
+    });
+  }
+  if (money(req.body.deposit_amount) > MAX_FINANCIAL_AMOUNT) {
+    return res.status(400).json({
+      message: `Amount cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.`
+    });
+  }
   const payload = buildQuotationPayload(pricingInput, totals, inquiry);
   payload.payment_method = req.body.payment_method || inquiry.payment_method || "cash";
 

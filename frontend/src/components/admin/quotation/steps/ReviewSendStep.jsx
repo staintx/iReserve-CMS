@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, formatShortDate } from "../../../../utils/format";
 import DishThumbnail from "../DishThumbnail";
+import { MAX_FINANCIAL_AMOUNT } from "../../../../lib/validationRules";
 
 export default function ReviewSendStep({
   totals,
@@ -58,6 +59,7 @@ export default function ReviewSendStep({
 
   const isDepositBelowMin =
     totals.totalCost > 0 && numDeposit < totals.totalCost * 0.5 - 0.01;
+  const isDepositAboveFinancialLimit = numDeposit > MAX_FINANCIAL_AMOUNT;
   const isDepositAboveMax = totals.totalCost > 0 && numDeposit > totals.totalCost + 0.01;
 
   const setDepositByPercent = (pct) => {
@@ -102,7 +104,9 @@ export default function ReviewSendStep({
 
   const depositErrorMessage =
     errors.deposit_amount ||
-    (isDepositBelowMin
+    (isDepositAboveFinancialLimit
+      ? `Amount cannot exceed ${formatCurrency(MAX_FINANCIAL_AMOUNT)}.`
+      : isDepositBelowMin
       ? `Minimum required deposit is 50% (${formatCurrency(minRequiredDeposit)}). Deposits below 50% are not allowed.`
       : isDepositAboveMax
       ? `Deposit cannot exceed total cost of ${formatCurrency(totals.totalCost)} (100%).`
@@ -122,16 +126,20 @@ export default function ReviewSendStep({
     },
     {
       label: "Package & items priced",
-      passed: totals.totalCost > 0 && missingPrices.length === 0,
+      passed: totals.totalCost > 0 && totals.totalCost <= MAX_FINANCIAL_AMOUNT && missingPrices.length === 0,
       failMsg:
-        missingPrices.length > 0
+        totals.totalCost > MAX_FINANCIAL_AMOUNT
+          ? `Total amount cannot exceed ${formatCurrency(MAX_FINANCIAL_AMOUNT)}`
+          : missingPrices.length > 0
           ? `Missing prices for ${missingPrices.length} item(s): ${missingPrices.map((m) => m.name).join(", ")}`
           : "Quotation total must be greater than ₱0",
     },
     {
       label: "Required deposit specified",
-      passed: numDeposit > 0 && !isDepositBelowMin && !isDepositAboveMax,
-      failMsg: isDepositAboveMax
+      passed: numDeposit > 0 && !isDepositBelowMin && !isDepositAboveMax && !isDepositAboveFinancialLimit,
+      failMsg: isDepositAboveFinancialLimit
+        ? `Amount cannot exceed ${formatCurrency(MAX_FINANCIAL_AMOUNT)}`
+        : isDepositAboveMax
         ? `Deposit cannot exceed total cost of ${formatCurrency(totals.totalCost)} (100%)`
         : isDepositBelowMin
         ? `Minimum required deposit is 50% (${formatCurrency(minRequiredDeposit)})`
@@ -413,6 +421,7 @@ export default function ReviewSendStep({
                 <input
                   type="number"
                   min="0"
+                  max={MAX_FINANCIAL_AMOUNT}
                   step="0.01"
                   placeholder="0.00"
                   value={depositAmount}

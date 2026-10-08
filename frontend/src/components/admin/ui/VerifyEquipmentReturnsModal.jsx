@@ -15,6 +15,7 @@ import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 import Btn from "./Btn";
 import Badge from "./Badge";
+import { MAX_FINANCIAL_AMOUNT } from "../../../lib/validationRules";
 
 export default function VerifyEquipmentReturnsModal({
   booking,
@@ -152,6 +153,14 @@ export default function VerifyEquipmentReturnsModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (chargeCustomer && Number(damageFee) > MAX_FINANCIAL_AMOUNT) {
+      notify("Amount cannot exceed ₱10,000,000.", "error");
+      return;
+    }
+    if (chargeCustomer && ((booking.total_price || 0) + Number(damageFee)) > MAX_FINANCIAL_AMOUNT) {
+      notify("Resulting total amount cannot exceed ₱10,000,000.", "error");
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -405,6 +414,7 @@ export default function VerifyEquipmentReturnsModal({
                       <input
                         type="number"
                         min="1"
+                        max={MAX_FINANCIAL_AMOUNT}
                         step="1"
                         required={chargeCustomer}
                         value={damageFee || ""}
@@ -412,6 +422,12 @@ export default function VerifyEquipmentReturnsModal({
                         placeholder="e.g. 1500"
                         className="w-full h-8 px-3 text-xs rounded-md border border-slate-300 bg-white font-bold text-slate-900 focus:border-amber-500 focus:outline-none"
                       />
+                      {damageFee > MAX_FINANCIAL_AMOUNT && (
+                        <p className="text-[11px] font-medium text-rose-600 mt-1 flex items-center gap-1">
+                          <AlertCircle size={12} className="shrink-0 text-rose-500" />
+                          <span>Amount cannot exceed ₱10,000,000.</span>
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -429,7 +445,7 @@ export default function VerifyEquipmentReturnsModal({
                     </div>
                   </div>
 
-                  {damageFee > 0 && (
+                  {damageFee > 0 && damageFee <= MAX_FINANCIAL_AMOUNT && (
                     <div className="p-3 bg-white rounded-md border border-amber-200 text-xs flex flex-wrap items-center justify-between gap-2">
                       <span className="text-slate-600">
                         Original Total: <strong>₱{(booking.total_price || 0).toLocaleString()}</strong>
@@ -471,7 +487,7 @@ export default function VerifyEquipmentReturnsModal({
               type="submit"
               variant="primary"
               size="sm"
-              disabled={submitting || (chargeCustomer && (!damageFee || !damageReason.trim()))}
+              disabled={submitting || (chargeCustomer && (!damageFee || damageFee > MAX_FINANCIAL_AMOUNT || !damageReason.trim()))}
               className="font-bold bg-amber-600 hover:bg-amber-700 text-white gap-1.5 shadow-2xs cursor-pointer"
             >
               <ShieldCheck className="w-4 h-4" />

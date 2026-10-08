@@ -144,10 +144,10 @@ const QuotationSchema = new mongoose.Schema(
     taxes: { type: Number, default: 0 },
     discounts: { type: Number, default: 0 },
 
-    subtotal: { type: Number, default: 0 },
-    total_cost: { type: Number, default: 0 },
-    deposit_amount: { type: Number, default: 0 },
-    remaining_balance: { type: Number, default: 0 },
+    subtotal: { type: Number, default: 0, min: 0, max: 10000000 },
+    total_cost: { type: Number, default: 0, min: 0, max: 10000000 },
+    deposit_amount: { type: Number, default: 0, min: 0, max: 10000000 },
+    remaining_balance: { type: Number, default: 0, min: 0, max: 10000000 },
 
     expiration_date: { type: Date },
     admin_notes: String,
@@ -231,7 +231,7 @@ const QuotationSchema = new mongoose.Schema(
           scaffold_width: Number,
           scaffold_length: Number,
           scaffold_base_area: Number,
-          scaffold_price: Number,
+          scaffold_price: { type: Number, min: 0, max: 10000000 },
         },
         { _id: false }
       ),

@@ -46,6 +46,7 @@ import {
 } from "../../../lib/specialOffers";
 import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
 import { formatCurrency, formatShortDate } from "../../../utils/format";
+import { MAX_FINANCIAL_AMOUNT } from "../../../lib/validationRules";
 
 // Sub-components
 import QuotationNavigation from "./QuotationNavigation";
@@ -1220,6 +1221,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     if (!Number(details.guest_count) || Number(details.guest_count) < 1) found.guest_count = "Guest count is required.";
 
     if (totals.totalCost <= 0) found.total_cost = "Quotation total must be greater than zero.";
+    else if (totals.totalCost > MAX_FINANCIAL_AMOUNT) found.total_cost = "Quotation total cannot exceed ₱10,000,000.";
 
     const minDeposit = totals.totalCost > 0 ? Math.round((totals.totalCost * 50) / 100) : 0;
     const numDeposit = money(depositAmount);
@@ -1231,6 +1233,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       found.deposit_amount = `Minimum required deposit is 50% (${formatCurrency(minDeposit)}). Deposits below 50% are not allowed (currently ${pct}%).`;
     } else if (numDeposit > totals.totalCost + 0.01) {
       found.deposit_amount = `Deposit cannot exceed total cost of ${formatCurrency(totals.totalCost)} (100%).`;
+    } else if (numDeposit > MAX_FINANCIAL_AMOUNT) {
+      found.deposit_amount = "Amount cannot exceed ₱10,000,000.";
     }
 
     if (!expirationDate) {
@@ -1609,6 +1613,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   const handleSaveDraft = async () => {
     const numDeposit = money(depositAmount);
+    if (totals.totalCost > MAX_FINANCIAL_AMOUNT) {
+      notify("Quotation total cannot exceed ₱10,000,000.", "error");
+      setActiveStep(2);
+      return;
+    }
+    if (numDeposit > MAX_FINANCIAL_AMOUNT) {
+      notify("Amount cannot exceed ₱10,000,000.", "error");
+      setActiveStep(3);
+      return;
+    }
     if (totals.totalCost > 0 && numDeposit < totals.totalCost * 0.5 - 0.01) {
       const minDeposit = Math.round((totals.totalCost * 50) / 100);
       const pct = Math.round((numDeposit / totals.totalCost) * 100);

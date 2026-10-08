@@ -37,6 +37,7 @@ import {
   ChevronLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MAX_FINANCIAL_AMOUNT } from "@/lib/validationRules";
 
 const formatCurrency = (value) => `₱${Number(value || 0).toLocaleString()}`;
 
@@ -248,6 +249,10 @@ export default function CustomerPayments() {
     const payAmount = Number(amount || 0);
     if (!Number.isFinite(payAmount) || payAmount <= 0) {
       notify("This booking does not have a valid balance amount.", "error");
+      return;
+    }
+    if (payAmount > MAX_FINANCIAL_AMOUNT) {
+      notify("Amount cannot exceed ₱10,000,000.", "error");
       return;
     }
 

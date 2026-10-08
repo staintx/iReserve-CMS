@@ -8,6 +8,7 @@ const MenuItem = require("../models/MenuItem");
 const BusinessInfo = require("../models/BusinessInfo");
 const BlockedDate = require("../models/BlockedDate");
 const User = require("../models/User");
+const { MAX_FINANCIAL_AMOUNT } = require("../validations/rules.common");
 
 // --- Perf: batch inventory check (2 queries instead of 2N) ---
 const checkInventoryAvailability = async (
@@ -730,6 +731,27 @@ exports.update = asyncHandler(async (req, res) => {
   const current = await Booking.findById(req.params.id);
   if (!current) return res.status(404).json({ message: "Booking not found" });
 
+  if (req.body.total_price !== undefined) {
+    const tp = Number(req.body.total_price);
+    if (!Number.isFinite(tp) || tp < 0 || tp > MAX_FINANCIAL_AMOUNT) {
+      return res.status(400).json({ message: `Total price cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
+    }
+  }
+  if (req.body.deposit_amount !== undefined) {
+    const da = Number(req.body.deposit_amount);
+    if (!Number.isFinite(da) || da < 0 || da > MAX_FINANCIAL_AMOUNT) {
+      return res.status(400).json({ message: `Deposit amount cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
+    }
+  }
+  if (Array.isArray(req.body.additional_charges)) {
+    for (const c of req.body.additional_charges) {
+      const amt = Number(c.amount);
+      if (!Number.isFinite(amt) || amt < 0 || amt > MAX_FINANCIAL_AMOUNT) {
+        return res.status(400).json({ message: `Charge amount cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
+      }
+    }
+  }
+
   if (req.user?.role !== "admin" && getThreeDayLockout(current.event_date)) {
     const allowedLateFields = [
       "status",
@@ -867,6 +889,7 @@ exports.update = asyncHandler(async (req, res) => {
 
   const updated = await Booking.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
+    runValidators: true,
   });
 
   if (current.status !== "confirmed" && updated.status === "confirmed") {
@@ -1415,8 +1438,8 @@ exports.processRefund = asyncHandler(async (req, res) => {
   if (!booking) return res.status(404).json({ message: "Booking not found" });
 
   const refundAmount = Number(req.body.amount);
-  if (isNaN(refundAmount) || refundAmount < 0) {
-    return res.status(400).json({ message: "Invalid refund amount" });
+  if (!Number.isFinite(refundAmount) || refundAmount < 0 || refundAmount > MAX_FINANCIAL_AMOUNT) {
+    return res.status(400).json({ message: `Refund amount must be between ₱0 and ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
   }
 
   const deductionReason =
@@ -1616,6 +1639,9 @@ exports.verifyReturns = asyncHandler(async (req, res) => {
   const hasDamageFeeParam = damage_fee !== undefined && damage_fee !== null && !isNaN(numDamageFee);
 
   if (hasDamageFeeParam) {
+    if (numDamageFee < 0 || numDamageFee > MAX_FINANCIAL_AMOUNT) {
+      return res.status(400).json({ message: `Damage fee cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
+    }
     if (!booking.additional_charges) booking.additional_charges = [];
     if (!booking.equipment_returns) booking.equipment_returns = [];
 
@@ -2922,8 +2948,12 @@ exports.sendQuote = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Only inquiries can receive quotes." });
   }
 
-  if (req.body.total_price) {
-    booking.total_price = req.body.total_price;
+  if (req.body.total_price !== undefined) {
+    const tp = Number(req.body.total_price);
+    if (!Number.isFinite(tp) || tp < 0 || tp > MAX_FINANCIAL_AMOUNT) {
+      return res.status(400).json({ message: `Total price cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
+    }
+    booking.total_price = Math.round(tp * 100) / 100;
   }
 
   if (req.body.note) {

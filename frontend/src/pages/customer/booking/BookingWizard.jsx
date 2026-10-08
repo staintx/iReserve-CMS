@@ -1118,6 +1118,19 @@ export default function BookingWizard() {
                 const vtErr = validateSafeText(form.venue_type_other, "Venue type", { max: 60, required: true });
                 if (vtErr) errors.venue_type_other = vtErr;
               }
+              if (!form.is_custom_setup) {
+                const themeTrimmed = String(form.event_theme || "").trim();
+                if (!themeTrimmed) {
+                  errors.event_theme = "Please enter your event theme or styling motif.";
+                  if (!message) message = "Please enter your event theme or styling motif.";
+                } else {
+                  const thErr = validateSafeText(form.event_theme, "Theme or styling motif", { max: 100, required: true });
+                  if (thErr) {
+                    errors.event_theme = thErr;
+                    if (!message) message = thErr;
+                  }
+                }
+              }
             }
             break;
           }
@@ -1144,9 +1157,18 @@ export default function BookingWizard() {
             const lmErr = validateAddress(form.landmark, "Landmark", { max: 100, required: false });
             if (lmErr) errors.landmark = lmErr;
           }
-          if (form.event_theme?.trim()) {
-            const thErr = validateSafeText(form.event_theme, "Event theme", { max: 100, required: false });
-            if (thErr) errors.event_theme = thErr;
+          if (!form.is_custom_setup) {
+            const themeTrimmed = String(form.event_theme || "").trim();
+            if (!themeTrimmed) {
+              errors.event_theme = "Please enter your event theme or styling motif.";
+              if (!message) message = "Please enter your event theme or styling motif.";
+            } else {
+              const thErr = validateSafeText(form.event_theme, "Theme or styling motif", { max: 100, required: true });
+              if (thErr) {
+                errors.event_theme = thErr;
+                if (!message) message = thErr;
+              }
+            }
           }
           // Venue type is optional, but "Other" is a question rather than an
           // answer: having chosen it, the customer has to say what the venue is.

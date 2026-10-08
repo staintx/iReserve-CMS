@@ -8,6 +8,7 @@ import useBusinessInfo from "../../hooks/useBusinessInfo";
 import { createConversation } from "../../api/messages";
 import { isOcularEligibleBooking } from "../../utils/ocularEligibility";
 import { getBookingOcularActionMeta } from "../../utils/ocularStatusHelper";
+import { isBookingAwaitingDeposit } from "../../utils/bookingDeposit";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
 import { getEventThumbnail } from "../../utils/eventThumbnails";
@@ -123,7 +124,8 @@ export default function CustomerBookings() {
         CustomerAPI.getPackages(),
         CustomerAPI.getMenu().catch(() => ({ data: [] })),
       ]);
-      setBookings(bRes.data || []);
+      // Unpaid-deposit bookings live under My Inquiries until the deposit is paid
+      setBookings((bRes.data || []).filter((b) => !isBookingAwaitingDeposit(b)));
       setPayments(pRes.data || []);
       setPackages(pkgRes.data || []);
       setMenuCatalog(menuRes.data || []);
@@ -610,11 +612,9 @@ export default function CustomerBookings() {
                           ? "All Bookings"
                           : statusFilter === "confirmed"
                             ? "Confirmed"
-                            : statusFilter === "deposit_needed"
-                              ? "Deposit Needed"
-                              : statusFilter === "completed"
-                                ? "Completed"
-                                : "Cancelled"}
+                            : statusFilter === "completed"
+                              ? "Completed"
+                              : "Cancelled"}
                       </span>
                       <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
                     </Button>
@@ -626,7 +626,6 @@ export default function CustomerBookings() {
                     {[
                       { id: "all", label: "All Bookings" },
                       { id: "confirmed", label: "Confirmed & Reserved" },
-                      { id: "deposit_needed", label: "Deposit Needed" },
                       { id: "completed", label: "Completed" },
                       { id: "cancelled", label: "Cancelled" },
                     ].map((item) => (

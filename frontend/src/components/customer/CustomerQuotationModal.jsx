@@ -816,6 +816,15 @@ export default function CustomerQuotationModal({
                           const byQuantity = item.pricing_type === MENU_PRICING.QUANTITY;
                           const unitLabel = String(item.unit || "").trim();
                           const lineTotal = menuLineTotal(item, guestCount);
+                          const unitPrice = Number(item.price) || 0;
+                          const portionUnit = unitLabel
+                            ? (unitLabel.toLowerCase().startsWith("per ") ? unitLabel : `Per ${unitLabel}`)
+                            : "Per unit";
+                          const portionDisplay = byQuantity
+                            ? (unitPrice > 0
+                                ? `${units} × ${formatCurrency(unitPrice)}/${portionUnit}`
+                                : `${units} ${portionUnit}`)
+                            : "Per guest";
                           return (
                             <li
                               key={idx}
@@ -832,7 +841,7 @@ export default function CustomerQuotationModal({
                                     </span>
                                   )}
                                   <span className="text-[11px] text-slate-500">
-                                    ({byQuantity ? `${units} ${unitLabel || "units"}` : "Per guest"})
+                                    ({portionDisplay})
                                   </span>
                                 </div>
                                 {item.note && (

@@ -593,11 +593,12 @@ export default function StepPackageSelection({
                       *
                     </span>
                   </label>
-                  <FieldStatusPill value={form.event_theme} />
+                  <FieldStatusPill value={form.event_theme} optionalLabel="Required" />
                 </div>
                 <ThemePicker
                   value={form.event_theme}
                   onChange={(theme) => updateForm({ event_theme: theme })}
+                  hasError={!!errors.event_theme}
                 />
                 {errors.event_theme && (
                   <p className="text-xs font-semibold text-red-600 mt-1.5 flex items-center gap-1.5">

@@ -58,18 +58,39 @@ export const ProcessTimeline = ({
     ? currentStepIndex
     : getStepIndexFromStatus(status);
 
+  const totalSteps = steps.length;
+  const progressRatio = totalSteps > 1 ? Math.min(activeIndex, totalSteps - 1) / (totalSteps - 1) : 0;
+  const halfStepPercent = totalSteps > 0 ? (100 / (totalSteps * 2)) : 12.5;
+
   return (
     <View style={[styles.container, style]}>
-      <View style={styles.trackRow}>
-        {steps.map((step, idx) => {
-          const isCompleted = idx < activeIndex;
-          const isCurrent = idx === activeIndex;
-          const isUpcoming = idx > activeIndex;
+      <View style={styles.trackWrapper}>
+        {/* Continuous connector line behind circles */}
+        <View
+          style={[
+            styles.lineContainer,
+            { left: `${halfStepPercent}%`, right: `${halfStepPercent}%` },
+          ]}
+        >
+          <View style={styles.lineBackground} />
+          <View
+            style={[
+              styles.lineProgress,
+              { width: `${progressRatio * 100}%` },
+            ]}
+          />
+        </View>
 
-          return (
-            <React.Fragment key={step.key || idx}>
-              {/* Node / Pin */}
-              <View style={styles.nodeWrapper}>
+        {/* Responsive Step Columns */}
+        <View style={styles.stepsRow}>
+          {steps.map((step, idx) => {
+            const isCompleted = idx < activeIndex;
+            const isCurrent = idx === activeIndex;
+            const isUpcoming = idx > activeIndex;
+
+            return (
+              <View key={step.key || idx} style={styles.stepCol}>
+                {/* Node Circle */}
                 <View
                   style={[
                     styles.nodeCircle,
@@ -79,7 +100,7 @@ export const ProcessTimeline = ({
                   ]}
                 >
                   {isCompleted ? (
-                    <Check size={12} color={colors.white} strokeWidth={3} />
+                    <Check size={11} color={colors.white} strokeWidth={3} />
                   ) : (
                     <Text
                       style={[
@@ -106,19 +127,9 @@ export const ProcessTimeline = ({
                   {step.label}
                 </Text>
               </View>
-
-              {/* Connecting Line (except after last step) */}
-              {idx < steps.length - 1 && (
-                <View
-                  style={[
-                    styles.connectorLine,
-                    idx < activeIndex ? styles.connectorCompleted : styles.connectorUpcoming,
-                  ]}
-                />
-              )}
-            </React.Fragment>
-          );
-        })}
+            );
+          })}
+        </View>
       </View>
     </View>
   );
@@ -126,27 +137,53 @@ export const ProcessTimeline = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: 2,
   },
-  trackRow: {
+  trackWrapper: {
+    position: "relative",
+    width: "100%",
+  },
+  lineContainer: {
+    position: "absolute",
+    top: 10,
+    height: 2,
+    zIndex: 1,
+  },
+  lineBackground: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: colors.cardBorder,
+  },
+  lineProgress: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: colors.success,
+  },
+  stepsRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    justifyContent: "space-between",
-    position: "relative",
-  },
-  nodeWrapper: {
-    alignItems: "center",
-    width: 68,
+    width: "100%",
     zIndex: 2,
   },
+  stepCol: {
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 2,
+  },
   nodeCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.xs,
+    marginBottom: 6,
+    zIndex: 3,
   },
   nodeCircleCompleted: {
     backgroundColor: colors.success,
@@ -156,7 +193,7 @@ const styles = StyleSheet.create({
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowRadius: 3,
     elevation: 3,
   },
   nodeCircleUpcoming: {
@@ -165,7 +202,7 @@ const styles = StyleSheet.create({
     borderColor: colors.cardBorder,
   },
   nodeNumber: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
   },
@@ -192,20 +229,7 @@ const styles = StyleSheet.create({
   },
   stepLabelUpcoming: {
     color: colors.foregroundMuted,
-    opacity: 0.7,
-  },
-  connectorLine: {
-    flex: 1,
-    height: 2,
-    marginTop: 11, // centers line with the 24px circle
-    marginHorizontal: -4,
-    zIndex: 1,
-  },
-  connectorCompleted: {
-    backgroundColor: colors.success,
-  },
-  connectorUpcoming: {
-    backgroundColor: colors.cardBorder,
+    opacity: 0.75,
   },
 });
 

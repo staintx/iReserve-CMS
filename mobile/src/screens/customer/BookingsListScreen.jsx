@@ -7,7 +7,9 @@ import {
   TextInput,
   TouchableOpacity,
   RefreshControl,
+  Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   Search,
@@ -44,6 +46,7 @@ const SERVICE_OPTIONS = [
 ];
 
 export const BookingsListScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -190,9 +193,25 @@ export const BookingsListScreen = ({ navigation }) => {
 
   const renderBookingItem = ({ item }) => {
     const total = Number(item.total_price || item.total_amount || 0);
-    const paid = Number(item.deposit_paid || item.amount_paid || 0);
-    const balanceDue = Math.max(0, total - paid);
-    const isPaidInFull = balanceDue === 0 && total > 0;
+    const statusLower = String(item.status || "").toLowerCase();
+    const paymentStatusLower = String(item.payment_status || "").toLowerCase();
+
+    const isCompleted = statusLower.includes("complete");
+    const isCancelled = statusLower.includes("cancel") || statusLower.includes("refund");
+    const isFullyPaid =
+      paymentStatusLower === "fully_paid" ||
+      (total > 0 && Number(item.deposit_paid || item.amount_paid || 0) >= total);
+
+    const paid = (isFullyPaid || isCompleted)
+      ? total
+      : Number(item.deposit_paid || item.amount_paid || 0);
+
+    const balanceDue = (isCompleted || isCancelled || isFullyPaid)
+      ? 0
+      : Math.max(0, total - paid);
+
+    const hasBalanceDue = balanceDue > 0;
+    const isPaidInFull = !hasBalanceDue && total > 0 && !isCancelled;
 
     const eventTitle =
       item.event_name ||
@@ -203,78 +222,121 @@ export const BookingsListScreen = ({ navigation }) => {
         style={styles.bookingCard}
         onPress={() => navigation.navigate("BookingDetail", { id: item._id })}
       >
-        {/* Header Row: Title + Status + Financial info matching Screenshots 4 & 5 */}
-        <View style={styles.cardHeaderRow}>
-          <View style={styles.titleCol}>
-            <View style={styles.iconAndTitle}>
-              <UtensilsCrossed size={18} color={colors.foregroundMuted} style={styles.eventIcon} />
-              <Text style={styles.eventTitle} numberOfLines={1}>
-                {eventTitle}
-              </Text>
-            </View>
+        {/* Top Reference & Status Row */}
+        <View style={styles.cardTopRow}>
+          <View style={styles.refRow}>
+            <Calendar size={13} color={colors.foregroundMuted} style={styles.metaIcon} />
+            <Text style={styles.bookingRef} numberOfLines={1}>
+              {item.reference || `BK-${String(item._id).slice(-6).toUpperCase()}`}
+            </Text>
+            {item.version ? (
+              <Text style={styles.versionTag}>• v{item.version}</Text>
+            ) : null}
+          </View>
 
-            <View style={styles.badgeRow}>
-              <StatusBadge status={item.status || "Confirmed & Reserved"} size="sm" />
-            </View>
+          <StatusBadge status={item.status || "Confirmed & Reserved"} size="sm" />
+        </View>
 
-            <Text style={styles.eventMetaText}>
-              {formatDate(item.event_date)} • {formatTime(item.start_time)} •{" "}
-              {item.service_type || "Food and Event Setup"}
-              {item.version ? ` • Revised • v${item.version}` : ""}
+        {/* Event Title Row */}
+        <View style={styles.titleRow}>
+          <UtensilsCrossed size={16} color={colors.primary} style={styles.eventIcon} />
+          <Text style={styles.eventTitle} numberOfLines={2}>
+            {eventTitle}
+          </Text>
+        </View>
+
+        {/* Event Meta Details */}
+        <View style={styles.eventMetaContainer}>
+          <View style={styles.metaItem}>
+            <Clock size={13} color={colors.textSubtle} style={styles.metaIcon} />
+            <Text style={styles.eventMetaText} numberOfLines={1}>
+              {formatDate(item.event_date)} • {formatTime(item.start_time)}
             </Text>
           </View>
 
-          {/* Right-aligned Financial Block */}
-          <View style={styles.financialCol}>
-            {isPaidInFull ? (
-              <>
-                <Text style={styles.paidStatusLabel}>PAID IN FULL</Text>
-                <Text style={styles.paidFullAmount}>{formatCurrency(total)}</Text>
-              </>
-            ) : balanceDue > 0 ? (
+          <View style={styles.metaItem}>
+            <Sparkles size={13} color={colors.textSubtle} style={styles.metaIcon} />
+            <Text style={styles.eventMetaText} numberOfLines={1}>
+              {item.service_type || "Food and Event Setup"}
+            </Text>
+          </View>
+
+          {(item.municipality || item.venue_address) ? (
+            <View style={styles.metaItem}>
+              <MapPin size={13} color={colors.textSubtle} style={styles.metaIcon} />
+              <Text style={styles.eventMetaText} numberOfLines={1}>
+                {item.municipality || item.venue_address}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Financial Information Box */}
+        <View style={styles.financialContainer}>
+          <View style={styles.financialLeft}>
+            <Text style={styles.finLabel}>TOTAL BOOKING</Text>
+            <Text style={styles.finTotalAmount}>{formatCurrency(total)}</Text>
+            {paid > 0 && hasBalanceDue && (
+              <Text style={styles.finPaidSubtext}>
+                {formatCurrency(paid)} paid so far
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.financialRight}>
+            {hasBalanceDue ? (
               <>
                 <Text style={styles.amountDueLabel}>AMOUNT DUE</Text>
                 <Text style={styles.amountDueValue}>{formatCurrency(balanceDue)}</Text>
-                {paid > 0 && (
-                  <Text style={styles.paidSubtext}>
-                    {formatCurrency(paid)} paid so far
-                  </Text>
-                )}
               </>
-            ) : (
-              <>
-                <Text style={styles.totalCostLabel}>TOTAL</Text>
-                <Text style={styles.totalCostValue}>{formatCurrency(total)}</Text>
-              </>
-            )}
-
-            <View style={styles.detailsToggle}>
-              <Text style={styles.detailsToggleText}>Details</Text>
-              <ChevronRight size={14} color={colors.foregroundMuted} />
-            </View>
+            ) : isPaidInFull || isCompleted ? (
+              <View style={styles.paidInFullBadge}>
+                <CheckCircle2 size={13} color={colors.success} style={{ marginRight: 4 }} />
+                <Text style={styles.paidInFullText}>
+                  {isCompleted ? "COMPLETED" : "PAID IN FULL"}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
-        {/* Status Callout Banner matching Screenshots 4 & 5 */}
-        {isPaidInFull ? (
+        {/* Status Callout Banner */}
+        {isCompleted ? (
+          <View style={styles.completedCallout}>
+            <CheckCircle2 size={15} color={colors.primary} style={{ marginRight: 6 }} />
+            <Text style={styles.completedCalloutText}>
+              Event successfully completed. Thank you for celebrating with us!
+            </Text>
+          </View>
+        ) : isPaidInFull ? (
           <View style={styles.readyCallout}>
-            <CheckCircle2 size={16} color={colors.success} style={{ marginRight: 6 }} />
+            <CheckCircle2 size={15} color={colors.success} style={{ marginRight: 6 }} />
             <Text style={styles.readyCalloutText}>
               You're all set. Everything is prepared and ready for your event.
             </Text>
           </View>
-        ) : balanceDue > 0 ? (
+        ) : hasBalanceDue ? (
           <View style={styles.balanceCallout}>
-            <AlertCircle size={16} color={colors.foregroundMuted} style={{ marginRight: 6 }} />
+            <AlertCircle size={15} color={colors.warning} style={{ marginRight: 6 }} />
             <Text style={styles.balanceCalloutText}>
               Your date is reserved. The remaining balance is due before your event setup.
             </Text>
           </View>
         ) : null}
 
-        {/* CTA: Pay Remaining Balance in Emerald Green matching Screenshot 5 */}
-        {balanceDue > 0 && (
-          <View style={styles.actionRow}>
+        {/* Action Row */}
+        <View style={styles.cardActionFooter}>
+          <TouchableOpacity
+            style={styles.detailsBtn}
+            onPress={() => navigation.navigate("BookingDetail", { id: item._id })}
+            activeOpacity={0.7}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Text style={styles.detailsBtnText}>View Details</Text>
+            <ChevronRight size={14} color={colors.primary} />
+          </TouchableOpacity>
+
+          {hasBalanceDue && (
             <TouchableOpacity
               style={styles.payBalanceBtn}
               onPress={() =>
@@ -288,34 +350,46 @@ export const BookingsListScreen = ({ navigation }) => {
               <CreditCard size={15} color={colors.white} style={{ marginRight: 6 }} />
               <Text style={styles.payBalanceBtnText}>Pay Remaining Balance</Text>
             </TouchableOpacity>
-          </View>
-        )}
+          )}
+        </View>
       </Card>
     );
   };
 
+  const headerPaddingTop =
+    Math.max(insets.top, Platform.OS === "ios" ? 44 : 24) +
+    (Platform.OS === "ios" ? 6 : 10);
+
   return (
     <View style={styles.container}>
-      {/* Top Header matching Screenshots 4 & 5 */}
-      <View style={styles.header}>
-        <View style={styles.headerTextGroup}>
-          <Text style={styles.screenTitle}>My Bookings</Text>
-          <Text style={styles.screenSubtitle}>
-            Track your reserved events, payments, and what to do next.
-          </Text>
+      {/* Top Header */}
+      <View style={[styles.header, { paddingTop: headerPaddingTop }]}>
+        <View style={styles.headerTopRow}>
+          <View style={styles.headerTitleGroup}>
+            <Text style={styles.screenTitle}>My Bookings</Text>
+            {bookings.length > 0 && (
+              <View style={styles.headerCountBadge}>
+                <Text style={styles.headerCountBadgeText}>{bookings.length}</Text>
+              </View>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={styles.bookEventBtn}
+            onPress={() => navigation.navigate("InquiryWizard")}
+            activeOpacity={0.8}
+          >
+            <Plus size={15} color={colors.white} style={{ marginRight: 4 }} />
+            <Text style={styles.bookEventBtnText}>Book an event</Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.bookEventBtn}
-          onPress={() => navigation.navigate("InquiryWizard")}
-          activeOpacity={0.8}
-        >
-          <Plus size={16} color={colors.white} style={{ marginRight: 4 }} />
-          <Text style={styles.bookEventBtnText}>Book an event</Text>
-        </TouchableOpacity>
+        <Text style={styles.screenSubtitle}>
+          Track your reserved events, payments, and what to do next.
+        </Text>
       </View>
 
-      {/* Payment Reminder Amber Banner matching Screenshots 4 & 5 */}
+      {/* Payment Reminder Amber Banner */}
       {totalBalanceDue > 0 && (
         <View style={styles.bannerWrapper}>
           <AlertBanner
@@ -408,7 +482,10 @@ export const BookingsListScreen = ({ navigation }) => {
           data={filteredBookings}
           renderItem={renderBookingItem}
           keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: Math.max(insets.bottom, 16) + 120 },
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -429,48 +506,71 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.base,
     paddingBottom: spacing.sm,
     backgroundColor: colors.surface,
   },
-  headerTextGroup: {
-    flex: 1,
-    paddingRight: spacing.sm,
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    marginBottom: 4,
+  },
+  headerTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 1,
+    minWidth: 0,
+    gap: spacing.xs,
   },
   screenTitle: {
     fontSize: 22,
-    fontFamily: typography.fontFamilies.serifBold,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
     color: colors.foreground,
     letterSpacing: -0.3,
-    marginBottom: 2,
+    flexShrink: 1,
+  },
+  headerCountBadge: {
+    backgroundColor: colors.surfaceAlt,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    flexShrink: 0,
+  },
+  headerCountBadgeText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundMuted,
+  },
+  bookEventBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.base,
+    paddingVertical: 8,
+    minHeight: 38,
+    borderRadius: radius.pill,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+    flexShrink: 0,
+  },
+  bookEventBtnText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.white,
   },
   screenSubtitle: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     lineHeight: 16,
-  },
-  bookEventBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: radius.md,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  bookEventBtnText: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamilies.bold,
-    color: colors.white,
   },
   bannerWrapper: {
     paddingHorizontal: spacing.lg,
@@ -548,105 +648,138 @@ const styles = StyleSheet.create({
   /* List Content */
   listContent: {
     padding: spacing.lg,
-    paddingBottom: 130,
     gap: spacing.lg,
   },
   bookingCard: {
-    padding: spacing.lg,
+    padding: spacing.base + 2,
     backgroundColor: colors.card,
     borderRadius: radius.lg,
   },
-  cardHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: spacing.md,
-  },
-  titleCol: {
-    flex: 1,
-    paddingRight: spacing.sm,
-  },
-  iconAndTitle: {
+  cardTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 4,
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  refRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    minWidth: 0,
+  },
+  metaIcon: {
+    marginRight: 4,
+  },
+  bookingRef: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundMuted,
+    letterSpacing: 0.2,
+  },
+  versionTag: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.textSubtle,
+    marginLeft: 4,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 6,
   },
   eventIcon: {
     marginRight: 6,
+    marginTop: 2,
   },
   eventTitle: {
-    fontSize: typography.sizes.base,
-    fontFamily: typography.fontFamilies.serifBold,
+    fontSize: typography.sizes.base + 1,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.foreground,
     flex: 1,
+    lineHeight: 22,
   },
-  badgeRow: {
+  eventMetaContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    rowGap: 4,
+    columnGap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  metaItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: spacing.xs,
   },
   eventMetaText: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
-    lineHeight: 16,
   },
-  financialCol: {
-    alignItems: "flex-end",
-    minWidth: 100,
+  financialContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    marginBottom: spacing.sm,
   },
-  paidStatusLabel: {
+  financialLeft: {
+    flex: 1,
+  },
+  finLabel: {
     fontSize: typography.sizes.micro,
     fontFamily: typography.fontFamilies.bold,
-    color: colors.foregroundMuted,
+    color: colors.textSubtle,
     letterSpacing: 0.6,
+    textTransform: "uppercase",
   },
-  paidFullAmount: {
-    fontSize: typography.sizes.md,
-    fontFamily: typography.fontFamilies.bold,
-    color: colors.success,
-    marginTop: 1,
-  },
-  amountDueLabel: {
-    fontSize: typography.sizes.micro,
-    fontFamily: typography.fontFamilies.bold,
-    color: colors.foregroundMuted,
-    letterSpacing: 0.6,
-  },
-  amountDueValue: {
-    fontSize: typography.sizes.md,
+  finTotalAmount: {
+    fontSize: typography.sizes.sm,
     fontFamily: typography.fontFamilies.bold,
     color: colors.foreground,
     marginTop: 1,
   },
-  paidSubtext: {
+  finPaidSubtext: {
     fontSize: typography.sizes.micro,
     fontFamily: typography.fontFamilies.regular,
     color: colors.textSubtle,
     marginTop: 1,
   },
-  totalCostLabel: {
+  financialRight: {
+    alignItems: "flex-end",
+  },
+  amountDueLabel: {
     fontSize: typography.sizes.micro,
     fontFamily: typography.fontFamilies.bold,
-    color: colors.foregroundMuted,
+    color: colors.warningDark,
     letterSpacing: 0.6,
+    textTransform: "uppercase",
   },
-  totalCostValue: {
-    fontSize: typography.sizes.md,
+  amountDueValue: {
+    fontSize: typography.sizes.base,
     fontFamily: typography.fontFamilies.bold,
-    color: colors.primary,
+    color: colors.foreground,
+    marginTop: 1,
   },
-  detailsToggle: {
+  paidInFullBadge: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: spacing.xs,
-    paddingVertical: 2,
+    backgroundColor: colors.successLight,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
   },
-  detailsToggleText: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamilies.medium,
-    color: colors.foregroundMuted,
-    marginRight: 2,
+  paidInFullText: {
+    fontSize: typography.sizes.micro,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.successText,
+    letterSpacing: 0.4,
   },
   /* Inner Callout Banners */
   readyCallout: {
@@ -656,9 +789,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.successBorder,
     borderRadius: radius.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs + 2,
     paddingHorizontal: spacing.md,
-    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
   },
   readyCalloutText: {
     fontSize: typography.sizes.xs,
@@ -667,37 +800,71 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 16,
   },
+  completedCallout: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.powderBlue,
+    borderRadius: radius.md,
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  completedCalloutText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.primaryDark,
+    flex: 1,
+    lineHeight: 16,
+  },
   balanceCallout: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.warningLight,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.warningBorder,
     borderRadius: radius.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs + 2,
     paddingHorizontal: spacing.md,
-    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
   },
   balanceCalloutText: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.regular,
-    color: colors.foregroundMuted,
+    color: colors.warningText,
     flex: 1,
     lineHeight: 16,
   },
-  /* Pay Action Row */
-  actionRow: {
-    marginTop: spacing.md,
-    alignItems: "flex-end",
+  /* Card Action Footer */
+  cardActionFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: spacing.xs,
+    gap: spacing.sm,
+  },
+  detailsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 40,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.xs,
+  },
+  detailsBtnText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.primary,
+    marginRight: 2,
   },
   payBalanceBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 44,
+    minHeight: 40,
     backgroundColor: colors.success,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 10,
+    paddingHorizontal: spacing.base,
+    paddingVertical: 8,
     borderRadius: radius.pill,
     shadowColor: colors.success,
     shadowOffset: { width: 0, height: 2 },

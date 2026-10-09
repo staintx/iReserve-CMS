@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,9 @@ import {
   RefreshControl,
   Image,
 } from "react-native";
-import { Sparkles, Utensils, Users, ChevronRight, Plus } from "lucide-react-native";
-import { colors, radius, spacing, typography } from "../../constants/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Sparkles, Utensils, Users, ChevronRight, Layers } from "lucide-react-native";
+import { colors, radius, spacing, typography, shadows } from "../../constants/theme";
 import customerApi from "../../api/customer";
 import { resolvePackageCover } from "../../constants/cateringData";
 import { cacheData, getCachedData, CACHE_KEYS } from "../../utils/offlineStorage";
@@ -19,13 +20,21 @@ import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
 import { formatCurrency } from "../../utils/format";
+import {
+  isSpecialOffer,
+  offerPricePerPax,
+  offerGuestCount,
+  packagePriceParts,
+  capacityLabel,
+} from "../../utils/packageDisplay";
 
 export const PackagesScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [selectedFilter, setSelectedFilter] = useState("all"); // all | regular | special
+  const [selectedFilter, setSelectedFilter] = useState("all"); // all | regular | combo
 
   const loadPackages = async () => {
     setError("");
@@ -58,16 +67,31 @@ export const PackagesScreen = ({ navigation }) => {
     loadPackages();
   };
 
-  const filteredPackages = packages.filter((pkg) => {
-    const isCombo = pkg.is_combo || pkg.package_type === "Special Offer" || pkg.combo_guest_count;
-    if (selectedFilter === "special") return isCombo;
-    if (selectedFilter === "regular") return !isCombo;
-    return true;
-  });
+  const regularCount = useMemo(
+    () => packages.filter((pkg) => !isSpecialOffer(pkg)).length,
+    [packages]
+  );
+
+  const comboCount = useMemo(
+    () => packages.filter((pkg) => isSpecialOffer(pkg)).length,
+    [packages]
+  );
+
+  const filteredPackages = useMemo(() => {
+    return packages.filter((pkg) => {
+      const isCombo = isSpecialOffer(pkg);
+      if (selectedFilter === "combo" || selectedFilter === "special") return isCombo;
+      if (selectedFilter === "regular") return !isCombo;
+      return true;
+    });
+  }, [packages, selectedFilter]);
 
   const renderPackageItem = ({ item }) => {
-    const isCombo = item.is_combo || item.package_type === "Special Offer" || item.combo_guest_count;
+    const isCombo = isSpecialOffer(item);
     const coverUrl = resolvePackageCover(item);
+    const priceInfo = packagePriceParts(item);
+    const paxCount = offerGuestCount(item);
+    const guestCapacity = capacityLabel(item);
 
     return (
       <Card
@@ -83,12 +107,16 @@ export const PackagesScreen = ({ navigation }) => {
                   <Text style={styles.eventBadgeText}>{item.event_type}</Text>
                 </View>
               ) : null}
-              {isCombo && (
+              {isCombo ? (
                 <View style={styles.comboCoverBadge}>
                   <Sparkles size={11} color={colors.white} />
                   <Text style={styles.comboCoverBadgeText}>Combo Pack</Text>
                 </View>
-              )}
+              ) : item.badge_text ? (
+                <View style={styles.featuredBadge}>
+                  <Text style={styles.featuredBadgeText}>{item.badge_text}</Text>
+                </View>
+              ) : null}
             </View>
           </View>
         ) : null}
@@ -99,54 +127,92 @@ export const PackagesScreen = ({ navigation }) => {
               {isCombo && !coverUrl && (
                 <View style={styles.specialBadge}>
                   <Sparkles size={12} color={colors.accentDark} />
-                  <Text style={styles.specialBadgeText}>Special Offer</Text>
+                  <Text style={styles.specialBadgeText}>
+                    {item.badge_text || "Combo Pack"}
+                  </Text>
                 </View>
               )}
-              <Text style={styles.packageName}>{item.name}</Text>
-              <Text style={styles.packageCategory}>{item.package_type || "Event Setup & Catering"}</Text>
-            </View>
-            <View style={styles.priceContainer}>
-              <Text style={styles.price}>
-                {item.price_per_guest
-                  ? formatCurrency(item.price_per_guest)
-                  : formatCurrency(item.setup_price || item.price || 0)}
+              <Text style={styles.packageName} numberOfLines={2}>
+                {item.name}
               </Text>
-              <Text style={styles.priceUnit}>{item.price_per_guest ? "per guest" : "base rate"}</Text>
+              <Text style={styles.packageCategory}>
+                {isCombo
+                  ? "Curated Combo Meal · Food Only"
+                  : item.package_type || "Event Setup & Catering"}
+              </Text>
+            </View>
+
+            <View style={styles.priceContainer}>
+              {isCombo ? (
+                <>
+                  <Text style={styles.price}>
+                    {formatCurrency(offerPricePerPax(item))}
+                  </Text>
+                  <Text style={styles.priceUnit}>per pax</Text>
+                </>
+              ) : priceInfo.amount ? (
+                <>
+                  <Text style={styles.price}>{priceInfo.amount}</Text>
+                  <Text style={styles.priceUnit}>
+                    {priceInfo.suffix || (priceInfo.prefix ? priceInfo.prefix.toLowerCase() : "base rate")}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.priceQuoted}>{priceInfo.text}</Text>
+              )}
             </View>
           </View>
 
           <Text style={styles.description} numberOfLines={2}>
-            {item.description || "Complete catering solution with tables, chairs, centerpieces, and customizable menu choices."}
+            {item.description ||
+              "Complete catering solution with tables, chairs, centerpieces, and customizable menu choices."}
           </Text>
 
           <View style={styles.inclusionsRow}>
-            {item.min_guests ? (
-              <View style={styles.tag}>
-                <Users size={12} color={colors.primary} />
-                <Text style={styles.tagText}>Min: {item.min_guests} pax</Text>
-              </View>
-            ) : item.combo_guest_count ? (
-              <View style={styles.tag}>
-                <Users size={12} color={colors.primary} />
-                <Text style={styles.tagText}>{item.combo_guest_count} pax fixed</Text>
-              </View>
-            ) : null}
+            {isCombo ? (
+              <>
+                {paxCount > 0 && (
+                  <View style={styles.tag}>
+                    <Users size={12} color={colors.primary} />
+                    <Text style={styles.tagText}>{paxCount} pax fixed</Text>
+                  </View>
+                )}
+                {Array.isArray(item.offer_food_items) && item.offer_food_items.length > 0 && (
+                  <View style={styles.tag}>
+                    <Utensils size={12} color={colors.primary} />
+                    <Text style={styles.tagText}>
+                      {item.offer_food_items.length} Course Items
+                    </Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <>
+                {guestCapacity ? (
+                  <View style={styles.tag}>
+                    <Users size={12} color={colors.primary} />
+                    <Text style={styles.tagText}>{guestCapacity}</Text>
+                  </View>
+                ) : null}
 
-            {Array.isArray(item.inclusions) && item.inclusions.length > 0 && (
-              <View style={styles.tag}>
-                <Utensils size={12} color={colors.primary} />
-                <Text style={styles.tagText}>{item.inclusions.length} Inclusions</Text>
-              </View>
+                {Array.isArray(item.inclusions) && item.inclusions.length > 0 && (
+                  <View style={styles.tag}>
+                    <Layers size={12} color={colors.primary} />
+                    <Text style={styles.tagText}>{item.inclusions.length} Inclusions</Text>
+                  </View>
+                )}
+              </>
             )}
 
-            <View style={styles.addBtnCircle}>
-              <Plus size={16} color={colors.primary} />
+            <View style={styles.actionChevron}>
+              <ChevronRight size={16} color={colors.primary} />
             </View>
           </View>
         </View>
       </Card>
     );
   };
+
   return (
     <View style={styles.container}>
       <Header
@@ -174,18 +240,34 @@ export const PackagesScreen = ({ navigation }) => {
           activeOpacity={0.7}
         >
           <Text style={[styles.filterText, selectedFilter === "regular" && styles.filterTextActive]}>
-            Regular Packages
+            Regular Packages ({regularCount})
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.filterChip, selectedFilter === "special" && styles.filterChipActive]}
-          onPress={() => setSelectedFilter("special")}
+          style={[
+            styles.filterChip,
+            (selectedFilter === "combo" || selectedFilter === "special") && styles.filterChipActive,
+          ]}
+          onPress={() => setSelectedFilter("combo")}
           activeOpacity={0.7}
         >
-          <Sparkles size={13} color={selectedFilter === "special" ? colors.white : colors.accentDark} style={{ marginRight: 4 }} />
-          <Text style={[styles.filterText, selectedFilter === "special" && styles.filterTextActive]}>
-            Special Offers
+          <Sparkles
+            size={13}
+            color={
+              selectedFilter === "combo" || selectedFilter === "special"
+                ? colors.white
+                : colors.accentDark
+            }
+            style={{ marginRight: 5 }}
+          />
+          <Text
+            style={[
+              styles.filterText,
+              (selectedFilter === "combo" || selectedFilter === "special") && styles.filterTextActive,
+            ]}
+          >
+            Combo Packs ({comboCount})
           </Text>
         </TouchableOpacity>
       </View>
@@ -195,14 +277,32 @@ export const PackagesScreen = ({ navigation }) => {
       ) : error ? (
         <ErrorState message={error} onRetry={loadPackages} />
       ) : filteredPackages.length === 0 ? (
-        <EmptyState title="No packages found" description="No packages match your current filter." />
+        <EmptyState
+          title={
+            selectedFilter === "combo"
+              ? "No combo packs found"
+              : selectedFilter === "regular"
+              ? "No regular packages found"
+              : "No packages found"
+          }
+          description="No packages match your current filter."
+        />
       ) : (
         <FlatList
           data={filteredPackages}
           renderItem={renderPackageItem}
           keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: Math.max(insets.bottom, spacing.base) + 100 },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+            />
+          }
           showsVerticalScrollIndicator={false}
         />
       )}
@@ -227,9 +327,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 40,
-    paddingVertical: 8,
-    paddingHorizontal: spacing.md + 2,
+    minHeight: 38,
+    paddingVertical: 7,
+    paddingHorizontal: spacing.md,
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
     borderWidth: 1.2,
@@ -251,13 +351,13 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: spacing.base,
-    paddingBottom: 130,
   },
   packageCard: {
     padding: 0,
     overflow: "hidden",
     marginBottom: spacing.base,
     borderRadius: radius.lg,
+    ...shadows.sm,
   },
   cardCoverContainer: {
     width: "100%",
@@ -292,12 +392,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    backgroundColor: colors.accentDark,
+    backgroundColor: colors.primary,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
     borderRadius: radius.pill,
   },
   comboCoverBadgeText: {
+    color: colors.white,
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+  },
+  featuredBadge: {
+    backgroundColor: "rgba(217, 119, 6, 0.9)",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  featuredBadgeText: {
     color: colors.white,
     fontSize: 11,
     fontFamily: typography.fontFamilies.bold,
@@ -340,26 +452,36 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.foreground,
+    lineHeight: 20,
   },
   packageCategory: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.medium,
     color: colors.foregroundMuted,
-    marginTop: 2,
+    marginTop: 3,
   },
   priceContainer: {
     alignItems: "flex-end",
+    minWidth: 80,
   },
   price: {
-    fontSize: typography.sizes.md,
-    fontFamily: typography.fontFamilies.bold,
+    fontSize: typography.sizes.base,
+    fontFamily: typography.fontFamilies.extraBold,
     fontWeight: "800",
     color: colors.primary,
   },
-  priceUnit: {
+  priceQuoted: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foregroundMuted,
+    textAlign: "right",
+  },
+  priceUnit: {
+    fontSize: 11,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
+    marginTop: 1,
   },
   description: {
     fontSize: typography.sizes.xs,
@@ -375,30 +497,32 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
+    flexWrap: "wrap",
+    gap: spacing.xs,
   },
   tag: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.primaryLight,
-    paddingVertical: 5,
+    paddingVertical: 4,
     paddingHorizontal: spacing.sm + 2,
     borderRadius: radius.pill,
-    marginRight: spacing.sm,
+    marginRight: spacing.xs,
   },
   tagText: {
-    fontSize: typography.sizes.xs,
+    fontSize: 11,
     fontFamily: typography.fontFamilies.bold,
     color: colors.primaryDark,
     fontWeight: "700",
     marginLeft: 4,
   },
-  addBtnCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primaryLight,
-    borderWidth: 1.2,
-    borderColor: colors.primaryBorder,
+  actionChevron: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
     marginLeft: "auto",

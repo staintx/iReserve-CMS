@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
 import useAuth from "../../hooks/useAuth";
+import useToast from "../../hooks/useToast";
 import logo from "../../assets/images/logo.jpg";
 import ConfirmDialog from "../common/ConfirmDialog";
 import {
@@ -60,8 +61,10 @@ export default function CustomerLayout({
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { notify } = useToast();
   const { checkOverdueAndProceed } = useOverduePayment();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [isNavVisible, setIsNavVisible] = useState(true);
@@ -265,6 +268,23 @@ export default function CustomerLayout({
   ]
     .filter(Boolean)
     .join(" ");
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      setShowLogoutConfirm(false);
+      setDrawerOpen(false);
+      notify("You have successfully logged out.", "success");
+      navigate("/login", { replace: true, state: { loggedOut: true } });
+    } catch (err) {
+      console.error("Logout failed", err);
+      notify("Failed to log out. Please try again.", "error");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <div
@@ -552,12 +572,15 @@ export default function CustomerLayout({
 
       {showLogoutConfirm && (
         <ConfirmDialog
-          message="Are you sure you want to log out?"
-          onCancel={() => setShowLogoutConfirm(false)}
-          onConfirm={() => {
-            setShowLogoutConfirm(false);
-            logout();
+          title="Log Out?"
+          message="Are you sure you want to log out of your account?"
+          confirmText="Log Out"
+          cancelText="Cancel"
+          isDestructive={true}
+          onCancel={() => {
+            if (!isLoggingOut) setShowLogoutConfirm(false);
           }}
+          onConfirm={handleLogout}
         />
       )}
     </div>

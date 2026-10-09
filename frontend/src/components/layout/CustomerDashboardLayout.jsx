@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef, useCallback } from "react";
 import useAuth from "../../hooks/useAuth";
+import useToast from "../../hooks/useToast";
 import logo from "../../assets/images/logo.jpg";
 import ConfirmDialog from "../common/ConfirmDialog";
 import NotificationBell from "../common/NotificationBell";
@@ -49,7 +50,9 @@ const navGroups = [
 export default function CustomerDashboardLayout({ title, subtitle, actions, fullBleed = false, children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { notify } = useToast();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
 
@@ -76,6 +79,23 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
 
   useRealTimeRefresh(fetchUnreadCounts);
 
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      setShowLogoutConfirm(false);
+      setMobileOpen(false);
+      notify("You have successfully logged out.", "success");
+      navigate("/login", { replace: true, state: { loggedOut: true } });
+    } catch (err) {
+      console.error("Logout failed", err);
+      notify("Failed to log out. Please try again.", "error");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   const initials = (() => {
     const name = user?.full_name || user?.email || "";
     const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -85,7 +105,7 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
   })();
 
   const navLinks = (onNavigate) => (
-    <nav className="flex-1 px-3 py-3 space-y-6 overflow-y-auto">
+    <nav className="flex-1 px-3 py-3 space-y-6 overflow-y-auto min-h-0">
       {navGroups.map((group) => (
         <div key={group.title} className="space-y-1">
           <div className="px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
@@ -132,7 +152,7 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
   );
 
   const profileChip = (
-    <div className="p-3 border-t border-slate-200 bg-white">
+    <div className="p-3 border-t border-slate-200 bg-white shrink-0">
       <div className="flex items-center gap-2.5 p-2 rounded-md hover:bg-slate-50 transition-colors">
         <div className="w-8 h-8 rounded-full bg-[#4C81E0]/10 text-[#4C81E0] border border-slate-200 font-bold flex items-center justify-center shrink-0 text-xs">
           {initials}
@@ -144,10 +164,27 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
         <button
           type="button"
           onClick={() => setShowLogoutConfirm(true)}
-          className="p-1.5 rounded-md text-slate-500 hover:text-rose-600 hover:bg-slate-100 transition-colors cursor-pointer group"
+          className="hidden md:flex p-1.5 rounded-md text-slate-500 hover:text-rose-600 hover:bg-slate-100 transition-colors cursor-pointer group"
           title="Sign out"
+          aria-label="Sign out"
         >
           <LogOut className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+        </button>
+      </div>
+
+      {/* Mobile-only visible Logout button */}
+      <div className="mt-2 pt-2 border-t border-slate-100 md:hidden">
+        <button
+          type="button"
+          onClick={() => {
+            setMobileOpen(false);
+            setShowLogoutConfirm(true);
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50/80 px-3 py-2.5 text-xs font-semibold text-rose-600 shadow-2xs transition-colors hover:bg-rose-100 hover:text-rose-700 active:scale-[0.99] touch-manipulation cursor-pointer"
+          aria-label="Log Out"
+        >
+          <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
+          <span>Log Out</span>
         </button>
       </div>
     </div>
@@ -181,10 +218,10 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
 
       {/* Sidebar — Stripe Minimalist Style */}
       <aside className={cn(
-        "w-64 bg-white border-r border-slate-200 flex flex-col h-screen fixed md:sticky top-0 z-50 transition-transform duration-200 ease-in-out shrink-0",
+        "w-64 bg-white border-r border-slate-200 flex flex-col h-[100dvh] max-h-[100dvh] fixed md:sticky top-0 inset-y-0 z-50 transition-transform duration-200 ease-in-out shrink-0",
         mobileOpen ? "translate-x-0 shadow-xl" : "-translate-x-full md:translate-x-0"
       )}>
-        <div className="flex items-center justify-between md:block">
+        <div className="shrink-0 flex items-center justify-between md:block">
           <div className="flex-1">{brandHeader(() => setMobileOpen(false))}</div>
           <Button variant="ghost" size="icon" className="mr-2 text-slate-500 md:hidden" onClick={() => setMobileOpen(false)}>
             <X className="w-5 h-5" />
@@ -301,15 +338,19 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
 
       {showLogoutConfirm && (
         <ConfirmDialog
-          message="Are you sure you want to log out of your customer account?"
-          onCancel={() => setShowLogoutConfirm(false)}
-          onConfirm={() => {
-            setShowLogoutConfirm(false);
-            logout();
+          title="Log Out?"
+          message="Are you sure you want to log out of your account?"
+          confirmText="Log Out"
+          cancelText="Cancel"
+          isDestructive={true}
+          onCancel={() => {
+            if (!isLoggingOut) setShowLogoutConfirm(false);
           }}
+          onConfirm={handleLogout}
         />
       )}
     </div>
   );
 }
+
 

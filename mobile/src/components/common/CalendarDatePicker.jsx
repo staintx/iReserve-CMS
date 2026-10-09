@@ -48,6 +48,8 @@ export const CalendarDatePicker = ({
   blockedDates = [],
   leadTimeDays = 4,
   label = "Select Event Date",
+  required = false,
+  error = null,
   style,
 }) => {
   const today = useMemo(() => {
@@ -137,10 +139,15 @@ export const CalendarDatePicker = ({
   return (
     <View style={[styles.container, style]}>
       {/* Header Label */}
-      {Boolean(label) && <Text style={styles.label}>{label}</Text>}
+      {Boolean(label) && (
+        <Text style={styles.label}>
+          {label}
+          {required && <Text style={styles.requiredAsterisk}> *</Text>}
+        </Text>
+      )}
 
       {/* Calendar Card Container */}
-      <View style={styles.calendarCard}>
+      <View style={[styles.calendarCard, Boolean(error) && styles.calendarCardError]}>
         {/* Month Header Navigation */}
         <View style={styles.monthHeader}>
           <TouchableOpacity
@@ -251,6 +258,10 @@ export const CalendarDatePicker = ({
           </View>
         </View>
       </View>
+
+      {Boolean(error) && (
+        <Text style={styles.errorText}>{error}</Text>
+      )}
     </View>
   );
 };
@@ -265,6 +276,16 @@ const styles = StyleSheet.create({
     fontWeight: Platform.select({ ios: "700", android: undefined }),
     color: colors.foreground,
     marginBottom: spacing.xs,
+  },
+  requiredAsterisk: {
+    color: colors.error,
+    fontWeight: "700",
+  },
+  errorText: {
+    fontSize: typography.sizes.xs,
+    color: colors.error,
+    marginTop: spacing.xs,
+    fontWeight: "500",
   },
   calendarCard: {
     backgroundColor: colors.surface,
@@ -286,6 +307,9 @@ const styles = StyleSheet.create({
         boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
       },
     }),
+  },
+  calendarCardError: {
+    borderColor: colors.error,
   },
   monthHeader: {
     flexDirection: "row",

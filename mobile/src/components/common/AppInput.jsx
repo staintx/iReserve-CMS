@@ -5,6 +5,7 @@ import { colors, radius, spacing, typography } from "../../constants/theme";
 
 export const AppInput = forwardRef(({
   label,
+  required = false,
   value,
   onChangeText,
   placeholder,
@@ -38,7 +39,12 @@ export const AppInput = forwardRef(({
 
   return (
     <View style={[styles.container, style]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label && (
+        <Text style={styles.label}>
+          {label}
+          {required && <Text style={styles.requiredAsterisk}> *</Text>}
+        </Text>
+      )}
 
       <View
         style={[
@@ -117,6 +123,10 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     marginBottom: spacing.xs + 2,
     letterSpacing: 0.1,
+  },
+  requiredAsterisk: {
+    color: colors.error,
+    fontWeight: "700",
   },
   inputWrapper: {
     flexDirection: "row",

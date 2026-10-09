@@ -758,6 +758,12 @@ exports.update = asyncHandler(async (req, res) => {
   const current = await Booking.findById(req.params.id);
   if (!current) return res.status(404).json({ message: "Booking not found" });
 
+  if (["completed", "Completed"].includes(current.status)) {
+    return res.status(400).json({
+      message: "This booking has been marked as completed and is read-only. Operational and administrative modifications are no longer permitted."
+    });
+  }
+
   if (req.body.status && ["completed", "Completed"].includes(req.body.status) && !["completed", "Completed"].includes(current.status)) {
     const Payment = require("../models/Payment");
     const approvedPayments = await Payment.find({ booking_id: current._id, status: "approved" });
@@ -2248,6 +2254,10 @@ exports.scheduleOcular = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
 
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is already completed and read-only. Ocular visits cannot be scheduled." });
+  }
+
   const { scheduled_date, scheduled_time, notes, override_wedding_rule } = req.body;
   if (!scheduled_date)
     return res.status(400).json({ message: "Scheduled date is required" });
@@ -2319,6 +2329,10 @@ exports.scheduleOcular = asyncHandler(async (req, res) => {
 exports.completeOcular = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is already completed and read-only." });
+  }
 
   const { outcome, notes } = req.body;
   if (!outcome || !["proceed", "cancel", "reschedule", "revise"].includes(outcome)) {
@@ -2930,6 +2944,10 @@ exports.proposeRevision = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
 
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is already completed and read-only. Revisions cannot be proposed." });
+  }
+
   if (req.user.role === "customer" && String(booking.customer_id) !== String(req.user._id)) {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -3059,6 +3077,10 @@ exports.proposeRevision = asyncHandler(async (req, res) => {
 exports.acceptRevision = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is already completed and read-only." });
+  }
 
   const isCustomer = req.user.role === "customer";
   if (isCustomer) {
@@ -3986,6 +4008,12 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
 exports.assignInventory = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({
+      message: "This booking has been marked as completed and is read-only. Equipment assignments cannot be modified."
+    });
+  }
 
   const { inventory_items } = req.body;
   if (!Array.isArray(inventory_items)) {

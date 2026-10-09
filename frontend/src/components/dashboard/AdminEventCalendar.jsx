@@ -17,6 +17,7 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { useNavigate } from "react-router-dom";
+import { resolveServiceType } from "../customer/portal/statusMeta";
 
 // Helper to format date keys in YYYY-MM-DD
 const formatDateKey = (dateObj) => {
@@ -132,9 +133,17 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
   // Map items by date key (YYYY-MM-DD)
   const eventsByDate = useMemo(() => {
     const map = new Map();
+    const todayKey = formatDateKey(new Date());
 
     const addEventToMap = (dateStr, item) => {
       if (!dateStr) return;
+      // Requirement 2: Past calendar dates (< todayKey) show completed bookings only.
+      // Hide non-completed entries (ocular visits, inquiries, pending quotes, uncompleted bookings, blocked dates).
+      const isPast = dateStr < todayKey;
+      if (isPast) {
+        const isCompletedBooking = item.type === "booking" && ["completed", "Completed"].includes(item.status);
+        if (!isCompletedBooking) return;
+      }
       if (!map.has(dateStr)) map.set(dateStr, []);
       map.get(dateStr).push(item);
     };
@@ -148,6 +157,11 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
           rawId: b._id,
           type: "blocked",
           title: b.reason || "Blocked / Holiday",
+          serviceType: b.reason || "Blocked / Holiday",
+          recordId: b._id ? `#BLK-${String(b._id).slice(-6).toUpperCase()}` : "N/A",
+          clientName: "—",
+          eventDateFormatted: formatDisplayDate(b.date),
+          eventType: b.reason || "Blocked Date",
           time: "All Day",
           status: "blocked",
           categoryLabel: "Blocked / Holiday",
@@ -160,12 +174,21 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
     bookings.forEach((b) => {
       if (b.event_date) {
         const dateKey = formatDateKey(b.event_date);
+        const resolvedService = resolveServiceType(b);
+        const refId = b.reference || b.custom_id || (b._id ? `#BK-${String(b._id).slice(-6).toUpperCase()}` : "N/A");
+        const client = b.customer_id?.full_name || `${b.contact_first_name || ""} ${b.contact_last_name || ""}`.trim() || b.customer_name || "Customer";
+        const eventTypeVal = b.event_type || b.category || "Event";
+
         addEventToMap(dateKey, {
           id: `booking-${b._id}`,
           rawId: b._id,
           type: "booking",
           title: b.event_type || b.package_id?.name || "Event Booking",
-          clientName: b.customer_id?.full_name || b.customer_name || "Customer",
+          serviceType: resolvedService,
+          recordId: refId,
+          clientName: client,
+          eventDateFormatted: formatDisplayDate(b.event_date),
+          eventType: eventTypeVal,
           time: b.start_time || "TBD",
           venue: b.venue || b.street || "Venue not set",
           status: b.status || "confirmed",
@@ -179,12 +202,20 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
         const ocularDate = b.ocular_visit.scheduled_date || b.ocular_visit.date;
         if (ocularDate) {
           const dateKey = formatDateKey(ocularDate);
+          const resolvedService = resolveServiceType(b);
+          const refId = b.reference || b.custom_id || (b._id ? `#BK-${String(b._id).slice(-6).toUpperCase()}` : "N/A");
+          const client = b.customer_id?.full_name || `${b.contact_first_name || ""} ${b.contact_last_name || ""}`.trim() || b.customer_name || "Client";
+
           addEventToMap(dateKey, {
             id: `ocular-${b._id}`,
             rawId: b._id,
             type: "ocular",
             title: "Ocular Visit",
-            clientName: b.customer_id?.full_name || b.customer_name || "Client",
+            serviceType: resolvedService || "Ocular Inspection",
+            recordId: refId,
+            clientName: client,
+            eventDateFormatted: formatDisplayDate(ocularDate),
+            eventType: b.event_type || "Ocular Inspection",
             time: b.ocular_visit.time || b.start_time || "2:00 PM",
             venue: b.venue || "Site Location",
             status: "scheduled",
@@ -199,12 +230,21 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
     inquiries.forEach((inq) => {
       if (inq.event_date && ["Pending Review", "Quote Sent", "Quote Accepted"].includes(inq.status)) {
         const dateKey = formatDateKey(inq.event_date);
+        const resolvedService = resolveServiceType(inq);
+        const refId = inq.reference || inq.custom_id || (inq._id ? `#INQ-${String(inq._id).slice(-6).toUpperCase()}` : "N/A");
+        const client = `${inq.contact_first_name || ""} ${inq.contact_last_name || ""}`.trim() || inq.customer_id?.full_name || inq.customer_name || "Inquirer";
+        const eventTypeVal = inq.event_type || inq.category || "Inquiry";
+
         addEventToMap(dateKey, {
           id: `inquiry-${inq._id}`,
           rawId: inq._id,
           type: "inquiry",
           title: inq.event_type ? `Quote: ${inq.event_type}` : "Inquiry",
-          clientName: `${inq.contact_first_name || ""} ${inq.contact_last_name || ""}`.trim() || "Inquirer",
+          serviceType: resolvedService,
+          recordId: refId,
+          clientName: client,
+          eventDateFormatted: formatDisplayDate(inq.event_date),
+          eventType: eventTypeVal,
           time: inq.start_time || "TBD",
           status: inq.status,
           categoryLabel: "Inquiry / Quote",
@@ -278,6 +318,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
 
   // Selected Date events list
   const selectedDateKey = formatDateKey(selectedDate);
+  const todayKey = formatDateKey(new Date());
   const selectedDayEvents = eventsByDate.get(selectedDateKey) || [];
 
   // Handlers for Block Date
@@ -324,10 +365,11 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
 
   const openBlockModalForDate = (dateObj) => {
     const formatted = formatDateKey(dateObj);
+    const initialDate = formatted < todayKey ? todayKey : formatted;
     setBlockForm({
       isRange: false,
-      startDate: formatted,
-      endDate: formatted,
+      startDate: initialDate,
+      endDate: initialDate,
       reason: ""
     });
     setShowBlockModal(true);
@@ -383,16 +425,6 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
               Agenda
             </button>
           </div>
-
-          {/* Primary Blue Block Date Button */}
-          <button
-            type="button"
-            onClick={() => openBlockModalForDate(selectedDate)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-md shadow-2xs hover:bg-primary/90 transition-all cursor-pointer"
-          >
-            <Lock size={12} />
-            <span>Block Date</span>
-          </button>
         </div>
       </div>
 
@@ -451,7 +483,8 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                 {calendarDays.map(({ date, isCurrentMonth }, idx) => {
                   const dateKey = formatDateKey(date);
                   const isSelected = dateKey === selectedDateKey;
-                  const isToday = dateKey === formatDateKey(new Date());
+                  const isToday = dateKey === todayKey;
+                  const isPast = dateKey < todayKey;
                   const dayEvents = eventsByDate.get(dateKey) || [];
 
                   return (
@@ -463,6 +496,10 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                           ? "border-primary ring-1.5 ring-primary/40 bg-primary/5 shadow-2xs"
                           : isToday
                           ? "border-blue-400/80 bg-blue-50/20"
+                          : isPast
+                          ? isCurrentMonth
+                            ? "border-border/60 bg-slate-100/80 hover:border-slate-300 hover:bg-slate-100"
+                            : "border-border/30 bg-slate-100/50 opacity-50 hover:opacity-80"
                           : isCurrentMonth
                           ? "border-border/70 bg-card hover:border-slate-300 hover:shadow-2xs"
                           : "border-border/30 bg-muted/30 opacity-40"
@@ -476,13 +513,17 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                               ? "bg-primary text-white font-bold shadow-2xs"
                               : isSelected
                               ? "bg-powder text-primary font-bold"
-                              : "text-foreground"
+                              : isPast
+                              ? "text-slate-400 font-medium"
+                              : isCurrentMonth
+                              ? "text-foreground"
+                              : "text-muted-foreground/60"
                           }`}
                         >
                           {date.getDate()}
                         </span>
                         {dayEvents.length > 0 && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary sm:hidden shrink-0" />
+                          <span className={`w-1.5 h-1.5 rounded-full ${isPast ? "bg-slate-400" : "bg-primary"} sm:hidden shrink-0`} />
                         )}
                       </div>
 
@@ -577,20 +618,40 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                   d.setDate(d.getDate() - d.getDay() + i);
                   const dateKey = formatDateKey(d);
                   const isSelected = dateKey === selectedDateKey;
+                  const isToday = dateKey === todayKey;
+                  const isPast = dateKey < todayKey;
                   const dayEvs = eventsByDate.get(dateKey) || [];
 
                   return (
                     <div
                       key={i}
                       onClick={() => setSelectedDate(d)}
-                      className={`p-2 rounded-md border text-left cursor-pointer min-h-[150px] flex flex-col shadow-2xs ${
-                        isSelected ? "border-amber-400 bg-amber-50/20 ring-2 ring-amber-400/40" : "border-slate-100 bg-white hover:border-slate-200"
+                      className={`p-2 rounded-md border text-left cursor-pointer min-h-[150px] flex flex-col shadow-2xs transition-all ${
+                        isSelected
+                          ? "border-primary bg-primary/5 ring-1.5 ring-primary/40"
+                          : isToday
+                          ? "border-blue-400/80 bg-blue-50/20"
+                          : isPast
+                          ? "border-border/60 bg-slate-100/80 hover:border-slate-300"
+                          : "border-border/70 bg-card hover:border-slate-300 hover:shadow-2xs"
                       }`}
                     >
-                      <div className="text-[10px] font-bold text-slate-400 uppercase">
+                      <div className={`text-[10px] font-bold uppercase ${
+                        isToday ? "text-primary" : isPast && !isSelected ? "text-slate-400" : "text-muted-foreground"
+                      }`}>
                         {d.toLocaleDateString("en-US", { weekday: "short" })}
                       </div>
-                      <div className="text-xs font-bold text-slate-900 mt-0.5">{d.getDate()}</div>
+                      <div className={`text-xs font-bold mt-0.5 ${
+                        isToday
+                          ? "text-primary font-extrabold"
+                          : isSelected
+                          ? "text-primary font-bold"
+                          : isPast
+                          ? "text-slate-400 font-medium"
+                          : "text-foreground"
+                      }`}>
+                        {d.getDate()}
+                      </div>
 
                       <div className="mt-2 space-y-1.5 flex-1 overflow-y-auto max-h-[140px]">
                         {dayEvs.map((ev) => {
@@ -625,38 +686,54 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
               ) : (
                 Array.from(eventsByDate.entries())
                   .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
-                  .map(([dateKey, evList]) => (
-                    <div key={dateKey} className="border-b border-slate-100 pb-2.5">
-                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                        {formatDisplayDate(dateKey, true)}
-                      </div>
-                      <div className="space-y-1.5">
-                        {evList.map((ev) => {
-                          const catStyle = getCategoryStyle(ev.categoryLabel || ev.title, ev.status);
-                          return (
-                            <div
-                              key={ev.id}
-                              onClick={() => setActiveItem(ev)}
-                              className={`p-2.5 rounded-md border flex items-center justify-between ${catStyle.cardBg} cursor-pointer hover:shadow-2xs shadow-2xs`}
-                            >
-                              <div className="flex items-center gap-2.5">
-                                <span className={`w-2.5 h-2.5 rounded-full ${catStyle.dotBg}`} />
-                                <div>
-                                  <p className="font-bold text-xs text-slate-900">{ev.title}</p>
-                                  {ev.clientName && <p className="text-[11px] text-slate-600">{ev.clientName}</p>}
+                  .map(([dateKey, evList]) => {
+                    const isToday = dateKey === todayKey;
+                    const isPast = dateKey < todayKey;
+                    return (
+                      <div key={dateKey} className={`border-b pb-2.5 ${isPast ? "border-slate-200/60" : "border-slate-100"}`}>
+                        <div className={`text-[11px] font-bold uppercase tracking-wider mb-1.5 flex items-center justify-between ${
+                          isToday ? "text-primary font-extrabold" : isPast ? "text-slate-400 font-medium" : "text-slate-500"
+                        }`}>
+                          <span>{formatDisplayDate(dateKey, true)}</span>
+                          {isToday && (
+                            <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-blue-50 text-primary border border-blue-200 font-bold normal-case tracking-normal">
+                              Today
+                            </span>
+                          )}
+                          {isPast && (
+                            <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200/80 font-medium normal-case tracking-normal">
+                              Past
+                            </span>
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          {evList.map((ev) => {
+                            const catStyle = getCategoryStyle(ev.categoryLabel || ev.title, ev.status);
+                            return (
+                              <div
+                                key={ev.id}
+                                onClick={() => setActiveItem(ev)}
+                                className={`p-2.5 rounded-md border flex items-center justify-between ${catStyle.cardBg} cursor-pointer hover:shadow-2xs shadow-2xs`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className={`w-2.5 h-2.5 rounded-full ${catStyle.dotBg}`} />
+                                  <div>
+                                    <p className="font-bold text-xs text-slate-900">{ev.title}</p>
+                                    {ev.clientName && <p className="text-[11px] text-slate-600">{ev.clientName}</p>}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 bg-white/80 rounded-md border border-slate-200">
+                                    {ev.time}
+                                  </span>
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <span className="text-[10px] font-semibold px-2 py-0.5 bg-white/80 rounded-md border border-slate-200">
-                                  {ev.time}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
               )}
             </div>
           )}
@@ -671,7 +748,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
             </p>
             <h3 className="text-sm font-bold text-foreground mt-0.5 flex items-center justify-between">
               <span>{formatDisplayDate(selectedDate)}</span>
-              {selectedDateKey === formatDateKey(new Date()) && (
+              {selectedDateKey === todayKey && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-powder text-primary">
                   Today
                 </span>
@@ -683,13 +760,15 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
             <div className="text-center py-6 border border-dashed border-border rounded-md p-3 bg-muted/20 space-y-2">
               <CalendarIcon size={18} className="mx-auto text-muted-foreground" />
               <p className="text-xs text-muted-foreground font-medium">No events or blocks for this date.</p>
-              <button
-                type="button"
-                onClick={() => openBlockModalForDate(selectedDate)}
-                className="inline-block text-xs font-semibold text-primary hover:underline cursor-pointer"
-              >
-                + Block this date
-              </button>
+              {selectedDateKey >= todayKey && (
+                <button
+                  type="button"
+                  onClick={() => openBlockModalForDate(selectedDate)}
+                  className="inline-block text-xs font-semibold text-primary hover:underline cursor-pointer"
+                >
+                  + Block this date
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-2 max-h-[380px] overflow-y-auto pr-0.5">
@@ -800,6 +879,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                   </label>
                   <input
                     type="date"
+                    min={todayKey}
                     value={blockForm.startDate}
                     onChange={(e) => setBlockForm({ ...blockForm, startDate: e.target.value })}
                     className="w-full border border-border rounded-lg px-2.5 py-1.5 text-xs bg-card focus:outline-none focus:ring-1 focus:ring-primary"
@@ -814,6 +894,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                     </label>
                     <input
                       type="date"
+                      min={todayKey}
                       value={blockForm.startDate}
                       onChange={(e) => setBlockForm({ ...blockForm, startDate: e.target.value })}
                       className="w-full border border-border rounded-lg px-2.5 py-1.5 text-xs bg-card focus:outline-none focus:ring-1 focus:ring-primary"
@@ -826,6 +907,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                     </label>
                     <input
                       type="date"
+                      min={blockForm.startDate || todayKey}
                       value={blockForm.endDate}
                       onChange={(e) => setBlockForm({ ...blockForm, endDate: e.target.value })}
                       className="w-full border border-border rounded-lg px-2.5 py-1.5 text-xs bg-card focus:outline-none focus:ring-1 focus:ring-primary"
@@ -896,62 +978,62 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
       {/* Item Details Popup Modal */}
       {activeItem && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card rounded-lg border border-border max-w-md w-full p-4 sm:p-4.5 shadow-xl space-y-3 animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center justify-between border-b border-border pb-2.5">
-
-              <h3 className="text-base font-bold text-foreground">{activeItem.title}</h3>
+          <div className="bg-card rounded-xl border border-border max-w-md w-full p-4 sm:p-5 shadow-xl space-y-4 animate-in fade-in zoom-in duration-150">
+            {/* Header: Service Type prominently displayed */}
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-base sm:text-lg font-bold text-foreground tracking-tight">
+                {activeItem.serviceType || (activeItem.rawItem ? resolveServiceType(activeItem.rawItem) : activeItem.title)}
+              </h3>
               <button
                 type="button"
                 onClick={() => setActiveItem(null)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md transition-colors cursor-pointer"
+                title="Close"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="space-y-2.5 text-xs text-muted-foreground">
-              {activeItem.clientName && (
-                <div className="flex justify-between items-center py-1 border-b border-border/40">
-                  <span className="font-semibold text-foreground">Client</span>
-                  <span>{activeItem.clientName}</span>
-                </div>
-              )}
-              {activeItem.time && (
-                <div className="flex justify-between items-center py-1 border-b border-border/40">
-                  <span className="font-semibold text-foreground">Time</span>
-                  <span>{activeItem.time}</span>
-                </div>
-              )}
-              {activeItem.venue && (
-                <div className="flex justify-between items-center py-1 border-b border-border/40">
-                  <span className="font-semibold text-foreground">Venue</span>
-                  <span>{activeItem.venue}</span>
-                </div>
-              )}
-              {activeItem.categoryLabel && (
-                <div className="flex justify-between items-center py-1 border-b border-border/40">
-                  <span className="font-semibold text-foreground">Category</span>
-                  <span className="font-medium text-foreground">{activeItem.categoryLabel}</span>
-                </div>
-              )}
+            {/* Fields List: ID, Client, Event Date, Event Type */}
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center py-1.5 border-b border-border/40">
+                <span className="font-semibold text-muted-foreground">ID</span>
+                <span className="font-mono font-bold text-foreground">{activeItem.recordId || "—"}</span>
+              </div>
+              <div className="flex justify-between items-center py-1.5 border-b border-border/40">
+                <span className="font-semibold text-muted-foreground">Client</span>
+                <span className="font-medium text-foreground">{activeItem.clientName || "—"}</span>
+              </div>
+              <div className="flex justify-between items-center py-1.5 border-b border-border/40">
+                <span className="font-semibold text-muted-foreground">Event Date</span>
+                <span className="font-medium text-foreground">{activeItem.eventDateFormatted || "—"}</span>
+              </div>
+              <div className="flex justify-between items-center py-1.5 border-b border-border/40">
+                <span className="font-semibold text-muted-foreground">Event Type</span>
+                <span className="font-medium text-foreground">{activeItem.eventType || "—"}</span>
+              </div>
             </div>
 
-            <div className="pt-3 border-t border-border flex justify-end gap-2">
+            {/* Footer Buttons: Close & Open Record */}
+            <div className="pt-3 border-t border-border flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setActiveItem(null)}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+                className="px-3.5 py-2 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
               >
                 Close
               </button>
-              {activeItem.rawId && (
+              {activeItem.rawId && activeItem.type !== "blocked" && (
                 <button
                   type="button"
                   onClick={() => {
-                    if (activeItem.type === "booking") navigate(`/admin/bookings/${activeItem.rawId}/details`);
-                    else if (activeItem.type === "inquiry") navigate(`/admin/quotes/${activeItem.rawId}/details`);
+                    if (activeItem.type === "booking" || activeItem.type === "ocular") {
+                      navigate(`/admin/bookings/${activeItem.rawId}/details`);
+                    } else if (activeItem.type === "inquiry") {
+                      navigate(`/admin/quotes/${activeItem.rawId}/details`);
+                    }
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary hover:bg-primary-hover text-white transition-colors cursor-pointer shadow-2xs"
                 >
                   Open Record
                 </button>

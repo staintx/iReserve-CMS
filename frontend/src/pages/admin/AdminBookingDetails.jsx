@@ -683,6 +683,7 @@ export default function AdminBookingDetails() {
 
   let completedIdx = 0;
   const rawStatus = (booking.status || "").toLowerCase();
+  const isCompleted = rawStatus === "completed" || ["completed", "Completed"].includes(booking.status);
   const ocularStatus = (booking.ocular_visit?.status || "").toLowerCase();
   const ocularOutcomeVal = (booking.ocular_visit?.outcome || "").toLowerCase();
   const hasOcularScheduledOrDone = ocularStatus === "completed" || ocularOutcomeVal === "proceed" || ocularStatus === "scheduled" || ocularStatus === "skipped";
@@ -1490,12 +1491,14 @@ export default function AdminBookingDetails() {
                   <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
                     <Calendar size={13} className="text-primary" /> Event &amp; Venue Details
                   </h3>
-                  <button
-                    onClick={handleOpenEditModal}
-                    className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Edit size={11} /> Edit Specs
-                  </button>
+                  {!isCompleted && (
+                    <button
+                      onClick={handleOpenEditModal}
+                      className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit size={11} /> Edit Specs
+                    </button>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
@@ -2123,16 +2126,18 @@ export default function AdminBookingDetails() {
                       <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
                         <ShieldCheck size={13} className="text-primary" /> Kitchen Lead &amp; Dispatch Supervisor
                       </h3>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedManagerId(booking.event_manager_id?._id || booking.event_manager_id || "");
-                          setShowAssignManagerModal(true);
-                        }}
-                        className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        {booking.event_manager_id ? <><Edit size={11} /> Change Kitchen Lead</> : <><UserPlus size={11} /> Assign Kitchen Lead</>}
-                      </button>
+                      {!isCompleted && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedManagerId(booking.event_manager_id?._id || booking.event_manager_id || "");
+                            setShowAssignManagerModal(true);
+                          }}
+                          className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          {booking.event_manager_id ? <><Edit size={11} /> Change Kitchen Lead</> : <><UserPlus size={11} /> Assign Kitchen Lead</>}
+                        </button>
+                      )}
                     </div>
 
                     {booking.event_manager_id ? (
@@ -2157,15 +2162,17 @@ export default function AdminBookingDetails() {
                       </div>
                     ) : (
                       <div
-                        onClick={() => {
+                        onClick={isCompleted ? undefined : () => {
                           setSelectedManagerId("");
                           setShowAssignManagerModal(true);
                         }}
-                        className="p-5 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
+                        className={`p-5 border border-dashed border-border rounded-lg text-center ${isCompleted ? "" : "cursor-pointer hover:border-primary/60 hover:bg-card"} transition-colors group space-y-1`}
                       >
-                        <UserPlus size={18} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
+                        <UserPlus size={18} className={`mx-auto text-muted-foreground ${isCompleted ? "" : "group-hover:text-primary"} transition-colors`} />
                         <p className="text-xs font-semibold text-foreground">No Kitchen Lead Assigned</p>
-                        <p className="text-[11px] text-muted-foreground">Click here to assign a kitchen manager to supervise food preparation and delivery dispatch.</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {isCompleted ? "No kitchen lead was assigned to this completed event." : "Click here to assign a kitchen manager to supervise food preparation and delivery dispatch."}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -2181,13 +2188,15 @@ export default function AdminBookingDetails() {
                           {booking.staff_assignments?.length || 0} Assigned
                         </span>
                       </div>
-                      <Btn
-                        size="xs"
-                        variant="secondary"
-                        onClick={() => setShowAssignTeamModal(true)}
-                      >
-                        {booking.staff_assignments?.length > 0 ? <><Edit size={12} /> Edit Crew &amp; Driver</> : <><UserPlus size={12} /> Assign Crew &amp; Driver</>}
-                      </Btn>
+                      {!isCompleted && (
+                        <Btn
+                          size="xs"
+                          variant="secondary"
+                          onClick={() => setShowAssignTeamModal(true)}
+                        >
+                          {booking.staff_assignments?.length > 0 ? <><Edit size={12} /> Edit Crew &amp; Driver</> : <><UserPlus size={12} /> Assign Crew &amp; Driver</>}
+                        </Btn>
+                      )}
                     </div>
 
                     {Array.isArray(booking.staff_assignments) && booking.staff_assignments.length > 0 ? (
@@ -2226,12 +2235,14 @@ export default function AdminBookingDetails() {
                       </div>
                     ) : (
                       <div
-                        onClick={() => setShowAssignTeamModal(true)}
-                        className="p-5 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
+                        onClick={isCompleted ? undefined : () => setShowAssignTeamModal(true)}
+                        className={`p-5 border border-dashed border-border rounded-lg text-center ${isCompleted ? "" : "cursor-pointer hover:border-primary/60 hover:bg-card"} transition-colors group space-y-1`}
                       >
-                        <Users size={18} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
+                        <Users size={18} className={`mx-auto text-muted-foreground ${isCompleted ? "" : "group-hover:text-primary"} transition-colors`} />
                         <p className="text-xs font-semibold text-foreground">No Kitchen Staff or Courier Assigned</p>
-                        <p className="text-[11px] text-muted-foreground">Click here to assign cooks, food preparation crew, and delivery drivers for dispatch.</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {isCompleted ? "No kitchen staff or courier were assigned to this completed event." : "Click here to assign cooks, food preparation crew, and delivery drivers for dispatch."}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -2309,16 +2320,18 @@ export default function AdminBookingDetails() {
                       <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
                         <ShieldCheck size={13} className="text-primary" /> Event Coordinator
                       </h3>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedManagerId(booking.event_manager_id?._id || booking.event_manager_id || "");
-                          setShowAssignManagerModal(true);
-                        }}
-                        className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        {booking.event_manager_id ? <><Edit size={11} /> Change Coordinator</> : <><UserPlus size={11} /> Assign Coordinator</>}
-                      </button>
+                      {!isCompleted && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedManagerId(booking.event_manager_id?._id || booking.event_manager_id || "");
+                            setShowAssignManagerModal(true);
+                          }}
+                          className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          {booking.event_manager_id ? <><Edit size={11} /> Change Coordinator</> : <><UserPlus size={11} /> Assign Coordinator</>}
+                        </button>
+                      )}
                     </div>
 
                     {booking.event_manager_id ? (
@@ -2343,15 +2356,17 @@ export default function AdminBookingDetails() {
                       </div>
                     ) : (
                       <div
-                        onClick={() => {
+                        onClick={isCompleted ? undefined : () => {
                           setSelectedManagerId("");
                           setShowAssignManagerModal(true);
                         }}
-                        className="p-5 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
+                        className={`p-5 border border-dashed border-border rounded-lg text-center ${isCompleted ? "" : "cursor-pointer hover:border-primary/60 hover:bg-card"} transition-colors group space-y-1`}
                       >
-                        <UserPlus size={18} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
+                        <UserPlus size={18} className={`mx-auto text-muted-foreground ${isCompleted ? "" : "group-hover:text-primary"} transition-colors`} />
                         <p className="text-xs font-semibold text-foreground">No Coordinator Assigned</p>
-                        <p className="text-[11px] text-muted-foreground">Click here to assign an active manager to supervise this event.</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {isCompleted ? "No coordinator was assigned to this completed event." : "Click here to assign an active manager to supervise this event."}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -2367,13 +2382,15 @@ export default function AdminBookingDetails() {
                           {booking.staff_assignments?.length || 0} Crew Members
                         </span>
                       </div>
-                      <Btn
-                        size="xs"
-                        variant="secondary"
-                        onClick={() => setShowAssignTeamModal(true)}
-                      >
-                        {booking.staff_assignments?.length > 0 ? <><Edit size={12} /> Edit Staff Team</> : <><UserPlus size={12} /> Assign Team</>}
-                      </Btn>
+                      {!isCompleted && (
+                        <Btn
+                          size="xs"
+                          variant="secondary"
+                          onClick={() => setShowAssignTeamModal(true)}
+                        >
+                          {booking.staff_assignments?.length > 0 ? <><Edit size={12} /> Edit Staff Team</> : <><UserPlus size={12} /> Assign Team</>}
+                        </Btn>
+                      )}
                     </div>
 
                     {Array.isArray(booking.staff_assignments) && booking.staff_assignments.length > 0 ? (
@@ -2413,12 +2430,14 @@ export default function AdminBookingDetails() {
                       </div>
                     ) : (
                       <div
-                        onClick={() => setShowAssignTeamModal(true)}
-                        className="p-5 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
+                        onClick={isCompleted ? undefined : () => setShowAssignTeamModal(true)}
+                        className={`p-5 border border-dashed border-border rounded-lg text-center ${isCompleted ? "" : "cursor-pointer hover:border-primary/60 hover:bg-card"} transition-colors group space-y-1`}
                       >
-                        <Users size={18} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
+                        <Users size={18} className={`mx-auto text-muted-foreground ${isCompleted ? "" : "group-hover:text-primary"} transition-colors`} />
                         <p className="text-xs font-semibold text-foreground">No Crew Assigned</p>
-                        <p className="text-[11px] text-muted-foreground">Click here to dispatch head cooks, servers, and setup crew for event day.</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {isCompleted ? "No crew was assigned to this completed event." : "Click here to dispatch head cooks, servers, and setup crew for event day."}
+                        </p>
                       </div>
                     )}
                   </div>

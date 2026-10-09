@@ -112,7 +112,7 @@ const startCronJobs = (io) => {
                         await createNotification({
                             userId: customerId,
                             title: "Upcoming Event in 3 Days",
-                            body: `Your event is in 3 days! As a reminder, your remaining balance of ₱${balance.toFixed(2)} is due the same day after your event has been completed (payable online or in cash to your event manager).`,
+                            body: `Your event is in 3 days! As a reminder, your remaining balance of ₱${balance.toFixed(2)} is due a day after your event date (payable online or in cash to your event manager).`,
                             type: "info",
                             link: payment.checkout_url || "/customer/payments",
                             meta: { payment_id: payment._id, booking_id: booking._id }

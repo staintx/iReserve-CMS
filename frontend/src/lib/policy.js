@@ -19,7 +19,7 @@ export const policyHighlights = (depositPercentage = 20, policies = null) => {
   return [
     {
       title: `A ${depositPercentage}% deposit reserves your date`,
-      body: "Your date is held once you accept the quotation and pay the deposit online. The remaining balance is due the same day after your event has been completed (payable online or in cash to your event manager).",
+      body: "Your date is held once you accept the quotation and pay the deposit online. The remaining balance is due a day after your event date (payable online or in cash to your event manager).",
     },
     {
       title: "Deposits & Cancellation Rule",
@@ -75,7 +75,7 @@ export const getInvoicePolicies = (businessInfo = {}) => {
     },
     {
       title: "Balance Settlement",
-      body: "Remaining balance is payable the same day after the event is completed (online via portal or cash to on-site manager).",
+      body: "Remaining balance is due a day after your event date (online via portal or cash to on-site manager).",
     },
     {
       title: "Equipment & Tableware Care",

@@ -22,6 +22,7 @@ import ForgotPassword from "../pages/auth/ForgotPassword";
 
 import ResetPassword from "../pages/auth/ResetPassword";
 import VerifyEmail from "../pages/auth/VerifyEmail";
+import { OverduePaymentProvider } from "../context/OverduePaymentContext";
 
 import Landing from "../pages/customer/Landing";
 
@@ -106,111 +107,113 @@ export default function AppRoutes() {
     <BrowserRouter>
       <ScrollToTop />
       <ErrorBoundary>
-        <Routes>
-        {/* Public pages */}
-        <Route
-          path="/"
-          element={staffHome ? <Navigate to={staffHome} /> : <Landing />}
-        />
-        <Route
-          path="/packages"
-          element={staffHome ? <Navigate to={staffHome} /> : <Packages />}
-        />
-        <Route
-          path="/packages/:id"
-          element={staffHome ? <Navigate to={staffHome} /> : <PackageDetails />}
-        />
-        <Route
-          path="/menu"
-          element={staffHome ? <Navigate to={staffHome} /> : <Menu />}
-        />
-        <Route
-          path="/gallery"
-          element={staffHome ? <Navigate to={staffHome} /> : <Gallery />}
-        />
+        <OverduePaymentProvider>
+          <Routes>
+          {/* Public pages */}
+          <Route
+            path="/"
+            element={staffHome ? <Navigate to={staffHome} /> : <Landing />}
+          />
+          <Route
+            path="/packages"
+            element={staffHome ? <Navigate to={staffHome} /> : <Packages />}
+          />
+          <Route
+            path="/packages/:id"
+            element={staffHome ? <Navigate to={staffHome} /> : <PackageDetails />}
+          />
+          <Route
+            path="/menu"
+            element={staffHome ? <Navigate to={staffHome} /> : <Menu />}
+          />
+          <Route
+            path="/gallery"
+            element={staffHome ? <Navigate to={staffHome} /> : <Gallery />}
+          />
 
-        {/* Auth */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
+          {/* Auth */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
 
-        {/* Booking & Quote (protected) */}
-        <Route path="/customer/home" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerDashboard /></ProtectedRoute>} />
-        <Route path="/customer/dashboard" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerDashboard /></ProtectedRoute>} />
-        <Route path="/customer/agent" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerAgent /></ProtectedRoute>} />
-        <Route path="/customer/book" element={<ProtectedRoute allowedRoles={customerOnly}><BookingWizard /></ProtectedRoute>} />
-        <Route path="/customer/booking-success" element={<ProtectedRoute allowedRoles={customerOnly}><BookingSuccess /></ProtectedRoute>} />
-        {/* Completion state for a submitted inquiry, shared by the package
-            booking wizard and the custom quote wizard. */}
-        <Route path="/customer/request-submitted" element={<ProtectedRoute allowedRoles={customerOnly}><InquirySubmitted /></ProtectedRoute>} />
+          {/* Booking & Quote (protected) */}
+          <Route path="/customer/home" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerDashboard /></ProtectedRoute>} />
+          <Route path="/customer/dashboard" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerDashboard /></ProtectedRoute>} />
+          <Route path="/customer/agent" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerAgent /></ProtectedRoute>} />
+          <Route path="/customer/book" element={<ProtectedRoute allowedRoles={customerOnly}><BookingWizard /></ProtectedRoute>} />
+          <Route path="/customer/booking-success" element={<ProtectedRoute allowedRoles={customerOnly}><BookingSuccess /></ProtectedRoute>} />
+          {/* Completion state for a submitted inquiry, shared by the package
+              booking wizard and the custom quote wizard. */}
+          <Route path="/customer/request-submitted" element={<ProtectedRoute allowedRoles={customerOnly}><InquirySubmitted /></ProtectedRoute>} />
 
-        <Route path="/customer/bookings" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerBookings /></ProtectedRoute>} />
-        <Route path="/customer/inquiries" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
-        <Route path="/customer/inquiries/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiryDetails /></ProtectedRoute>} />
-        <Route path="/customer/inquiries/:id/edit" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
-        <Route path="/customer/inquiries/edit/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
-        <Route path="/customer/bookings/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
-        <Route path="/customer/bookings/:id/revision" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
-        <Route path="/customer/events/:id/revision" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
-        <Route path="/customer/events/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
-        <Route path="/customer/checkout" element={<ProtectedRoute allowedRoles={customerOnly}><CustomCheckout /></ProtectedRoute>} />
-        <Route path="/customer/payments" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerPayments /></ProtectedRoute>} />
-        <Route path="/customer/messages" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerMessages /></ProtectedRoute>} />
-        <Route path="/customer/messages/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerMessageThread /></ProtectedRoute>} />
-        <Route path="/customer/profile" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerProfile /></ProtectedRoute>} />
-        <Route path="/customer/notifications" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerNotifications /></ProtectedRoute>} />
+          <Route path="/customer/bookings" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerBookings /></ProtectedRoute>} />
+          <Route path="/customer/inquiries" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
+          <Route path="/customer/inquiries/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiryDetails /></ProtectedRoute>} />
+          <Route path="/customer/inquiries/:id/edit" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
+          <Route path="/customer/inquiries/edit/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
+          <Route path="/customer/bookings/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
+          <Route path="/customer/bookings/:id/revision" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
+          <Route path="/customer/events/:id/revision" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
+          <Route path="/customer/events/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
+          <Route path="/customer/checkout" element={<ProtectedRoute allowedRoles={customerOnly}><CustomCheckout /></ProtectedRoute>} />
+          <Route path="/customer/payments" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerPayments /></ProtectedRoute>} />
+          <Route path="/customer/messages" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerMessages /></ProtectedRoute>} />
+          <Route path="/customer/messages/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerMessageThread /></ProtectedRoute>} />
+          <Route path="/customer/profile" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerProfile /></ProtectedRoute>} />
+          <Route path="/customer/notifications" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerNotifications /></ProtectedRoute>} />
 
-        <Route path="/customer/quote" element={<Navigate to="/customer/book" replace />} />
+          <Route path="/customer/quote" element={<Navigate to="/customer/book" replace />} />
 
-        {/* Admin (protected by role) */}
-        <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={adminOnly}><AdminDashboard /></ProtectedRoute>} />
+          {/* Admin (protected by role) */}
+          <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={adminOnly}><AdminDashboard /></ProtectedRoute>} />
 
-        <Route path="/admin/payments" element={<ProtectedRoute allowedRoles={adminOnly}><AdminPayments /></ProtectedRoute>} />
-        <Route path="/admin/refunds" element={<ProtectedRoute allowedRoles={adminOnly}><AdminRefunds /></ProtectedRoute>} />
-        <Route path="/admin/customers" element={<ProtectedRoute allowedRoles={adminOnly}><AdminCustomers /></ProtectedRoute>} />
-        <Route path="/admin/bookings/reservations" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminReservations /></ProtectedRoute>} />
-        <Route path="/admin/bookings/calendar" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsCalendar /></ProtectedRoute>} />
-        <Route path="/admin/bookings/inquiries" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInquiries /></ProtectedRoute>} />
-        <Route path="/admin/bookings/inquiries/:id" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
-        <Route path="/admin/bookings/inquiries/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
-        <Route path="/admin/bookings/ocular" element={<ProtectedRoute allowedRoles={adminOnly}><AdminOcular /></ProtectedRoute>} />
-        <Route path="/admin/bookings/new" element={<ProtectedRoute allowedRoles={adminOnly}><Navigate to="/admin/bookings/reservations?new=true" replace /></ProtectedRoute>} />
-        <Route path="/admin/bookings/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminBookingDetails /></ProtectedRoute>} />
-        <Route path="/admin/bookings/history" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsHistory /></ProtectedRoute>} />
-        <Route path="/admin/packages" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminPackages /></ProtectedRoute>} />
-        <Route path="/admin/menu" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminMenu /></ProtectedRoute>} />
-        <Route path="/admin/gallery" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminGallery /></ProtectedRoute>} />
-        <Route path="/admin/addons" element={<ProtectedRoute allowedRoles={adminOnly}><AdminAddons /></ProtectedRoute>} />
-        <Route path="/admin/inventory" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInventory /></ProtectedRoute>} />
-        <Route path="/admin/staff" element={<ProtectedRoute allowedRoles={adminOnly}><AdminStaff /></ProtectedRoute>} />
-        <Route path="/admin/staff/schedule" element={<ProtectedRoute allowedRoles={adminOnly}><AdminStaffSchedule /></ProtectedRoute>} />
-        <Route path="/admin/managers" element={<ProtectedRoute allowedRoles={adminOnly}><AdminStaff /></ProtectedRoute>} />
-        <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={adminOnly}><AdminAnalytics /></ProtectedRoute>} />
-        <Route path="/admin/business-info" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBusinessInfo /></ProtectedRoute>} />
-        <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminSystemLogs /></ProtectedRoute>} />
-        <Route path="/admin/quotes" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuotesList /></ProtectedRoute>} />
-        <Route path="/admin/quotes/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
-        <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesList /></ProtectedRoute>} />
-        <Route path="/admin/messages/:id" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesChat /></ProtectedRoute>} />
-        <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminProfile /></ProtectedRoute>} />
-        <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminNotifications /></ProtectedRoute>} />
+          <Route path="/admin/payments" element={<ProtectedRoute allowedRoles={adminOnly}><AdminPayments /></ProtectedRoute>} />
+          <Route path="/admin/refunds" element={<ProtectedRoute allowedRoles={adminOnly}><AdminRefunds /></ProtectedRoute>} />
+          <Route path="/admin/customers" element={<ProtectedRoute allowedRoles={adminOnly}><AdminCustomers /></ProtectedRoute>} />
+          <Route path="/admin/bookings/reservations" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminReservations /></ProtectedRoute>} />
+          <Route path="/admin/bookings/calendar" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsCalendar /></ProtectedRoute>} />
+          <Route path="/admin/bookings/inquiries" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInquiries /></ProtectedRoute>} />
+          <Route path="/admin/bookings/inquiries/:id" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
+          <Route path="/admin/bookings/inquiries/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
+          <Route path="/admin/bookings/ocular" element={<ProtectedRoute allowedRoles={adminOnly}><AdminOcular /></ProtectedRoute>} />
+          <Route path="/admin/bookings/new" element={<ProtectedRoute allowedRoles={adminOnly}><Navigate to="/admin/bookings/reservations?new=true" replace /></ProtectedRoute>} />
+          <Route path="/admin/bookings/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminBookingDetails /></ProtectedRoute>} />
+          <Route path="/admin/bookings/history" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsHistory /></ProtectedRoute>} />
+          <Route path="/admin/packages" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminPackages /></ProtectedRoute>} />
+          <Route path="/admin/menu" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminMenu /></ProtectedRoute>} />
+          <Route path="/admin/gallery" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminGallery /></ProtectedRoute>} />
+          <Route path="/admin/addons" element={<ProtectedRoute allowedRoles={adminOnly}><AdminAddons /></ProtectedRoute>} />
+          <Route path="/admin/inventory" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInventory /></ProtectedRoute>} />
+          <Route path="/admin/staff" element={<ProtectedRoute allowedRoles={adminOnly}><AdminStaff /></ProtectedRoute>} />
+          <Route path="/admin/staff/schedule" element={<ProtectedRoute allowedRoles={adminOnly}><AdminStaffSchedule /></ProtectedRoute>} />
+          <Route path="/admin/managers" element={<ProtectedRoute allowedRoles={adminOnly}><AdminStaff /></ProtectedRoute>} />
+          <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={adminOnly}><AdminAnalytics /></ProtectedRoute>} />
+          <Route path="/admin/business-info" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBusinessInfo /></ProtectedRoute>} />
+          <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminSystemLogs /></ProtectedRoute>} />
+          <Route path="/admin/quotes" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuotesList /></ProtectedRoute>} />
+          <Route path="/admin/quotes/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
+          <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesList /></ProtectedRoute>} />
+          <Route path="/admin/messages/:id" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesChat /></ProtectedRoute>} />
+          <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminProfile /></ProtectedRoute>} />
+          <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminNotifications /></ProtectedRoute>} />
 
-        {/* Manager (protected by role) */}
-        <Route path="/manager/dashboard" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerDashboard /></ProtectedRoute>} />
-        <Route path="/manager/bookings" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerBookings /></ProtectedRoute>} />
-        <Route path="/manager/staff" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerStaff /></ProtectedRoute>} />
+          {/* Manager (protected by role) */}
+          <Route path="/manager/dashboard" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerDashboard /></ProtectedRoute>} />
+          <Route path="/manager/bookings" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerBookings /></ProtectedRoute>} />
+          <Route path="/manager/staff" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerStaff /></ProtectedRoute>} />
 
-        {/* Staff (protected by role) */}
+          {/* Staff (protected by role) */}
 
-        <Route path="/staff/dashboard" element={<ProtectedRoute allowedRoles={staffRoles}><StaffDashboard /></ProtectedRoute>} />
-        <Route path="/staff/events/:id" element={<ProtectedRoute allowedRoles={staffRoles}><StaffEventDetails /></ProtectedRoute>} />
-        <Route path="/staff/bookings/:id" element={<ProtectedRoute allowedRoles={staffRoles}><StaffEventDetails /></ProtectedRoute>} />
+          <Route path="/staff/dashboard" element={<ProtectedRoute allowedRoles={staffRoles}><StaffDashboard /></ProtectedRoute>} />
+          <Route path="/staff/events/:id" element={<ProtectedRoute allowedRoles={staffRoles}><StaffEventDetails /></ProtectedRoute>} />
+          <Route path="/staff/bookings/:id" element={<ProtectedRoute allowedRoles={staffRoles}><StaffEventDetails /></ProtectedRoute>} />
 
-        <Route path="*" element={staffHome ? <Navigate to={staffHome} /> : <Landing />} />
-      </Routes>
+          <Route path="*" element={staffHome ? <Navigate to={staffHome} /> : <Landing />} />
+        </Routes>
+        </OverduePaymentProvider>
       </ErrorBoundary>
     </BrowserRouter>
   );

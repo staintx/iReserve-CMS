@@ -5,6 +5,7 @@ import { CustomerAPI } from "../../api/customer";
 import CustomerFooter from "../../components/layout/CustomerFooter";
 import { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
 import useRevealOnScroll from "../../hooks/useRevealOnScroll";
+import { useOverduePayment } from "../../context/OverduePaymentContext";
 import {
   capacityLabel,
   packagePriceParts,
@@ -63,6 +64,7 @@ const BOOKING_STEPS = [
 export default function Landing() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { checkOverdueAndProceed } = useOverduePayment();
 
   const [content, setContent] = useState({
     packages: { status: "loading", data: [] },
@@ -197,7 +199,9 @@ export default function Landing() {
   }, [lightboxIndex, allReviewsOpen]);
 
   const goToBooking = (payload = {}) => {
-    navigate("/customer/book", { state: { resetWizard: true, ...payload } });
+    checkOverdueAndProceed(() => {
+      navigate("/customer/book", { state: { resetWizard: true, ...payload } });
+    });
   };
 
   const publishedPackages = useMemo(

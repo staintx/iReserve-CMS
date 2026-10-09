@@ -33,6 +33,7 @@ router.get("/available-times", ctrl.getAvailableTimes);
 router.get("/availability/suggestions", optionalProtect, ctrl.suggestDates);
 router.get("/", protect, authorize("admin", "manager", "staff"), ctrl.getAll);
 router.get("/me", protect, ctrl.getMine);
+router.get("/me/overdue", protect, ctrl.getOverdueMine);
 router.get("/:id", protect, ctrl.getById);
 router.put("/:id", protect, authorize("admin", "manager", "staff"), ctrl.update);
 router.post("/:id/refund", protect, authorize("admin"), ctrl.processRefund);

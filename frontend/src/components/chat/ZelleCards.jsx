@@ -21,6 +21,7 @@ import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import useToast from "../../hooks/useToast";
 import { cn } from "@/lib/utils";
+import { useOverduePayment } from "../../context/OverduePaymentContext";
 
 /**
  * Modern Payment / Statement Generative UI Card
@@ -332,14 +333,17 @@ export function DateAvailabilityCard({ data, onStartInquiry }) {
  */
 export function PrepareInquiryCard({ data }) {
   const navigate = useNavigate();
+  const { checkOverdueAndProceed } = useOverduePayment();
   if (!data) return null;
 
   const handleContinue = () => {
-    navigate("/customer/book", {
-      state: {
-        prefillData: data,
-        resetWizard: true,
-      },
+    checkOverdueAndProceed(() => {
+      navigate("/customer/book", {
+        state: {
+          prefillData: data,
+          resetWizard: true,
+        },
+      });
     });
   };
 

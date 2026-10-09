@@ -23,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import { useOverduePayment } from "../../context/OverduePaymentContext";
 
 // One nav definition drives desktop and mobile so the two can never drift.
 // `section` entries scroll to a landing anchor; everything else is a route.
@@ -59,6 +60,7 @@ export default function CustomerLayout({
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { checkOverdueAndProceed } = useOverduePayment();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -230,7 +232,9 @@ export default function CustomerLayout({
   // Sends customers into the custom booking wizard (reusing Request Custom flow).
   const goToCustomBooking = () => {
     setDrawerOpen(false);
-    navigate("/customer/book", { state: { resetWizard: true } });
+    checkOverdueAndProceed(() => {
+      navigate("/customer/book", { state: { resetWizard: true } });
+    });
   };
 
   const navHref = (item) => (item.section ? `/#${item.section}` : item.to);

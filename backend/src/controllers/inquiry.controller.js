@@ -35,6 +35,19 @@ const { isBookingAwaitingDeposit } = require("../utils/bookingDeposit");
 // Customer submits a new inquiry
 exports.createInquiry = asyncHandler(async (req, res) => {
   const isStaffOrAdmin = ["admin", "manager", "staff"].includes(req.user?.role);
+
+  if (!isStaffOrAdmin && req.user?._id) {
+    const { getCustomerOverdueBookings } = require("../utils/overduePayment");
+    const overdueBookings = await getCustomerOverdueBookings(req.user._id);
+    if (overdueBookings.length > 0) {
+      return res.status(403).json({
+        message: "You have an overdue remaining balance for a previous event. Please settle your outstanding payment before submitting a new event inquiry or custom request.",
+        code: "OVERDUE_PAYMENT_REQUIRED",
+        overdue_bookings: overdueBookings,
+      });
+    }
+  }
+
   const payload = {
     ...req.body,
     customer_id: isStaffOrAdmin ? (req.body.customer_id || req.user?._id) : req.user?._id,

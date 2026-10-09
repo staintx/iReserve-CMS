@@ -426,11 +426,7 @@ exports.markCompleted = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Booking not found" });
   }
 
-  booking.status = "Completed";
-  booking.completed_at = new Date();
-  await booking.save();
-
-  // Handle balance payment upon event completion
+  // Handle balance payment and validate settlement
   const Payment = require("../models/Payment");
   const approvedPayments = await Payment.find({ booking_id: booking._id, status: "approved" });
   const totalPaid = approvedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
@@ -438,50 +434,49 @@ exports.markCompleted = asyncHandler(async (req, res) => {
 
   const io = req.app.get("io");
 
-  if (req.body.collected_cash_balance === true && remainingBalance > 0) {
-    const { syncBookingStatus } = require("./payment.controller");
-    let balPayment = await Payment.findOne({
-      booking_id: booking._id,
-      payment_type: "balance",
-      status: "pending"
-    });
-
-    if (balPayment) {
-      balPayment.status = "approved";
-      balPayment.method = "cash";
-      balPayment.gateway = "manual";
-      balPayment.amount = remainingBalance;
-      balPayment.paid_at = new Date();
-      balPayment.metadata = { ...(balPayment.metadata || {}), collected_by: req.user._id, on_site: true };
-      await balPayment.save();
-    } else {
-      balPayment = await Payment.create({
+  if (remainingBalance > 0) {
+    if (req.body.collected_cash_balance === true) {
+      const { syncBookingStatus } = require("./payment.controller");
+      let balPayment = await Payment.findOne({
         booking_id: booking._id,
-        customer_id: booking.customer_id,
-        amount: remainingBalance,
-        currency: "PHP",
         payment_type: "balance",
-        method: "cash",
-        gateway: "manual",
-        status: "approved",
-        paid_at: new Date(),
-        metadata: { collected_by: req.user._id, on_site: true }
+        status: "pending"
+      });
+
+      if (balPayment) {
+        balPayment.status = "approved";
+        balPayment.method = "cash";
+        balPayment.gateway = "manual";
+        balPayment.amount = remainingBalance;
+        balPayment.paid_at = new Date();
+        balPayment.metadata = { ...(balPayment.metadata || {}), collected_by: req.user._id, on_site: true };
+        await balPayment.save();
+      } else {
+        balPayment = await Payment.create({
+          booking_id: booking._id,
+          customer_id: booking.customer_id,
+          amount: remainingBalance,
+          currency: "PHP",
+          payment_type: "balance",
+          method: "cash",
+          gateway: "manual",
+          status: "approved",
+          paid_at: new Date(),
+          metadata: { collected_by: req.user._id, on_site: true }
+        });
+      }
+
+      await syncBookingStatus(booking._id);
+    } else {
+      return res.status(400).json({
+        message: `Cannot mark booking as completed. The customer still has an outstanding balance of ₱${remainingBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}. Full payment is required before an event can be marked completed.`
       });
     }
-
-    await syncBookingStatus(booking._id);
-  } else if (remainingBalance > 0 && booking.customer_id) {
-    // Notify customer that event has concluded and remaining balance is due today
-    const { createNotification } = require("../utils/notify");
-    await createNotification({
-      userId: booking.customer_id,
-      title: "Event Completed — Balance Due Today",
-      body: `Your event has concluded! Your remaining balance of ₱${remainingBalance.toLocaleString()} is due today. Settle online via your portal or in person with your event manager.`,
-      type: "info",
-      link: `/customer/bookings/${booking._id}`,
-      meta: { booking_id: booking._id, amount: remainingBalance }
-    }, io);
   }
+
+  booking.status = "Completed";
+  booking.completed_at = new Date();
+  await booking.save();
 
   if (io) {
     io.emit("system:refresh", { type: "booking", action: "complete_event", booking_id: booking._id });

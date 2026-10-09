@@ -13,6 +13,7 @@ import {
   Calendar,
   Lock
 } from "lucide-react";
+import { getPaymentDueDate } from "../../utils/overduePayment";
 import { cn } from "@/lib/utils";
 
 export default function PaymentChoiceModal({
@@ -51,13 +52,20 @@ export default function PaymentChoiceModal({
 
   const payable = Math.max(0, Number(rawPayable || 0));
   const refCode = booking.reference || (booking._id ? booking._id.slice(-8).toUpperCase() : "-");
-  const eventDateStr = booking.event_date
-    ? new Date(booking.event_date).toLocaleDateString("en-US", {
+  const dueDate = getPaymentDueDate(booking.event_date);
+  const dueDateStr = dueDate
+    ? dueDate.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric"
       })
-    : "Event Date";
+    : (booking.event_date
+        ? new Date(booking.event_date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric"
+          })
+        : "Day After Event");
 
   const handleProceed = async () => {
     if (payable <= 0) {
@@ -200,10 +208,10 @@ export default function PaymentChoiceModal({
                 <span>Payment Due</span>
               </div>
               <div className="text-sm sm:text-[15px] font-bold text-slate-900 mt-0.5">
-                {eventDateStr}
+                {dueDateStr}
               </div>
               <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200/80 mt-1">
-                On Event Day
+                Day After Event
               </span>
             </div>
           </div>
@@ -213,7 +221,7 @@ export default function PaymentChoiceModal({
         <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 text-xs text-slate-700">
           <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <div className="leading-relaxed">
-            <span className="font-semibold text-slate-900">Payment Schedule Policy:</span> The remaining balance is due <span className="font-semibold text-slate-900">the same day after your event has concluded</span>. You can pay securely online now, or hand exact cash directly to your assigned Event Manager on-site.
+            <span className="font-semibold text-slate-900">Payment Schedule Policy:</span> The remaining balance is due a day after your event date. You can pay securely online now, or hand exact cash directly to your assigned Event Manager on-site.
           </div>
         </div>
 

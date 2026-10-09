@@ -20,6 +20,7 @@ import {
 } from "../../lib/specialOffers";
 
 import { ChevronDown } from "lucide-react";
+import { useOverduePayment } from "../../context/OverduePaymentContext";
 
 const peso = (amount) =>
   "₱" + Number(amount || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 });
@@ -30,6 +31,7 @@ const SERVICE_ORDER = ["Event Setup Only"];
 export default function Packages() {
   const navigate = useNavigate();
   const businessInfo = useBusinessInfo();
+  const { checkOverdueAndProceed } = useOverduePayment();
   const [packages, setPackages] = useState({ status: "loading", data: [] });
   const [service, setService] = useState("all");
   const [eventType, setEventType] = useState("all");
@@ -318,7 +320,7 @@ export default function Packages() {
                   type="button"
                   className="ls-btn ls-btn--sm ls-btn--primary"
                   onClick={() =>
-                    navigate("/customer/book", { state: { resetWizard: true } })
+                    checkOverdueAndProceed(() => navigate("/customer/book", { state: { resetWizard: true } }))
                   }
                 >
                   Request Custom
@@ -492,7 +494,7 @@ export default function Packages() {
               type="button"
               className="ls-btn ls-btn--onink"
               onClick={() =>
-                navigate("/customer/book", { state: { resetWizard: true } })
+                checkOverdueAndProceed(() => navigate("/customer/book", { state: { resetWizard: true } }))
               }
             >
               Build your own

@@ -40,6 +40,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { getBookingOcularActionMeta } from "../../utils/ocularStatusHelper";
+import { isBookingOverdue } from "../../utils/overduePayment";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
@@ -838,8 +839,8 @@ export default function CustomerEventDashboard() {
     },
     { 
       label: "Delivered & Completed", 
-      completed: ["completed", "Completed"].includes(booking.status), 
-      date: ["completed", "Completed"].includes(booking.status) ? "Completed" : "Upcoming",
+      completed: isCompleted, 
+      date: isCompleted ? "Completed" : "Upcoming",
       desc: "Food successfully delivered & received"
     },
   ] : booking.payment_method === "cod" ? [
@@ -851,14 +852,14 @@ export default function CustomerEventDashboard() {
     },
     { 
       label: isEventFuture ? "Preparation Scheduled" : "Preparing Order", 
-      completed: ["preparing", "ongoing", "completed"].includes(booking.status), 
-      date: ["preparing", "ongoing", "completed"].includes(booking.status) ? "In Progress" : (isEventFuture ? "Scheduled for Event Date" : "Pending"),
+      completed: ["preparing", "ongoing", "completed"].includes(rawStatus), 
+      date: ["preparing", "ongoing", "completed"].includes(rawStatus) ? "In Progress" : (isEventFuture ? "Scheduled for Event Date" : "Pending"),
       desc: isEventFuture ? "Kitchen staff scheduled for event date" : "Kitchen staff preparing your menu"
     },
     { 
       label: "Out for Delivery & COD", 
-      completed: booking.status === "completed", 
-      date: booking.status === "completed" ? "Completed" : "Upon Delivery",
+      completed: isCompleted, 
+      date: isCompleted ? "Completed" : "Upon Delivery",
       desc: "Delivered to venue with Cash on Delivery"
     },
   ] : [
@@ -882,14 +883,14 @@ export default function CustomerEventDashboard() {
     },
     { 
       label: "Event Delivered", 
-      completed: ["completed", "Completed"].includes(booking.status), 
-      date: ["completed", "Completed"].includes(booking.status) ? "Completed" : "Upcoming",
+      completed: isCompleted, 
+      date: isCompleted ? "Completed" : "Upcoming",
       desc: "Event successfully served"
     },
     { 
       label: "Final Balance Settlement", 
       completed: booking.payment_status === "fully_paid" || isFullyPaid, 
-      date: isFullyPaid ? "Completed" : "Due on event date",
+      date: isFullyPaid ? "Completed" : "Due a day after event date",
       desc: "Remaining balance settled online or on-site"
     },
   ];
@@ -1081,6 +1082,30 @@ export default function CustomerEventDashboard() {
       };
     }
 
+    const isOverdue = isBookingOverdue(booking, displayPaid);
+
+    if (isOverdue && outstandingAmount > 0 && !isCancelled) {
+      return {
+        tone: "rose",
+        badge: "Payment Overdue",
+        badgeClass: "bg-rose-50 text-rose-900 border-rose-300 font-bold",
+        title: `Remaining Balance Overdue: ${formatCurrency(outstandingAmount)}`,
+        description: "Your remaining balance is overdue. Please settle your outstanding payment.",
+        assignedParty: "Client Payment",
+        timeline: "Payment Overdue",
+        action: (
+          <Button
+            onClick={handlePayRemainingBalance}
+            disabled={payingPaymentId !== null}
+            className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs h-9 px-4 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>{payingPaymentId ? "Opening Checkout…" : `Settle Overdue Balance (${formatCurrency(outstandingAmount)})`}</span>
+          </Button>
+        ),
+      };
+    }
+
     if (outstandingAmount > 0 && !isCancelled) {
       return {
         tone: "amber",
@@ -1089,9 +1114,9 @@ export default function CustomerEventDashboard() {
         title: `Booking Confirmed! Remaining Balance: ${formatCurrency(outstandingAmount)}`,
         description: isFoodOnlyService
           ? `Your event date is securely reserved. Settle the final balance prior to food delivery on ${booking.event_date ? formatShortDate(booking.event_date) : "the event date"}.`
-          : `Your event date is securely reserved. Settle the final balance before event execution on ${booking.event_date ? formatShortDate(booking.event_date) : "the event date"}.`,
+          : `Your event date is securely reserved. The remaining balance is due a day after your event date.`,
         assignedParty: "Customer Payment Checkout",
-        timeline: "Due before event date",
+        timeline: "Due a day after event",
         action: (
           <Button
             onClick={handlePayRemainingBalance}
@@ -1157,6 +1182,7 @@ export default function CustomerEventDashboard() {
     return null;
   };
 
+  const isOverdue = isBookingOverdue(booking, displayPaid);
   const guideMeta = getActionGuideMeta();
 
   // Status badge config
@@ -1164,7 +1190,9 @@ export default function CustomerEventDashboard() {
     label: booking.status,
     variant: "bg-slate-100 text-slate-700 border-slate-200 font-semibold"
   };
-  if (["confirmed", "converted to booking"].includes(rawStatus)) {
+  if (isOverdue && outstandingAmount > 0 && !isCancelled) {
+    statusBadge = { label: "Payment Overdue", variant: "bg-rose-50 text-rose-800 border-rose-200 font-bold" };
+  } else if (["confirmed", "converted to booking"].includes(rawStatus)) {
     statusBadge = { label: "Confirmed & Reserved", variant: "bg-emerald-50/80 text-emerald-800 border-emerald-200/80 font-semibold" };
   } else if (["deposit pending", "pending deposit"].includes(rawStatus)) {
     statusBadge = { label: "Deposit Needed", variant: "bg-amber-50/80 text-amber-800 border-amber-200/80 font-semibold" };
@@ -1231,12 +1259,17 @@ export default function CustomerEventDashboard() {
       <Button
         onClick={handlePayRemainingBalance}
         disabled={payingPaymentId !== null}
-        className="bg-[#4C81E0] hover:bg-[#3b6ec6] text-white font-semibold text-xs h-9 px-4 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-95 transition-all"
+        className={cn(
+          "font-semibold text-xs h-9 px-4 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-95 transition-all text-white",
+          isOverdue ? "bg-rose-600 hover:bg-rose-700" : "bg-[#4C81E0] hover:bg-[#3b6ec6]"
+        )}
       >
         <CreditCard className="w-3.5 h-3.5" />
         <span>
           {payingPaymentId 
             ? "Opening Checkout…" 
+            : isOverdue
+            ? `Settle Overdue Balance (${formatCurrency(outstandingAmount)})`
             : isCompleted 
             ? `Settle Balance (${formatCurrency(outstandingAmount)})` 
             : `Pay Balance (${formatCurrency(outstandingAmount)})`}
@@ -1829,7 +1862,7 @@ export default function CustomerEventDashboard() {
                 </div>
 
                 {/* DISCREET CANCELLATION REQUEST BUTTON */}
-                {!['inquiry', 'quote_sent', 'customer_accepted', 'completed', 'cancelled', 'refunded'].includes(booking.status) && (
+                {!['inquiry', 'quote_sent', 'customer_accepted', 'completed', 'event completed', 'cancelled', 'canceled', 'refunded'].includes(rawStatus) && (
                   <div className="pt-1 text-center">
                     <button
                       type="button"

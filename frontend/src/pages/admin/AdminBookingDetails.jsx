@@ -1082,7 +1082,7 @@ export default function AdminBookingDetails() {
                     </Btn>
                   )}
 
-                  {["out for delivery", "in transit", "ready for delivery"].includes(rawStatus) && (
+                  {["out for delivery", "in transit", "ready for delivery"].includes(rawStatus) && remainingBalance <= 0 && (
                     <Btn
                       size="sm"
                       variant="primary"
@@ -1132,7 +1132,7 @@ export default function AdminBookingDetails() {
                     </Btn>
                   )}
 
-                  {["confirmed", "Confirmed", "preparing", "Ready for Event", "ready for event", "ongoing"].includes(booking.status) && (
+                  {["confirmed", "Confirmed", "preparing", "Ready for Event", "ready for event", "ongoing"].includes(booking.status) && remainingBalance <= 0 && (
                     <Btn
                       size="sm"
                       variant="primary"
@@ -3673,26 +3673,40 @@ export default function AdminBookingDetails() {
                 </label>
                 <div className="grid grid-cols-1 gap-2">
                   {[
-                    { id: "confirmed", label: "Confirmed / Reserved", desc: "Deposit received, date locked in schedule", tone: "border-emerald-200 bg-emerald-50/40 text-emerald-950 hover:border-emerald-400" },
-                    { id: "preparing", label: isFoodOnlyService ? "Food Prep (Kitchen In-Progress)" : "Preparing / Ready for Setup", desc: isFoodOnlyService ? "Culinary team cooking and packaging food trays" : "Event preparations in progress", tone: "border-amber-200 bg-amber-50/40 text-amber-950 hover:border-amber-400" },
-                    ...(isFoodOnlyService ? [{ id: "out for delivery", label: "Out for Delivery (Dispatched)", desc: "Delivery courier en route to destination venue", tone: "border-blue-200 bg-blue-50/40 text-blue-950 hover:border-blue-400" }] : []),
-                    { id: "completed", label: isFoodOnlyService ? "Delivered & Completed" : "Completed / Event Concluded", desc: "Service delivered and concluded successfully", tone: "border-emerald-200 bg-emerald-50/40 text-emerald-950 hover:border-emerald-400" },
-                    { id: "cancelled", label: "Cancelled", desc: "Reservation cancelled", tone: "border-rose-200 bg-rose-50/40 text-rose-950 hover:border-rose-400" },
+                    { id: "confirmed", label: "Confirmed / Reserved", desc: "Deposit received, date locked in schedule", disabled: false, tone: "border-emerald-200 bg-emerald-50/40 text-emerald-950 hover:border-emerald-400" },
+                    { id: "preparing", label: isFoodOnlyService ? "Food Prep (Kitchen In-Progress)" : "Preparing / Ready for Setup", desc: isFoodOnlyService ? "Culinary team cooking and packaging food trays" : "Event preparations in progress", disabled: false, tone: "border-amber-200 bg-amber-50/40 text-amber-950 hover:border-amber-400" },
+                    ...(isFoodOnlyService ? [{ id: "out for delivery", label: "Out for Delivery (Dispatched)", desc: "Delivery courier en route to destination venue", disabled: false, tone: "border-blue-200 bg-blue-50/40 text-blue-950 hover:border-blue-400" }] : []),
+                    {
+                      id: "completed",
+                      label: isFoodOnlyService ? "Delivered & Completed" : "Completed / Event Concluded",
+                      desc: remainingBalance > 0
+                        ? `Disabled: Outstanding balance of ₱${remainingBalance.toLocaleString()} must be settled first`
+                        : "Service delivered and concluded successfully",
+                      disabled: remainingBalance > 0,
+                      tone: remainingBalance > 0
+                        ? "opacity-50 cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                        : "border-emerald-200 bg-emerald-50/40 text-emerald-950 hover:border-emerald-400"
+                    },
+                    { id: "cancelled", label: "Cancelled", desc: "Reservation cancelled", disabled: false, tone: "border-rose-200 bg-rose-50/40 text-rose-950 hover:border-rose-400" },
                   ].map((opt) => (
                     <label
                       key={opt.id}
-                      className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${selectedNewStatus?.toLowerCase() === opt.id
-                          ? "border-primary ring-2 ring-primary/20 bg-primary/5"
-                          : opt.tone
-                        }`}
+                      className={`flex items-start gap-2.5 p-2.5 rounded-lg border transition-all ${
+                        opt.disabled
+                          ? "opacity-50 cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                          : selectedNewStatus?.toLowerCase() === opt.id
+                            ? "border-primary ring-2 ring-primary/20 bg-primary/5 cursor-pointer"
+                            : `${opt.tone} cursor-pointer`
+                      }`}
                     >
                       <input
                         type="radio"
                         name="override_status"
                         value={opt.id}
+                        disabled={opt.disabled}
                         checked={selectedNewStatus?.toLowerCase() === opt.id}
-                        onChange={(e) => setSelectedNewStatus(e.target.value)}
-                        className="mt-0.5 text-primary focus:ring-primary"
+                        onChange={(e) => !opt.disabled && setSelectedNewStatus(e.target.value)}
+                        className="mt-0.5 text-primary focus:ring-primary disabled:cursor-not-allowed"
                       />
                       <div className="min-w-0">
                         <div className="font-bold text-xs text-foreground flex items-center gap-1.5">

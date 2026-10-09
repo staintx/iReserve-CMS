@@ -26,6 +26,7 @@ export default function Login() {
   const sessionExpired = Boolean(location.state?.sessionExpired);
   const justVerified = Boolean(location.state?.verified);
   const passwordReset = Boolean(location.state?.passwordReset);
+  const loggedOut = Boolean(location.state?.loggedOut);
 
   // Set by ProtectedRoute when a guest was bounced off a protected page.
   // Staff/admin/manager always go to their own dashboard; only customers
@@ -99,7 +100,13 @@ export default function Login() {
   };
 
   let banner = null;
-  if (sessionExpired) {
+  if (loggedOut) {
+    banner = (
+      <AuthAlert tone="success" title="Logged out">
+        You have successfully logged out.
+      </AuthAlert>
+    );
+  } else if (sessionExpired) {
     banner = (
       <AuthAlert tone="warning" title="Your session expired">
         You were signed out after a period of inactivity. Please sign in again to continue.

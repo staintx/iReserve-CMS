@@ -64,6 +64,12 @@ import {
   searchBatangasBarangays,
 } from "../../utils/batangas";
 import { formatCurrency, formatDate } from "../../utils/format";
+import {
+  validateName,
+  validateAddress,
+  validateSafeText,
+  contactFieldError,
+} from "../../utils/validationRules";
 
 const MIN_DATE_OFFSET_DAYS = 4;
 
@@ -223,11 +229,27 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
 
   // Event specifics
   const [eventType, setEventType] = useState(prefillEventType || "Birthday");
+  const [eventTypeOther, setEventTypeOther] = useState("");
   const [celebrantName, setCelebrantName] = useState("");
   const [eventTheme, setEventTheme] = useState(stylingNotes || "");
   const [selectedPalette, setSelectedPalette] = useState(CURATED_PALETTES[0].label);
   const [guestCount, setGuestCount] = useState(comboPax || preselectedPackage?.guest_min || 50);
   const [venueType, setVenueType] = useState("Private Resort");
+  const [venueTypeOther, setVenueTypeOther] = useState("");
+
+  // Validation state
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [stepError, setStepError] = useState("");
+
+  const clearFieldError = (field) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+    setStepError("");
+  };
 
   // Scaffold / Setup tier
   const availableScaffoldOptions = useMemo(() => {
@@ -484,12 +506,268 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
 
   const currentStep = steps[stepIndex] || steps[0];
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // VALIDATION PER STEP (Sourced from Website Booking Rules)
+  // ══════════════════════════════════════════════════════════════════════════
+  const validateStep = (stepId) => {
+    const errors = {};
+    let message = "";
+
+    switch (stepId) {
+      case "service": {
+        if (!serviceType) {
+          errors.serviceType = "Please select a service type.";
+          message = "Please select a service type.";
+        }
+        break;
+      }
+
+      case "datetime": {
+        if (!selectedDate) {
+          errors.selectedDate = "Choose a date for your event.";
+          message = "Choose a date for your event.";
+        } else {
+          const minDateStr = minSelectableDate.toISOString().split("T")[0];
+          if (selectedDate < minDateStr) {
+            errors.selectedDate = `Event date must be at least ${MIN_DATE_OFFSET_DAYS} days from today.`;
+            message = errors.selectedDate;
+          } else if (blockedDates.includes(selectedDate)) {
+            errors.selectedDate = "This date is fully booked. Please choose another date.";
+            message = errors.selectedDate;
+          }
+        }
+
+        if (!startTime) {
+          errors.startTime = "Choose a celebration start time.";
+          if (!message) message = "Choose a celebration start time.";
+        }
+        break;
+      }
+
+      case "setup_tier": {
+        if (!selectedScaffoldId) {
+          errors.scaffold = "Please select a scaffold size.";
+          message = "Please select a scaffold size.";
+        }
+        break;
+      }
+
+      case "delivery": {
+        const parsedGuests = Number(guestCount) || 0;
+        if (parsedGuests <= 0) {
+          errors.guestCount = "Enter how many guests you're feeding.";
+          message = "Enter how many guests you're feeding.";
+        } else if (selectedPackage?.guest_min && parsedGuests < selectedPackage.guest_min) {
+          errors.guestCount = `Minimum guest count for this package is ${selectedPackage.guest_min}.`;
+          if (!message) message = errors.guestCount;
+        } else if (selectedPackage?.guest_max && parsedGuests > selectedPackage.guest_max) {
+          errors.guestCount = `The maximum guest count for this package is ${selectedPackage.guest_max}.`;
+          if (!message) message = errors.guestCount;
+        }
+
+        if (deliveryMethod === "delivery") {
+          if (!municipality || !municipality.trim()) {
+            errors.municipality = "Select the delivery municipality.";
+            if (!message) message = "Select the delivery municipality.";
+          }
+          if (!barangay || !barangay.trim()) {
+            errors.barangay = "Select the delivery barangay.";
+            if (!message) message = "Select the delivery barangay.";
+          }
+          if (!street || !street.trim()) {
+            errors.street = "Enter the street and building so we can find you.";
+            if (!message) message = "Enter the street and building so we can find you.";
+          } else {
+            const stErr = validateAddress(street, "Street and building", { max: 150, required: true });
+            if (stErr) {
+              errors.street = stErr;
+              if (!message) message = stErr;
+            }
+          }
+          if (landmark && landmark.trim()) {
+            const lmErr = validateAddress(landmark, "Landmark", { max: 100, required: false });
+            if (lmErr) {
+              errors.landmark = lmErr;
+              if (!message) message = lmErr;
+            }
+          }
+        }
+        break;
+      }
+
+      case "event_venue": {
+        if (!eventType) {
+          errors.eventType = "Tell us what kind of event this is.";
+          if (!message) message = "Tell us what kind of event this is.";
+        } else if (eventType === "Other") {
+          if (!eventTypeOther || !eventTypeOther.trim()) {
+            errors.eventTypeOther = "Specify your event type.";
+            if (!message) message = "Specify your event type.";
+          } else {
+            const etErr = validateSafeText(eventTypeOther, "Event type", { max: 50, required: true });
+            if (etErr) {
+              errors.eventTypeOther = etErr;
+              if (!message) message = etErr;
+            }
+          }
+        }
+
+        if (celebrantName && celebrantName.trim()) {
+          const celErr = validateName(celebrantName, "Celebrant name", { min: 2, max: 80, required: false });
+          if (celErr) {
+            errors.celebrantName = celErr;
+            if (!message) message = celErr;
+          }
+        }
+
+        const parsedGuests = Number(guestCount) || 0;
+        if (parsedGuests <= 0) {
+          errors.guestCount = "Enter how many guests you're expecting.";
+          if (!message) message = "Enter how many guests you're expecting.";
+        } else if (!isComboOffer && selectedScaffold?.guest_max && parsedGuests > selectedScaffold.guest_max) {
+          errors.guestCount = `The maximum guest count for this scaffold setup is ${selectedScaffold.guest_max}.`;
+          if (!message) message = errors.guestCount;
+        }
+
+        const themeTrimmed = String(eventTheme || "").trim();
+        if (!themeTrimmed) {
+          errors.eventTheme = "Please enter your event theme or styling motif.";
+          if (!message) message = "Please enter your event theme or styling motif.";
+        } else {
+          const thErr = validateSafeText(eventTheme, "Theme or styling motif", { max: 100, required: true });
+          if (thErr) {
+            errors.eventTheme = thErr;
+            if (!message) message = thErr;
+          }
+        }
+
+        if (venueType === "Other") {
+          if (!venueTypeOther || !venueTypeOther.trim()) {
+            errors.venueTypeOther = "Specify your venue space type.";
+            if (!message) message = "Specify your venue space type.";
+          } else {
+            const vtErr = validateSafeText(venueTypeOther, "Venue type", { max: 60, required: true });
+            if (vtErr) {
+              errors.venueTypeOther = vtErr;
+              if (!message) message = vtErr;
+            }
+          }
+        }
+
+        if (!municipality || !municipality.trim()) {
+          errors.municipality = "Select the municipality of your venue.";
+          if (!message) message = "Select the municipality of your venue.";
+        }
+        if (!barangay || !barangay.trim()) {
+          errors.barangay = "Select the barangay.";
+          if (!message) message = "Select the barangay.";
+        }
+        if (street && street.trim()) {
+          const stErr = validateAddress(street, "Venue street address", { max: 150, required: false });
+          if (stErr) {
+            errors.street = stErr;
+            if (!message) message = stErr;
+          }
+        }
+        if (landmark && landmark.trim()) {
+          const lmErr = validateAddress(landmark, "Landmark", { max: 100, required: false });
+          if (lmErr) {
+            errors.landmark = lmErr;
+            if (!message) message = lmErr;
+          }
+        }
+        break;
+      }
+
+      case "menu": {
+        if (!isComboOffer && (isFoodOnly || includeFood)) {
+          if (!selectedDishes || selectedDishes.length === 0) {
+            errors.menu = "Please select at least one dish for your menu.";
+            message = "Please select at least one dish for your menu.";
+          }
+        }
+        break;
+      }
+
+      case "dietary": {
+        if (allergies && allergies.trim()) {
+          const alErr = validateSafeText(allergies, "Allergies note", { max: 300, required: false });
+          if (alErr) {
+            errors.allergies = alErr;
+            if (!message) message = alErr;
+          }
+        }
+        if (specialRequests && specialRequests.trim()) {
+          const srErr = validateSafeText(specialRequests, "Special requests", { max: 500, required: false });
+          if (srErr) {
+            errors.specialRequests = srErr;
+            if (!message) message = srErr;
+          }
+        }
+        break;
+      }
+
+      case "contact": {
+        const fnErr = validateName(contactFirstName, "First name", { min: 2, max: 50, required: true });
+        if (fnErr) errors.contactFirstName = fnErr;
+
+        const lnErr = validateName(contactLastName, "Last name", { min: 2, max: 50, required: true });
+        if (lnErr) errors.contactLastName = lnErr;
+
+        const emErr = contactFieldError("contact_email", contactEmail);
+        if (emErr) errors.contactEmail = emErr;
+
+        const phErr = contactFieldError("contact_phone", contactPhone);
+        if (phErr) errors.contactPhone = phErr;
+
+        if (contactAltPhone && contactAltPhone.trim()) {
+          const altErr = contactFieldError("contact_alt_phone", contactAltPhone);
+          if (altErr) errors.contactAltPhone = altErr;
+        }
+
+        if (Object.keys(errors).length > 0) {
+          message = Object.values(errors)[0] || "Complete your contact details.";
+        }
+        break;
+      }
+
+      default:
+        break;
+    }
+
+    if (!message && Object.keys(errors).length > 0) {
+      message = Object.values(errors)[0];
+    }
+
+    return {
+      valid: !message && Object.keys(errors).length === 0,
+      errors,
+      message,
+    };
+  };
+
   // Review edit mode handlers
   const jumpToStep = (targetStepId) => {
     const targetIndex = steps.findIndex((s) => s.id === targetStepId);
     if (targetIndex !== -1) {
+      // If navigating forward, prevent bypassing incomplete required steps
+      if (targetIndex > stepIndex) {
+        for (let i = 0; i < targetIndex; i++) {
+          const validation = validateStep(steps[i].id);
+          if (!validation.valid) {
+            setStepIndex(i);
+            setFieldErrors(validation.errors);
+            setStepError(validation.message || "Please complete all required fields on this step.");
+            setShowEditModal(false);
+            scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+            return;
+          }
+        }
+      }
       setIsReviewEditMode(true);
       setStepIndex(targetIndex);
+      setFieldErrors({});
+      setStepError("");
       setShowEditModal(false);
     }
   };
@@ -535,8 +813,18 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   };
 
   const returnToReview = () => {
+    const validation = validateStep(currentStep?.id);
+    if (!validation.valid) {
+      setFieldErrors(validation.errors);
+      setStepError(validation.message || "Please complete all required fields on this step.");
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+
     const reviewIdx = steps.findIndex((s) => s.id === "review");
     if (reviewIdx !== -1) {
+      setFieldErrors({});
+      setStepError("");
       setStepIndex(reviewIdx);
       setIsReviewEditMode(false);
     }
@@ -607,57 +895,20 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   const depositAmount = Math.round((estimatedTotal * depositRate) / 100);
 
   // ══════════════════════════════════════════════════════════════════════════
-  // VALIDATION PER STEP
+  // REAL-TIME REVALIDATION & NAVIGATION
   // ══════════════════════════════════════════════════════════════════════════
-  const canProceed = useMemo(() => {
-    if (!currentStep) return false;
-
-    switch (currentStep.id) {
-      case "service":
-        return Boolean(serviceType);
-
-      case "datetime":
-        return Boolean(selectedDate && startTime);
-
-      case "delivery":
-        if (guestCount <= 0) return false;
-        if (deliveryMethod === "pickup") return true;
-        return Boolean(municipality && barangay);
-
-      case "setup_tier":
-        return true;
-
-      case "event_venue":
-        if (!eventType || guestCount <= 0) return false;
-        return Boolean(municipality && barangay);
-
-      case "menu":
-        return true;
-
-      case "dietary":
-        return true;
-
-      case "addons":
-        return true;
-
-      case "contact": {
-        const hasFirst = contactFirstName.trim().length > 0;
-        const hasLast = contactLastName.trim().length > 0;
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        const phoneRegex = /^(?:63|0)?9\d{9}$/;
-        const hasEmail = emailRegex.test(contactEmail.trim());
-        const hasPhone = phoneRegex.test(contactPhone.replace(/\D/g, ""));
-        return hasFirst && hasLast && hasEmail && hasPhone;
-      }
-
-      case "review":
-        return true;
-
-      default:
-        return true;
+  useEffect(() => {
+    if (Object.keys(fieldErrors).length === 0 && !stepError) return;
+    const { valid, errors: nextErrors, message: nextMessage } = validateStep(currentStep?.id);
+    if (valid) {
+      setFieldErrors({});
+      setStepError("");
+    } else {
+      setFieldErrors(nextErrors);
+      setStepError(nextMessage || Object.values(nextErrors)[0] || "");
     }
   }, [
-    currentStep,
+    currentStep?.id,
     serviceType,
     selectedDate,
     startTime,
@@ -665,15 +916,49 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
     deliveryMethod,
     municipality,
     barangay,
+    street,
+    landmark,
     eventType,
+    eventTypeOther,
+    celebrantName,
+    eventTheme,
+    venueType,
+    venueTypeOther,
+    selectedDishes.length,
+    allergies,
+    specialRequests,
     contactFirstName,
     contactLastName,
     contactEmail,
     contactPhone,
+    contactAltPhone,
+    selectedScaffoldId,
   ]);
 
   // Navigation handlers
   const handleNext = () => {
+    const result = validateStep(currentStep?.id);
+    if (!result.valid) {
+      setFieldErrors(result.errors);
+      setStepError(result.message || Object.values(result.errors)[0] || "Please check the required fields.");
+      const firstErrorKey = Object.keys(result.errors)[0];
+      if (firstErrorKey && typeof fieldYCoords.current[firstErrorKey] === "number") {
+        const targetY = (stepContainerY.current || 0) + fieldYCoords.current[firstErrorKey] - 20;
+        scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY), animated: true });
+      } else {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      }
+      return;
+    }
+
+    setFieldErrors({});
+    setStepError("");
+
+    if (isReviewEditMode) {
+      returnToReview();
+      return;
+    }
+
     if (stepIndex < steps.length - 1) {
       setStepIndex(stepIndex + 1);
     } else {
@@ -682,6 +967,8 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   };
 
   const handleBack = () => {
+    setFieldErrors({});
+    setStepError("");
     if (stepIndex > 0) {
       setStepIndex(stepIndex - 1);
     } else {
@@ -696,6 +983,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
     } else {
       setSelectedDishes([...selectedDishes, dish]);
     }
+    clearFieldError("menu");
   };
 
   const handleToggleAddon = (addonId) => {
@@ -710,6 +998,24 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   // ══════════════════════════════════════════════════════════════════════════
   const handleSubmitInquiry = async () => {
     if (submitting) return;
+
+    // Validate ALL active wizard steps before final submission
+    for (let i = 0; i < steps.length - 1; i++) {
+      const stepEntry = steps[i];
+      const stepValidation = validateStep(stepEntry.id);
+      if (!stepValidation.valid) {
+        setStepIndex(i);
+        setFieldErrors(stepValidation.errors);
+        setStepError(stepValidation.message || "Please complete all required fields.");
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+        Alert.alert(
+          "Incomplete Booking Details",
+          stepValidation.message || Object.values(stepValidation.errors)[0] || "Please complete all required fields on this step."
+        );
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const activeDeliveryMethod = isFoodOnly ? deliveryMethod : "setup";
@@ -743,25 +1049,25 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
         scaffold_length: !isFoodOnly && selectedScaffold ? selectedScaffold.length_ft : undefined,
         scaffold_base_area: !isFoodOnly && selectedScaffold ? (selectedScaffold.width_ft * selectedScaffold.length_ft) : undefined,
         scaffold_price: !isFoodOnly && selectedScaffold ? selectedScaffold.price : undefined,
-        event_type: isFoodOnly ? "Food Order" : eventType,
+        event_type: isFoodOnly ? "Food Order" : (eventType === "Other" && eventTypeOther ? eventTypeOther.trim() : eventType),
         booking_for: celebrantName ? "someone_else" : "myself",
-        celebrant_name: celebrantName,
-        event_theme: eventTheme,
+        celebrant_name: celebrantName ? celebrantName.trim() : undefined,
+        event_theme: eventTheme ? eventTheme.trim() : undefined,
         event_palette: selectedPalette ? [selectedPalette] : undefined,
         event_date: selectedDate,
         start_time: startTime,
         duration_hours: 4,
-        guest_count: guestCount,
-        venue_type: isFoodOnly ? (isPickup ? "Customer Pick-up" : "Delivery Location") : venueType,
+        guest_count: Number(guestCount) || 50,
+        venue_type: isFoodOnly ? (isPickup ? "Customer Pick-up" : "Delivery Location") : (venueType === "Other" && venueTypeOther ? venueTypeOther.trim() : venueType),
         service_type: serviceType,
         include_food: isFoodOnly ? true : isEventSetupOnly ? false : includeFood,
         delivery_method: activeDeliveryMethod,
-        delivery_instructions: specialRequests,
+        delivery_instructions: specialRequests ? specialRequests.trim() : undefined,
         province: isPickup ? undefined : BATANGAS_PROVINCE,
         municipality: isPickup ? undefined : municipality,
         barangay: isPickup ? undefined : barangay,
-        street: isPickup ? undefined : street,
-        landmark: isPickup ? undefined : landmark,
+        street: isPickup ? undefined : (street ? street.trim() : undefined),
+        landmark: isPickup ? undefined : (landmark ? landmark.trim() : undefined),
         selected_menu: isComboOffer ? [] : selectedDishes.map((d) => d._id),
         service_items: formattedAddons,
         inventory_items: Array.isArray(selectedPackage?.setup_equipment)
@@ -771,9 +1077,9 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               quantity: item.quantity || 1,
             }))
           : [],
-        allergies,
-        dietary_restrictions: allergies,
-        special_requests: specialRequests,
+        allergies: allergies ? allergies.trim() : undefined,
+        dietary_restrictions: allergies ? allergies.trim() : undefined,
+        special_requests: specialRequests ? specialRequests.trim() : undefined,
         estimated_total: 0,
         contact_first_name: contactFirstName.trim(),
         contact_last_name: contactLastName.trim(),
@@ -870,15 +1176,28 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
           <Text style={styles.stepSubtitle}>{currentStep?.subtitle}</Text>
         </View>
 
+        {Boolean(stepError) && (
+          <View style={styles.stepErrorBanner}>
+            <AlertCircle size={16} color={colors.error} />
+            <Text style={styles.stepErrorBannerText}>{stepError}</Text>
+          </View>
+        )}
+
         {/* ══════════════════════════════════════════════════════════════════
             STEP: SERVICE SELECTION (CUSTOM ONLY)
            ══════════════════════════════════════════════════════════════════ */}
         {currentStep?.id === "service" && (
-          <View>
-            <Text style={styles.sectionHeading}>Select Your Service Scope</Text>
+          <View onLayout={(e) => { stepContainerY.current = e.nativeEvent.layout.y; }}>
+            <View style={styles.sectionHeadingRow} onLayout={handleFieldLayout("serviceType")}>
+              <Text style={styles.sectionHeading}>Select Your Service Scope</Text>
+              <Text style={styles.requiredAsterisk}> *</Text>
+            </View>
             <Text style={styles.sectionDescription}>
               Customize your booking based on your exact event needs.
             </Text>
+            {Boolean(fieldErrors.serviceType) && (
+              <Text style={styles.fieldErrorText}>{fieldErrors.serviceType}</Text>
+            )}
 
             {/* Service 1: Food and Event Setup */}
             <TouchableOpacity
@@ -889,6 +1208,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               onPress={() => {
                 setServiceType(SERVICE_TYPES.FULL_SERVICE);
                 setIncludeFood(true);
+                clearFieldError("serviceType");
               }}
               activeOpacity={0.8}
             >
@@ -923,6 +1243,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               onPress={() => {
                 setServiceType(SERVICE_TYPES.FOOD_ONLY);
                 setIncludeFood(true);
+                clearFieldError("serviceType");
               }}
               activeOpacity={0.8}
             >
@@ -958,6 +1279,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                 setServiceType(SERVICE_TYPES.SETUP_ONLY);
                 setIncludeFood(false);
                 setSelectedDishes([]);
+                clearFieldError("serviceType");
               }}
               activeOpacity={0.8}
             >
@@ -1012,7 +1334,10 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                   <TouchableOpacity
                     key={offset}
                     style={[styles.dateCard, isSelected && styles.dateCardActive]}
-                    onPress={() => setSelectedDate(iso)}
+                    onPress={() => {
+                      setSelectedDate(iso);
+                      clearFieldError("selectedDate");
+                    }}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.dateCardRadio, isSelected && styles.dateCardRadioActive]}>
@@ -1028,8 +1353,13 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             <View onLayout={handleFieldLayout("selectedDate")}>
               <CalendarDatePicker
                 label="Selected Event Date"
+                required={true}
+                error={fieldErrors.selectedDate}
                 selectedDate={selectedDate}
-                onSelectDate={setSelectedDate}
+                onSelectDate={(date) => {
+                  setSelectedDate(date);
+                  clearFieldError("selectedDate");
+                }}
                 minDate={minSelectableDate}
                 blockedDates={blockedDates}
                 leadTimeDays={MIN_DATE_OFFSET_DAYS}
@@ -1046,13 +1376,26 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             )}
 
             {/* Start Time Grid */}
-            <Text style={styles.fieldLabel}>Preferred Celebration Start Time</Text>
+            <View style={styles.sectionHeadingRow} onLayout={handleFieldLayout("startTime")}>
+              <Text style={styles.fieldLabel}>Preferred Celebration Start Time</Text>
+              <Text style={styles.requiredAsterisk}> *</Text>
+            </View>
+            {Boolean(fieldErrors.startTime) && (
+              <Text style={styles.fieldErrorText}>{fieldErrors.startTime}</Text>
+            )}
             <View style={styles.timeGrid}>
               {["10:00 AM", "11:30 AM", "12:00 PM", "1:00 PM", "5:00 PM", "6:00 PM", "7:00 PM"].map((time) => (
                 <TouchableOpacity
                   key={time}
-                  style={[styles.timeChip, startTime === time && styles.timeChipActive]}
-                  onPress={() => setStartTime(time)}
+                  style={[
+                    styles.timeChip,
+                    startTime === time && styles.timeChipActive,
+                    fieldErrors.startTime && !startTime && styles.timeChipError,
+                  ]}
+                  onPress={() => {
+                    setStartTime(time);
+                    clearFieldError("startTime");
+                  }}
                   activeOpacity={0.7}
                 >
                   <Clock size={13} color={startTime === time ? colors.white : colors.foreground} style={{ marginRight: 5 }} />
@@ -1071,11 +1414,20 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
         {currentStep?.id === "delivery" && (
           <View onLayout={(e) => { stepContainerY.current = e.nativeEvent.layout.y; }}>
             {/* Guest Count Stepper with Manual Input */}
-            <Text style={styles.fieldLabel}>Number of Guests / Pax</Text>
+            <View style={styles.sectionHeadingRow} onLayout={handleFieldLayout("guestCount")}>
+              <Text style={styles.fieldLabel}>Number of Guests / Pax</Text>
+              <Text style={styles.requiredAsterisk}> *</Text>
+            </View>
+            {Boolean(fieldErrors.guestCount) && (
+              <Text style={styles.fieldErrorText}>{fieldErrors.guestCount}</Text>
+            )}
             <View style={styles.guestCountRow}>
               <AnimatedStepper
                 value={guestCount}
-                onChange={setGuestCount}
+                onChange={(val) => {
+                  setGuestCount(val);
+                  clearFieldError("guestCount");
+                }}
                 min={10}
                 max={1500}
                 step={5}
@@ -1094,7 +1446,10 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                   <TouchableOpacity
                     key={preset}
                     style={[styles.presetChip, isSelected && styles.presetChipActive]}
-                    onPress={() => setGuestCount(preset)}
+                    onPress={() => {
+                      setGuestCount(preset);
+                      clearFieldError("guestCount");
+                    }}
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.presetChipText, isSelected && styles.presetChipTextActive]}>
@@ -1106,11 +1461,19 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             </ScrollView>
 
             {/* Fulfillment Method */}
-            <Text style={styles.fieldLabel}>How would you like to receive your food?</Text>
+            <View style={styles.sectionHeadingRow}>
+              <Text style={styles.fieldLabel}>How would you like to receive your food?</Text>
+              <Text style={styles.requiredAsterisk}> *</Text>
+            </View>
             <View style={styles.methodCardsRow}>
               <TouchableOpacity
                 style={[styles.methodCard, deliveryMethod === "delivery" && styles.methodCardActive]}
-                onPress={() => setDeliveryMethod("delivery")}
+                onPress={() => {
+                  setDeliveryMethod("delivery");
+                  clearFieldError("municipality");
+                  clearFieldError("barangay");
+                  clearFieldError("street");
+                }}
                 activeOpacity={0.8}
               >
                 <Truck size={24} color={deliveryMethod === "delivery" ? colors.primary : colors.foregroundMuted} />
@@ -1124,7 +1487,13 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
 
               <TouchableOpacity
                 style={[styles.methodCard, deliveryMethod === "pickup" && styles.methodCardActive]}
-                onPress={() => setDeliveryMethod("pickup")}
+                onPress={() => {
+                  setDeliveryMethod("pickup");
+                  clearFieldError("municipality");
+                  clearFieldError("barangay");
+                  clearFieldError("street");
+                  clearFieldError("landmark");
+                }}
                 activeOpacity={0.8}
               >
                 <Home size={24} color={deliveryMethod === "pickup" ? colors.primary : colors.foregroundMuted} />
@@ -1159,44 +1528,69 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             {/* Delivery Address */}
             {deliveryMethod === "delivery" && (
               <View style={{ marginTop: spacing.md }}>
-                <Text style={styles.inputLabel}>Batangas Municipality</Text>
+                <View style={styles.sectionHeadingRow} onLayout={handleFieldLayout("municipality")}>
+                  <Text style={styles.inputLabel}>Batangas Municipality</Text>
+                  <Text style={styles.requiredAsterisk}> *</Text>
+                </View>
                 <TouchableOpacity
-                  style={styles.selectBox}
+                  style={[styles.selectBox, fieldErrors.municipality && styles.selectBoxError]}
                   onPress={() => setShowMunicipalityPicker(true)}
                   activeOpacity={0.7}
                 >
-                  <MapPin size={18} color={colors.primary} />
-                  <Text style={styles.selectBoxText}>{municipality || "Select Municipality"}</Text>
+                  <MapPin size={18} color={fieldErrors.municipality ? colors.error : colors.primary} />
+                  <Text style={[styles.selectBoxText, !municipality && styles.selectBoxPlaceholder]}>
+                    {municipality || "Select Municipality"}
+                  </Text>
                   <ChevronRight size={18} color={colors.foregroundMuted} />
                 </TouchableOpacity>
+                {Boolean(fieldErrors.municipality) && (
+                  <Text style={styles.fieldErrorText}>{fieldErrors.municipality}</Text>
+                )}
 
-                <Text style={styles.inputLabel}>Barangay</Text>
+                <View style={styles.sectionHeadingRow} onLayout={handleFieldLayout("barangay")}>
+                  <Text style={styles.inputLabel}>Barangay</Text>
+                  <Text style={styles.requiredAsterisk}> *</Text>
+                </View>
                 <TouchableOpacity
-                  style={styles.selectBox}
+                  style={[styles.selectBox, fieldErrors.barangay && styles.selectBoxError]}
                   onPress={() => setShowBarangayPicker(true)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.selectBoxText}>{barangay || "Select Barangay"}</Text>
+                  <Text style={[styles.selectBoxText, !barangay && styles.selectBoxPlaceholder]}>
+                    {barangay || "Select Barangay"}
+                  </Text>
                   <ChevronRight size={18} color={colors.foregroundMuted} />
                 </TouchableOpacity>
+                {Boolean(fieldErrors.barangay) && (
+                  <Text style={styles.fieldErrorText}>{fieldErrors.barangay}</Text>
+                )}
 
-                <View onLayout={handleFieldLayout("foodStreet")}>
+                <View onLayout={handleFieldLayout("street")}>
                   <AppInput
                     label="Street Address / Residence"
+                    required={true}
                     placeholder="e.g. Block 4 Lot 12 Villa Verde Subd."
                     value={street}
-                    onChangeText={setStreet}
-                    onFocus={handleFieldFocus("foodStreet")}
+                    onChangeText={(val) => {
+                      setStreet(val);
+                      clearFieldError("street");
+                    }}
+                    error={fieldErrors.street}
+                    onFocus={handleFieldFocus("street")}
                   />
                 </View>
 
-                <View onLayout={handleFieldLayout("foodLandmark")}>
+                <View onLayout={handleFieldLayout("landmark")}>
                   <AppInput
                     label="Landmark (Optional)"
                     placeholder="e.g. Across Barangay Hall or Shell Station"
                     value={landmark}
-                    onChangeText={setLandmark}
-                    onFocus={handleFieldFocus("foodLandmark")}
+                    onChangeText={(val) => {
+                      setLandmark(val);
+                      clearFieldError("landmark");
+                    }}
+                    error={fieldErrors.landmark}
+                    onFocus={handleFieldFocus("landmark")}
                   />
                 </View>
               </View>
@@ -1208,11 +1602,17 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             STEP: SETUP & SCAFFOLDING TIER (SETUP ONLY & FULL SERVICE)
            ══════════════════════════════════════════════════════════════════ */}
         {currentStep?.id === "setup_tier" && (
-          <View>
-            <Text style={styles.sectionHeading}>Choose Your Event Scaffolding Size</Text>
+          <View onLayout={(e) => { stepContainerY.current = e.nativeEvent.layout.y; }}>
+            <View style={styles.sectionHeadingRow} onLayout={handleFieldLayout("scaffold")}>
+              <Text style={styles.sectionHeading}>Choose Your Event Scaffolding Size</Text>
+              <Text style={styles.requiredAsterisk}> *</Text>
+            </View>
             <Text style={styles.sectionDescription}>
               Scaffolding and tents provide weather protection and stage space for your guests.
             </Text>
+            {Boolean(fieldErrors.scaffold) && (
+              <Text style={styles.fieldErrorText}>{fieldErrors.scaffold}</Text>
+            )}
 
             <View style={styles.scaffoldGrid}>
               {availableScaffoldOptions.map((option) => {
@@ -1220,8 +1620,15 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                 return (
                   <TouchableOpacity
                     key={option._id}
-                    style={[styles.scaffoldCard, isSelected && styles.scaffoldCardActive]}
-                    onPress={() => setSelectedScaffoldId(option._id)}
+                    style={[
+                      styles.scaffoldCard,
+                      isSelected && styles.scaffoldCardActive,
+                      fieldErrors.scaffold && !selectedScaffoldId && styles.scaffoldCardError,
+                    ]}
+                    onPress={() => {
+                      setSelectedScaffoldId(option._id);
+                      clearFieldError("scaffold");
+                    }}
                     activeOpacity={0.8}
                   >
                     <View style={styles.scaffoldCardTop}>
@@ -1271,13 +1678,26 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             )}
 
             {/* Event Type Grid */}
-            <Text style={styles.fieldLabel}>What are you celebrating?</Text>
+            <View style={styles.sectionHeadingRow} onLayout={handleFieldLayout("eventType")}>
+              <Text style={styles.fieldLabel}>What are you celebrating?</Text>
+              <Text style={styles.requiredAsterisk}> *</Text>
+            </View>
+            {Boolean(fieldErrors.eventType) && (
+              <Text style={styles.fieldErrorText}>{fieldErrors.eventType}</Text>
+            )}
             <View style={styles.typeGrid}>
               {["Wedding", "Birthday", "Debut", "Corporate", "Anniversary", "Christening", "Other"].map((type) => (
                 <TouchableOpacity
                   key={type}
-                  style={[styles.typeCard, eventType === type && styles.typeCardActive]}
-                  onPress={() => setEventType(type)}
+                  style={[
+                    styles.typeCard,
+                    eventType === type && styles.typeCardActive,
+                    fieldErrors.eventType && !eventType && styles.typeCardError,
+                  ]}
+                  onPress={() => {
+                    setEventType(type);
+                    clearFieldError("eventType");
+                  }}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.typeCardText, eventType === type && styles.typeCardTextActive]}>
@@ -1287,22 +1707,52 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               ))}
             </View>
 
+            {eventType === "Other" && (
+              <View onLayout={handleFieldLayout("eventTypeOther")}>
+                <AppInput
+                  label="Specify Event Type"
+                  required={true}
+                  placeholder="e.g. Graduation Party, Family Reunion"
+                  value={eventTypeOther}
+                  onChangeText={(val) => {
+                    setEventTypeOther(val);
+                    clearFieldError("eventTypeOther");
+                  }}
+                  error={fieldErrors.eventTypeOther}
+                  onFocus={handleFieldFocus("eventTypeOther")}
+                />
+              </View>
+            )}
+
             <View onLayout={handleFieldLayout("celebrantName")}>
               <AppInput
                 label="Celebrant / Honoree Name (Optional)"
                 placeholder="e.g. Maria's 18th Debut or John & Jane"
                 value={celebrantName}
-                onChangeText={setCelebrantName}
+                onChangeText={(val) => {
+                  setCelebrantName(val);
+                  clearFieldError("celebrantName");
+                }}
+                error={fieldErrors.celebrantName}
                 onFocus={handleFieldFocus("celebrantName")}
               />
             </View>
 
             {/* Guest Count Stepper with Manual Input */}
-            <Text style={styles.fieldLabel}>Guest Count</Text>
+            <View style={styles.sectionHeadingRow} onLayout={handleFieldLayout("guestCount")}>
+              <Text style={styles.fieldLabel}>Guest Count</Text>
+              <Text style={styles.requiredAsterisk}> *</Text>
+            </View>
+            {Boolean(fieldErrors.guestCount) && (
+              <Text style={styles.fieldErrorText}>{fieldErrors.guestCount}</Text>
+            )}
             <View style={styles.guestCountRow}>
               <AnimatedStepper
                 value={guestCount}
-                onChange={setGuestCount}
+                onChange={(val) => {
+                  setGuestCount(val);
+                  clearFieldError("guestCount");
+                }}
                 min={10}
                 max={2000}
                 step={5}
@@ -1325,7 +1775,10 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                     <TouchableOpacity
                       key={preset}
                       style={[styles.presetChip, isSelected && styles.presetChipActive]}
-                      onPress={() => setGuestCount(preset)}
+                      onPress={() => {
+                        setGuestCount(preset);
+                        clearFieldError("guestCount");
+                      }}
                       activeOpacity={0.7}
                     >
                       <Text style={[styles.presetChipText, isSelected && styles.presetChipTextActive]}>
@@ -1338,7 +1791,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             )}
 
             {/* Curated Color Palettes */}
-            <Text style={styles.fieldLabel}>Curated Theme & Color Palette</Text>
+            <Text style={styles.fieldLabel}>Curated Theme & Color Palette (Optional)</Text>
             <View style={styles.palettesGrid}>
               {CURATED_PALETTES.map((palette) => {
                 const isSelected = selectedPalette === palette.label;
@@ -1368,15 +1821,26 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             <View onLayout={handleFieldLayout("eventTheme")}>
               <AppInput
                 label="Styling Notes or Custom Theme"
+                required={true}
                 placeholder="e.g. Rustic Navy & Gold with fairy lights"
                 value={eventTheme}
-                onChangeText={setEventTheme}
+                onChangeText={(val) => {
+                  setEventTheme(val);
+                  clearFieldError("eventTheme");
+                }}
+                error={fieldErrors.eventTheme}
                 onFocus={handleFieldFocus("eventTheme")}
               />
             </View>
 
             {/* Venue Type */}
-            <Text style={styles.fieldLabel}>Venue Space Type</Text>
+            <View style={styles.sectionHeadingRow} onLayout={handleFieldLayout("venueType")}>
+              <Text style={styles.fieldLabel}>Venue Space Type</Text>
+              <Text style={styles.requiredAsterisk}> *</Text>
+            </View>
+            {Boolean(fieldErrors.venueType) && (
+              <Text style={styles.fieldErrorText}>{fieldErrors.venueType}</Text>
+            )}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.venueTypesScroll}>
               {VENUE_TYPES.map((vType) => {
                 const isSelected = venueType === vType;
@@ -1384,7 +1848,10 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                   <TouchableOpacity
                     key={vType}
                     style={[styles.venueTypeChip, isSelected && styles.venueTypeChipActive]}
-                    onPress={() => setVenueType(vType)}
+                    onPress={() => {
+                      setVenueType(vType);
+                      clearFieldError("venueType");
+                    }}
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.venueTypeChipText, isSelected && styles.venueTypeChipTextActive]}>
@@ -1395,46 +1862,87 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               })}
             </ScrollView>
 
+            {venueType === "Other" && (
+              <View onLayout={handleFieldLayout("venueTypeOther")}>
+                <AppInput
+                  label="Specify Venue Space Type"
+                  required={true}
+                  placeholder="e.g. Beach Resort, Community Center, Warehouse"
+                  value={venueTypeOther}
+                  onChangeText={(val) => {
+                    setVenueTypeOther(val);
+                    clearFieldError("venueTypeOther");
+                  }}
+                  error={fieldErrors.venueTypeOther}
+                  onFocus={handleFieldFocus("venueTypeOther")}
+                />
+              </View>
+            )}
+
             {/* Batangas Venue Location */}
             <Text style={styles.fieldLabel}>Batangas Venue Location</Text>
-            <Text style={styles.inputLabel}>Municipality</Text>
+            <View style={styles.sectionHeadingRow} onLayout={handleFieldLayout("municipality")}>
+              <Text style={styles.inputLabel}>Municipality</Text>
+              <Text style={styles.requiredAsterisk}> *</Text>
+            </View>
             <TouchableOpacity
-              style={styles.selectBox}
+              style={[styles.selectBox, fieldErrors.municipality && styles.selectBoxError]}
               onPress={() => setShowMunicipalityPicker(true)}
               activeOpacity={0.7}
             >
-              <MapPin size={18} color={colors.primary} />
-              <Text style={styles.selectBoxText}>{municipality || "Select Municipality"}</Text>
+              <MapPin size={18} color={fieldErrors.municipality ? colors.error : colors.primary} />
+              <Text style={[styles.selectBoxText, !municipality && styles.selectBoxPlaceholder]}>
+                {municipality || "Select Municipality"}
+              </Text>
               <ChevronRight size={18} color={colors.foregroundMuted} />
             </TouchableOpacity>
+            {Boolean(fieldErrors.municipality) && (
+              <Text style={styles.fieldErrorText}>{fieldErrors.municipality}</Text>
+            )}
 
-            <Text style={styles.inputLabel}>Barangay</Text>
+            <View style={styles.sectionHeadingRow} onLayout={handleFieldLayout("barangay")}>
+              <Text style={styles.inputLabel}>Barangay</Text>
+              <Text style={styles.requiredAsterisk}> *</Text>
+            </View>
             <TouchableOpacity
-              style={styles.selectBox}
+              style={[styles.selectBox, fieldErrors.barangay && styles.selectBoxError]}
               onPress={() => setShowBarangayPicker(true)}
               activeOpacity={0.7}
             >
-              <Text style={styles.selectBoxText}>{barangay || "Select Barangay"}</Text>
+              <Text style={[styles.selectBoxText, !barangay && styles.selectBoxPlaceholder]}>
+                {barangay || "Select Barangay"}
+              </Text>
               <ChevronRight size={18} color={colors.foregroundMuted} />
             </TouchableOpacity>
+            {Boolean(fieldErrors.barangay) && (
+              <Text style={styles.fieldErrorText}>{fieldErrors.barangay}</Text>
+            )}
 
-            <View onLayout={handleFieldLayout("venueStreet")}>
+            <View onLayout={handleFieldLayout("street")}>
               <AppInput
-                label="Venue Name or Street Address"
+                label="Venue Name or Street Address (Optional)"
                 placeholder="e.g. Villa Mercedes Events Place, Brgy. Road"
                 value={street}
-                onChangeText={setStreet}
-                onFocus={handleFieldFocus("venueStreet")}
+                onChangeText={(val) => {
+                  setStreet(val);
+                  clearFieldError("street");
+                }}
+                error={fieldErrors.street}
+                onFocus={handleFieldFocus("street")}
               />
             </View>
 
-            <View onLayout={handleFieldLayout("venueLandmark")}>
+            <View onLayout={handleFieldLayout("landmark")}>
               <AppInput
                 label="Landmark (Optional)"
                 placeholder="e.g. Near St. John Parish Church"
                 value={landmark}
-                onChangeText={setLandmark}
-                onFocus={handleFieldFocus("venueLandmark")}
+                onChangeText={(val) => {
+                  setLandmark(val);
+                  clearFieldError("landmark");
+                }}
+                error={fieldErrors.landmark}
+                onFocus={handleFieldFocus("landmark")}
               />
             </View>
           </View>
@@ -1511,10 +2019,16 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                 )}
 
                 {includeFood && (
-                  <View style={{ marginTop: spacing.md }}>
-                    <Text style={styles.fieldLabel}>
-                      Select Dishes ({selectedDishes.length} selected)
-                    </Text>
+                  <View style={{ marginTop: spacing.md }} onLayout={handleFieldLayout("menu")}>
+                    <View style={styles.sectionHeadingRow}>
+                      <Text style={styles.fieldLabel}>
+                        Select Dishes ({selectedDishes.length} selected)
+                      </Text>
+                      <Text style={styles.requiredAsterisk}> *</Text>
+                    </View>
+                    {Boolean(fieldErrors.menu) && (
+                      <Text style={styles.fieldErrorText}>{fieldErrors.menu}</Text>
+                    )}
 
                     {/* Category Filter Tabs */}
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
@@ -1583,10 +2097,14 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
 
             <View onLayout={handleFieldLayout("allergies")}>
               <AppInput
-                label="Allergies & Dietary Restrictions"
+                label="Allergies & Dietary Restrictions (Optional)"
                 placeholder="e.g. 5 Vegetarians, severe peanut allergy, no shellfish"
                 value={allergies}
-                onChangeText={setAllergies}
+                onChangeText={(val) => {
+                  setAllergies(val);
+                  clearFieldError("allergies");
+                }}
+                error={fieldErrors.allergies}
                 multiline
                 numberOfLines={3}
                 onFocus={handleFieldFocus("allergies")}
@@ -1595,10 +2113,14 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
 
             <View onLayout={handleFieldLayout("specialRequests")}>
               <AppInput
-                label="Special Culinary Requests / Serving Preferences"
+                label="Special Culinary Requests / Serving Preferences (Optional)"
                 placeholder="e.g. Separate kiddie buffet table, extra gravy boat, dessert table display"
                 value={specialRequests}
-                onChangeText={setSpecialRequests}
+                onChangeText={(val) => {
+                  setSpecialRequests(val);
+                  clearFieldError("specialRequests");
+                }}
+                error={fieldErrors.specialRequests}
                 multiline
                 numberOfLines={3}
                 onFocus={handleFieldFocus("specialRequests")}
@@ -1680,9 +2202,14 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             <View onLayout={handleFieldLayout("contactFirstName")}>
               <AppInput
                 label="First Name"
+                required={true}
                 placeholder="e.g. Maria"
                 value={contactFirstName}
-                onChangeText={setContactFirstName}
+                onChangeText={(val) => {
+                  setContactFirstName(val);
+                  clearFieldError("contactFirstName");
+                }}
+                error={fieldErrors.contactFirstName}
                 leftIcon={User}
                 onFocus={handleFieldFocus("contactFirstName")}
               />
@@ -1691,9 +2218,14 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             <View onLayout={handleFieldLayout("contactLastName")}>
               <AppInput
                 label="Last Name"
+                required={true}
                 placeholder="e.g. Santos"
                 value={contactLastName}
-                onChangeText={setContactLastName}
+                onChangeText={(val) => {
+                  setContactLastName(val);
+                  clearFieldError("contactLastName");
+                }}
+                error={fieldErrors.contactLastName}
                 leftIcon={User}
                 onFocus={handleFieldFocus("contactLastName")}
               />
@@ -1702,9 +2234,14 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             <View onLayout={handleFieldLayout("contactEmail")}>
               <AppInput
                 label="Email Address (Where quotation is sent)"
+                required={true}
                 placeholder="maria.santos@gmail.com"
                 value={contactEmail}
-                onChangeText={setContactEmail}
+                onChangeText={(val) => {
+                  setContactEmail(val);
+                  clearFieldError("contactEmail");
+                }}
+                error={fieldErrors.contactEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 leftIcon={Mail}
@@ -1715,9 +2252,14 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             <View onLayout={handleFieldLayout("contactPhone")}>
               <AppInput
                 label="Primary Mobile Phone (Philippine 09XX)"
+                required={true}
                 placeholder="09171234567"
                 value={contactPhone}
-                onChangeText={setContactPhone}
+                onChangeText={(val) => {
+                  setContactPhone(val);
+                  clearFieldError("contactPhone");
+                }}
+                error={fieldErrors.contactPhone}
                 keyboardType="phone-pad"
                 leftIcon={Phone}
                 onFocus={handleFieldFocus("contactPhone")}
@@ -1729,7 +2271,11 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                 label="Alternate Phone Number (Optional)"
                 placeholder="09181234567"
                 value={contactAltPhone}
-                onChangeText={setContactAltPhone}
+                onChangeText={(val) => {
+                  setContactAltPhone(val);
+                  clearFieldError("contactAltPhone");
+                }}
+                error={fieldErrors.contactAltPhone}
                 keyboardType="phone-pad"
                 leftIcon={Phone}
                 onFocus={handleFieldFocus("contactAltPhone")}
@@ -2009,7 +2555,6 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
         <AppButton
           title={stepIndex === steps.length - 1 ? "Submit Catering Inquiry" : "Continue"}
           onPress={handleNext}
-          disabled={!canProceed}
           loading={submitting}
           size="lg"
           style={styles.actionBtn}
@@ -2051,6 +2596,8 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                   onPress={() => {
                     setMunicipality(muni);
                     setBarangay("");
+                    clearFieldError("municipality");
+                    clearFieldError("barangay");
                     setMunicipalityQuery("");
                     setShowMunicipalityPicker(false);
                   }}
@@ -2105,6 +2652,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                   style={styles.modalItem}
                   onPress={() => {
                     setBarangay(brgy);
+                    clearFieldError("barangay");
                     setBarangayQuery("");
                     setShowBarangayPicker(false);
                   }}
@@ -3649,6 +4197,55 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: colors.foregroundMuted,
+  },
+  stepErrorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEE2E2",
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.base,
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+  },
+  stepErrorBannerText: {
+    fontSize: typography.sizes.xs,
+    color: colors.error,
+    fontWeight: "600",
+    marginLeft: spacing.sm,
+    flex: 1,
+  },
+  sectionHeadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  requiredAsterisk: {
+    color: colors.error,
+    fontSize: typography.sizes.sm,
+    fontWeight: "700",
+  },
+  fieldErrorText: {
+    fontSize: 12,
+    color: colors.error,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.sm,
+    fontWeight: "500",
+  },
+  selectBoxError: {
+    borderColor: colors.error,
+    backgroundColor: "#FEF2F2",
+  },
+  selectBoxPlaceholder: {
+    color: colors.foregroundMuted,
+  },
+  timeChipError: {
+    borderColor: colors.error,
+  },
+  scaffoldCardError: {
+    borderColor: colors.error,
+  },
+  typeCardError: {
+    borderColor: colors.error,
   },
 });
 

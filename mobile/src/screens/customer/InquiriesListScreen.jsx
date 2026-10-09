@@ -8,7 +8,9 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   Search,
@@ -43,6 +45,7 @@ const SERVICE_OPTIONS = [
 ];
 
 export const InquiriesListScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [inquiries, setInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -194,31 +197,40 @@ export const InquiriesListScreen = ({ navigation }) => {
 
     return (
       <Card style={styles.inquiryCard}>
-        {/* Header: Reference + Submission Date + Actions */}
-        <View style={styles.cardHeader}>
-          <View>
-            <View style={styles.refRow}>
-              <Text style={styles.inquiryRef}>
+        {/* Top Reference, Date & Status */}
+        <View style={styles.cardTopRow}>
+          <View style={styles.refAndDateCol}>
+            <View style={styles.refDateWrap}>
+              <Text style={styles.inquiryRef} numberOfLines={1}>
                 {item.reference || `INQ-${String(item._id).slice(-6).toUpperCase()}`}
               </Text>
               {item.created_at || item.createdAt ? (
-                <Text style={styles.submitDate}>
-                  • Submitted {formatDate(item.created_at || item.createdAt)}
+                <Text style={styles.submitDate} numberOfLines={1} ellipsizeMode="tail">
+                  Submitted {formatDate(item.created_at || item.createdAt)}
                 </Text>
               ) : null}
             </View>
-            <Text style={styles.eventTitle} numberOfLines={2}>
-              {eventTitle}
-            </Text>
-            <Text style={styles.serviceSubtitle}>
-              {item.service_type || "Food and Event Setup"} • {item.guest_count || 50} guests
-            </Text>
           </View>
 
-          <StatusBadge status={item.status} />
+          <View style={styles.statusWrap}>
+            <StatusBadge status={item.status} size="sm" />
+          </View>
         </View>
 
-        {/* 4-Step Process Stepper matching Screenshot 3 */}
+        {/* Event Title Row */}
+        <Text style={styles.eventTitle} numberOfLines={2}>
+          {eventTitle}
+        </Text>
+
+        {/* Service Subtitle */}
+        <View style={styles.serviceRow}>
+          <Sparkles size={13} color={colors.foregroundMuted} style={styles.serviceIcon} />
+          <Text style={styles.serviceSubtitle} numberOfLines={1}>
+            {item.service_type || "Food and Event Setup"} • {item.guest_count || 50} guests
+          </Text>
+        </View>
+
+        {/* 4-Step Process Stepper */}
         <View style={styles.processBox}>
           <ProcessTimeline status={item.status} />
         </View>
@@ -237,14 +249,16 @@ export const InquiriesListScreen = ({ navigation }) => {
 
             <View style={styles.specCell}>
               <Text style={styles.specCellLabel}>Date & Time</Text>
-              <Text style={styles.specCellValue}>
+              <Text style={styles.specCellValue} numberOfLines={1}>
                 {formatDate(item.event_date)} • {formatTime(item.start_time)}
               </Text>
             </View>
 
             <View style={styles.specCell}>
               <Text style={styles.specCellLabel}>Guest Count</Text>
-              <Text style={styles.specCellValue}>{item.guest_count || 50} pax</Text>
+              <Text style={styles.specCellValue} numberOfLines={1}>
+                {item.guest_count || 50} pax
+              </Text>
             </View>
 
             <View style={styles.specCell}>
@@ -256,13 +270,14 @@ export const InquiriesListScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Footer Actions matching Screenshot 3 */}
+        {/* Footer Actions */}
         <View style={styles.cardFooter}>
           {canCancel ? (
             <TouchableOpacity
               onPress={() => handleCancelInquiry(item._id)}
               style={styles.cancelBtn}
               activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
@@ -291,7 +306,7 @@ export const InquiriesListScreen = ({ navigation }) => {
                 activeOpacity={0.8}
               >
                 <Text style={styles.fullDetailsBtnText}>Full Details</Text>
-                <ChevronRight size={16} color={colors.primary} />
+                <ChevronRight size={15} color={colors.primary} />
               </TouchableOpacity>
             )}
           </View>
@@ -300,25 +315,37 @@ export const InquiriesListScreen = ({ navigation }) => {
     );
   };
 
+  const headerPaddingTop =
+    Math.max(insets.top, Platform.OS === "ios" ? 44 : 24) +
+    (Platform.OS === "ios" ? 6 : 10);
+
   return (
     <View style={styles.container}>
-      {/* Top Header matching Screenshot 3 */}
-      <View style={styles.header}>
-        <View style={styles.headerTitleRow}>
-          <Text style={styles.screenTitle}>My Inquiries</Text>
-          <View style={styles.countBadge}>
-            <Text style={styles.countBadgeText}>{inquiries.length}</Text>
+      {/* Top Header */}
+      <View style={[styles.header, { paddingTop: headerPaddingTop }]}>
+        <View style={styles.headerTopRow}>
+          <View style={styles.headerTitleGroup}>
+            <Text style={styles.screenTitle}>My Inquiries</Text>
+            {inquiries.length > 0 && (
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{inquiries.length}</Text>
+              </View>
+            )}
           </View>
+
+          <TouchableOpacity
+            style={styles.newRequestBtn}
+            onPress={() => navigation.navigate("InquiryWizard")}
+            activeOpacity={0.8}
+          >
+            <Plus size={15} color={colors.white} style={{ marginRight: 4 }} />
+            <Text style={styles.newRequestBtnText}>New Request</Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.newRequestBtn}
-          onPress={() => navigation.navigate("InquiryWizard")}
-          activeOpacity={0.8}
-        >
-          <Plus size={16} color={colors.white} style={{ marginRight: 4 }} />
-          <Text style={styles.newRequestBtnText}>New Request</Text>
-        </TouchableOpacity>
+        <Text style={styles.screenSubtitle}>
+          Track your event requests, quotation reviews, and booking progress.
+        </Text>
       </View>
 
       {/* Search Input Bar */}
@@ -404,7 +431,10 @@ export const InquiriesListScreen = ({ navigation }) => {
           data={filteredInquiries}
           renderItem={renderInquiryItem}
           keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: Math.max(insets.bottom, 16) + 120 },
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -425,32 +455,40 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.base,
     paddingBottom: spacing.sm,
     backgroundColor: colors.surface,
   },
-  headerTitleRow: {
+  headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    marginBottom: 4,
+  },
+  headerTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 1,
+    minWidth: 0,
+    gap: spacing.xs,
   },
   screenTitle: {
     fontSize: 22,
-    fontFamily: typography.fontFamilies.serifBold,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
     color: colors.foreground,
     letterSpacing: -0.3,
+    flexShrink: 1,
   },
   countBadge: {
-    marginLeft: spacing.sm,
     backgroundColor: colors.surfaceAlt,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.cardBorder,
+    flexShrink: 0,
   },
   countBadgeText: {
     fontSize: typography.sizes.xs,
@@ -461,19 +499,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 10,
+    paddingHorizontal: spacing.base,
+    paddingVertical: 8,
+    minHeight: 38,
     borderRadius: radius.pill,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 2,
+    flexShrink: 0,
   },
   newRequestBtnText: {
     fontSize: typography.sizes.sm,
     fontFamily: typography.fontFamilies.bold,
     color: colors.white,
+  },
+  screenSubtitle: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    lineHeight: 16,
   },
   /* Search */
   searchContainer: {
@@ -557,41 +603,63 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: radius.lg,
   },
-  cardHeader: {
+  cardTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: spacing.md,
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  refRow: {
+  refAndDateCol: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: spacing.xs,
+  },
+  refDateWrap: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    marginBottom: spacing.xxs,
+    columnGap: 6,
+    rowGap: 2,
   },
   inquiryRef: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
     color: colors.foregroundMuted,
     letterSpacing: 0.2,
   },
   submitDate: {
-    fontSize: typography.sizes.xs,
+    fontSize: 11,
     fontFamily: typography.fontFamilies.regular,
     color: colors.textSubtle,
-    marginLeft: 4,
+    lineHeight: 15,
+  },
+  statusWrap: {
+    flexShrink: 0,
+    alignSelf: "flex-start",
   },
   eventTitle: {
-    fontSize: typography.sizes.lg,
+    fontSize: typography.sizes.base + 1,
     fontFamily: typography.fontFamilies.bold,
     color: colors.foreground,
     letterSpacing: -0.2,
-    marginTop: 2,
-    marginBottom: 2,
+    marginBottom: 4,
+    lineHeight: 22,
+  },
+  serviceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
+  serviceIcon: {
+    marginRight: 4,
   },
   serviceSubtitle: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
+    flex: 1,
   },
   /* 4-Step Process Box */
   processBox: {

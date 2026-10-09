@@ -165,6 +165,7 @@ export const StatusBadge = ({ status, size = "md", showDot = true, style }) => {
             fontFamily: typography.fontFamilies.bold,
           },
         ]}
+        numberOfLines={1}
       >
         {label}
       </Text>
@@ -180,6 +181,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+    maxWidth: "100%",
   },
   dotContainer: {
     width: 12,

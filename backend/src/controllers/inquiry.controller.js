@@ -242,6 +242,34 @@ exports.createInquiry = asyncHandler(async (req, res) => {
     }
   }
 
+  // Strengthened validation enforcement for customer inquiries
+  if (!isStaffOrAdmin) {
+    if (payload.delivery_method === "delivery") {
+      if (!payload.municipality || !String(payload.municipality).trim()) {
+        return res.status(400).json({ message: "Delivery municipality is required." });
+      }
+      if (!payload.barangay || !String(payload.barangay).trim()) {
+        return res.status(400).json({ message: "Delivery barangay is required." });
+      }
+      if (!payload.street || !String(payload.street).trim()) {
+        return res.status(400).json({ message: "Delivery street address is required." });
+      }
+    } else if (payload.service_type !== "Food Only" && payload.delivery_method !== "pickup") {
+      if (!payload.municipality || !String(payload.municipality).trim()) {
+        return res.status(400).json({ message: "Venue municipality is required." });
+      }
+      if (!payload.barangay || !String(payload.barangay).trim()) {
+        return res.status(400).json({ message: "Venue barangay is required." });
+      }
+    }
+
+    if (payload.include_food && !isSpecialOffer(pkg)) {
+      if (!Array.isArray(payload.selected_menu) || payload.selected_menu.length === 0) {
+        return res.status(400).json({ message: "Please select at least one dish for your catering menu." });
+      }
+    }
+  }
+
   // Anti-spam check: prevent duplicate submissions within 60 seconds (customer self-service only)
   if (!isStaffOrAdmin) {
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000);

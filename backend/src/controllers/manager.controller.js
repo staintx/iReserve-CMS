@@ -271,6 +271,10 @@ exports.assignStaff = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Booking not found or not assigned to you" });
   }
 
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is already completed and read-only. Staff assignments cannot be modified." });
+  }
+
   const { staff_assignments } = req.body;
   if (!Array.isArray(staff_assignments)) {
     return res.status(400).json({ message: "staff_assignments must be an array" });
@@ -363,6 +367,10 @@ exports.updateEquipment = asyncHandler(async (req, res) => {
 
   if (!booking) {
     return res.status(404).json({ message: "Booking not found" });
+  }
+
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is already completed and read-only. Equipment cannot be modified." });
   }
 
   const { inventory_items } = req.body;

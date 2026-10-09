@@ -1326,14 +1326,16 @@ export default function AdminReservations() {
                                   : "No staff assigned yet"}
                               </span>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => setAssignStaffTarget(selectedBooking.rawBooking)}
-                              className="text-xs font-semibold px-2.5 py-1 rounded-md border border-border bg-card hover:bg-muted text-primary cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
-                            >
-                              <UserCheck size={12} />
-                              {selectedBooking.staffCount > 0 ? "Edit Staff" : "Assign Staff"}
-                            </button>
+                            {!["completed", "Completed"].includes(selectedBooking.status || selectedBooking.rawBooking?.status) && (
+                              <button
+                                type="button"
+                                onClick={() => setAssignStaffTarget(selectedBooking.rawBooking)}
+                                className="text-xs font-semibold px-2.5 py-1 rounded-md border border-border bg-card hover:bg-muted text-primary cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
+                              >
+                                <UserCheck size={12} />
+                                {selectedBooking.staffCount > 0 ? "Edit Staff" : "Assign Staff"}
+                              </button>
+                            )}
                           </div>
                           <div className="col-span-2 pt-1.5 border-t border-border/50">
                             <span className="text-[10px] text-muted-foreground block font-medium flex items-center gap-1">

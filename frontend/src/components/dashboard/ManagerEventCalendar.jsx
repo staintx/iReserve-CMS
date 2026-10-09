@@ -144,9 +144,15 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
   // Map items by date key (YYYY-MM-DD)
   const eventsByDate = useMemo(() => {
     const map = new Map();
+    const todayKey = formatDateKey(new Date());
 
     const addEventToMap = (dateStr, item) => {
       if (!dateStr) return;
+      const isPast = dateStr < todayKey;
+      if (isPast) {
+        const isCompletedBooking = item.type === "booking" && (item.operationalStatus === "completed" || ["completed", "Completed"].includes(item.rawItem?.status));
+        if (!isCompletedBooking) return;
+      }
       if (!map.has(dateStr)) map.set(dateStr, []);
       map.get(dateStr).push(item);
     };
@@ -171,7 +177,7 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
         const dateKey = formatDateKey(b.event_date);
         const staffList = b.staff_assignments || [];
         const hasStaff = staffList.length > 0;
-        const isCompleted = b.status === "completed" || b.status === "closed";
+        const isCompleted = b.status === "completed" || b.status === "Completed" || b.status === "closed";
         const opStatus = isCompleted ? "completed" : hasStaff ? "ready" : "pending_staffing";
 
         // Check staffing filter
@@ -264,6 +270,7 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
 
   // Selected Date events list
   const selectedDateKey = formatDateKey(selectedDate);
+  const todayKey = formatDateKey(new Date());
   const selectedDayEvents = eventsByDate.get(selectedDateKey) || [];
   const isSelectedDateUnavailable = (availability.unavailable || []).includes(selectedDateKey);
 
@@ -456,7 +463,8 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
                 {calendarDays.map(({ date, isCurrentMonth }, idx) => {
                   const dateKey = formatDateKey(date);
                   const isSelected = dateKey === selectedDateKey;
-                  const isToday = dateKey === formatDateKey(new Date());
+                  const isToday = dateKey === todayKey;
+                  const isPast = dateKey < todayKey;
                   const dayEvents = eventsByDate.get(dateKey) || [];
 
                   return (
@@ -468,6 +476,10 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
                           ? "border-amber-400 ring-2 ring-amber-400/40 bg-amber-50/20 shadow-2xs"
                           : isToday
                           ? "border-blue-400 bg-blue-50/30"
+                          : isPast
+                          ? isCurrentMonth
+                            ? "border-slate-200/60 bg-slate-100/80 hover:border-slate-300 hover:bg-slate-100"
+                            : "border-slate-200/30 bg-slate-100/50 opacity-50 hover:opacity-80"
                           : isCurrentMonth
                           ? "border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-2xs"
                           : "border-slate-100 bg-slate-50/40 opacity-40"
@@ -481,13 +493,17 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
                               ? "bg-blue-600 text-white font-bold shadow-2xs"
                               : isSelected
                               ? "bg-amber-100 text-amber-900 font-bold"
-                              : "text-slate-700"
+                              : isPast
+                              ? "text-slate-400 font-medium"
+                              : isCurrentMonth
+                              ? "text-slate-700"
+                              : "text-slate-400"
                           }`}
                         >
                           {date.getDate()}
                         </span>
                         {dayEvents.length > 0 && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 sm:hidden shrink-0" />
+                          <span className={`w-1.5 h-1.5 rounded-full ${isPast ? "bg-slate-400" : "bg-amber-500"} sm:hidden shrink-0`} />
                         )}
                       </div>
 
@@ -578,20 +594,40 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
                   d.setDate(d.getDate() - d.getDay() + i);
                   const dateKey = formatDateKey(d);
                   const isSelected = dateKey === selectedDateKey;
+                  const isToday = dateKey === todayKey;
+                  const isPast = dateKey < todayKey;
                   const dayEvs = eventsByDate.get(dateKey) || [];
 
                   return (
                     <div
                       key={i}
                       onClick={() => setSelectedDate(d)}
-                      className={`p-2 rounded-xl border text-left cursor-pointer min-h-[150px] flex flex-col ${
-                        isSelected ? "border-amber-400 bg-amber-50/20 ring-2 ring-amber-400/40" : "border-slate-100 bg-white"
+                      className={`p-2 rounded-xl border text-left cursor-pointer min-h-[150px] flex flex-col transition-all ${
+                        isSelected
+                          ? "border-amber-400 bg-amber-50/20 ring-2 ring-amber-400/40"
+                          : isToday
+                          ? "border-blue-400 bg-blue-50/30"
+                          : isPast
+                          ? "border-slate-200/60 bg-slate-100/70 hover:border-slate-300"
+                          : "border-slate-100 bg-white hover:border-slate-200"
                       }`}
                     >
-                      <div className="text-[10px] font-bold text-slate-400 uppercase">
+                      <div className={`text-[10px] font-bold uppercase ${
+                        isToday ? "text-blue-600" : isPast && !isSelected ? "text-slate-400" : "text-slate-400"
+                      }`}>
                         {d.toLocaleDateString("en-US", { weekday: "short" })}
                       </div>
-                      <div className="text-xs font-bold text-slate-900 mt-0.5">{d.getDate()}</div>
+                      <div className={`text-xs font-bold mt-0.5 ${
+                        isToday
+                          ? "text-blue-600 font-extrabold"
+                          : isSelected
+                          ? "text-amber-900"
+                          : isPast
+                          ? "text-slate-400 font-medium"
+                          : "text-slate-900"
+                      }`}>
+                        {d.getDate()}
+                      </div>
 
                       <div className="mt-2 space-y-1.5 flex-1 overflow-y-auto max-h-[140px]">
                         {dayEvs.map((ev) => {
@@ -626,38 +662,54 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
               ) : (
                 Array.from(eventsByDate.entries())
                   .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
-                  .map(([dateKey, evList]) => (
-                    <div key={dateKey} className="border-b border-slate-100 pb-2.5">
-                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                        {formatDisplayDate(dateKey, true)}
-                      </div>
-                      <div className="space-y-1.5">
-                        {evList.map((ev) => {
-                          const opStyle = getOperationalStyle(ev.operationalStatus, ev.isUnavailable);
-                          return (
-                            <div
-                              key={ev.id}
-                              onClick={() => setActiveItem(ev)}
-                              className={`p-2.5 rounded-xl border flex items-center justify-between ${opStyle.cardBg} cursor-pointer hover:shadow-2xs`}
-                            >
-                              <div className="flex items-center gap-2.5">
-                                <span className={`w-2.5 h-2.5 rounded-full ${opStyle.dotBg}`} />
-                                <div>
-                                  <p className="font-bold text-xs text-slate-900">{ev.title}</p>
-                                  {ev.clientName && <p className="text-[11px] text-slate-600">{ev.clientName}</p>}
+                  .map(([dateKey, evList]) => {
+                    const isToday = dateKey === todayKey;
+                    const isPast = dateKey < todayKey;
+                    return (
+                      <div key={dateKey} className={`border-b pb-2.5 ${isPast ? "border-slate-200/60" : "border-slate-100"}`}>
+                        <div className={`text-[11px] font-bold uppercase tracking-wider mb-1.5 flex items-center justify-between ${
+                          isToday ? "text-blue-600" : isPast ? "text-slate-400 font-medium" : "text-slate-500"
+                        }`}>
+                          <span>{formatDisplayDate(dateKey, true)}</span>
+                          {isToday && (
+                            <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold normal-case tracking-normal">
+                              Today
+                            </span>
+                          )}
+                          {isPast && (
+                            <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200/80 font-medium normal-case tracking-normal">
+                              Past
+                            </span>
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          {evList.map((ev) => {
+                            const opStyle = getOperationalStyle(ev.operationalStatus, ev.isUnavailable);
+                            return (
+                              <div
+                                key={ev.id}
+                                onClick={() => setActiveItem(ev)}
+                                className={`p-2.5 rounded-xl border flex items-center justify-between ${opStyle.cardBg} cursor-pointer hover:shadow-2xs`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className={`w-2.5 h-2.5 rounded-full ${opStyle.dotBg}`} />
+                                  <div>
+                                    <p className="font-bold text-xs text-slate-900">{ev.title}</p>
+                                    {ev.clientName && <p className="text-[11px] text-slate-600">{ev.clientName}</p>}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 bg-white/80 rounded-md border border-slate-200">
+                                    {ev.time}
+                                  </span>
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <span className="text-[10px] font-semibold px-2 py-0.5 bg-white/80 rounded-md border border-slate-200">
-                                  {ev.time}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
               )}
             </div>
           )}

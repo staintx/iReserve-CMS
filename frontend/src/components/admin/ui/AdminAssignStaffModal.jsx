@@ -314,6 +314,11 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
       return;
     }
 
+    if (["completed", "Completed"].includes(booking?.status)) {
+      notify("This booking has already been completed and is read-only.", "error");
+      return;
+    }
+
     try {
       setSaving(true);
       const res = await AdminAPI.assignStaff(booking._id, { staff_assignments: staffAssignments });

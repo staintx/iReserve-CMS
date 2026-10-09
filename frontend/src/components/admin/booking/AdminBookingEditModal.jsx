@@ -1305,6 +1305,11 @@ export default function AdminBookingEditModal({
           revisionNote.trim() || "Admin updated booking specifications and pricing via Quotation Builder interface",
       };
 
+      if (["completed", "Completed"].includes(booking?.status)) {
+        notify("This booking has already been completed and is read-only.", "error");
+        return;
+      }
+
       await AdminAPI.updateBooking(booking._id, payload);
       notify("Booking specifications and pricing updated successfully!", "success");
       setShowConfirmDialog(false);

@@ -159,12 +159,11 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-xs text-slate-900 truncate">{user?.full_name || "Customer Account"}</div>
-          <div className="text-[11px] text-slate-400 truncate">{user?.email || "customer@ireserve.com"}</div>
         </div>
         <button
           type="button"
           onClick={() => setShowLogoutConfirm(true)}
-          className="hidden md:flex p-1.5 rounded-md text-slate-500 hover:text-rose-600 hover:bg-slate-100 transition-colors cursor-pointer group"
+          className="hidden md:flex p-1.5 rounded-md text-slate-500 hover:text-rose-600 hover:bg-slate-100 transition-colors cursor-pointer group shrink-0"
           title="Sign out"
           aria-label="Sign out"
         >

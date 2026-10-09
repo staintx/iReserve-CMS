@@ -60,7 +60,7 @@ const sendBookingConfirmationEmail = async ({ booking, customerEmail }) => {
     <ol>
       <li>Pay your deposit to confirm the booking</li>
       <li>An ocular visit will be scheduled to inspect the venue</li>
-      <li>Remaining balance is due the same day after your event has been completed (payable online or in cash to your event manager)</li>
+      <li>Remaining balance is due a day after your event date (payable online or in cash to your event manager)</li>
     </ol>
 
     <div class="btn-container">
@@ -163,7 +163,7 @@ const sendFinalInvoiceEmail = async ({ booking, balance, checkoutUrl, customerEm
     </div>
 
     <p style="font-size:0.85rem; color:#64748b; text-align:center;">
-      Remaining balance is payable the same day after your event has been completed, online or in cash to your event manager.
+      Remaining balance is payable a day after your event date, online or in cash to your event manager.
     </p>
   `;
 
@@ -172,7 +172,7 @@ const sendFinalInvoiceEmail = async ({ booking, balance, checkoutUrl, customerEm
 			to: customerEmail,
 			subject: `Remaining Balance Details — ${formatCurrency(balance)} | ${booking.reference || booking._id}`,
 			html: wrapHtml("Final Invoice", bodyContent),
-			text: `Remaining balance of ${formatCurrency(balance)} for booking ${booking.reference || booking._id} is due the same day after your event has been completed (payable online or in cash to your event manager).`
+			text: `Remaining balance of ${formatCurrency(balance)} for booking ${booking.reference || booking._id} is due a day after your event date (payable online or in cash to your event manager).`
 		});
 	} catch (err) {
 		console.error("Failed to send final invoice email:", err.message);

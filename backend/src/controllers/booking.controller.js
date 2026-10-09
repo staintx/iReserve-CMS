@@ -13,6 +13,7 @@ const {
   isBookingAwaitingDeposit,
   awaitingDepositInquiryBookingQuery,
 } = require("../utils/bookingDeposit");
+const { getCustomerOverdueBookings } = require("../utils/overduePayment");
 
 // --- Perf: batch inventory check (2 queries instead of 2N) ---
 const checkInventoryAvailability = async (
@@ -457,6 +458,14 @@ exports.create = asyncHandler(async (req, res) => {
   }
 
   if (req.user?.role === "customer") {
+    const overdueBookings = await getCustomerOverdueBookings(req.user._id);
+    if (overdueBookings.length > 0) {
+      return res.status(403).json({
+        message: "You have an overdue remaining balance for a previous event. Please settle your outstanding payment before submitting a new event request.",
+        code: "OVERDUE_PAYMENT_REQUIRED",
+        overdue_bookings: overdueBookings,
+      });
+    }
     req.body.customer_id = req.user._id;
     req.body.status = "inquiry";
     req.body.payment_status = "pending";
@@ -714,6 +723,15 @@ exports.getMine = asyncHandler(async (req, res) => {
   res.json(bookings);
 });
 
+exports.getOverdueMine = asyncHandler(async (req, res) => {
+  const overdueBookings = await getCustomerOverdueBookings(req.user._id);
+  res.json({
+    has_overdue: overdueBookings.length > 0,
+    count: overdueBookings.length,
+    overdue_bookings: overdueBookings,
+  });
+});
+
 exports.getById = asyncHandler(async (req, res) => {
   if (req.user?.role === "customer") {
     const booking = await Booking.findOne({
@@ -739,6 +757,19 @@ exports.update = asyncHandler(async (req, res) => {
   }
   const current = await Booking.findById(req.params.id);
   if (!current) return res.status(404).json({ message: "Booking not found" });
+
+  if (req.body.status && ["completed", "Completed"].includes(req.body.status) && !["completed", "Completed"].includes(current.status)) {
+    const Payment = require("../models/Payment");
+    const approvedPayments = await Payment.find({ booking_id: current._id, status: "approved" });
+    const totalPaid = approvedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const targetTotal = Number(req.body.total_price !== undefined ? req.body.total_price : current.total_price || 0);
+    const remainingBalance = Math.max(0, targetTotal - totalPaid);
+    if (remainingBalance > 0) {
+      return res.status(400).json({
+        message: `Cannot mark booking as completed. The customer still has an outstanding balance of ₱${remainingBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}. Full payment is required before an event can be marked completed.`
+      });
+    }
+  }
 
   if (req.body.total_price !== undefined) {
     const tp = Number(req.body.total_price);
@@ -2488,6 +2519,11 @@ exports.requestCancellation = asyncHandler(async (req, res) => {
   if (!booking) return res.status(404).json({ message: "Booking not found" });
   if (String(booking.customer_id) !== String(req.user?._id)) {
     return res.status(403).json({ message: "Forbidden" });
+  }
+
+  const currentStatus = String(booking.status || "").toLowerCase();
+  if (["completed", "event completed", "cancelled", "refunded"].includes(currentStatus)) {
+    return res.status(400).json({ message: "Cannot request cancellation for completed, cancelled, or refunded bookings." });
   }
 
   const reason = (req.body?.reason || "").trim() || "Customer requested a cancellation and refund.";

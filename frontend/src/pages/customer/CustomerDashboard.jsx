@@ -36,10 +36,12 @@ import {
 } from "lucide-react";
 import { getBookingOcularActionMeta } from "../../utils/ocularStatusHelper";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
+import { useOverduePayment } from "../../context/OverduePaymentContext";
 
 export default function CustomerDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { checkOverdueAndProceed } = useOverduePayment();
   const [inquiries, setInquiries] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -376,7 +378,7 @@ export default function CustomerDashboard() {
 
           <div className="flex items-center gap-2">
             <Button
-              onClick={() => navigate("/packages")}
+              onClick={() => checkOverdueAndProceed(() => navigate("/packages"))}
               className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white shadow-xs rounded-xl font-bold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
             >
               <PlusCircle className="h-4 w-4 mr-1.5" />
@@ -561,7 +563,7 @@ export default function CustomerDashboard() {
                     </div>
                     <Button
                       size="sm"
-                      onClick={() => navigate("/packages")}
+                      onClick={() => checkOverdueAndProceed(() => navigate("/packages"))}
                       className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white text-xs font-semibold rounded-lg px-3.5 h-8 shrink-0 cursor-pointer shadow-2xs"
                     >
                       <PlusCircle className="h-3.5 w-3.5 mr-1" />
@@ -575,7 +577,7 @@ export default function CustomerDashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 {/* Card 1: Custom Quote */}
                 <div
-                  onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+                  onClick={() => checkOverdueAndProceed(() => navigate("/customer/book", { state: { resetWizard: true } }))}
                   className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
                 >
                   <div>

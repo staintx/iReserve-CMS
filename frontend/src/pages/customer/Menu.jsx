@@ -6,10 +6,12 @@ import useBusinessInfo, { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessI
 import { CustomerAPI } from "../../api/customer";
 import { Search } from "lucide-react";
 import { CATEGORY_GROUPS, resolveGroup } from "../../lib/menuCategories";
+import { useOverduePayment } from "../../context/OverduePaymentContext";
 
 export default function Menu() {
   const navigate = useNavigate();
   const businessInfo = useBusinessInfo();
+  const { checkOverdueAndProceed } = useOverduePayment();
   const [menu, setMenu] = useState({ status: "loading", data: [] });
   const [query, setQuery] = useState("");
   const [activeGroup, setActiveGroup] = useState("all");
@@ -234,7 +236,7 @@ export default function Menu() {
                   type="button"
                   className="ls-btn ls-btn--sm ls-btn--primary"
                   onClick={() =>
-                    navigate("/customer/book", { state: { resetWizard: true } })
+                    checkOverdueAndProceed(() => navigate("/customer/book", { state: { resetWizard: true } }))
                   }
                 >
                   Request Custom
@@ -321,7 +323,7 @@ export default function Menu() {
               type="button"
               className="ls-btn ls-btn--onink"
               onClick={() =>
-                navigate("/customer/book", { state: { resetWizard: true } })
+                checkOverdueAndProceed(() => navigate("/customer/book", { state: { resetWizard: true } }))
               }
             >
               Request Custom

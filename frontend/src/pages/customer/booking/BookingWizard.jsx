@@ -20,6 +20,7 @@ import Modal from "../../../components/common/Modal";
 import CustomerPolicyModal from "../../../components/policy/CustomerPolicyModal";
 import { CustomerAPI } from "../../../api/customer";
 import useAuth from "../../../hooks/useAuth";
+import { useOverduePayment } from "../../../context/OverduePaymentContext";
 import {
   BATANGAS_PROVINCE,
   getBatangasBarangays,
@@ -136,6 +137,7 @@ export default function BookingWizard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { hasOverdue, openOverdueModal, refreshOverdue } = useOverduePayment();
 
   const prefill = location.state?.prefillData || {};
 
@@ -572,6 +574,18 @@ export default function BookingWizard() {
     document.body.classList.add("booking-flow");
     return () => document.body.classList.remove("booking-flow");
   }, []);
+
+  // --- Check if customer has overdue payments and redirect if so ---
+  useEffect(() => {
+    if (user?.role === "customer") {
+      refreshOverdue().then((list) => {
+        if (list && list.length > 0) {
+          openOverdueModal("inquiry_block");
+          navigate("/customer/bookings", { replace: true });
+        }
+      });
+    }
+  }, [user, navigate, openOverdueModal, refreshOverdue]);
 
   // --- Auto-fill user data from profile ---
   useEffect(() => {
@@ -1589,6 +1603,11 @@ export default function BookingWizard() {
     delete payload.selected_package_addons;
     if (!payload.contact_alt_phone) delete payload.contact_alt_phone;
 
+    if (hasOverdue) {
+      openOverdueModal("inquiry_block");
+      return;
+    }
+
     try {
       const { data } = await CustomerAPI.submitInquiry(payload);
 
@@ -1639,6 +1658,11 @@ export default function BookingWizard() {
       setTurnstileToken("");
       turnstileRef.current?.reset();
       const resData = err?.response?.data;
+      if (resData?.code === "OVERDUE_PAYMENT_REQUIRED") {
+        openOverdueModal("inquiry_block");
+        navigate("/customer/bookings", { replace: true });
+        return;
+      }
       const apiErrors = Array.isArray(resData?.errors) ? resData.errors.filter(Boolean) : [];
       let friendlyMsg = null;
       if (apiErrors.length > 0) {

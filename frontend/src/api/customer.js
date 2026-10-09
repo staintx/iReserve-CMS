@@ -44,6 +44,7 @@ export const CustomerAPI = {
   requestQuotationRevision: (id, customer_response) => api.post(`/quotations/${id}/revision`, { customer_response }),
   rejectQuotation: (id) => api.post(`/quotations/${id}/reject`),
   getBookings: () => api.get("/bookings/me"),
+  getOverdueBookings: () => api.get("/bookings/me/overdue"),
   createBooking: (data) => api.post("/bookings", data),
   requestBookingChange: (id, data) => api.post(`/bookings/${id}/change-request`, data),
   requestOcular: (id, data) => api.post(`/bookings/${id}/ocular/request`, data),

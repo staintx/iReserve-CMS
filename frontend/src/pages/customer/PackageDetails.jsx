@@ -25,6 +25,7 @@ import {
   offerInclusions,
 } from "../../lib/specialOffers";
 import { SERVICE_TYPES } from "./booking/lib/bookingRules";
+import { useOverduePayment } from "../../context/OverduePaymentContext";
 
 const peso = (amount) =>
   "₱" + Number(amount || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 });
@@ -37,6 +38,7 @@ export default function PackageDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const businessInfo = useBusinessInfo();
+  const { checkOverdueAndProceed } = useOverduePayment();
   // Check memory cache so returning from the booking wizard renders immediately
   // without a loading flash or footer jump.
   const [result, setResult] = useState(() => {
@@ -627,7 +629,7 @@ export default function PackageDetails() {
                       type="button"
                       className="ls-btn ls-btn--primary w-full sm:w-auto"
                       onClick={() =>
-                        navigate("/customer/book", { state: bookingState })
+                        checkOverdueAndProceed(() => navigate("/customer/book", { state: bookingState }))
                       }
                     >
                       {offer ? "Book this combo" : "Book this package"}
@@ -636,7 +638,7 @@ export default function PackageDetails() {
                       type="button"
                       className="ls-btn ls-btn--ghost w-full sm:w-auto"
                       onClick={() =>
-                        navigate("/customer/book", { state: { resetWizard: true } })
+                        checkOverdueAndProceed(() => navigate("/customer/book", { state: { resetWizard: true } }))
                       }
                     >
                       Request Custom
@@ -853,7 +855,7 @@ export default function PackageDetails() {
                 <button
                   type="button"
                   className="ls-btn ls-btn--onink w-full sm:w-auto"
-                  onClick={() => navigate("/customer/book", { state: bookingState })}
+                  onClick={() => checkOverdueAndProceed(() => navigate("/customer/book", { state: bookingState }))}
                 >
                   {offer ? "Book this combo" : "Book this package"}
                 </button>
@@ -861,7 +863,7 @@ export default function PackageDetails() {
                   type="button"
                   className="ls-btn ls-btn--light w-full sm:w-auto"
                   onClick={() =>
-                    navigate("/customer/book", { state: { resetWizard: true } })
+                    checkOverdueAndProceed(() => navigate("/customer/book", { state: { resetWizard: true } }))
                   }
                 >
                   Request Custom

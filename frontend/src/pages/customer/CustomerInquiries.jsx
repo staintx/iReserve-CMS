@@ -4,6 +4,7 @@ import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLa
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
+import { useOverduePayment } from "../../context/OverduePaymentContext";
 import CustomerQuotationModal from "../../components/customer/CustomerQuotationModal";
 import CustomerInquiryEditModal from "../../components/customer/CustomerInquiryEditModal";
 import { getEventThumbnail } from "../../utils/eventThumbnails";
@@ -64,6 +65,7 @@ export default function CustomerInquiries() {
   const location = useLocation();
   const params = useParams();
   const { notify } = useToast();
+  const { checkOverdueAndProceed } = useOverduePayment();
 
   const [inquiries, setInquiries] = useState([]);
   const [packages, setPackages] = useState([]);
@@ -706,7 +708,7 @@ export default function CustomerInquiries() {
           </div>
 
           <Button
-            onClick={() => navigate("/packages")}
+            onClick={() => checkOverdueAndProceed(() => navigate("/packages"))}
             className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white shadow-xs rounded-xl font-bold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
           >
             <Plus className="h-4 w-4 mr-1.5" />
@@ -987,7 +989,7 @@ export default function CustomerInquiries() {
                 ) : (
                   <Button
                     size="sm"
-                    onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+                    onClick={() => checkOverdueAndProceed(() => navigate("/customer/book", { state: { resetWizard: true } }))}
                     className="mt-4 bg-[#4C81E0] hover:bg-[#3B6EC6] text-white text-xs font-semibold rounded-md shadow-xs cursor-pointer"
                   >
                     Create Quote Request

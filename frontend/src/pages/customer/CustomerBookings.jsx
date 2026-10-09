@@ -9,6 +9,8 @@ import { createConversation } from "../../api/messages";
 import { isOcularEligibleBooking } from "../../utils/ocularEligibility";
 import { getBookingOcularActionMeta } from "../../utils/ocularStatusHelper";
 import { isBookingAwaitingDeposit } from "../../utils/bookingDeposit";
+import { isBookingOverdue } from "../../utils/overduePayment";
+import { useOverduePayment } from "../../context/OverduePaymentContext";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
 import { getEventThumbnail } from "../../utils/eventThumbnails";
@@ -62,6 +64,7 @@ export default function CustomerBookings() {
   const navigate = useNavigate();
   const { notify } = useToast();
   const { businessInfo } = useBusinessInfo();
+  const { checkOverdueAndProceed } = useOverduePayment();
 
   const [bookings, setBookings] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -160,7 +163,7 @@ export default function CustomerBookings() {
     };
   }, [payments]);
 
-  // Filtered & Sorted Bookings List
+  // Filtered & Sorted Bookings List (Overdue bookings placed at top, sorted oldest first)
   const filteredBookings = useMemo(() => {
     return bookings
       .filter((booking) => {
@@ -182,6 +185,28 @@ export default function CustomerBookings() {
         return true;
       })
       .sort((a, b) => {
+        const balA = balanceOf(a);
+        const balB = balanceOf(b);
+        const totalA = Number(a.total_price || 0);
+        const totalB = Number(b.total_price || 0);
+        const paidA = Math.max(0, totalA - balA);
+        const paidB = Math.max(0, totalB - balB);
+
+        const isOverdueA = isBookingOverdue(a, paidA);
+        const isOverdueB = isBookingOverdue(b, paidB);
+
+        // Overdue bookings always stay at top
+        if (isOverdueA && !isOverdueB) return -1;
+        if (!isOverdueA && isOverdueB) return 1;
+
+        // If both are overdue, sort oldest event date first
+        if (isOverdueA && isOverdueB) {
+          const dateA = new Date(a.event_date || 0).getTime();
+          const dateB = new Date(b.event_date || 0).getTime();
+          return dateA - dateB;
+        }
+
+        // Otherwise follow selected sortBy
         if (sortBy === "oldest") {
           const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
           const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
@@ -197,7 +222,7 @@ export default function CustomerBookings() {
         const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
         return timeB - timeA;
       });
-  }, [bookings, statusFilter, serviceTypeFilter, searchQuery, sortBy]);
+  }, [bookings, statusFilter, serviceTypeFilter, searchQuery, sortBy, balanceOf]);
 
   const isFiltered = Boolean(searchQuery.trim()) || statusFilter !== "all" || serviceTypeFilter !== "all";
 
@@ -335,11 +360,28 @@ export default function CustomerBookings() {
   const getNextActionInfo = (bkg) => {
     if (!bkg) return null;
     const bal = balanceOf(bkg);
+    const total = Number(bkg.total_price || 0);
+    const paid = Math.max(0, total - bal);
+    const isOverdue = isBookingOverdue(bkg, paid);
     const rawStatus = (bkg.status || "").toLowerCase();
     const ocularMeta = getBookingOcularActionMeta(bkg);
     const isDepositNeeded = rawStatus.includes("deposit") || (bkg.payment_status === "deposit_pending" && bal > 0);
     const isPendingRevision = bkg.pending_revision && ["pending_customer_approval"].includes(bkg.pending_revision.status);
     const isUnderReview = bkg.change_request && bkg.change_request.status === "pending";
+
+    // 0. Overdue payment takes top priority
+    if (isOverdue && bal > 0 && !["cancelled", "refunded"].includes(rawStatus)) {
+      return {
+        state: "overdue",
+        isOverdue: true,
+        badge: "Payment Overdue",
+        badgeClass: "bg-rose-100 text-rose-900 border-rose-300 font-bold",
+        title: `Remaining Balance Overdue: ${formatCurrency(bal)}`,
+        description: "Your remaining balance is overdue. Please settle your outstanding payment.",
+        actionType: "balance",
+        actionLabel: `Settle Overdue Balance (${formatCurrency(bal)})`,
+      };
+    }
 
     // 1. Revision proposal awaiting customer approval
     if (isPendingRevision) {
@@ -428,8 +470,8 @@ export default function CustomerBookings() {
         badgeClass: isCash ? "bg-amber-100 text-amber-900 border-amber-300 font-semibold" : "bg-amber-50 text-amber-900 border-amber-200 font-semibold",
         title: `Remaining Balance: ${formatCurrency(bal)}`,
         description: isCash
-          ? "You elected cash on event day. Due the same day after event completion to your Event Manager."
-          : "Remaining balance is due the same day after your event has been completed (payable online or in cash).",
+          ? "You elected cash on event day. Due a day after your event date to your Event Manager."
+          : "Remaining balance is due a day after your event date (payable online or in cash).",
         actionType: "balance",
         actionLabel: isCash ? `Manage Payment (${formatCurrency(bal)})` : `Pay Balance (${formatCurrency(bal)})`,
       };
@@ -457,12 +499,10 @@ export default function CustomerBookings() {
         const isCash = bkg.balance_payment_preference === "in_person";
         return {
           state: "balance_due",
-          badge: isCash ? "Cash Due (Completed)" : "Balance Due Today",
+          badge: isCash ? "Cash Due (Completed)" : "Balance Due",
           badgeClass: "bg-amber-100 text-amber-900 border-amber-300 font-semibold",
           title: `Event Concluded · Remaining Balance: ${formatCurrency(bal)}`,
-          description: isCash
-            ? "Your event has completed! Please hand the remaining cash to your Event Manager or settle online."
-            : "Your event has completed today! Please settle your remaining balance online or with your Event Manager.",
+          description: "The remaining balance is due a day after your event date. Please settle your remaining balance online or with your Event Manager.",
           actionType: "balance",
           actionLabel: `Settle Balance (${formatCurrency(bal)})`,
         };
@@ -506,6 +546,22 @@ export default function CustomerBookings() {
   // Modern High-Contrast Status Badge
   const renderStatusBadge = (bkg) => {
     const bal = balanceOf(bkg);
+    const total = Number(bkg.total_price || 0);
+    const paid = Math.max(0, total - bal);
+    const isOverdue = isBookingOverdue(bkg, paid);
+    const rawStatus = (bkg.status || "").toLowerCase();
+
+    if (isOverdue && bal > 0 && !["cancelled", "refunded"].includes(rawStatus)) {
+      return (
+        <span
+          className="px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide border inline-flex items-center gap-1.5 shrink-0 select-none bg-rose-50 text-rose-800 border-rose-300"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse" />
+          <span>Payment Overdue</span>
+        </span>
+      );
+    }
+
     const meta = bookingStatusMeta(bkg, { balance: bal });
     let badgeClass = "bg-emerald-50 text-emerald-800 border-emerald-300";
 
@@ -558,7 +614,7 @@ export default function CustomerBookings() {
           </div>
 
           <Button
-            onClick={() => navigate("/packages")}
+            onClick={() => checkOverdueAndProceed(() => navigate("/packages"))}
             className="bg-[#4C81E0] hover:bg-[#3B6EC6] text-white shadow-xs rounded-xl font-bold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
           >
             <Plus className="h-4 w-4 mr-1.5" />
@@ -835,15 +891,21 @@ export default function CustomerBookings() {
                   const monthStr = eventDateObj ? eventDateObj.toLocaleDateString(undefined, { month: "short" }) : null;
                   const dayStr = eventDateObj ? eventDateObj.getDate() : null;
 
+                  const isOverdue = nextAction?.isOverdue;
+
                   return (
                     <div
                       key={bkg._id}
                       onClick={() => handleSelectBooking(bkg._id)}
                       className={cn(
                         "group p-4 sm:p-5 rounded-2xl border transition-all duration-200 cursor-pointer relative",
-                        isSelected
-                          ? "bg-gradient-to-r from-blue-50/40 via-white to-white border-blue-200/90 shadow-xs"
-                          : "bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-2xs"
+                        isOverdue
+                          ? isSelected
+                            ? "bg-rose-50/90 border-rose-300 ring-2 ring-rose-300/80 shadow-xs"
+                            : "bg-rose-50/60 border-rose-300 hover:border-rose-400 hover:bg-rose-50/80 hover:shadow-2xs"
+                          : isSelected
+                            ? "bg-gradient-to-r from-blue-50/40 via-white to-white border-blue-200/90 shadow-xs"
+                            : "bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-2xs"
                       )}
                     >
                       {/* CARD MAIN SECTION: BALANCED FLEX CONTAINER */}
@@ -948,12 +1010,14 @@ export default function CustomerBookings() {
                             <span
                               className={cn(
                                 "inline-block text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-full border",
-                                bal > 0
-                                  ? "text-amber-800 bg-amber-50 border-amber-200/80"
-                                  : "text-emerald-800 bg-emerald-50 border-emerald-200/80"
+                                isOverdue
+                                  ? "text-rose-800 bg-rose-100 border-rose-300 font-bold"
+                                  : bal > 0
+                                    ? "text-amber-800 bg-amber-50 border-amber-200/80"
+                                    : "text-emerald-800 bg-emerald-50 border-emerald-200/80"
                               )}
                             >
-                              {bal > 0 ? `₱${bal.toLocaleString()} Due` : "Paid in Full"}
+                              {bal > 0 ? (isOverdue ? `₱${bal.toLocaleString()} Overdue` : `₱${bal.toLocaleString()} Due`) : "Paid in Full"}
                             </span>
                           </div>
 
@@ -1024,10 +1088,13 @@ export default function CustomerBookings() {
                                   e.stopPropagation();
                                   startCheckout(bkg);
                                 }}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3.5 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                                className={cn(
+                                  "text-white font-bold text-xs h-8 px-3.5 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]",
+                                  isOverdue ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-600 hover:bg-emerald-700"
+                                )}
                               >
                                 <CreditCard className="w-3.5 h-3.5" />
-                                <span>Pay Balance</span>
+                                <span>{isOverdue ? "Settle Overdue" : "Pay Balance"}</span>
                               </Button>
                             )}
 
@@ -1065,12 +1132,17 @@ export default function CustomerBookings() {
 
                       {/* FULL-WIDTH INTEGRATED NEXT STEP FOOTER */}
                       {nextAction && (
-                        <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div className={cn(
+                          "mt-3 pt-2.5 border-t flex flex-wrap items-center justify-between gap-2 text-xs",
+                          isOverdue ? "border-rose-200/80" : "border-slate-100"
+                        )}>
                           <div className="flex items-center gap-2 min-w-0 flex-1">
                             <span
                               className={cn(
                                 "w-2 h-2 rounded-full shrink-0",
-                                nextAction.state === "action_required"
+                                isOverdue
+                                  ? "bg-rose-600 animate-pulse"
+                                  : nextAction.state === "action_required"
                                   ? "bg-amber-500 animate-pulse"
                                   : nextAction.state === "balance_due"
                                     ? "bg-blue-600"
@@ -1079,11 +1151,17 @@ export default function CustomerBookings() {
                                       : "bg-emerald-600"
                               )}
                             />
-                            <span className="font-bold text-[11px] uppercase tracking-wider text-slate-500 shrink-0">
-                              Next Step:
+                            <span className={cn(
+                              "font-bold text-[11px] uppercase tracking-wider shrink-0",
+                              isOverdue ? "text-rose-700" : "text-slate-500"
+                            )}>
+                              {isOverdue ? "Urgent:" : "Next Step:"}
                             </span>
-                            <span className="font-semibold text-slate-800 truncate">
-                              {nextAction.title}
+                            <span className={cn(
+                              "font-semibold truncate",
+                              isOverdue ? "text-rose-900 font-bold" : "text-slate-800"
+                            )}>
+                              {isOverdue ? "Your remaining balance is overdue. Please settle your outstanding payment." : nextAction.title}
                             </span>
                           </div>
 
@@ -1176,7 +1254,9 @@ export default function CustomerBookings() {
                       <div
                         className={cn(
                           "rounded-xl border p-3.5 space-y-2.5 shadow-2xs",
-                          nextAction.state === "action_required"
+                          nextAction.isOverdue
+                            ? "bg-rose-50 border-rose-300 ring-1 ring-rose-200"
+                            : nextAction.state === "action_required"
                             ? "bg-amber-50/80 border-amber-200"
                             : nextAction.state === "balance_due"
                               ? "bg-blue-50/70 border-blue-200"
@@ -1194,16 +1274,25 @@ export default function CustomerBookings() {
                           >
                             {nextAction.badge}
                           </span>
-                          <span className="text-[11px] font-semibold text-slate-600">
-                            Current Stage
+                          <span className={cn(
+                            "text-[11px] font-semibold",
+                            nextAction.isOverdue ? "text-rose-700" : "text-slate-600"
+                          )}>
+                            {nextAction.isOverdue ? "Payment Required" : "Current Stage"}
                           </span>
                         </div>
 
                         <div>
-                          <h4 className="font-bold text-xs sm:text-sm text-slate-900 font-sans leading-snug">
+                          <h4 className={cn(
+                            "font-bold text-xs sm:text-sm font-sans leading-snug",
+                            nextAction.isOverdue ? "text-rose-950" : "text-slate-900"
+                          )}>
                             {nextAction.title}
                           </h4>
-                          <p className="text-xs text-slate-700 leading-relaxed font-medium mt-1">
+                          <p className={cn(
+                            "text-xs leading-relaxed font-medium mt-1",
+                            nextAction.isOverdue ? "text-rose-800" : "text-slate-700"
+                          )}>
                             {nextAction.description}
                           </p>
                         </div>
@@ -1255,10 +1344,19 @@ export default function CustomerBookings() {
                         {nextAction.actionType === "balance" && (
                           <Button
                             onClick={() => startCheckout(selectedBooking)}
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                            className={cn(
+                              "w-full text-white font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]",
+                              nextAction.isOverdue
+                                ? "bg-rose-600 hover:bg-rose-700"
+                                : "bg-emerald-600 hover:bg-emerald-700"
+                            )}
                           >
                             <CreditCard className="w-4 h-4" />
-                            <span>Settle Remaining Balance ({formatCurrency(bal)})</span>
+                            <span>
+                              {nextAction.isOverdue
+                                ? `Settle Overdue Balance (${formatCurrency(bal)})`
+                                : `Settle Remaining Balance (${formatCurrency(bal)})`}
+                            </span>
                           </Button>
                         )}
                       </div>

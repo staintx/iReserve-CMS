@@ -6,6 +6,7 @@ import useBusinessInfo, { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessI
 import useRevealOnScroll from "../../hooks/useRevealOnScroll";
 import { CustomerAPI } from "../../api/customer";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useOverduePayment } from "../../context/OverduePaymentContext";
 
 /**
  * `Gallery.category` is a free-text field with no dropdown behind it in the
@@ -25,6 +26,7 @@ const titleCase = (value) =>
 export default function Gallery() {
   const navigate = useNavigate();
   const businessInfo = useBusinessInfo();
+  const { checkOverdueAndProceed } = useOverduePayment();
   const [gallery, setGallery] = useState({ status: "loading", data: [] });
   const [activeCategory, setActiveCategory] = useState("all");
   const [lightboxIndex, setLightboxIndex] = useState(null);
@@ -295,7 +297,7 @@ export default function Gallery() {
               type="button"
               className="ls-btn ls-btn--onink"
               onClick={() =>
-                navigate("/customer/book", { state: { resetWizard: true } })
+                checkOverdueAndProceed(() => navigate("/customer/book", { state: { resetWizard: true } }))
               }
             >
               Request Custom

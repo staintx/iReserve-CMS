@@ -4,6 +4,8 @@ import { CustomerAPI } from "../../../api/customer";
 import useAuth from "../../../hooks/useAuth";
 import useRealTimeRefresh from "../../../hooks/useRealTimeRefresh";
 import { formatCurrency, parseLocalDate } from "../../../utils/format";
+import { isBookingOverdue } from "../../../utils/overduePayment";
+import { useOverduePayment } from "../../../context/OverduePaymentContext";
 import { recordTitle } from "./statusMeta";
 import { cn } from "@/lib/utils";
 import {
@@ -14,6 +16,7 @@ import {
   Clock,
   Sparkles,
   MessageSquare,
+  AlertTriangle,
 } from "lucide-react";
 
 /**
@@ -32,6 +35,7 @@ function formatLongDate(dateVal) {
 }
 
 const badgeToneStyles = {
+  rose: "bg-rose-50 text-rose-800 border-rose-300/70",
   amber: "bg-amber-50 text-amber-800 border-amber-300/70",
   emerald: "bg-emerald-50 text-emerald-800 border-emerald-300/70",
   blue: "bg-[#2C4B8A]/10 text-[#2C4B8A] border-[#2C4B8A]/25",
@@ -43,6 +47,7 @@ const badgeToneStyles = {
 export default function AccountInfoTicker() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { checkOverdueAndProceed } = useOverduePayment();
 
   const [inquiries, setInquiries] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -94,8 +99,35 @@ export default function AccountInfoTicker() {
     const items = [];
     const now = new Date();
 
+    // ── 0. Critical Payment Overdue Alert (Priority 0) ──
+    const overdueBookings = bookings.filter((b) => isBookingOverdue(b));
+    if (overdueBookings.length > 0) {
+      const totalOverdue = overdueBookings.reduce((sum, b) => {
+        const total = Number(b.total_price || 0);
+        const paid = payments
+          .filter(
+            (p) =>
+              String(p.booking_id?._id || p.booking_id) === String(b._id) &&
+              p.status === "approved"
+          )
+          .reduce((pSum, p) => pSum + (Number(p.amount) || 0), 0);
+        return sum + Math.max(0, total - paid);
+      }, 0);
+
+      items.push({
+        id: "payment-overdue",
+        type: "overdue",
+        badge: "Payment Overdue",
+        badgeTone: "rose",
+        icon: AlertTriangle,
+        text: `Your remaining balance is overdue (${formatCurrency(totalOverdue)}). Please settle your outstanding payment.`,
+        link: overdueBookings.length === 1 ? `/customer/bookings/${overdueBookings[0]._id}` : "/customer/bookings",
+      });
+    }
+
     // ── 1. Important Payment / Balance Reminder (Priority 1) ──
-    const totalBalanceDue = bookings.reduce((sum, b) => {
+    const nonOverdueBookings = bookings.filter((b) => !isBookingOverdue(b));
+    const totalBalanceDue = nonOverdueBookings.reduce((sum, b) => {
       const status = (b.status || "").toLowerCase();
       if (["cancelled", "refunded"].includes(status)) return sum;
       const total = Number(b.total_price || 0);
@@ -109,7 +141,7 @@ export default function AccountInfoTicker() {
       return sum + Math.max(0, total - paid);
     }, 0);
 
-    if (totalBalanceDue > 0) {
+    if (totalBalanceDue > 0 && overdueBookings.length === 0) {
       items.push({
         id: "balance-due",
         type: "payment",
@@ -329,7 +361,14 @@ export default function AccountInfoTicker() {
   const renderTickerItem = (item, idx, prefix) => (
     <div
       key={`${prefix}-${item.id}-${idx}`}
-      onClick={() => item.link && navigate(item.link)}
+      onClick={() => {
+        if (!item.link) return;
+        if (item.link.startsWith("/customer/book")) {
+          checkOverdueAndProceed(() => navigate(item.link));
+        } else {
+          navigate(item.link);
+        }
+      }}
       className={cn(
         "inline-flex items-center gap-2 group/item transition-colors",
         item.link && "cursor-pointer hover:opacity-85"

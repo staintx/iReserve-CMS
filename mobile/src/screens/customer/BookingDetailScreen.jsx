@@ -19,6 +19,7 @@ import {
   MapPin,
   Users,
   CheckCircle,
+  CheckCircle2,
   AlertCircle,
   Eye,
   UserCheck,
@@ -35,6 +36,12 @@ import {
   Send,
   ShieldCheck,
   AlertTriangle,
+  Copy,
+  Check,
+  Phone,
+  Info,
+  PackagePlus,
+  Store,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography, shadows } from "../../constants/theme";
 import customerApi from "../../api/customer";
@@ -45,7 +52,7 @@ import StatusBadge from "../../components/common/StatusBadge";
 import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import AppButton from "../../components/common/AppButton";
-import { formatCurrency, formatDate, formatTime } from "../../utils/format";
+import { formatCurrency, formatDate, formatTime, formatShortDate } from "../../utils/format";
 
 export const BookingDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -83,6 +90,9 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   const [ratingReview, setRatingReview] = useState("");
   const [submittingRating, setSubmittingRating] = useState(false);
 
+  // Copy feedback state
+  const [copiedRef, setCopiedRef] = useState(false);
+
   const loadBooking = useCallback(async () => {
     setError("");
     try {
@@ -110,48 +120,173 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   useEffect(() => {
     loadBooking();
     // Preload packages for upgrade options
-    customerApi.getPackages().then((pkgs) => {
-      if (Array.isArray(pkgs)) setPackages(pkgs);
-    }).catch(() => {});
+    customerApi
+      .getPackages()
+      .then((pkgs) => {
+        if (Array.isArray(pkgs)) setPackages(pkgs);
+      })
+      .catch(() => {});
   }, [loadBooking]);
 
-  // Timeline Progress Calculation
-  const timelineSteps = useMemo(() => {
-    if (!booking) return [];
+  // Status flags matching website logic
+  const rawStatus = (booking?.status || "").toLowerCase();
+  const isCancelled = ["cancelled", "refunded", "canceled", "rejected"].includes(rawStatus);
+  const isCompleted = ["completed", "event completed"].includes(rawStatus);
+  const isReady = ["ready for event", "ready_for_event", "ready"].includes(rawStatus);
+  const isDepositPaid =
+    booking?.payment_status === "deposit_paid" || booking?.payment_status === "fully_paid";
+  const isFullyPaid = booking?.payment_status === "fully_paid";
+  const isPast = booking?.event_date && new Date(booking.event_date) < new Date();
+  const canCancel = !isPast && !isCancelled && !isCompleted;
 
-    const isCancelled = ["Cancelled", "cancelled", "refunded"].includes(booking.status);
-    const isCompleted = ["Completed", "completed"].includes(booking.status);
-    const isReady = ["Ready for Event", "ready for event"].includes(booking.status);
-    const isOcular = ["Ocular Scheduled", "ocular scheduled"].includes(booking.status) || booking.ocular_visit?.status === "scheduled" || booking.ocular_visit?.status === "completed";
-    const isDepositPaid = booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid";
-
-    return [
-      { id: "inquiry", label: "Inquiry & Quote", done: true },
-      { id: "deposit", label: "Deposit Paid", done: isDepositPaid },
-      { id: "ocular", label: "Ocular Inspection", done: booking.ocular_visit?.status === "completed" || booking.ocular_visit?.status === "skipped", active: isOcular },
-      { id: "ready", label: "Ready for Event", done: isReady || isCompleted, active: isReady },
-      { id: "completed", label: "Completed", done: isCompleted },
-    ];
-  }, [booking]);
+  const hasPendingRevision = Boolean(
+    (booking?.pending_revision && booking?.pending_revision?.status === "pending_customer_approval") ||
+      booking?.revision_proposal
+  );
+  const pendingRev = booking?.pending_revision || booking?.revision_proposal;
 
   // Financial Calculations
   const totalPrice = Number(booking?.total_price || 0);
-  const isDepositPaid = booking?.payment_status === "deposit_paid" || booking?.payment_status === "fully_paid";
-  const isFullyPaid = booking?.payment_status === "fully_paid";
   const depositAmount = Number(booking?.deposit_amount || Math.round(totalPrice * 0.5));
-  const paidAmount = Number(booking?.paid_amount || (isFullyPaid ? totalPrice : isDepositPaid ? depositAmount : 0));
+  const paidAmount = Number(
+    booking?.paid_amount || (isFullyPaid ? totalPrice : isDepositPaid ? depositAmount : 0)
+  );
   const remainingBalance = isFullyPaid
     ? 0
     : isDepositPaid
     ? Math.max(0, totalPrice - paidAmount)
     : totalPrice;
-  const canPayBalance = booking?.payment_status === "deposit_paid" && remainingBalance > 0;
+  const canPayBalance =
+    !isCancelled &&
+    remainingBalance > 0 &&
+    (booking?.payment_status === "deposit_paid" || booking?.payment_status === "partially_paid");
+
+  const isOverdue = Boolean(
+    isPast && remainingBalance > 0 && !isCancelled
+  );
+
+  // Milestone Stepper Calculation (Consistent 5 steps matching website)
+  const isOcularDone =
+    booking?.ocular_visit?.status === "completed" || booking?.ocular_visit?.status === "skipped";
+  const isOcularActive =
+    rawStatus === "ocular scheduled" || booking?.ocular_visit?.status === "scheduled";
+
+  const timelineSteps = useMemo(() => {
+    return [
+      { id: "inquiry", label: "Inquiry & Quote", done: true },
+      { id: "deposit", label: "Deposit Paid", done: isDepositPaid },
+      { id: "ocular", label: "Ocular Visit", done: isOcularDone, active: isOcularActive },
+      { id: "ready", label: "Ready for Event", done: isReady || isCompleted, active: isReady },
+      { id: "completed", label: "Completed", done: isCompleted },
+    ];
+  }, [isDepositPaid, isOcularDone, isOcularActive, isReady, isCompleted]);
+
+  // Milestone Progress Ratio for connector bar
+  const activeStepIndex = useMemo(() => {
+    if (isCancelled) return -1;
+    if (isCompleted) return 4;
+    if (isReady) return 3;
+    if (isOcularActive || isOcularDone) return 2;
+    if (isDepositPaid) return 1;
+    return 0;
+  }, [isCancelled, isCompleted, isReady, isOcularActive, isOcularDone, isDepositPaid]);
+
+  const progressPercent = useMemo(() => {
+    if (activeStepIndex <= 0) return 0;
+    return Math.min(100, (activeStepIndex / 4) * 100);
+  }, [activeStepIndex]);
+
+  // Calm Stage Guide Explanation (matching website guideMeta)
+  const stageGuide = useMemo(() => {
+    if (isCancelled) {
+      return {
+        title: "Reservation Cancelled",
+        description:
+          booking?.cancellation_reason ||
+          "This reservation was cancelled and is no longer active. All visits and actions are closed.",
+        tone: "rose",
+      };
+    }
+    if (hasPendingRevision) {
+      return {
+        title: "Revision Awaiting Review",
+        description:
+          "Management has proposed schedule or pricing adjustments below. Please review and respond.",
+        tone: "amber",
+      };
+    }
+    if (isOverdue) {
+      return {
+        title: "Payment Overdue",
+        description:
+          "Event date has passed with an outstanding balance. Please settle your balance promptly.",
+        tone: "rose",
+      };
+    }
+    if (["deposit pending", "pending deposit"].includes(rawStatus) || (!isDepositPaid && !isFullyPaid)) {
+      return {
+        title: "Deposit Required",
+        description:
+          "An initial deposit is needed to guarantee your date and allow our kitchen team to stage provisions.",
+        tone: "amber",
+      };
+    }
+    if (isOcularActive) {
+      return {
+        title: "Ocular Visit Scheduled",
+        description: `Our team will visit your venue on ${
+          booking?.ocular_visit?.scheduled_date
+            ? formatDate(booking.ocular_visit.scheduled_date)
+            : "the scheduled date"
+        } to review layout and outlets.`,
+        tone: "blue",
+      };
+    }
+    if (isReady) {
+      return {
+        title: "Ready for Event",
+        description:
+          "All preparations, menu items, and logistics are finalized. Our banquet team will arrive promptly.",
+        tone: "emerald",
+      };
+    }
+    if (isCompleted) {
+      return {
+        title: "Event Concluded",
+        description:
+          "Thank you for celebrating with Caezelle's! Please take a moment to rate your catering experience.",
+        tone: "slate",
+      };
+    }
+    return {
+      title: "Booking Confirmed",
+      description:
+        "Your event reservation is confirmed. Our banquet coordinator is actively managing logistics.",
+      tone: "blue",
+    };
+  }, [isCancelled, hasPendingRevision, isOverdue, rawStatus, isDepositPaid, isFullyPaid, isOcularActive, isReady, isCompleted, booking]);
+
+  // Reference Code & Copy Action
+  const refCode =
+    booking?.reference ||
+    (booking?._id ? `CAZ-${String(booking._id).slice(-6).toUpperCase()}` : "CAZ-000000");
+
+  const handleCopyReference = () => {
+    if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(refCode);
+    }
+    setCopiedRef(true);
+    setTimeout(() => setCopiedRef(false), 2000);
+    Alert.alert("Reference Copied", `Booking reference #${refCode} copied to clipboard.`);
+  };
 
   // Pay Remaining Balance via PayMongo
   const handlePayBalance = async () => {
     Alert.alert(
       "Pay Remaining Balance",
-      `Proceed to pay the remaining balance of ${formatCurrency(remainingBalance)} via PayMongo (GCash / Maya / Card)?`,
+      `Proceed to pay the remaining balance of ${formatCurrency(
+        remainingBalance
+      )} via PayMongo (GCash / Maya / Card)?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -177,7 +312,10 @@ export const BookingDetailScreen = ({ route, navigation }) => {
                 loadBooking();
               }
             } catch (err) {
-              Alert.alert("Payment Error", err.response?.data?.message || "Failed to initialize balance checkout.");
+              Alert.alert(
+                "Payment Error",
+                err.response?.data?.message || "Failed to initialize balance checkout."
+              );
             } finally {
               setActionLoading(false);
             }
@@ -189,7 +327,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
 
   // Submit Change Proposal
   const handleSubmitChangeRequest = async () => {
-    if (!changeNote.trim() && !changeDate && !changeGuests && !changeTime) {
+    if (!changeNote.trim() && !changeDate && !changeGuests && !changeTime && !changeVenue) {
       Alert.alert("Information Required", "Please describe the changes you want to propose.");
       return;
     }
@@ -205,12 +343,16 @@ export const BookingDetailScreen = ({ route, navigation }) => {
       if (changeVenue) payload.venue_type = changeVenue;
 
       await customerApi.proposeRevision(booking._id, payload);
-      Alert.alert("Revisions Submitted", "Your proposed revisions were submitted for manager review.");
+      Alert.alert(
+        "Revisions Submitted",
+        "Your proposed revisions were submitted for manager review."
+      );
       setShowChangeModal(false);
       setChangeNote("");
       setChangeDate("");
       setChangeTime("");
       setChangeGuests("");
+      setChangeVenue("");
       loadBooking();
     } catch (err) {
       Alert.alert("Error", err.response?.data?.message || "Failed to submit revision proposal.");
@@ -300,7 +442,10 @@ export const BookingDetailScreen = ({ route, navigation }) => {
     setActionLoading(true);
     try {
       await customerApi.upgradeBooking(booking._id, selectedUpgradePkg._id);
-      Alert.alert("Upgrade Submitted", `Your upgrade request to ${selectedUpgradePkg.name} has been submitted.`);
+      Alert.alert(
+        "Upgrade Submitted",
+        `Your upgrade request to ${selectedUpgradePkg.name} has been submitted.`
+      );
       setShowUpgradeModal(false);
       loadBooking();
     } catch (err) {
@@ -354,7 +499,6 @@ export const BookingDetailScreen = ({ route, navigation }) => {
         title: booking.event_manager_id.full_name || "Event Manager",
       });
     } catch (err) {
-      // Fallback: search conversations list
       try {
         const convList = await messagesApi.listConversations();
         const existing = Array.isArray(convList)
@@ -370,16 +514,20 @@ export const BookingDetailScreen = ({ route, navigation }) => {
       } catch {
         // Ignored
       }
-      Alert.alert("Chat Unavailable", "Could not start chat session. Please call or email the manager directly.");
+      Alert.alert(
+        "Chat Unavailable",
+        "Could not start chat session. Please call or message the manager directly."
+      );
     } finally {
       setActionLoading(false);
     }
   };
 
+  // Request Ocular
   const handleRequestOcular = () => {
     Alert.alert(
       "Request Ocular Inspection",
-      "Would you like to request an on-site venue inspection by our team? We will coordinate with you to pick an ocular date.",
+      "Would you like to request an on-site venue inspection by our team? We will coordinate with you to confirm the date.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -406,10 +554,11 @@ export const BookingDetailScreen = ({ route, navigation }) => {
     );
   };
 
+  // Skip Ocular
   const handleSkipOcular = () => {
     Alert.alert(
       "Skip Ocular Inspection",
-      "Are you confident with your venue setup without a preliminary site inspection?",
+      "Are you confident with your venue setup without an on-site inspection?",
       [
         { text: "Keep Ocular", style: "cancel" },
         {
@@ -432,10 +581,11 @@ export const BookingDetailScreen = ({ route, navigation }) => {
     );
   };
 
+  // Request Cancellation
   const handleRequestCancellation = () => {
     Alert.alert(
-      "Request Cancellation & Refund",
-      "Are you sure you want to request cancellation for this booking? A change request will be submitted to the administration.",
+      "Request Cancellation / Refund",
+      "Are you sure you want to request cancellation for this booking? A formal request will be submitted to management.",
       [
         { text: "Keep Booking", style: "cancel" },
         {
@@ -445,10 +595,16 @@ export const BookingDetailScreen = ({ route, navigation }) => {
             setActionLoading(true);
             try {
               await customerApi.requestCancellation(booking._id);
-              Alert.alert("Request Submitted", "Your cancellation request has been submitted for administrative review.");
+              Alert.alert(
+                "Request Submitted",
+                "Your cancellation request has been submitted for administrative review."
+              );
               loadBooking();
             } catch (err) {
-              Alert.alert("Error", err.response?.data?.message || "Failed to submit cancellation request.");
+              Alert.alert(
+                "Error",
+                err.response?.data?.message || "Failed to submit cancellation request."
+              );
             } finally {
               setActionLoading(false);
             }
@@ -476,115 +632,256 @@ export const BookingDetailScreen = ({ route, navigation }) => {
     );
   }
 
-  const isPast = booking.event_date && new Date(booking.event_date) < new Date();
-  const isCompleted = ["Completed", "completed"].includes(booking.status);
-  const canCancel = !isPast && !["Cancelled", "cancelled", "refunded", "Completed", "completed"].includes(booking.status);
-  const hasPendingRevision = Boolean(booking.pending_revision || booking.revision_proposal);
-  const pendingRev = booking.pending_revision || booking.revision_proposal;
-
+  // Dishes & items
   const menuItems = Array.isArray(booking.menu_items) ? booking.menu_items : [];
   const selectedDishes = Array.isArray(booking.selected_dishes) ? booking.selected_dishes : [];
   const displayDishes = menuItems.length > 0 ? menuItems : selectedDishes;
+  const totalDishesCount = displayDishes.length;
+  const serviceItemsCount = Array.isArray(booking.service_items) ? booking.service_items.length : 0;
+
+  // Address string
+  const formattedAddress =
+    booking.delivery_method === "pickup"
+      ? (booking.pickup_location || "Store Premises Pickup (Caezelle's HQ)")
+      : [booking.street, booking.barangay, booking.municipality, booking.province]
+          .filter(Boolean)
+          .join(", ") || "Venue Address on file";
 
   return (
     <View style={styles.container}>
       <Header
-        title={booking.reference || "Booking Details"}
-        subtitle={booking.event_type}
+        title="Booking Details"
+        subtitle={`#${refCode}`}
         onBack={() => navigation.goBack()}
       />
 
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.xxl }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + spacing.xl },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Status Header */}
-        <Card style={styles.statusHeaderCard} variant="flat">
-          <View style={styles.statusRow}>
-            <View>
-              <Text style={styles.bookingRefLabel}>Booking Reference</Text>
-              <Text style={styles.bookingRefNumber}>{booking.reference || `CAZ-${String(booking._id).slice(-6).toUpperCase()}`}</Text>
+        {/* ── SECTION 1: OVERVIEW HERO CARD ── */}
+        <Card style={styles.overviewHeroCard} variant="flat">
+          {/* Title & Status Badge Row */}
+          <View style={styles.overviewTopRow}>
+            <View style={styles.overviewTitleWrap}>
+              <Text style={styles.eventTitle} numberOfLines={2}>
+                {booking.event_type || "Catering Event"}
+              </Text>
             </View>
-            <StatusBadge status={booking.status} />
+            <StatusBadge status={isOverdue ? "overdue" : booking.status} size="sm" />
           </View>
 
-          {/* Timeline Visualizer */}
-          <View style={styles.timelineContainer}>
-            <View style={styles.timelineHeaderRow}>
-              <Text style={styles.timelineHeading}>Order & Event Milestones</Text>
-              <Text style={styles.timelineLiveBadge}>LIVE TRACKING</Text>
+          {/* Sub-badges: Revision Tag & Copyable Reference */}
+          <View style={styles.overviewTagsRow}>
+            <TouchableOpacity
+              style={styles.refCodeBadge}
+              onPress={handleCopyReference}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.refCodeText}>#{refCode}</Text>
+              <Copy size={11} color={colors.foregroundMuted} />
+            </TouchableOpacity>
+
+            {booking.is_revised && (
+              <View style={styles.revisedBadge}>
+                <Text style={styles.revisedBadgeText}>
+                  Revised · v{booking.revision_count || 1}
+                </Text>
+              </View>
+            )}
+
+            {isPast && (
+              <View style={styles.pastBadge}>
+                <Text style={styles.pastBadgeText}>Past Event</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Quick Specifications Strip */}
+          <View style={styles.overviewSpecsStrip}>
+            <View style={styles.specChip}>
+              <Calendar size={13} color={colors.primary} />
+              <Text style={styles.specChipText} numberOfLines={1}>
+                {booking.event_date ? formatShortDate(booking.event_date) : "Date TBD"}
+                {booking.start_time ? ` · ${formatTime(booking.start_time)}` : ""}
+              </Text>
             </View>
-            <View style={styles.stepsRow}>
-              {timelineSteps.map((step, idx) => (
-                <View key={step.id} style={styles.stepItem}>
-                  <View
-                    style={[
-                      styles.stepDot,
-                      step.done && styles.stepDotDone,
-                      step.active && styles.stepDotActive,
-                    ]}
-                  >
-                    {step.done ? (
-                      <CheckCircle size={14} color={colors.white} />
-                    ) : (
-                      <Text style={[styles.stepNumber, step.active && styles.stepNumberActive]}>
-                        {idx + 1}
-                      </Text>
-                    )}
-                  </View>
-                  <Text
-                    style={[
-                      styles.stepLabel,
-                      step.done && styles.stepLabelDone,
-                      step.active && styles.stepLabelActive,
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {step.label}
-                  </Text>
-                </View>
-              ))}
+
+            <View style={styles.specChip}>
+              <Users size={13} color={colors.primary} />
+              <Text style={styles.specChipText}>{booking.guest_count || 0} Guests</Text>
+            </View>
+
+            <View style={styles.specChip}>
+              <Utensils size={13} color={colors.primary} />
+              <Text style={styles.specChipText} numberOfLines={1}>
+                {booking.service_type || "Food & Setup"}
+              </Text>
             </View>
           </View>
         </Card>
 
-        {/* Pending Revision Proposal Banner from Management */}
-        {hasPendingRevision && (
-          <Card style={styles.revisionNoticeCard}>
-            <View style={styles.revisionHeaderRow}>
-              <AlertCircle size={20} color={colors.warning} />
-              <Text style={styles.revisionNoticeTitle}>Proposed Revision from Management</Text>
+        {/* ── SECTION 2: ORDER & EVENT MILESTONES ── */}
+        <Card style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderTitleWithIcon}>
+              <Clock size={15} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Order & Event Milestones</Text>
             </View>
-            <Text style={styles.revisionNoticeSub}>
-              Our event manager has proposed the following adjustments to your reservation:
+            <View style={styles.liveTrackingPill}>
+              <Text style={styles.liveTrackingText}>LIVE TRACKING</Text>
+            </View>
+          </View>
+
+          {/* Connected Stepper */}
+          <View style={styles.stepperContainer}>
+            {/* Background line */}
+            <View style={styles.stepperTrack}>
+              <View
+                style={[
+                  styles.stepperTrackFill,
+                  { width: `${progressPercent}%` },
+                ]}
+              />
+            </View>
+
+            {/* Step Nodes */}
+            <View style={styles.stepperStepsRow}>
+              {timelineSteps.map((step, idx) => {
+                const isStepCompleted = step.done;
+                const isStepCurrent = step.active || (!isStepCompleted && idx === activeStepIndex);
+
+                return (
+                  <View key={step.id} style={styles.stepperCol}>
+                    <View
+                      style={[
+                        styles.stepperDot,
+                        isStepCompleted && styles.stepperDotDone,
+                        isStepCurrent && styles.stepperDotActive,
+                      ]}
+                    >
+                      {isStepCompleted ? (
+                        <Check size={12} color={colors.white} strokeWidth={3} />
+                      ) : (
+                        <Text
+                          style={[
+                            styles.stepperNumber,
+                            isStepCurrent && styles.stepperNumberActive,
+                          ]}
+                        >
+                          {idx + 1}
+                        </Text>
+                      )}
+                    </View>
+                    <Text
+                      style={[
+                        styles.stepperLabel,
+                        isStepCompleted && styles.stepperLabelDone,
+                        isStepCurrent && styles.stepperLabelActive,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {step.label}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Calm Stage Guide Note */}
+          <View
+            style={[
+              styles.stageGuideBox,
+              stageGuide.tone === "rose" && styles.stageGuideRose,
+              stageGuide.tone === "amber" && styles.stageGuideAmber,
+              stageGuide.tone === "emerald" && styles.stageGuideEmerald,
+            ]}
+          >
+            <Info
+              size={14}
+              color={
+                stageGuide.tone === "rose"
+                  ? colors.error
+                  : stageGuide.tone === "amber"
+                  ? colors.warning
+                  : colors.primary
+              }
+              style={{ marginTop: 2, marginRight: spacing.xs }}
+            />
+            <Text style={styles.stageGuideText}>
+              <Text style={styles.stageGuideTitle}>{stageGuide.title}: </Text>
+              {stageGuide.description}
             </Text>
+          </View>
+        </Card>
+
+        {/* ── SECTION 3: PENDING REVISION PROPOSAL (HIGH PRIORITY) ── */}
+        {hasPendingRevision && (
+          <Card style={styles.revisionNoticeCard} variant="outlined">
+            <View style={styles.revisionHeaderRow}>
+              <View style={styles.revisionIconWrap}>
+                <AlertCircle size={18} color={colors.warning} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.revisionNoticeTitle}>Proposed Revision from Management</Text>
+                <Text style={styles.revisionNoticeSub}>
+                  Our event manager proposed adjustments to your reservation:
+                </Text>
+              </View>
+            </View>
+
             <View style={styles.revisionDetailsBox}>
               {pendingRev.event_date && (
-                <Text style={styles.revItem}>• Date: {formatDate(pendingRev.event_date)}</Text>
+                <View style={styles.revRow}>
+                  <Text style={styles.revLabel}>Event Date:</Text>
+                  <Text style={styles.revValue}>{formatDate(pendingRev.event_date)}</Text>
+                </View>
               )}
               {pendingRev.start_time && (
-                <Text style={styles.revItem}>• Time: {formatTime(pendingRev.start_time)}</Text>
+                <View style={styles.revRow}>
+                  <Text style={styles.revLabel}>Start Time:</Text>
+                  <Text style={styles.revValue}>{formatTime(pendingRev.start_time)}</Text>
+                </View>
               )}
               {pendingRev.guest_count && (
-                <Text style={styles.revItem}>• Guest Capacity: {pendingRev.guest_count} Guests</Text>
+                <View style={styles.revRow}>
+                  <Text style={styles.revLabel}>Guest Capacity:</Text>
+                  <Text style={styles.revValue}>{pendingRev.guest_count} Guests</Text>
+                </View>
               )}
               {pendingRev.total_price && (
-                <Text style={styles.revItem}>• Revised Total: {formatCurrency(pendingRev.total_price)}</Text>
+                <View style={styles.revRow}>
+                  <Text style={styles.revLabel}>Revised Total:</Text>
+                  <Text style={[styles.revValue, { color: colors.primary, fontWeight: "700" }]}>
+                    {formatCurrency(pendingRev.total_price)}
+                  </Text>
+                </View>
               )}
               {pendingRev.message && (
-                <Text style={styles.revItemNote}>Note: "{pendingRev.message}"</Text>
+                <View style={styles.revNoteWrap}>
+                  <Text style={styles.revNoteLabel}>Note from Manager:</Text>
+                  <Text style={styles.revNoteText}>"{pendingRev.message}"</Text>
+                </View>
               )}
             </View>
+
             <View style={styles.revisionActionRow}>
               <AppButton
                 title="Accept Revisions"
+                icon={CheckCircle}
                 onPress={handleAcceptRevision}
                 size="sm"
                 loading={actionLoading}
-                style={{ flex: 1, marginRight: spacing.sm }}
+                style={{ flex: 1 }}
               />
               <AppButton
                 title="Decline"
+                icon={X}
                 onPress={handleRejectRevision}
                 variant="outline"
                 size="sm"
@@ -595,103 +892,167 @@ export const BookingDetailScreen = ({ route, navigation }) => {
           </Card>
         )}
 
-        {/* Event Schedule & Venue */}
+        {/* ── SECTION 4: EVENT SCHEDULE & VENUE ── */}
         <Card style={styles.sectionCard}>
-          <View style={styles.cardHeaderWithAction}>
+          <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Event Schedule & Venue</Text>
-            {!isCompleted && !isPast && (
+            {!isCompleted && !isPast && !isCancelled && (
               <TouchableOpacity
                 style={styles.headerActionPill}
                 onPress={() => setShowChangeModal(true)}
+                activeOpacity={0.7}
               >
-                <FileEdit size={13} color={colors.primary} />
+                <FileEdit size={12} color={colors.primary} />
                 <Text style={styles.headerActionText}>Propose Changes</Text>
               </TouchableOpacity>
             )}
           </View>
 
+          {/* Date Row */}
           <View style={styles.infoRow}>
-            <Calendar size={18} color={colors.primary} style={styles.infoIcon} />
-            <View>
+            <View style={styles.infoIconCol}>
+              <Calendar size={16} color={colors.primary} />
+            </View>
+            <View style={styles.infoContentCol}>
               <Text style={styles.infoLabel}>Event Date</Text>
               <Text style={styles.infoValue}>{formatDate(booking.event_date)}</Text>
             </View>
           </View>
 
+          {/* Time & Service Row */}
           <View style={styles.infoRow}>
-            <Clock size={18} color={colors.primary} style={styles.infoIcon} />
-            <View>
+            <View style={styles.infoIconCol}>
+              <Clock size={16} color={colors.primary} />
+            </View>
+            <View style={styles.infoContentCol}>
               <Text style={styles.infoLabel}>Start Time & Service</Text>
-              <Text style={styles.infoValue}>{formatTime(booking.start_time)} • {booking.service_type || "Catering & Setup"}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Users size={18} color={colors.primary} style={styles.infoIcon} />
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={styles.infoLabel}>Guest Capacity</Text>
-                {!isCompleted && !isPast && (
-                  <TouchableOpacity
-                    onPress={() => setShowAddGuestsModal(true)}
-                    style={styles.addGuestsInlineBtn}
-                  >
-                    <PlusCircle size={12} color={colors.primary} />
-                    <Text style={styles.addGuestsInlineText}>Add Extra Guests</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              <Text style={styles.infoValue}>{booking.guest_count} Guests</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoRow}>
-            <MapPin size={18} color={colors.primary} style={styles.infoIcon} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.infoLabel}>Venue Address</Text>
               <Text style={styles.infoValue}>
-                {booking.delivery_method === "pickup"
-                  ? "Customer Pick-up at Headquarters"
-                  : `${booking.street ? `${booking.street}, ` : ""}${booking.barangay || ""}, ${booking.municipality || "Batangas"}`}
+                {formatTime(booking.start_time)} • {booking.service_type || "Catering & Setup"}
               </Text>
             </View>
           </View>
+
+          {/* Guest Attendance Row */}
+          <View style={styles.infoRow}>
+            <View style={styles.infoIconCol}>
+              <Users size={16} color={colors.primary} />
+            </View>
+            <View style={styles.infoContentCol}>
+              <View style={styles.labelWithActionRow}>
+                <Text style={styles.infoLabel}>Guest Capacity</Text>
+                {!isCompleted && !isPast && !isCancelled && (
+                  <TouchableOpacity
+                    onPress={() => setShowAddGuestsModal(true)}
+                    style={styles.inlineActionBtn}
+                    activeOpacity={0.7}
+                  >
+                    <PlusCircle size={11} color={colors.primary} />
+                    <Text style={styles.inlineActionText}>Add Extra Guests</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={styles.infoValue}>{booking.guest_count || 0} Guests</Text>
+            </View>
+          </View>
+
+          {/* Venue Address Row */}
+          <View style={[styles.infoRow, { borderBottomWidth: 0, paddingBottom: 0 }]}>
+            <View style={styles.infoIconCol}>
+              <MapPin size={16} color={colors.primary} />
+            </View>
+            <View style={styles.infoContentCol}>
+              <Text style={styles.infoLabel}>Venue Address & Staging</Text>
+              <Text style={styles.infoValue}>{formattedAddress}</Text>
+              {booking.landmark && (
+                <Text style={styles.landmarkText}>Landmark: {booking.landmark}</Text>
+              )}
+            </View>
+          </View>
+
+          {/* Styling Palette (if configured) */}
+          {Array.isArray(booking.event_palette) && booking.event_palette.length > 0 && (
+            <View style={styles.paletteSection}>
+              <Text style={styles.infoLabel}>Event Color Palette</Text>
+              <View style={styles.palettePillsRow}>
+                {booking.event_palette.map((c, i) => (
+                  <View key={i} style={styles.palettePill}>
+                    <Text style={styles.palettePillText}>{c}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
         </Card>
 
-        {/* Package & Inclusions */}
+        {/* ── SECTION 5: SELECTED PACKAGE & MENU ── */}
         <Card style={styles.sectionCard}>
-          <View style={styles.cardHeaderWithAction}>
+          <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Selected Package</Text>
-            {!isCompleted && !isPast && (
+            {!isCompleted && !isPast && !isCancelled && (
               <TouchableOpacity
                 style={styles.headerActionPill}
                 onPress={() => setShowUpgradeModal(true)}
+                activeOpacity={0.7}
               >
-                <ArrowUpCircle size={13} color={colors.primary} />
+                <ArrowUpCircle size={12} color={colors.primary} />
                 <Text style={styles.headerActionText}>Upgrade Package</Text>
               </TouchableOpacity>
             )}
           </View>
 
+          {/* Package Banner */}
           <View style={styles.packageBanner}>
-            <Sparkles size={18} color={colors.primary} />
-            <View style={{ marginLeft: spacing.sm, flex: 1 }}>
-              <Text style={styles.packageBannerTitle}>{booking.package_id?.name || "Custom Catering Package"}</Text>
-              <Text style={styles.packageBannerSub}>{booking.package_id?.package_type || "Full Banquet Service"}</Text>
+            <View style={styles.packageIconWrap}>
+              <Sparkles size={16} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.packageBannerTitle}>
+                {booking.package_id?.name || booking.package_name_snapshot || "Custom Catering Package"}
+              </Text>
+              <Text style={styles.packageBannerSub}>
+                {booking.package_id?.description ||
+                  booking.package_id?.package_type ||
+                  "Curated catering selections and banquet setup"}
+              </Text>
             </View>
           </View>
 
-          {/* Food Menu Items */}
+          {/* Summary Metric Chips */}
+          <View style={styles.metricsChipsRow}>
+            {totalDishesCount > 0 && (
+              <View style={styles.metricChip}>
+                <Utensils size={12} color={colors.primary} />
+                <Text style={styles.metricChipText}>{totalDishesCount} dishes included</Text>
+              </View>
+            )}
+            {booking.package_id?.inclusions?.length > 0 && (
+              <View style={styles.metricChip}>
+                <CheckCircle2 size={12} color={colors.success} />
+                <Text style={styles.metricChipText}>
+                  {booking.package_id.inclusions.length} setup inclusions
+                </Text>
+              </View>
+            )}
+            {serviceItemsCount > 0 && (
+              <View style={styles.metricChip}>
+                <PackagePlus size={12} color={colors.primary} />
+                <Text style={styles.metricChipText}>{serviceItemsCount} add-on items</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Dishes Selections */}
           {displayDishes.length > 0 && (
             <View style={styles.dishesSection}>
               <Text style={styles.subHeading}>Catering Menu Selections</Text>
               <View style={styles.dishesGrid}>
                 {displayDishes.map((dish, i) => {
-                  const dishName = dish.name || dish.item_name || (typeof dish === "string" ? dish : `Dish #${i + 1}`);
+                  const dishName =
+                    dish.name || dish.item_name || (typeof dish === "string" ? dish : `Dish #${i + 1}`);
                   const dishCourse = dish.category || dish.course || "";
                   return (
                     <View key={i} style={styles.dishPill}>
-                      <Utensils size={12} color={colors.primary} />
+                      <Utensils size={11} color={colors.primary} />
                       <Text style={styles.dishPillText} numberOfLines={1}>
                         {dishName} {dishCourse ? `(${dishCourse})` : ""}
                       </Text>
@@ -702,36 +1063,107 @@ export const BookingDetailScreen = ({ route, navigation }) => {
             </View>
           )}
 
-          {/* Dietary Requirements */}
-          {Boolean(booking.dietary_notes || booking.allergies) && (
+          {/* Dietary Requirements Alert */}
+          {Boolean(
+            booking.dietary_notes ||
+              booking.allergies ||
+              booking.special_requests ||
+              booking.dietary_restrictions
+          ) && (
             <View style={styles.dietaryBox}>
-              <ShieldCheck size={16} color={colors.warning} />
+              <ShieldCheck size={14} color={colors.warning} style={{ marginTop: 2 }} />
               <View style={{ marginLeft: spacing.xs, flex: 1 }}>
                 <Text style={styles.dietaryTitle}>Dietary & Allergen Notes</Text>
-                <Text style={styles.dietaryDesc}>{booking.dietary_notes || booking.allergies}</Text>
+                <Text style={styles.dietaryDesc}>
+                  {booking.allergies ? `Allergies: ${booking.allergies}. ` : ""}
+                  {booking.dietary_restrictions || booking.dietary_notes || booking.special_requests}
+                </Text>
               </View>
             </View>
           )}
         </Card>
 
-        {/* Assigned Manager & Messaging */}
+        {/* ── SECTION 6: PAYMENT & INVOICING ── */}
         <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Event Operations Manager</Text>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderTitleWithIcon}>
+              <CreditCard size={15} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Payment & Invoicing</Text>
+            </View>
+            <StatusBadge status={booking.payment_status || "pending"} size="sm" />
+          </View>
+
+          <View style={styles.financeRow}>
+            <Text style={styles.financeLabel}>Total Event Price</Text>
+            <Text style={styles.financeValue}>{formatCurrency(totalPrice)}</Text>
+          </View>
+
+          <View style={styles.financeRow}>
+            <Text style={styles.financeLabel}>Deposit Required / Paid</Text>
+            <Text style={styles.financeSubValue}>
+              {isDepositPaid ? "✓ Paid " : "Due: "}
+              {formatCurrency(depositAmount)}
+            </Text>
+          </View>
+
+          <View style={[styles.financeRow, styles.financeBalanceRow]}>
+            <Text style={styles.financeBalanceLabel}>
+              {isFullyPaid ? "Payment Status" : isCancelled ? "Balance Closed" : "Remaining Balance Due"}
+            </Text>
+            <Text
+              style={[
+                styles.financeBalanceValue,
+                { color: remainingBalance > 0 && !isCancelled ? colors.warningDark : colors.success },
+              ]}
+            >
+              {isFullyPaid ? "Fully Settled ✓" : isCancelled ? "Closed" : formatCurrency(remainingBalance)}
+            </Text>
+          </View>
+
+          {/* Pay Remaining Balance Button */}
+          {canPayBalance && (
+            <AppButton
+              title={`Pay Remaining Balance (${formatCurrency(remainingBalance)})`}
+              icon={CreditCard}
+              size="md"
+              loading={actionLoading}
+              onPress={handlePayBalance}
+              style={{ marginTop: spacing.md }}
+            />
+          )}
+
+          {isOverdue && remainingBalance > 0 && (
+            <View style={styles.overdueAlertBox}>
+              <AlertTriangle size={13} color={colors.error} />
+              <Text style={styles.overdueAlertText}>
+                Balance settlement is overdue. Please complete checkout to close your invoice.
+              </Text>
+            </View>
+          )}
+        </Card>
+
+        {/* ── SECTION 7: EVENT OPERATIONS MANAGER ── */}
+        <Card style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Event Operations Manager</Text>
+          </View>
+
           {booking.event_manager_id ? (
             <View>
               <View style={styles.managerRow}>
                 <View style={styles.managerAvatar}>
-                  <UserCheck size={22} color={colors.primary} />
+                  <UserCheck size={20} color={colors.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.managerName}>
                     {booking.event_manager_id.full_name || "Assigned Manager"}
                   </Text>
-                  <Text style={styles.managerPhone}>
-                    {booking.event_manager_id.phone || booking.event_manager_id.email || "Catering Operations Lead"}
+                  <Text style={styles.managerRole}>
+                    Catering Operations Lead • {booking.event_manager_id.phone || "Available on Chat"}
                   </Text>
                 </View>
               </View>
+
               <AppButton
                 title="Message Event Manager"
                 icon={MessageSquare}
@@ -742,18 +1174,36 @@ export const BookingDetailScreen = ({ route, navigation }) => {
               />
             </View>
           ) : (
-            <Text style={styles.unassignedNotice}>
-              Our management team is reviewing logistics. Your dedicated Banquet Manager will be assigned shortly.
-            </Text>
+            <View style={styles.unassignedBox}>
+              <Info size={14} color={colors.foregroundMuted} />
+              <Text style={styles.unassignedNotice}>
+                Our operations team is finalizing logistics. Your dedicated Banquet Manager will be
+                assigned shortly.
+              </Text>
+            </View>
+          )}
+
+          {/* Customer contact on file */}
+          {(booking.contact_first_name || booking.contact_phone) && (
+            <View style={styles.contactOnFileBox}>
+              <Text style={styles.contactOnFileLabel}>Customer Contact on File:</Text>
+              <Text style={styles.contactOnFileValue}>
+                {booking.contact_first_name} {booking.contact_last_name}
+                {booking.contact_phone ? ` • ${booking.contact_phone}` : ""}
+              </Text>
+            </View>
           )}
         </Card>
 
-        {/* Ocular Inspection Section */}
+        {/* ── SECTION 8: SITE INSPECTION / OCULAR ── */}
         <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Site Inspection / Ocular</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Site Inspection / Ocular</Text>
+          </View>
+
           {booking.ocular_visit?.status === "completed" ? (
             <View style={styles.ocularStatusBox}>
-              <CheckCircle size={18} color={colors.success} />
+              <CheckCircle size={16} color={colors.success} />
               <View style={{ marginLeft: spacing.sm, flex: 1 }}>
                 <Text style={styles.ocularTitle}>Ocular Visit Completed</Text>
                 <Text style={styles.ocularDesc}>
@@ -764,27 +1214,33 @@ export const BookingDetailScreen = ({ route, navigation }) => {
             </View>
           ) : booking.ocular_visit?.status === "scheduled" ? (
             <View style={styles.ocularStatusBox}>
-              <Eye size={18} color={colors.primary} />
+              <Eye size={16} color={colors.primary} />
               <View style={{ marginLeft: spacing.sm, flex: 1 }}>
                 <Text style={styles.ocularTitle}>Ocular Visit Scheduled</Text>
                 <Text style={styles.ocularDesc}>
-                  Date: {formatDate(booking.ocular_visit.scheduled_date)} {booking.ocular_visit.scheduled_time || ""}
+                  Scheduled Date: {formatDate(booking.ocular_visit.scheduled_date)}{" "}
+                  {booking.ocular_visit.scheduled_time || ""}
                 </Text>
               </View>
             </View>
           ) : booking.ocular_visit?.status === "skipped" ? (
-            <Text style={styles.ocularNoteText}>Ocular inspection was skipped.</Text>
+            <View style={styles.ocularSkippedBox}>
+              <Text style={styles.ocularSkippedText}>
+                Site ocular inspection was skipped by customer request.
+              </Text>
+            </View>
           ) : (
             <View>
               <Text style={styles.ocularNoteText}>
-                An on-site inspection ensures electrical outlets, table layout, and setup boundaries match your expectations.
+                An on-site inspection ensures electrical outlets, table layout, and setup
+                boundaries match your expectations.
               </Text>
               <View style={styles.ocularActionsRow}>
                 <AppButton
                   title="Request Ocular"
                   onPress={handleRequestOcular}
                   size="sm"
-                  style={{ flex: 1, marginRight: spacing.sm }}
+                  style={{ flex: 1 }}
                   loading={actionLoading}
                 />
                 <AppButton
@@ -800,61 +1256,20 @@ export const BookingDetailScreen = ({ route, navigation }) => {
           )}
         </Card>
 
-        {/* Payment Summary & Pay Balance Action */}
-        <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Payment & Invoicing</Text>
-
-          <View style={styles.financeRow}>
-            <Text style={styles.financeLabel}>Total Event Price</Text>
-            <Text style={styles.financeValue}>{formatCurrency(totalPrice)}</Text>
-          </View>
-
-          <View style={styles.financeRow}>
-            <Text style={styles.financeLabel}>Deposit Required / Paid</Text>
-            <Text style={styles.financeSubValue}>
-              {isDepositPaid ? "✓ Paid " : "Due: "}
-              {formatCurrency(depositAmount)}
-            </Text>
-          </View>
-
-          {isDepositPaid && (
-            <View style={styles.financeRow}>
-              <Text style={styles.financeLabel}>Remaining Balance Due</Text>
-              <Text style={[styles.financeValue, { color: remainingBalance > 0 ? colors.warning : colors.success }]}>
-                {remainingBalance > 0 ? formatCurrency(remainingBalance) : "Fully Settled ✓"}
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.financeRow}>
-            <Text style={styles.financeLabel}>Payment Status</Text>
-            <StatusBadge status={booking.payment_status || "pending"} size="sm" />
-          </View>
-
-          {/* Pay Remaining Balance Button */}
-          {canPayBalance && (
-            <AppButton
-              title={`Pay Remaining Balance (${formatCurrency(remainingBalance)})`}
-              icon={CreditCard}
-              size="md"
-              loading={actionLoading}
-              onPress={handlePayBalance}
-              style={{ marginTop: spacing.md }}
-            />
-          )}
-        </Card>
-
-        {/* Star Rating & Review for Completed Events */}
+        {/* ── SECTION 9: EVENT REVIEW & RATING (COMPLETED ONLY) ── */}
         {isCompleted && (
           <Card style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Event Review & Rating</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Event Review & Rating</Text>
+            </View>
+
             {bookingRating ? (
               <View style={styles.verifiedRatingBox}>
                 <View style={styles.starsRow}>
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Star
                       key={star}
-                      size={20}
+                      size={18}
                       color={star <= bookingRating.rating ? colors.warning : colors.border}
                       fill={star <= bookingRating.rating ? colors.warning : "transparent"}
                     />
@@ -878,9 +1293,10 @@ export const BookingDetailScreen = ({ route, navigation }) => {
                       key={star}
                       onPress={() => setRatingStars(star)}
                       style={styles.starBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                       <Star
-                        size={28}
+                        size={26}
                         color={star <= ratingStars ? colors.warning : colors.textDisabled}
                         fill={star <= ratingStars ? colors.warning : "transparent"}
                       />
@@ -908,12 +1324,13 @@ export const BookingDetailScreen = ({ route, navigation }) => {
           </Card>
         )}
 
-        {/* Cancellation Option */}
+        {/* ── SECTION 10: CANCELLATION OPTION ── */}
         {canCancel && (
           <TouchableOpacity
             style={styles.cancelBookingBtn}
             onPress={handleRequestCancellation}
             disabled={actionLoading}
+            activeOpacity={0.7}
           >
             <Text style={styles.cancelBookingText}>Request Cancellation / Refund</Text>
           </TouchableOpacity>
@@ -929,7 +1346,10 @@ export const BookingDetailScreen = ({ route, navigation }) => {
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Propose Booking Revisions</Text>
-              <TouchableOpacity onPress={() => setShowChangeModal(false)}>
+              <TouchableOpacity
+                onPress={() => setShowChangeModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
                 <X size={20} color={colors.foreground} />
               </TouchableOpacity>
             </View>
@@ -963,6 +1383,15 @@ export const BookingDetailScreen = ({ route, navigation }) => {
                 onChangeText={setChangeGuests}
               />
 
+              <Text style={styles.inputLabel}>New Venue Type (Optional)</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder={booking.venue_type || "e.g. Covered Pavilion"}
+                placeholderTextColor={colors.textDisabled}
+                value={changeVenue}
+                onChangeText={setChangeVenue}
+              />
+
               <Text style={styles.inputLabel}>Notes & Reasons for Revision</Text>
               <TextInput
                 style={[styles.modalInput, { minHeight: 80, textAlignVertical: "top" }]}
@@ -993,7 +1422,10 @@ export const BookingDetailScreen = ({ route, navigation }) => {
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Additional Guests</Text>
-              <TouchableOpacity onPress={() => setShowAddGuestsModal(false)}>
+              <TouchableOpacity
+                onPress={() => setShowAddGuestsModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
                 <X size={20} color={colors.foreground} />
               </TouchableOpacity>
             </View>
@@ -1031,14 +1463,19 @@ export const BookingDetailScreen = ({ route, navigation }) => {
           <View style={[styles.modalContainer, { maxHeight: "80%" }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Package Upgrade</Text>
-              <TouchableOpacity onPress={() => setShowUpgradeModal(false)}>
+              <TouchableOpacity
+                onPress={() => setShowUpgradeModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
                 <X size={20} color={colors.foreground} />
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
               {packages
-                .filter((p) => String(p._id) !== String(booking.package_id?._id || booking.package_id))
+                .filter(
+                  (p) => String(p._id) !== String(booking.package_id?._id || booking.package_id)
+                )
                 .map((pkg) => {
                   const isSelected = selectedUpgradePkg?._id === pkg._id;
                   return (
@@ -1051,16 +1488,22 @@ export const BookingDetailScreen = ({ route, navigation }) => {
                       <View style={{ flex: 1 }}>
                         <Text style={styles.pkgOptionTitle}>{pkg.name}</Text>
                         <Text style={styles.pkgOptionPrice}>
-                          {pkg.price_per_guest ? `${formatCurrency(pkg.price_per_guest)} / pax` : formatCurrency(pkg.setup_price || pkg.price || 0)}
+                          {pkg.price_per_guest
+                            ? `${formatCurrency(pkg.price_per_guest)} / pax`
+                            : formatCurrency(pkg.setup_price || pkg.price || 0)}
                         </Text>
                       </View>
-                      {isSelected && <CheckCircle size={20} color={colors.primary} />}
+                      {isSelected && <CheckCircle size={18} color={colors.primary} />}
                     </TouchableOpacity>
                   );
                 })}
 
               <AppButton
-                title={selectedUpgradePkg ? `Request Upgrade to ${selectedUpgradePkg.name}` : "Choose a Package"}
+                title={
+                  selectedUpgradePkg
+                    ? `Request Upgrade to ${selectedUpgradePkg.name}`
+                    : "Choose a Package"
+                }
                 disabled={!selectedUpgradePkg}
                 loading={actionLoading}
                 onPress={handleUpgradePackage}
@@ -1080,7 +1523,10 @@ export const BookingDetailScreen = ({ route, navigation }) => {
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Decline Revision Proposal</Text>
-              <TouchableOpacity onPress={() => setShowRejectRevisionModal(false)}>
+              <TouchableOpacity
+                onPress={() => setShowRejectRevisionModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
                 <X size={20} color={colors.foreground} />
               </TouchableOpacity>
             </View>
@@ -1108,7 +1554,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
               />
               <AppButton
                 title="Decline"
-                variant="destructive"
+                variant="danger"
                 loading={actionLoading}
                 onPress={confirmRejectRevision}
                 style={{ flex: 1 }}
@@ -1127,242 +1573,507 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    padding: spacing.xl,
-    paddingBottom: 120, // Clear bottom edge
+    paddingHorizontal: spacing.base, // Tightened from spacing.xl (24) to spacing.base (16)
+    paddingTop: spacing.md,
   },
-  statusHeaderCard: {
-    padding: spacing.lg,
-    backgroundColor: colors.surfaceAlt,
-    marginBottom: spacing.base,
+
+  // ── Overview Hero Card ──
+  overviewHeroCard: {
+    padding: spacing.base,
+    backgroundColor: colors.surface,
+    borderColor: colors.cardBorder,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    marginBottom: spacing.md,
+    ...shadows.xs,
   },
-  statusRow: {
+  overviewTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: spacing.base,
+    gap: spacing.sm,
   },
-  bookingRefLabel: {
-    fontSize: typography.sizes.xs,
-    color: colors.foregroundMuted,
-    fontWeight: "600",
+  overviewTitleWrap: {
+    flex: 1,
   },
-  bookingRefNumber: {
+  eventTitle: {
     fontSize: typography.sizes.lg,
-    fontWeight: "800",
-    color: colors.foreground,
-    marginTop: 2,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foregroundDark,
+    lineHeight: 24,
+    letterSpacing: -0.3,
   },
-  timelineContainer: {
+  overviewTagsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  refCodeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+  },
+  refCodeText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foregroundMuted,
+    letterSpacing: 0.5,
+  },
+  revisedBadge: {
+    backgroundColor: "#FEF3C7",
+    borderColor: "#FDE68A",
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+  },
+  revisedBadgeText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: "#B45309",
+  },
+  pastBadge: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+  },
+  pastBadgeText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.textDisabled,
+  },
+  overviewSpecsStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    paddingTop: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
-    paddingTop: spacing.md,
   },
-  timelineHeaderRow: {
+  specChip: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: spacing.md,
-  },
-  timelineHeading: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.foreground,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  timelineLiveBadge: {
-    fontSize: 9,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.primary,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: radius.full,
-    letterSpacing: 0.5,
-  },
-  stepsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  stepItem: {
-    alignItems: "center",
-    flex: 1,
-    paddingHorizontal: 2,
-  },
-  stepDot: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    gap: 5,
     backgroundColor: colors.surfaceAlt,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 6,
-  },
-  stepDotDone: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  stepDotActive: {
-    backgroundColor: colors.white,
-    borderColor: colors.primary,
-    borderWidth: 2.5,
-  },
-  stepNumber: {
-    fontSize: 10,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.foregroundMuted,
-  },
-  stepNumberActive: {
-    color: colors.primary,
-    fontWeight: "800",
-  },
-  stepLabel: {
-    fontSize: 10,
-    color: colors.foregroundMuted,
-    textAlign: "center",
-    fontFamily: typography.fontFamily.medium,
-    lineHeight: 13,
-  },
-  stepLabelDone: {
-    color: colors.foreground,
-    fontFamily: typography.fontFamily.bold,
-  },
-  stepLabelActive: {
-    color: colors.primary,
-    fontFamily: typography.fontFamily.bold,
-  },
-  revisionNoticeCard: {
-    padding: spacing.md,
-    backgroundColor: "#fffbeb",
-    borderColor: "#fde68a",
-    borderWidth: 1,
-    marginBottom: spacing.base,
-  },
-  revisionHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  revisionNoticeTitle: {
-    fontSize: typography.sizes.sm,
-    fontWeight: "700",
-    color: "#b45309",
-  },
-  revisionNoticeSub: {
-    fontSize: typography.sizes.xs,
-    color: "#78350f",
-    marginTop: 4,
-  },
-  revisionDetailsBox: {
-    backgroundColor: colors.white,
-    padding: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
     borderRadius: radius.sm,
-    marginVertical: spacing.sm,
   },
-  revItem: {
-    fontSize: typography.sizes.xs,
+  specChipText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundDark,
     fontWeight: "600",
-    color: colors.foreground,
-    marginBottom: 2,
   },
-  revItemNote: {
-    fontSize: typography.sizes.xs,
-    fontStyle: "italic",
-    color: colors.foregroundMuted,
-    marginTop: 4,
-  },
-  revisionActionRow: {
-    flexDirection: "row",
-    marginTop: spacing.xs,
-  },
+
+  // ── Section Card Common ──
   sectionCard: {
-    padding: spacing.lg,
-    marginBottom: spacing.base,
+    padding: spacing.base,
+    backgroundColor: colors.surface,
+    borderColor: colors.cardBorder,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    marginBottom: spacing.md,
+    ...shadows.xs,
   },
-  cardHeaderWithAction: {
+  sectionHeaderRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
-    paddingBottom: spacing.xs,
+    paddingBottom: spacing.sm,
     marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  sectionHeaderTitleWithIcon: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
   },
   sectionTitle: {
     fontSize: typography.sizes.sm,
-    fontWeight: "800",
-    color: colors.secondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foregroundDark,
+    letterSpacing: 0.2,
+    flex: 1,
   },
   headerActionPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 5,
     borderRadius: radius.full,
+    flexShrink: 0,
   },
   headerActionText: {
-    fontSize: typography.sizes.xs,
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.primary,
   },
-  addGuestsInlineBtn: {
+  liveTrackingPill: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    flexShrink: 0,
+  },
+  liveTrackingText: {
+    fontSize: 9,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "800",
+    color: colors.primary,
+    letterSpacing: 0.5,
+  },
+
+  // ── Milestone Stepper ──
+  stepperContainer: {
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  stepperTrack: {
+    position: "absolute",
+    top: 13,
+    left: 20,
+    right: 20,
+    height: 2,
+    backgroundColor: colors.border,
+    zIndex: 1,
+  },
+  stepperTrackFill: {
+    height: "100%",
+    backgroundColor: colors.primary,
+  },
+  stepperStepsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    zIndex: 2,
+  },
+  stepperCol: {
+    alignItems: "center",
+    flex: 1,
+    paddingHorizontal: 2,
+  },
+  stepperDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  stepperDotDone: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  stepperDotActive: {
+    backgroundColor: colors.white,
+    borderColor: colors.primary,
+    borderWidth: 2.5,
+  },
+  stepperNumber: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.textDisabled,
+    fontWeight: "700",
+  },
+  stepperNumberActive: {
+    color: colors.primary,
+    fontWeight: "800",
+  },
+  stepperLabel: {
+    fontSize: 10,
+    color: colors.foregroundMuted,
+    textAlign: "center",
+    fontFamily: typography.fontFamilies.medium,
+    lineHeight: 12,
+  },
+  stepperLabelDone: {
+    color: colors.foregroundDark,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+  },
+  stepperLabelActive: {
+    color: colors.primary,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+  },
+
+  // Stage Guide Box
+  stageGuideBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    borderRadius: radius.md,
+    padding: spacing.sm + 2,
+    marginTop: spacing.xs,
+  },
+  stageGuideRose: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+  },
+  stageGuideAmber: {
+    backgroundColor: "#FFFBEB",
+    borderColor: "#FDE68A",
+  },
+  stageGuideEmerald: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  stageGuideText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundDark,
+    lineHeight: 16,
+    flex: 1,
+  },
+  stageGuideTitle: {
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foregroundDark,
+  },
+
+  // ── Pending Revision Card ──
+  revisionNoticeCard: {
+    padding: spacing.base,
+    backgroundColor: colors.surface,
+    borderColor: colors.warningBorder,
+    borderWidth: 1.5,
+    borderRadius: radius.lg,
+    marginBottom: spacing.md,
+    ...shadows.sm,
+  },
+  revisionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+  },
+  revisionIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.warningLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  revisionNoticeTitle: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.warningDark,
+  },
+  revisionNoticeSub: {
+    fontSize: typography.sizes.xs,
+    color: colors.foregroundMuted,
+    marginTop: 2,
+  },
+  revisionDetailsBox: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.borderLight,
+    borderWidth: 1,
+    padding: spacing.sm + 2,
+    borderRadius: radius.md,
+    marginVertical: spacing.md,
+  },
+  revRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 3,
+  },
+  revLabel: {
+    fontSize: typography.sizes.xs,
+    color: colors.foregroundMuted,
+  },
+  revValue: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.semiBold,
+    fontWeight: "600",
+    color: colors.foregroundDark,
+  },
+  revNoteWrap: {
+    marginTop: spacing.xs,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+  },
+  revNoteLabel: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foregroundMuted,
+  },
+  revNoteText: {
+    fontSize: typography.sizes.xs,
+    fontStyle: "italic",
+    color: colors.foregroundDark,
+    marginTop: 2,
+  },
+  revisionActionRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+
+  // ── Info Rows inside Section Card ──
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+  },
+  infoIconCol: {
+    width: 28,
+    alignItems: "flex-start",
+    marginTop: 2,
+  },
+  infoContentCol: {
+    flex: 1,
+  },
+  labelWithActionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  inlineActionBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
-  addGuestsInlineText: {
+  inlineActionText: {
     fontSize: 11,
-    color: colors.primary,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: spacing.md,
-  },
-  infoIcon: {
-    marginRight: spacing.md,
-    marginTop: 2,
+    color: colors.primary,
   },
   infoLabel: {
-    fontSize: typography.sizes.xs,
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.foregroundMuted,
   },
   infoValue: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.semiBold,
     fontWeight: "600",
-    color: colors.foreground,
+    color: colors.foregroundDark,
+    marginTop: 1,
+  },
+  landmarkText: {
+    fontSize: 11,
+    color: colors.foregroundMuted,
+    fontStyle: "italic",
     marginTop: 2,
   },
+
+  // Palette pills
+  paletteSection: {
+    paddingTop: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  palettePillsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  palettePill: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+  },
+  palettePillText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.foregroundDark,
+  },
+
+  // ── Package Card ──
   packageBanner: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     backgroundColor: colors.surfaceAlt,
     padding: spacing.md,
     borderRadius: radius.md,
-    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  packageIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
   },
   packageBannerTitle: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
-    color: colors.foreground,
+    color: colors.foregroundDark,
   },
   packageBannerSub: {
     fontSize: typography.sizes.xs,
     color: colors.foregroundMuted,
     marginTop: 2,
+    lineHeight: 16,
+  },
+  metricsChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginVertical: spacing.sm,
+  },
+  metricChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.border,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+  },
+  metricChipText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundDark,
+    fontWeight: "600",
   },
   dishesSection: {
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
   },
   subHeading: {
-    fontSize: typography.sizes.xs,
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.foregroundMuted,
     textTransform: "uppercase",
@@ -1372,142 +2083,238 @@ const styles = StyleSheet.create({
   dishesGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.xs,
+    gap: 6,
   },
   dishPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
     backgroundColor: colors.surfaceAlt,
+    borderColor: colors.borderLight,
+    borderWidth: 1,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderRadius: radius.sm,
   },
   dishPillText: {
     fontSize: 11,
-    color: colors.foreground,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundDark,
     fontWeight: "500",
   },
   dietaryBox: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "#fef3c7",
+    backgroundColor: "#FEF3C7",
+    borderColor: "#FDE68A",
+    borderWidth: 1,
     padding: spacing.sm,
-    borderRadius: radius.sm,
+    borderRadius: radius.md,
     marginTop: spacing.md,
   },
   dietaryTitle: {
     fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
-    color: "#92400e",
+    color: "#92400E",
   },
   dietaryDesc: {
     fontSize: 11,
-    color: "#92400e",
+    color: "#92400E",
     marginTop: 2,
+    lineHeight: 15,
   },
-  managerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  managerAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.md,
-  },
-  managerName: {
-    fontSize: typography.sizes.base,
-    fontWeight: "700",
-    color: colors.foreground,
-  },
-  managerPhone: {
-    fontSize: typography.sizes.xs,
-    color: colors.foregroundMuted,
-    marginTop: 2,
-  },
-  unassignedNotice: {
-    fontSize: typography.sizes.xs,
-    color: colors.foregroundMuted,
-    fontStyle: "italic",
-  },
-  ocularStatusBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surfaceAlt,
-    padding: spacing.md,
-    borderRadius: radius.md,
-  },
-  ocularTitle: {
-    fontSize: typography.sizes.sm,
-    fontWeight: "700",
-    color: colors.foreground,
-  },
-  ocularDesc: {
-    fontSize: typography.sizes.xs,
-    color: colors.foregroundMuted,
-    marginTop: 2,
-  },
-  ocularNoteText: {
-    fontSize: typography.sizes.xs,
-    color: colors.foregroundMuted,
-    lineHeight: 18,
-    marginBottom: spacing.md,
-  },
-  ocularActionsRow: {
-    flexDirection: "row",
-  },
+
+  // ── Payment Card ──
   financeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: spacing.sm,
+    paddingVertical: 6,
   },
   financeLabel: {
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.xs,
     color: colors.foregroundMuted,
   },
   financeValue: {
-    fontSize: typography.sizes.base,
-    fontWeight: "800",
-    color: colors.primary,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foregroundDark,
   },
   financeSubValue: {
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.semiBold,
     fontWeight: "600",
-    color: colors.foreground,
+    color: colors.foregroundDark,
   },
+  financeBalanceRow: {
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+    paddingTop: spacing.sm,
+    marginTop: 4,
+  },
+  financeBalanceLabel: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foregroundDark,
+  },
+  financeBalanceValue: {
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "800",
+  },
+  overdueAlertBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+    borderWidth: 1,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    marginTop: spacing.sm,
+  },
+  overdueAlertText: {
+    fontSize: 11,
+    color: colors.error,
+    fontWeight: "600",
+    flex: 1,
+  },
+
+  // ── Manager Card ──
+  managerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  managerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  managerName: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foregroundDark,
+  },
+  managerRole: {
+    fontSize: typography.sizes.xs,
+    color: colors.foregroundMuted,
+    marginTop: 1,
+  },
+  unassignedBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.xs,
+    backgroundColor: colors.surfaceAlt,
+    padding: spacing.sm + 2,
+    borderRadius: radius.md,
+  },
+  unassignedNotice: {
+    fontSize: typography.sizes.xs,
+    color: colors.foregroundMuted,
+    lineHeight: 16,
+    flex: 1,
+  },
+  contactOnFileBox: {
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+  },
+  contactOnFileLabel: {
+    fontSize: 11,
+    color: colors.foregroundMuted,
+  },
+  contactOnFileValue: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.semiBold,
+    fontWeight: "600",
+    color: colors.foregroundDark,
+    marginTop: 1,
+  },
+
+  // ── Ocular Card ──
+  ocularStatusBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceAlt,
+    padding: spacing.sm + 2,
+    borderRadius: radius.md,
+    borderColor: colors.borderLight,
+    borderWidth: 1,
+  },
+  ocularTitle: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foregroundDark,
+  },
+  ocularDesc: {
+    fontSize: 11,
+    color: colors.foregroundMuted,
+    marginTop: 1,
+  },
+  ocularSkippedBox: {
+    backgroundColor: colors.surfaceAlt,
+    padding: spacing.sm + 2,
+    borderRadius: radius.md,
+  },
+  ocularSkippedText: {
+    fontSize: typography.sizes.xs,
+    color: colors.foregroundMuted,
+    fontStyle: "italic",
+  },
+  ocularNoteText: {
+    fontSize: typography.sizes.xs,
+    color: colors.foregroundMuted,
+    lineHeight: 17,
+    marginBottom: spacing.md,
+  },
+  ocularActionsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+
+  // ── Rating & Review ──
   verifiedRatingBox: {
     backgroundColor: colors.surfaceAlt,
     padding: spacing.md,
     borderRadius: radius.md,
+    borderColor: colors.borderLight,
+    borderWidth: 1,
   },
   starsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 3,
     marginBottom: spacing.xs,
   },
   ratingScoreText: {
     marginLeft: spacing.xs,
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
-    color: colors.foreground,
+    color: colors.foregroundDark,
   },
   savedReviewText: {
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.xs,
     fontStyle: "italic",
-    color: colors.foreground,
+    color: colors.foregroundDark,
     marginVertical: spacing.xs,
+    lineHeight: 16,
   },
   verifiedBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: 4,
+    marginTop: 2,
   },
   verifiedBadgeText: {
     fontSize: 10,
@@ -1526,43 +2333,46 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   starBtn: {
-    width: 44,
-    height: 44,
+    width: 36,
+    height: 36,
     alignItems: "center",
     justifyContent: "center",
   },
   reviewInput: {
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.md,
-    fontSize: typography.sizes.base,
-    color: colors.foreground,
-    minHeight: 80,
+    fontSize: typography.sizes.sm,
+    color: colors.foregroundDark,
+    minHeight: 72,
     textAlignVertical: "top",
   },
+
+  // ── Cancellation ──
   cancelBookingBtn: {
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 44,
     paddingVertical: spacing.md,
-    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
   cancelBookingText: {
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.xs,
     color: colors.error,
-    fontWeight: "700",
+    fontWeight: "600",
   },
+
+  // ── Modals ──
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
     justifyContent: "center",
-    padding: spacing.lg,
+    padding: spacing.base,
   },
   modalContainer: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     padding: spacing.lg,
     ...shadows.lg,
   },
@@ -1574,8 +2384,9 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: typography.sizes.base,
-    fontWeight: "800",
-    color: colors.foreground,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foregroundDark,
   },
   modalSub: {
     fontSize: typography.sizes.xs,
@@ -1584,6 +2395,7 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.semiBold,
     fontWeight: "600",
     color: colors.foregroundMuted,
     marginBottom: 4,
@@ -1592,13 +2404,13 @@ const styles = StyleSheet.create({
   modalInput: {
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
-    fontSize: typography.sizes.base,
-    color: colors.foreground,
-    minHeight: 48,
+    fontSize: typography.sizes.sm,
+    color: colors.foregroundDark,
+    minHeight: 44,
   },
   pkgOption: {
     flexDirection: "row",
@@ -1607,7 +2419,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.border,
     marginBottom: spacing.sm,
   },
   pkgOptionSelected: {
@@ -1616,8 +2428,9 @@ const styles = StyleSheet.create({
   },
   pkgOptionTitle: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
-    color: colors.foreground,
+    color: colors.foregroundDark,
   },
   pkgOptionPrice: {
     fontSize: typography.sizes.xs,
@@ -1627,3 +2440,4 @@ const styles = StyleSheet.create({
 });
 
 export default BookingDetailScreen;
+

@@ -212,7 +212,7 @@ function WalkInPackageCard({ pkg, isSelected, onSelect }) {
       <article
         onClick={onSelect}
         className={cn(
-          "ls-pkg ls-offer relative transition-all duration-200 cursor-pointer select-none",
+          "ls-pkg ls-pkg--combo relative transition-all duration-200 cursor-pointer select-none",
           isSelected
             ? "!border-amber-400 ring-2 ring-amber-400 shadow-xl"
             : "hover:border-amber-300"
@@ -226,9 +226,11 @@ function WalkInPackageCard({ pkg, isSelected, onSelect }) {
               loading="lazy"
             />
           ) : (
-            <div className="ls-pkg-media-empty">{pkg.name}</div>
+            <div className="ls-pkg-media-empty">
+              <Package size={34} strokeWidth={1.5} className="ls-pkg-empty-icon" aria-hidden="true" />
+            </div>
           )}
-          <span className="ls-offer-tag">Combo pack</span>
+          <span className="ls-pkg-tag ls-pkg-tag--combo">Combo Pack</span>
           {isSelected && (
             <span className="absolute right-3 top-3 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-slate-950 shadow-md">
               <Check size={13} strokeWidth={3} />
@@ -238,17 +240,23 @@ function WalkInPackageCard({ pkg, isSelected, onSelect }) {
 
         <div className="ls-pkg-body">
           <h3>{pkg.name}</h3>
+          <p className="ls-pkg-desc">{pkg.description || "\u00A0"}</p>
 
-          {perPax > 0 && (
-            <p className="ls-offer-price">
-              <strong>{peso(perPax)}</strong>
-              <span>per pax</span>
-            </p>
-          )}
-
-          {pkg.description && (
-            <p className="ls-pkg-desc">{pkg.description}</p>
-          )}
+          <dl className="ls-pkg-facts">
+            <div className="ls-pkg-fact">
+              <dt>Price</dt>
+              <dd className="ls-pkg-price-val">
+                {perPax > 0 ? (
+                  <>
+                    <strong className="ls-pkg-price-amount">{peso(perPax)}</strong>
+                    <span className="ls-pkg-price-sub">per pax</span>
+                  </>
+                ) : (
+                  <strong className="ls-pkg-price-text">Quoted per event</strong>
+                )}
+              </dd>
+            </div>
+          </dl>
 
           <div className="ls-pkg-actions">
             <button
@@ -282,7 +290,7 @@ function WalkInPackageCard({ pkg, isSelected, onSelect }) {
     <article
       onClick={onSelect}
       className={cn(
-        "ls-pkg relative transition-all duration-200 cursor-pointer select-none",
+        "ls-pkg ls-pkg--standard relative transition-all duration-200 cursor-pointer select-none",
         isSelected
           ? "!border-[#4C81E0] ring-2 ring-[#4C81E0] shadow-md bg-blue-50/15"
           : "hover:border-slate-300"
@@ -296,13 +304,13 @@ function WalkInPackageCard({ pkg, isSelected, onSelect }) {
             loading="lazy"
           />
         ) : (
-          <div className="ls-pkg-media-empty">{pkg.name}</div>
+          <div className="ls-pkg-media-empty">
+            <Package size={34} strokeWidth={1.5} className="ls-pkg-empty-icon" aria-hidden="true" />
+          </div>
         )}
-        {event ? (
-          <span className="ls-pkg-tag">{event}</span>
-        ) : (
-          <span className="ls-pkg-tag">{pkg.package_type || "Package"}</span>
-        )}
+        <span className="ls-pkg-tag">
+          {event || service || pkg.package_type || "Package"}
+        </span>
         {isSelected && (
           <span className="absolute right-3 top-3 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-[#4C81E0] text-white shadow-md">
             <Check size={13} strokeWidth={3} />
@@ -312,10 +320,7 @@ function WalkInPackageCard({ pkg, isSelected, onSelect }) {
 
       <div className="ls-pkg-body">
         <h3>{pkg.name}</h3>
-        {service && <p className="ls-pkg-service">{service}</p>}
-        {pkg.description && (
-          <p className="ls-pkg-desc">{pkg.description}</p>
-        )}
+        <p className="ls-pkg-desc">{pkg.description || "\u00A0"}</p>
 
         <dl className="ls-pkg-facts">
           <div className="ls-pkg-fact">
@@ -336,14 +341,14 @@ function WalkInPackageCard({ pkg, isSelected, onSelect }) {
               )}
             </dd>
           </div>
-          {capacity && (
-            <div className="ls-pkg-fact">
-              <dt>Estimated Guests</dt>
-              <dd>
-                <strong className="ls-pkg-guests-val">{capacity}</strong>
-              </dd>
-            </div>
-          )}
+          <div className="ls-pkg-fact">
+            <dt>Estimated Guests</dt>
+            <dd>
+              <strong className="ls-pkg-guests-val">
+                {capacity || "Flexible capacity"}
+              </strong>
+            </dd>
+          </div>
         </dl>
 
         <div className="ls-pkg-actions">

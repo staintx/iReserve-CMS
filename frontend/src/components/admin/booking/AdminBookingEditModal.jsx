@@ -399,6 +399,7 @@ export default function AdminBookingEditModal({
 
   // Section 7: Revision & Admin Notes
   const [revisionNote, setRevisionNote] = useState("");
+  const [blockedDates, setBlockedDates] = useState([]);
 
   // UI State
   const [errors, setErrors] = useState({});
@@ -415,9 +416,17 @@ export default function AdminBookingEditModal({
       AdminAPI.getPackages(),
       AdminAPI.getMenu(),
       AdminAPI.getAddons(),
+      AdminAPI.getBlockedDates(),
     ])
-      .then(([pkgRes, menuRes, addonRes]) => {
+      .then(([pkgRes, menuRes, addonRes, blockedRes]) => {
         if (!alive) return;
+        if (blockedRes.status === "fulfilled" && Array.isArray(blockedRes.value?.data)) {
+          setBlockedDates(
+            blockedRes.value.data
+              .map((b) => (b.date ? String(b.date).split("T")[0] : null))
+              .filter(Boolean)
+          );
+        }
         setPackagesList(pkgRes.status === "fulfilled" ? pkgRes.value?.data || [] : []);
         setCatalogMenuItems(menuRes.status === "fulfilled" ? menuRes.value?.data || [] : []);
         setCatalogAddons(addonRes.status === "fulfilled" ? addonRes.value?.data || [] : []);
@@ -1116,6 +1125,12 @@ export default function AdminBookingEditModal({
     }
     if (!details.event_date) {
       newErrors.event_date = "Event date is required";
+    } else if (
+      blockedDates.includes(details.event_date) &&
+      details.event_date !== toDateInput(booking.event_date)
+    ) {
+      newErrors.event_date =
+        "This date is currently unavailable because it has been blocked by the administrator. Please select another date.";
     }
     if (!details.start_time) {
       newErrors.start_time = "Start time is required";
@@ -1526,6 +1541,13 @@ export default function AdminBookingEditModal({
                           onChange={(e) => setDetail("event_date", e.target.value)}
                           className={`${inputClass(errors.event_date)} py-1.5 text-xs`}
                         />
+                        {details.event_date &&
+                          blockedDates.includes(details.event_date) &&
+                          details.event_date !== toDateInput(booking.event_date) && (
+                            <span className="text-[10.5px] text-rose-600 font-semibold mt-1 block">
+                              ⚠ This date is currently blocked by an administrator.
+                            </span>
+                          )}
                         <span className="text-[10px] text-slate-400 mt-1 block">Scheduled date</span>
                       </Field>
                     </div>

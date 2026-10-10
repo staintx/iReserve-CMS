@@ -1327,6 +1327,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
   const [availability, setAvailability] = useState({ status: "idle", message: "" });
   const [suggestedDates, setSuggestedDates] = useState([]);
   const [availabilityNonce, setAvailabilityNonce] = useState(0);
+  const [blockedDates, setBlockedDates] = useState([]);
 
   // Form State
   const [form, setForm] = useState(EMPTY_FORM);
@@ -1342,8 +1343,9 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       AdminAPI.getCustomers(),
       CustomerAPI.getAddons(),
       CustomerAPI.getBusinessInfo(),
+      AdminAPI.getBlockedDates().catch(() => ({ data: [] })),
     ])
-      .then(([pkgRes, menuRes, custRes, addRes, bizRes]) => {
+      .then(([pkgRes, menuRes, custRes, addRes, bizRes, blockedRes]) => {
         setPackages(Array.isArray(pkgRes.data) ? pkgRes.data : []);
         setMenuItems(
           (Array.isArray(menuRes.data) ? menuRes.data : []).filter(
@@ -1360,6 +1362,10 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         if (bizRes.data?.deposit_percentage) {
           setDepositPercent(bizRes.data.deposit_percentage);
         }
+        const bDates = (Array.isArray(blockedRes?.data) ? blockedRes.data : [])
+          .map((b) => (b.date ? String(b.date).split("T")[0] : null))
+          .filter(Boolean);
+        setBlockedDates(bDates);
       })
       .catch(() => notify("Failed to load catalog data.", "error"))
       .finally(() => setLoadingCatalogs(false));
@@ -2976,6 +2982,9 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         if (!form.event_date) {
           errs.event_date = "Please choose an event date.";
           msg = "Choose an event date.";
+        } else if (blockedDates.includes(form.event_date)) {
+          errs.event_date = "This date is currently unavailable because it has been blocked by the administrator. Please select another date.";
+          msg = "This date is currently unavailable because it has been blocked by the administrator. Please select another date.";
         } else if (!form.start_time) {
           errs.start_time = "Please choose a start time.";
           msg = "Choose a start time.";
@@ -3274,6 +3283,22 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
     setSubmitting(true);
     try {
+      if (form.event_date) {
+        try {
+          const freshBlocked = await AdminAPI.getBlockedDates();
+          const freshKeys = (Array.isArray(freshBlocked?.data) ? freshBlocked.data : [])
+            .map((b) => (b.date ? String(b.date).split("T")[0] : null))
+            .filter(Boolean);
+          if (freshKeys.includes(form.event_date)) {
+            notify("This date is currently unavailable because it has been blocked by the administrator. Please select another date.", "error");
+            setSubmitting(false);
+            return;
+          }
+        } catch {
+          // Backend will also validate
+        }
+      }
+
       const cleanPhone = (val) => (val ? String(val).replace(/\s+/g, "") : undefined);
       const cleanZip =
         form.zip_code && /^\d{4}$/.test(form.zip_code.trim())
@@ -3594,6 +3619,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
                   requireAvailabilityCheck={requireAvailabilityCheck}
                   onRetryAvailability={() => setAvailabilityNonce((n) => n + 1)}
                   leadTimeDays={0}
+                  blockedDates={blockedDates}
                 />
               )}
 

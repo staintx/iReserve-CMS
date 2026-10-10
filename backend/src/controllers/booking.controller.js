@@ -8,6 +8,7 @@ const MenuItem = require("../models/MenuItem");
 const BusinessInfo = require("../models/BusinessInfo");
 const BlockedDate = require("../models/BlockedDate");
 const User = require("../models/User");
+const { checkDateBlocked, BLOCKED_DATE_MESSAGE } = require("../utils/blockedDates");
 const { MAX_FINANCIAL_AMOUNT } = require("../validations/rules.common");
 const {
   isBookingAwaitingDeposit,
@@ -594,11 +595,9 @@ exports.create = asyncHandler(async (req, res) => {
   }
 
   // Check Blocked Dates
-  const parsedEventDate = new Date(req.body.event_date);
-  parsedEventDate.setHours(0, 0, 0, 0);
-  const blocked = await BlockedDate.findOne({ date: parsedEventDate });
+  const blocked = await checkDateBlocked(req.body.event_date);
   if (blocked) {
-    return res.status(409).json({ message: `This date is blocked: ${blocked.reason || 'Unavailable'}` });
+    return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
   }
 
   // Conflict checks (max bookings, schedule conflicts, inventory) are bypassed during inquiry creation
@@ -833,11 +832,9 @@ exports.update = asyncHandler(async (req, res) => {
     }
 
     // Check Blocked Dates
-    const parsedEventDate = new Date(req.body.event_date);
-    parsedEventDate.setHours(0, 0, 0, 0);
-    const blocked = await BlockedDate.findOne({ date: parsedEventDate });
+    const blocked = await checkDateBlocked(req.body.event_date);
     if (blocked) {
-      return res.status(409).json({ message: `This date is blocked: ${blocked.reason || 'Unavailable'}` });
+      return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
     }
 
     // Check Max Bookings Limit (exclude current booking)
@@ -1646,6 +1643,13 @@ exports.requestChange = asyncHandler(async (req, res) => {
 
   const isUpdate = booking.change_request?.status === "pending";
 
+  if (req.body.event_date) {
+    const blocked = await checkDateBlocked(req.body.event_date);
+    if (blocked) {
+      return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
+    }
+  }
+
   booking.change_request = {
     status: "pending",
     message: requestMessage,
@@ -1852,16 +1856,14 @@ exports.checkAvailability = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Event date is required" });
   }
 
-  const parsedEventDate = new Date(req.query.event_date);
-  parsedEventDate.setHours(0, 0, 0, 0);
-  const blocked = await BlockedDate.findOne({ date: parsedEventDate });
+  const blocked = await checkDateBlocked(req.query.event_date);
   if (blocked) {
     return res.json({
       available: false,
       conflict_id: null,
       inventory_issue: null,
       blocked: true,
-      reason: blocked.reason || "This date is unavailable."
+      reason: BLOCKED_DATE_MESSAGE
     });
   }
 
@@ -2262,6 +2264,11 @@ exports.scheduleOcular = asyncHandler(async (req, res) => {
   if (!scheduled_date)
     return res.status(400).json({ message: "Scheduled date is required" });
 
+  const ocularBlocked = await checkDateBlocked(scheduled_date);
+  if (ocularBlocked) {
+    return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
+  }
+
   const parseDateKey = (val) => {
     if (!val) return null;
     const d = new Date(val);
@@ -2447,6 +2454,11 @@ exports.requestOcular = asyncHandler(async (req, res) => {
   const selectedDateKey = parseDateKey(scheduled_date);
   if (!selectedDateKey) {
     return res.status(400).json({ message: "Invalid scheduled date format." });
+  }
+
+  const ocularBlocked = await checkDateBlocked(scheduled_date);
+  if (ocularBlocked) {
+    return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
   }
 
   const todayKey = parseDateKey(new Date());
@@ -2913,6 +2925,13 @@ exports.resolveChangeRequest = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "No pending change request found." });
   }
 
+  if (req.body.status === "approved" && booking.pending_revision?.proposed_snapshot?.event_date) {
+    const blocked = await checkDateBlocked(booking.pending_revision.proposed_snapshot.event_date);
+    if (blocked) {
+      return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
+    }
+  }
+
   booking.change_request.status = req.body.status; // 'approved' or 'rejected'
   booking.change_request.resolved_at = new Date();
 
@@ -2969,6 +2988,14 @@ exports.proposeRevision = asyncHandler(async (req, res) => {
     }
     if (event_date !== undefined && !event_date) {
       return res.status(400).json({ message: "Target event date is required." });
+    }
+  }
+
+  const targetRevisionDate = event_date || proposed_changes?.event_date?.to;
+  if (targetRevisionDate) {
+    const blocked = await checkDateBlocked(targetRevisionDate);
+    if (blocked) {
+      return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
     }
   }
 
@@ -3097,6 +3124,13 @@ exports.acceptRevision = asyncHandler(async (req, res) => {
   }
 
   const snapshot = booking.pending_revision.proposed_snapshot || {};
+
+  if (snapshot.event_date) {
+    const blocked = await checkDateBlocked(snapshot.event_date);
+    if (blocked) {
+      return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
+    }
+  }
 
   // Apply snapshot to live booking
   if (snapshot.event_date) booking.event_date = snapshot.event_date;
@@ -3539,6 +3573,13 @@ exports.executeInquiryConversion = async ({
     try { businessInfo = await BusinessInfo.findOne(); } catch (e) { }
     const depositPercentage = businessInfo?.deposit_percentage ?? 20;
     depositAmount = (totalPrice * depositPercentage) / 100;
+  }
+
+  if (inquiry.event_date) {
+    const blocked = await checkDateBlocked(inquiry.event_date);
+    if (blocked) {
+      throw new Error(BLOCKED_DATE_MESSAGE);
+    }
   }
 
   // If already converted, return existing booking (checking both converted_booking_id and inquiry_id)

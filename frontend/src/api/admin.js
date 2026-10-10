@@ -14,7 +14,7 @@ export const AdminAPI = {
   // Blocked Dates
   getBlockedDates: () => api.get("/blocked-dates"),
   blockDate: (data) => api.post("/blocked-dates", data),
-  unblockDate: (id) => api.delete(`/blocked-dates/${id}`),
+  unblockDate: (id, range = false) => api.delete(`/blocked-dates/${id}${range ? "?range=true" : ""}`),
 
   // Inquiries
   getInquiries: () => api.get("/inquiries"),

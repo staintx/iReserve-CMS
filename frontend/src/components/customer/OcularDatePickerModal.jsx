@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { 
   Calendar as CalendarIcon, 
   Clock, 
@@ -7,10 +7,12 @@ import {
   CheckCircle2, 
   X, 
   CalendarDays,
-  AlertTriangle
+  AlertTriangle,
+  AlertCircle
 } from "lucide-react";
 import { Dialog, DialogContent } from "../ui/dialog";
 import { cn } from "@/lib/utils";
+import { CustomerAPI } from "../../api/customer";
 
 const TIME_SLOTS = [
   "08:00 AM",
@@ -119,6 +121,24 @@ export default function OcularDatePickerModal({
     return maxAllowedDate ? getDateKey(maxAllowedDate) : "";
   }, [maxAllowedDate]);
 
+  const [blockedDates, setBlockedDates] = useState([]);
+  const [validationError, setValidationError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    CustomerAPI.getBlockedDates()
+      .then((res) => {
+        if (mounted && Array.isArray(res.data)) {
+          const keys = res.data
+            .map((b) => (b.date ? String(b.date).split("T")[0] : null))
+            .filter(Boolean);
+          setBlockedDates(keys);
+        }
+      })
+      .catch((err) => console.error("Failed to load blocked dates for ocular modal", err));
+    return () => { mounted = false; };
+  }, []);
+
   // Check if there are ANY valid dates between TODAY and EVENT_DATE
   // Selectable dates must satisfy: TODAY < selectedDate < EVENT_DATE
   const hasAvailableDates = useMemo(() => {
@@ -134,9 +154,10 @@ export default function OcularDatePickerModal({
       if (!key) return false;
       if (key < minAllowedDateKey) return false; // TODAY or earlier
       if (maxAllowedDateKey && key > maxAllowedDateKey) return false; // EVENT_DATE or later
+      if (blockedDates.includes(key)) return false; // Admin-blocked date
       return true;
     };
-  }, [minAllowedDateKey, maxAllowedDateKey]);
+  }, [minAllowedDateKey, maxAllowedDateKey, blockedDates]);
 
   const [selectedDate, setSelectedDate] = useState(() => {
     if (initialDate) {
@@ -203,14 +224,39 @@ export default function OcularDatePickerModal({
   };
 
   const handleSelectDay = (dateObj) => {
-    if (!dateObj || !isDateValid(dateObj)) return;
-    setSelectedDate(getDateKey(dateObj));
+    setValidationError("");
+    if (!dateObj) return;
+    const key = getDateKey(dateObj);
+    if (blockedDates.includes(key)) {
+      setValidationError("This date is currently unavailable because it has been blocked by the administrator. Please select another date.");
+      return;
+    }
+    if (!isDateValid(dateObj)) return;
+    setSelectedDate(key);
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
+    setValidationError("");
     if (!hasAvailableDates) return;
     if (!selectedDate || !selectedTime) return;
+    try {
+      const freshBlocked = await CustomerAPI.getBlockedDates();
+      const freshKeys = (Array.isArray(freshBlocked.data) ? freshBlocked.data : [])
+        .map((b) => (b.date ? String(b.date).split("T")[0] : null))
+        .filter(Boolean);
+      if (freshKeys.includes(selectedDate)) {
+        setBlockedDates(freshKeys);
+        setValidationError("This date is currently unavailable because it has been blocked by the administrator. Please select another date.");
+        return;
+      }
+    } catch {
+      // Backend will still validate
+    }
+    if (blockedDates.includes(selectedDate)) {
+      setValidationError("This date is currently unavailable because it has been blocked by the administrator. Please select another date.");
+      return;
+    }
     const parsed = parseLocalDate(selectedDate);
     if (!isDateValid(parsed)) return;
     onSubmit(selectedDate, selectedTime);
@@ -256,6 +302,14 @@ export default function OcularDatePickerModal({
           {/* Scrollable Body */}
           <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
             
+            {/* Blocked Date or Validation Notice */}
+            {validationError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-900 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>{validationError}</span>
+              </div>
+            )}
+
             {/* Wedding Ocular Lead Time Policy Notice */}
             {isWedding && hasAvailableDates && (
               <div className="p-3 bg-amber-500/10 border border-amber-300 dark:border-amber-700/60 rounded-xl flex items-start gap-2.5 text-xs text-amber-950 dark:text-amber-200">
@@ -326,6 +380,7 @@ export default function OcularDatePickerModal({
                   if (!d) return <div key={`empty-${idx}`} className="h-8 sm:h-9" />;
                   
                   const dateKey = getDateKey(d);
+                  const isBlocked = blockedDates.includes(dateKey);
                   const isValid = isDateValid(d);
                   const isSelected = isValid && effectiveSelectedDate === dateKey;
                   const isToday = dateKey === todayKey;
@@ -338,9 +393,16 @@ export default function OcularDatePickerModal({
                       disabled={!isValid}
                       onClick={() => handleSelectDay(d)}
                       aria-disabled={!isValid}
+                      title={
+                        isBlocked
+                          ? "This date is currently unavailable because it has been blocked by the administrator."
+                          : undefined
+                      }
                       className={cn(
                         "h-8 sm:h-9 rounded-xl text-xs font-semibold transition-all flex items-center justify-center relative select-none",
-                        !isValid
+                        isBlocked
+                          ? "text-rose-300 bg-rose-50/70 border border-rose-200/50 cursor-not-allowed text-[11px] opacity-60 line-through"
+                          : !isValid
                           ? "text-slate-300/80 bg-slate-100/50 border border-slate-100/70 cursor-not-allowed text-[11px] opacity-40 pointer-events-none"
                           : isSelected
                             ? "bg-[#2C4B8A] text-white font-bold shadow-md shadow-[#2C4B8A]/25 scale-[1.03] border border-[#2C4B8A] cursor-pointer"
@@ -362,6 +424,16 @@ export default function OcularDatePickerModal({
                     </button>
                   );
                 })}
+              </div>
+
+              {/* Indicator Legend */}
+              <div className="pt-2 flex items-center justify-center gap-3.5 text-[10px] text-slate-400 font-medium">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-[#2C4B8A]" /> Selected
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-rose-400" /> Blocked by Admin
+                </span>
               </div>
             </div>
 

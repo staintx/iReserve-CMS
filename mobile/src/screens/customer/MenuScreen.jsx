@@ -22,9 +22,10 @@ import customerApi from "../../api/customer";
 import Header from "../../components/common/Header";
 import Card from "../../components/common/Card";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
+import EmptyState from "../../components/common/EmptyState";
+import ErrorState from "../../components/common/ErrorState";
+import DishCard from "../../components/common/DishCard";
 import DishDetailModal from "../../components/common/DishDetailModal";
-import { resolveDishImage } from "../../constants/cateringData";
-import { formatCurrency } from "../../utils/format";
 
 export const MenuScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -32,6 +33,7 @@ export const MenuScreen = ({ navigation }) => {
   const [dishes, setDishes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [selectedDish, setSelectedDish] = useState(null);
@@ -39,10 +41,12 @@ export const MenuScreen = ({ navigation }) => {
   const loadMenu = useCallback(async () => {
     try {
       setLoading(true);
+      setError("");
       const data = await customerApi.getMenu();
       setDishes(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Failed to load menu dishes:", error);
+    } catch (err) {
+      console.error("Failed to load menu dishes:", err);
+      setError("Unable to load culinary menu. Please check your connection.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -100,9 +104,15 @@ export const MenuScreen = ({ navigation }) => {
           placeholderTextColor={colors.textDisabled}
           value={searchQuery}
           onChangeText={setSearchQuery}
+          returnKeyType="search"
+          accessibilityLabel="Search dishes"
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery("")}>
+          <TouchableOpacity
+            onPress={() => setSearchQuery("")}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Clear search"
+          >
             <X size={16} color={colors.foregroundMuted} />
           </TouchableOpacity>
         )}
@@ -123,6 +133,8 @@ export const MenuScreen = ({ navigation }) => {
                 style={[styles.pill, isSelected && styles.pillActive]}
                 onPress={() => setActiveCategory(cat)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
               >
                 <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>
                   {cat === "all" ? "All Courses" : cat}
@@ -133,54 +145,66 @@ export const MenuScreen = ({ navigation }) => {
         </ScrollView>
       </View>
 
-      {/* Dishes Grid */}
+      {/* Dishes List */}
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.xxl }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          (filteredDishes.length === 0 || Boolean(error && dishes.length === 0)) &&
+            styles.scrollContentEmpty,
+          { paddingBottom: Math.max(insets.bottom, 16) + 120 },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
         }
       >
-        {loading ? (
-          <View style={{ gap: spacing.md }}>
-            <SkeletonLoader height={100} borderRadius={radius.lg} />
-            <SkeletonLoader height={100} borderRadius={radius.lg} />
-            <SkeletonLoader height={100} borderRadius={radius.lg} />
+        {error && dishes.length === 0 ? (
+          <ErrorState
+            title="Unable to Load Menu"
+            message={error}
+            onRetry={loadMenu}
+          />
+        ) : loading ? (
+          <View style={{ gap: spacing.sm }}>
+            <SkeletonLoader height={104} borderRadius={radius.xl} />
+            <SkeletonLoader height={104} borderRadius={radius.xl} />
+            <SkeletonLoader height={104} borderRadius={radius.xl} />
           </View>
         ) : filteredDishes.length === 0 ? (
-          <Card style={styles.emptyCard} variant="flat">
-            <Utensils size={36} color={colors.textDisabled} />
-            <Text style={styles.emptyTitle}>No Dishes Found</Text>
-            <Text style={styles.emptySub}>Try searching for a different dish name or category.</Text>
-          </Card>
+          <EmptyState
+            icon={Utensils}
+            title={
+              searchQuery || activeCategory !== "all"
+                ? "No Dishes Match Your Search"
+                : "No Dishes Found"
+            }
+            description={
+              searchQuery || activeCategory !== "all"
+                ? "Try searching for a different dish name or clear course filters."
+                : "Our culinary catering menu is currently being refreshed."
+            }
+            actionLabel={
+              searchQuery || activeCategory !== "all"
+                ? "Reset Menu Filters"
+                : "Browse Packages"
+            }
+            onAction={
+              searchQuery || activeCategory !== "all"
+                ? () => {
+                    setSearchQuery("");
+                    setActiveCategory("all");
+                  }
+                : () => navigation.navigate("Packages")
+            }
+          />
         ) : (
-          filteredDishes.map((dish) => {
-            const img = resolveDishImage(dish);
-            return (
-              <Card
-                key={dish._id}
-                style={styles.dishCard}
-                onPress={() => setSelectedDish(dish)}
-              >
-                <Image source={{ uri: img }} style={styles.dishImage} resizeMode="cover" />
-                <View style={styles.dishContent}>
-                  <View style={styles.courseBadge}>
-                    <Text style={styles.courseBadgeText}>{dish.category || "Main Course"}</Text>
-                  </View>
-                  <Text style={styles.dishName}>{dish.name}</Text>
-                  {dish.description ? (
-                    <Text style={styles.dishDesc} numberOfLines={2}>
-                      {dish.description}
-                    </Text>
-                  ) : null}
-                  {dish.price > 0 ? (
-                    <Text style={styles.dishPrice}>{formatCurrency(dish.price)}</Text>
-                  ) : null}
-                </View>
-                <ChevronRight size={18} color={colors.border} style={{ alignSelf: "center" }} />
-              </Card>
-            );
-          })
+          filteredDishes.map((dish) => (
+            <DishCard
+              key={dish._id || dish.name}
+              dish={dish}
+              onPress={() => setSelectedDish(dish)}
+            />
+          ))
         )}
       </ScrollView>
 
@@ -189,11 +213,9 @@ export const MenuScreen = ({ navigation }) => {
         visible={Boolean(selectedDish)}
         dish={selectedDish}
         onClose={() => setSelectedDish(null)}
-        onSelectDish={(dish) => {
+        onSelectDish={() => {
           setSelectedDish(null);
-          navigation.navigate("InquiryWizard", {
-            favoriteDish: dish.name,
-          });
+          navigation.navigate("InquiryWizard");
         }}
       />
     </View>
@@ -256,6 +278,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: spacing.base,
     gap: spacing.sm,
+  },
+  scrollContentEmpty: {
+    flexGrow: 1,
+    justifyContent: "center",
   },
   dishCard: {
     flexDirection: "row",

@@ -10,6 +10,7 @@ export const CACHE_KEYS = {
   INQUIRIES: "customer_inquiries",
   STAFF_SHIFTS: "staff_shifts_active",
   NOTIFICATIONS: "notifications_feed",
+  RATINGS: "public_ratings",
 };
 
 /**

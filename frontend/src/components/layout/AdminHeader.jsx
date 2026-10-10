@@ -14,7 +14,7 @@ const ROUTE_MAP = {
   "/admin/payments": { section: "Finance", title: "Payments" },
   "/admin/refunds": { section: "Finance", title: "Refunds" },
   "/admin/bookings/inquiries": { section: "Bookings", title: "Inquiries" },
-  "/admin/quotes": { section: "Bookings", title: "Quotations" },
+  "/admin/quotes": { section: "Bookings", title: "Inquiries" },
   "/admin/bookings/reservations": { section: "Bookings", title: "Reservations" },
   "/admin/bookings/ocular": { section: "Bookings", title: "Ocular Visits" },
   "/admin/bookings/history": { section: "Bookings", title: "Event History" },

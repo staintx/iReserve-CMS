@@ -475,7 +475,10 @@ exports.saveQuotationDraft = asyncHandler(async (req, res) => {
   // move until the quotation is actually sent.
 
   const io = req.app.get("io");
-  if (io) io.emit("system:refresh", { type: "quotation", action: "draft" });
+  if (io) {
+    io.emit("system:refresh", { type: "quotation", action: "draft", inquiryId: inquiry_id });
+    io.emit("system:refresh", { type: "inquiry", action: "update", id: inquiry_id });
+  }
 
   res.status(200).json(draft);
 });
@@ -488,7 +491,10 @@ exports.deleteQuotationDraft = asyncHandler(async (req, res) => {
   await draft.deleteOne();
 
   const io = req.app.get("io");
-  if (io) io.emit("system:refresh", { type: "quotation", action: "draft" });
+  if (io) {
+    io.emit("system:refresh", { type: "quotation", action: "draft", inquiryId: req.params.inquiryId });
+    io.emit("system:refresh", { type: "inquiry", action: "update", id: req.params.inquiryId });
+  }
 
   res.json({ message: "Draft discarded" });
 });
@@ -597,7 +603,10 @@ exports.createQuotation = asyncHandler(async (req, res) => {
     }, io);
   }
 
-  if (io) io.emit("system:refresh", { type: "quotation", action: "create" });
+  if (io) {
+    io.emit("system:refresh", { type: "quotation", action: "create", inquiryId: inquiry._id });
+    io.emit("system:refresh", { type: "inquiry", action: "update", id: inquiry._id });
+  }
 
   res.status(201).json(quotation);
 });
@@ -854,7 +863,10 @@ exports.acceptQuotation = asyncHandler(async (req, res) => {
     }, io);
   }
 
-  if (io) io.emit("system:refresh", { type: "quotation", action: "accept" });
+  if (io) {
+    io.emit("system:refresh", { type: "quotation", action: "accept", inquiryId });
+    io.emit("system:refresh", { type: "inquiry", action: "update", id: inquiryId });
+  }
 
   res.json({ message: "Quotation accepted, awaiting final admin confirmation", quotation, payment_method: paymentMethod });
 });
@@ -911,7 +923,10 @@ exports.requestRevision = asyncHandler(async (req, res) => {
     }, io);
   }
 
-  if (io) io.emit("system:refresh", { type: "quotation", action: "revise" });
+  if (io) {
+    io.emit("system:refresh", { type: "quotation", action: "revise", inquiryId });
+    io.emit("system:refresh", { type: "inquiry", action: "update", id: inquiryId });
+  }
 
   res.json({ message: "Revision requested", quotation });
 });
@@ -970,7 +985,10 @@ exports.rejectQuotation = asyncHandler(async (req, res) => {
     }, io);
   }
 
-  if (io) io.emit("system:refresh", { type: "quotation", action: "reject" });
+  if (io) {
+    io.emit("system:refresh", { type: "quotation", action: "reject", inquiryId });
+    io.emit("system:refresh", { type: "inquiry", action: "update", id: inquiryId });
+  }
 
   res.json({ message: "Quotation rejected", quotation });
 });

@@ -206,71 +206,85 @@ const getOperationalAlerts = (row) => {
 };
 
 /**
- * Operational Next Action determination
+ * Whether a quotation validity date has already expired (day granularity)
  */
-const getNextStepInfo = (row) => {
-  if (!row) return { badge: "Review", actionLabel: "View", actionType: "view", tone: "bg-slate-100 text-slate-700 border-slate-200" };
-  if (row.status === "Converted to Booking" || Boolean(row.convertedBookingId)) {
-    return {
-      badge: "Booking Confirmed",
-      actionLabel: "View Booking",
-      actionType: "view_booking",
-      tone: "bg-teal-50 text-teal-800 border-teal-300 font-semibold",
-      icon: CheckCircle2,
-      isConverted: true,
-    };
+export const isPastDay = (value) => {
+  if (!value) return false;
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return false;
+  const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return startOfDay < startOfToday;
+};
+
+/**
+ * Derives the single source of truth workflow status for an inquiry
+ * Statuses: "Needs Quotation" | "Draft Quotation" | "Quoted" | "Revision Requested" | "Converted" | "Cancelled" | "Expired" | "Archived"
+ */
+export const getInquiryWorkflowStatus = (b) => {
+  if (!b) return "Needs Quotation";
+
+  // 1. Converted to Booking (Terminal - hidden from active table)
+  const isConverted =
+    b.status === "Converted to Booking" ||
+    Boolean(b.convertedBookingId) ||
+    Boolean(b.converted_booking_id) ||
+    Boolean(b.raw?.converted_booking_id) ||
+    b.latestQuote?.status === "Converted to Booking";
+  if (isConverted) return "Converted";
+
+  // 2. Archived (Terminal)
+  if (b.archived || b.raw?.archived) return "Archived";
+
+  // 3. Cancelled (Terminal)
+  const isCancelled =
+    b.status === "Cancelled" ||
+    b.status === "Quote Rejected" ||
+    b.raw?.status === "Cancelled" ||
+    String(b.status || "").toLowerCase().includes("cancel") ||
+    b.latestQuote?.status === "Rejected";
+  if (isCancelled) return "Cancelled";
+
+  // 4. Expired (Terminal)
+  const quoteExp = b.latestQuote?.expiration_date || b.raw?.quotation_expiration_date;
+  const isExpired =
+    b.status === "Expired" ||
+    b.raw?.status === "Expired" ||
+    b.latestQuote?.status === "Expired" ||
+    (b.latestQuote && ["Sent", "Quotation Sent"].includes(b.latestQuote.status) && isPastDay(quoteExp));
+  if (isExpired) return "Expired";
+
+  // 5. Revision Requested
+  const isRevision =
+    b.status === "Revision Requested" ||
+    b.raw?.status === "Revision Requested" ||
+    b.latestQuote?.status === "Revision Requested";
+  if (isRevision) return "Revision Requested";
+
+  // 6. Draft Quotation (Unsent quotation draft in progress)
+  const hasDraft = Boolean(b.has_draft || b.raw?.has_draft || b.draftQuote || b.raw?.draftQuote || (b.latestQuote && b.latestQuote.status === "Draft"));
+  const hasSentQuote = Boolean(
+    b.latestQuote &&
+    ["Sent", "Quotation Sent", "Quote Accepted", "Awaiting Final Confirmation"].includes(b.latestQuote.status)
+  );
+  if (hasDraft && !hasSentQuote) {
+    return "Draft Quotation";
   }
-  if (row.status === "Cancelled") {
-    return {
-      badge: "Inquiry Cancelled",
-      actionLabel: "Inspect",
-      actionType: "inspect",
-      tone: "bg-rose-50 text-rose-800 border-rose-200",
-      icon: X,
-      isCancelled: true,
-    };
-  }
-  if (row.latestQuote || row.status === "Quotation Sent") {
-    return {
-      badge: "Quotation Sent",
-      actionLabel: "View Quote",
-      actionType: "view_quote",
-      tone: "bg-blue-50 text-blue-800 border-blue-200 font-semibold",
-      icon: FileText,
-      isSent: true,
-    };
-  }
-  if (row.rawDate) {
-    const diffDays = Math.ceil((row.rawDate.getTime() - new Date().getTime()) / (1000 * 3600 * 24));
-    if (diffDays >= 0 && diffDays <= 7) {
-      return {
-        badge: `Urgent: Event in ${diffDays}d`,
-        actionLabel: "+ Create Quote",
-        actionType: "create_quote",
-        tone: "bg-rose-50 text-rose-800 border-rose-300 font-bold",
-        icon: AlertTriangle,
-        isUrgent: true,
-      };
-    }
-  }
-  if (["Pending Review", "Under Review"].includes(row.status) && row.hoursSinceCreated >= 48) {
-    return {
-      badge: "Follow-up Overdue",
-      actionLabel: "+ Create Quote",
-      actionType: "create_quote",
-      tone: "bg-amber-50 text-amber-800 border-amber-300 font-semibold",
-      icon: Clock,
-      isOverdue: true,
-    };
-  }
-  return {
-    badge: "Quotation Needed",
-    actionLabel: "+ Create Quote",
-    actionType: "create_quote",
-    tone: "bg-amber-50 text-amber-900 border-amber-300/80 font-semibold",
-    icon: Sparkles,
-    isNeedsQuote: true,
-  };
+
+  // 7. Quoted (Quotation successfully sent and awaiting customer response)
+  const isSent =
+    b.status === "Quotation Sent" ||
+    b.status === "Quote Accepted" ||
+    b.status === "Awaiting Final Confirmation" ||
+    b.raw?.status === "Quotation Sent" ||
+    hasSentQuote;
+  if (isSent) return "Quoted";
+
+  if (hasDraft) return "Draft Quotation";
+
+  // 8. Needs Quotation (Default for received inquiries needing quote)
+  return "Needs Quotation";
 };
 
 /**
@@ -297,17 +311,8 @@ export const checkHasQuotation = (r) => {
  */
 export const checkNeedsQuotation = (r) => {
   if (!r) return false;
-  if (
-    r.archived ||
-    r.status === "Converted to Booking" ||
-    r.convertedBookingId ||
-    r.status === "Cancelled" ||
-    r.status?.toLowerCase().includes("cancel") ||
-    r.status?.toLowerCase().includes("reject")
-  ) {
-    return false;
-  }
-  return !checkHasQuotation(r);
+  const status = getInquiryWorkflowStatus(r);
+  return status === "Needs Quotation";
 };
 
 export default function AdminInquiries() {
@@ -364,7 +369,7 @@ export default function AdminInquiries() {
     loadData();
   }, []);
 
-  useRealTimeRefresh(loadData, ["inquiry"]);
+  useRealTimeRefresh(loadData, ["inquiry", "quotation"]);
 
   // Close details drawer on Escape key press
   useEffect(() => {
@@ -443,6 +448,9 @@ export default function AdminInquiries() {
         customSetupNotes: b.custom_setup_notes || "",
         eventSpaceSize: eventSpaceLabel(b, b.package_id) || (b.scaffold_width && b.scaffold_length ? `${b.scaffold_width}×${b.scaffold_length}` : ""),
         isWalkIn: isWalkInRecord(b),
+        has_draft: Boolean(b.has_draft || (b.draftQuote && b.draftQuote.status === "Draft")),
+        draftQuote: b.draftQuote || null,
+        workflowStatus: getInquiryWorkflowStatus(b),
       };
     });
   }, [bookings]);
@@ -486,24 +494,30 @@ export default function AdminInquiries() {
   // Filter & Search Logic
   const filteredBookings = useMemo(() => {
     return formattedBookings.filter((r) => {
+      // Converted inquiries must be excluded from the inquiry workflow and active table
+      if (r.workflowStatus === "Converted") return false;
+
       // Status filter
       if (statusFilter === "Archived") {
-        if (!r.archived) return false;
-      } else if (statusFilter === "active") {
-        if (r.archived || r.status === "Converted to Booking" || r.status === "Cancelled") return false;
-      } else if (statusFilter === "Needs Quotations" || statusFilter === "needs_quotation") {
-        if (!checkNeedsQuotation(r)) return false;
-      } else if (statusFilter === "Quotation Sent") {
-        if (r.archived || (!r.latestQuote && r.status !== "Quotation Sent") || r.status === "Converted to Booking") return false;
-      } else if (statusFilter === "Converted to Booking") {
-        if (r.archived || (r.status !== "Converted to Booking" && !r.convertedBookingId)) return false;
+        if (r.workflowStatus !== "Archived") return false;
       } else if (statusFilter === "Cancelled") {
-        if (r.archived || (r.status !== "Cancelled" && !r.status?.toLowerCase().includes("cancel"))) return false;
-      } else if (statusFilter === "Rejected") {
-        if (r.archived || r.status === "Cancelled" || r.status?.toLowerCase().includes("cancel") || (!r.status?.toLowerCase().includes("reject") && r.latestQuote?.status?.toLowerCase() !== "rejected")) return false;
+        if (r.workflowStatus !== "Cancelled") return false;
+      } else if (statusFilter === "Expired") {
+        if (r.workflowStatus !== "Expired") return false;
+      } else if (statusFilter === "Revision Requested") {
+        if (r.workflowStatus !== "Revision Requested") return false;
+      } else if (statusFilter === "Draft") {
+        if (r.workflowStatus !== "Draft Quotation") return false;
+      } else if (statusFilter === "Quotation Sent") {
+        if (r.workflowStatus !== "Quoted") return false;
+      } else if (statusFilter === "Needs Quotation" || statusFilter === "Needs Quotations" || statusFilter === "needs_quotation") {
+        if (r.workflowStatus !== "Needs Quotation") return false;
       } else {
-        // 'all' shows all unarchived inquiries
-        if (r.archived) return false;
+        // 'all' shows active pipeline: Needs Quotation, Draft Quotation, Quoted, Revision Requested
+        // Excludes converted, cancelled, expired, and archived records
+        if (!["Needs Quotation", "Draft Quotation", "Quoted", "Revision Requested"].includes(r.workflowStatus)) {
+          return false;
+        }
       }
 
       // Service Archetype filter
@@ -589,14 +603,16 @@ export default function AdminInquiries() {
     setPage(1);
   }, [search, statusFilter, archetypeFilter, eventTypeFilter, dateRangeFilter, customDateRange, sortBy]);
 
-  // KPI Calculations
-  const totalInquiriesCount = formattedBookings.filter((r) => !r.archived).length;
-  const activeCount = formattedBookings.filter((r) => !r.archived && r.status !== "Converted to Booking" && r.status !== "Cancelled").length;
-  const quotesNeededCount = formattedBookings.filter(checkNeedsQuotation).length;
-  const quotationSentCount = formattedBookings.filter((r) => !r.archived && (r.status === "Quotation Sent" || r.latestQuote) && r.status !== "Converted to Booking").length;
-  const convertedCount = formattedBookings.filter((r) => !r.archived && (r.status === "Converted to Booking" || Boolean(r.convertedBookingId))).length;
-  const archivedCount = formattedBookings.filter((r) => r.archived).length;
-  const conversionPct = totalInquiriesCount > 0 ? Math.round((convertedCount / totalInquiriesCount) * 100) : 0;
+  // KPI & Filter Counts (Mutually exclusive, non-overlapping)
+  const needsQuotationsCount = formattedBookings.filter((r) => r.workflowStatus === "Needs Quotation").length;
+  const quotationsSentCount = formattedBookings.filter((r) => r.workflowStatus === "Quoted").length;
+  const revisionsRequestedCount = formattedBookings.filter((r) => r.workflowStatus === "Revision Requested").length;
+  const draftQuotationsCount = formattedBookings.filter((r) => r.workflowStatus === "Draft Quotation").length;
+
+  const activeInquiriesCount = needsQuotationsCount + quotationsSentCount + revisionsRequestedCount + draftQuotationsCount;
+  const cancelledCount = formattedBookings.filter((r) => r.workflowStatus === "Cancelled").length;
+  const expiredCount = formattedBookings.filter((r) => r.workflowStatus === "Expired").length;
+  const archivedCount = formattedBookings.filter((r) => r.workflowStatus === "Archived").length;
 
   // Derive decision support operational alerts for the currently selected inquiry
   const selectedAlerts = useMemo(() => {
@@ -644,8 +660,13 @@ export default function AdminInquiries() {
   }, [selectedInquiry]);
 
   const buildInquiryActions = (r) => {
-    const isConverted = r.status === "Converted to Booking" || Boolean(r.convertedBookingId);
-    const canReject = !isConverted && r.status !== "Cancelled";
+    let quoteActionLabel = "Create Quotation";
+    if (r.workflowStatus === "Draft Quotation") quoteActionLabel = "Edit Draft Quotation";
+    else if (r.workflowStatus === "Revision Requested") quoteActionLabel = "Process Revision";
+    else if (r.workflowStatus === "Quoted") quoteActionLabel = "View Quotation";
+    else if (r.workflowStatus === "Expired") quoteActionLabel = "View Expired Quotation";
+
+    const canReject = r.workflowStatus !== "Cancelled";
 
     return [
       {
@@ -654,19 +675,12 @@ export default function AdminInquiries() {
         icon: ExternalLink,
         onSelect: () => navigate(`/admin/bookings/inquiries/${r._id}`),
       },
-      isConverted
-        ? {
-          key: "reservation",
-          label: "View Reservation",
-          icon: CheckCircle2,
-          onSelect: () => navigate("/admin/bookings/reservations"),
-        }
-        : {
-          key: "quote",
-          label: r.latestQuote ? "Edit Quotation" : "Create Quotation",
-          icon: FileText,
-          onSelect: () => navigate(`/admin/quotes/${r._id}/details`),
-        },
+      {
+        key: "quote",
+        label: quoteActionLabel,
+        icon: FileText,
+        onSelect: () => navigate(`/admin/bookings/inquiries/${r._id}`),
+      },
       {
         key: "archive",
         label: r.archived ? "Restore Inquiry" : "Archive Inquiry",
@@ -721,25 +735,51 @@ export default function AdminInquiries() {
 
         {/* Main Content Area (Uncompressed 100% Full Width) */}
         <div className="space-y-3.5 w-full">
-          {/* Operational KPI Summary Cards Row (3 evenly-spaced cards) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Operational KPI Summary Cards Row (4 evenly-spaced cards) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <KPICard
-              title="Active Inquiries"
-              value={activeCount}
-              sub="Open leads in pipeline"
-              icon={Mail}
+              title="Needs Quotations"
+              value={needsQuotationsCount}
+              sub="Awaiting initial quotation"
+              icon={Sparkles}
+              tone="warning"
+              onClick={() => {
+                setStatusFilter(statusFilter === "Needs Quotation" ? "all" : "Needs Quotation");
+                setPage(1);
+              }}
             />
             <KPICard
-              title="Quotation Sent"
-              value={quotationSentCount}
+              title="Quotations Sent"
+              value={quotationsSentCount}
               sub="Awaiting client decision"
-              icon={FileText}
+              icon={Send}
+              tone="info"
+              onClick={() => {
+                setStatusFilter(statusFilter === "Quotation Sent" ? "all" : "Quotation Sent");
+                setPage(1);
+              }}
             />
             <KPICard
-              title="Converted Bookings"
-              value={convertedCount}
-              sub={`${conversionPct}% conversion rate`}
-              icon={CheckCircle2}
+              title="Revisions Requested"
+              value={revisionsRequestedCount}
+              sub="Customer requested updates"
+              icon={RefreshCw}
+              tone="warning"
+              onClick={() => {
+                setStatusFilter(statusFilter === "Revision Requested" ? "all" : "Revision Requested");
+                setPage(1);
+              }}
+            />
+            <KPICard
+              title="Draft Quotation"
+              value={draftQuotationsCount}
+              sub="Drafts saved or in progress"
+              icon={FileText}
+              tone="neutral"
+              onClick={() => {
+                setStatusFilter(statusFilter === "Draft" ? "all" : "Draft");
+                setPage(1);
+              }}
             />
           </div>
 
@@ -780,12 +820,13 @@ export default function AdminInquiries() {
                 setPage(1);
               }}
               options={[
-                { value: "all", label: "All Inquiries", count: totalInquiriesCount },
-                { value: "active", label: "Active Pipeline", count: activeCount, icon: Mail },
-                { value: "Needs Quotations", label: "Needs Quotation", count: quotesNeededCount, icon: Sparkles },
-                { value: "Quotation Sent", label: "Quotation Sent", count: quotationSentCount, icon: FileText },
-                { value: "Converted to Booking", label: "Converted", count: convertedCount, icon: CheckCircle2 },
-                { value: "Cancelled", label: "Cancelled", icon: AlertTriangle },
+                { value: "all", label: "All Inquiries", count: activeInquiriesCount },
+                { value: "Needs Quotation", label: "Needs Quotation", count: needsQuotationsCount, icon: Sparkles },
+                { value: "Draft", label: "Draft", count: draftQuotationsCount, icon: FileText },
+                { value: "Quotation Sent", label: "Quotation Sent", count: quotationsSentCount, icon: Send },
+                { value: "Revision Requested", label: "Revision Requested", count: revisionsRequestedCount, icon: RefreshCw },
+                { value: "Cancelled", label: "Cancelled", count: cancelledCount, icon: AlertTriangle },
+                { value: "Expired", label: "Expired", count: expiredCount, icon: Clock },
                 { value: "Archived", label: "Archived", count: archivedCount, icon: Archive },
               ]}
             />
@@ -1010,7 +1051,7 @@ export default function AdminInquiries() {
                     <tr className="bg-muted/50 border-b border-border text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                       <th className="py-2.5 pl-4 pr-3 font-semibold">Customer</th>
                       <th className="py-2.5 px-3 font-semibold">Event Details</th>
-                      <th className="py-2.5 px-3 font-semibold">Status & Next Action</th>
+                      <th className="py-2.5 px-3 font-semibold">Status</th>
                       <th className="py-2.5 px-3 font-semibold">Package Type</th>
                       <th className="py-2.5 px-3 font-semibold">Received</th>
                       <th className="py-2.5 pr-4 pl-1 text-right font-semibold">Actions</th>
@@ -1019,7 +1060,6 @@ export default function AdminInquiries() {
                   <tbody className="divide-y divide-border/50">
                     {paginatedRows.map((r) => {
                       const isSelected = selectedInquiry?._id === r._id;
-                      const nextStep = getNextStepInfo(r);
                       return (
                         <tr
                           key={r._id}
@@ -1078,19 +1118,9 @@ export default function AdminInquiries() {
                             </div>
                           </td>
 
-                          {/* Status & Next Action (High Priority Column) */}
+                          {/* Status */}
                           <td className="py-2.5 px-3 whitespace-nowrap">
-                            <div className="space-y-1">
-                              <div>
-                                <Badge status={r.status} />
-                              </div>
-                              <div>
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] border shadow-2xs ${nextStep.tone}`}>
-                                  {nextStep.icon && <nextStep.icon size={11} className="shrink-0" />}
-                                  <span>{nextStep.badge}</span>
-                                </span>
-                              </div>
-                            </div>
+                            <Badge status={r.workflowStatus} />
                           </td>
 
                           {/* Package Type & Intended Payment */}
@@ -1126,28 +1156,37 @@ export default function AdminInquiries() {
                           {/* Actions (Direct 1-Click Action Button + Drawer View + More Options) */}
                           <td className="py-2.5 pr-3 pl-1 text-right whitespace-nowrap shrink-0" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1.5">
-                              {/* Contextual Next Step Action Button */}
-                              {nextStep.actionType === "create_quote" ? (
+                              {/* Contextual Action Button */}
+                              {r.workflowStatus === "Needs Quotation" ? (
                                 <button
-                                  onClick={() => navigate(`/admin/quotes/${r._id}/details`)}
+                                  onClick={() => navigate(`/admin/bookings/inquiries/${r._id}`)}
                                   title="Create quotation for customer"
                                   className="px-2.5 py-1 text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
                                 >
                                   <Plus size={12} />
                                   <span>Create Quote</span>
                                 </button>
-                              ) : nextStep.actionType === "view_booking" ? (
+                              ) : r.workflowStatus === "Draft Quotation" ? (
                                 <button
-                                  onClick={() => navigate('/admin/bookings/reservations')}
-                                  title="View confirmed reservation"
-                                  className="px-2.5 py-1 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
+                                  onClick={() => navigate(`/admin/bookings/inquiries/${r._id}`)}
+                                  title="Edit draft quotation"
+                                  className="px-2.5 py-1 text-xs font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
                                 >
-                                  <CheckCircle2 size={12} />
-                                  <span>View Booking</span>
+                                  <FileText size={12} className="text-slate-600" />
+                                  <span>Edit Draft</span>
                                 </button>
-                              ) : nextStep.actionType === "view_quote" ? (
+                              ) : r.workflowStatus === "Revision Requested" ? (
                                 <button
-                                  onClick={() => navigate(`/admin/quotes/${r._id}/details`)}
+                                  onClick={() => navigate(`/admin/bookings/inquiries/${r._id}`)}
+                                  title="Review revision requested by customer"
+                                  className="px-2.5 py-1 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
+                                >
+                                  <RefreshCw size={11} className="text-amber-700" />
+                                  <span>Review Revision</span>
+                                </button>
+                              ) : r.workflowStatus === "Quoted" ? (
+                                <button
+                                  onClick={() => navigate(`/admin/bookings/inquiries/${r._id}`)}
                                   title="View issued quotation"
                                   className="px-2.5 py-1 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
                                 >
@@ -1229,7 +1268,7 @@ export default function AdminInquiries() {
                           <p className="text-[10px] text-muted-foreground truncate">{r.email}</p>
                         </div>
                       </div>
-                      <Badge status={r.status} />
+                      <Badge status={r.workflowStatus} />
                     </div>
 
                     <div className="space-y-1 text-xs text-muted-foreground pt-1 border-t border-border/50">
@@ -1348,7 +1387,7 @@ export default function AdminInquiries() {
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <Badge status={selectedInquiry.status} />
+                      <Badge status={selectedInquiry.workflowStatus} />
                       <div className="flex items-center gap-1">
                         {selectedInquiry.isWalkIn && (
                           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -1689,35 +1728,35 @@ export default function AdminInquiries() {
               {/* Pinned Action Footer (Strictly Non-Duplicate Actions) */}
               <div className="p-3.5 border-t border-border bg-card/95 backdrop-blur-xs flex flex-col gap-2 shrink-0">
                 {/* Primary Contextual Action */}
-                {selectedInquiry.status === "Converted to Booking" || Boolean(selectedInquiry.convertedBookingId) ? (
+                {selectedInquiry.workflowStatus === "Draft Quotation" ? (
                   <button
-                    onClick={() => {
-                      const bId = selectedInquiry.convertedBookingId?._id || selectedInquiry.convertedBookingId || selectedInquiry.converted_booking_id;
-                      if (bId) {
-                        navigate(`/admin/bookings/reservations?bookingId=${bId}&search=${encodeURIComponent(selectedInquiry.reference || bId)}`);
-                      } else {
-                        navigate(`/admin/bookings/reservations?search=${encodeURIComponent(selectedInquiry.reference || '')}`);
-                      }
-                    }}
-                    className="w-full py-2 px-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                    onClick={() => navigate(`/admin/bookings/inquiries/${selectedInquiry._id}`)}
+                    className="w-full py-2 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                   >
-                    <CheckCircle2 size={14} /> View Confirmed Booking
+                    <FileText size={14} /> Edit Draft Quotation
                   </button>
-                ) : selectedInquiry.latestQuote || selectedInquiry.status === "Quotation Sent" ? (
+                ) : selectedInquiry.workflowStatus === "Revision Requested" ? (
                   <button
-                    onClick={() => navigate(`/admin/quotes/${selectedInquiry._id}/details`)}
+                    onClick={() => navigate(`/admin/bookings/inquiries/${selectedInquiry._id}`)}
+                    className="w-full py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                  >
+                    <RefreshCw size={14} /> Review Revision Request
+                  </button>
+                ) : selectedInquiry.workflowStatus === "Quoted" ? (
+                  <button
+                    onClick={() => navigate(`/admin/bookings/inquiries/${selectedInquiry._id}`)}
                     className="w-full py-2 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                   >
                     <FileText size={14} /> View Issued Quotation
                   </button>
-                ) : (
+                ) : selectedInquiry.workflowStatus === "Needs Quotation" ? (
                   <button
-                    onClick={() => navigate(`/admin/quotes/${selectedInquiry._id}/details`)}
+                    onClick={() => navigate(`/admin/bookings/inquiries/${selectedInquiry._id}`)}
                     className="w-full py-2 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                   >
                     <Plus size={14} /> Create Quotation
                   </button>
-                )}
+                ) : null}
 
                 {/* View Full Inquiry Details Button */}
                 <button

@@ -75,7 +75,7 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
   // "which category is the current page in" and "which sub-link is active".
   const dropdownRoutePrefixes = useMemo(() => ({
     finance: ["/admin/payments", "/admin/refunds"],
-    bookings: ["/admin/bookings", "/admin/quotes"],
+    bookings: ["/admin/bookings"],
     service: ["/admin/packages", "/admin/menu", "/admin/gallery", "/admin/addons", "/admin/inventory"],
   }), []);
 
@@ -335,7 +335,6 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
                 {isAdmin && (
                   <NavLink to="/admin/bookings/inquiries" className={subLinkClass}>Inquiries</NavLink>
                 )}
-                <NavLink to="/admin/quotes" className={subLinkClass}>Quotations</NavLink>
                 <NavLink to="/admin/bookings/reservations" className={subLinkClass}>Reservations</NavLink>
                 {isAdmin && (
                   <NavLink to="/admin/bookings/ocular" className={subLinkClass}>Ocular Visits</NavLink>

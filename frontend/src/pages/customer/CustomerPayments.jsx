@@ -7,6 +7,7 @@ import PaymentChoiceModal from "../../components/customer/PaymentChoiceModal";
 import CustomerPolicyModal from "../../components/policy/CustomerPolicyModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
 import useToast from "../../hooks/useToast";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import useMediaQuery from "../../hooks/useMediaQuery";
 import StatTile from "../../components/customer/portal/StatTile";
 import { Button } from "../../components/ui/button";
@@ -163,6 +164,8 @@ export default function CustomerPayments() {
   useEffect(() => {
     fetchData();
   }, [searchParams]);
+
+  useRealTimeRefresh(() => fetchData());
 
   // Reset page when filters change
   useEffect(() => {

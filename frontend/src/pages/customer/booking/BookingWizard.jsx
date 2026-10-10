@@ -314,6 +314,7 @@ export default function BookingWizard() {
   const [packages, setPackages] = useState([]);
   const [businessInfo, setBusinessInfo] = useState({});
   const [packageDetails, setPackageDetails] = useState(null);
+  const [blockedDates, setBlockedDates] = useState([]);
 
   // --- Flow state ---
   const [error, setError] = useState("");
@@ -676,6 +677,19 @@ export default function BookingWizard() {
   }, []);
 
   useEffect(() => {
+    CustomerAPI.getBlockedDates()
+      .then((res) => {
+        if (Array.isArray(res.data)) {
+          const keys = res.data
+            .map((b) => (b.date ? String(b.date).split("T")[0] : null))
+            .filter(Boolean);
+          setBlockedDates(keys);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!selectedPackageId) {
       setPackageDetails(null);
       return;
@@ -1020,6 +1034,9 @@ export default function BookingWizard() {
             message = "Choose a date for your event.";
           } else if (minDate && form.event_date < minDate) {
             errors.event_date = `Event date must be at least ${MIN_DATE_OFFSET_DAYS} days from today (${minDate} or later).`;
+            message = errors.event_date;
+          } else if (blockedDates.includes(form.event_date)) {
+            errors.event_date = "This date is currently unavailable because it has been blocked by the administrator. Please select another date.";
             message = errors.event_date;
           }
           if (!form.start_time) {
@@ -1525,6 +1542,27 @@ export default function BookingWizard() {
       return;
     }
 
+    // Fresh validation against blocked dates right before submission
+    try {
+      const freshBlockedRes = await CustomerAPI.getBlockedDates();
+      const freshBlockedKeys = Array.isArray(freshBlockedRes.data)
+        ? freshBlockedRes.data
+            .map((b) => (b.date ? String(b.date).split("T")[0] : null))
+            .filter(Boolean)
+        : [];
+      if (freshBlockedKeys.includes(form.event_date)) {
+        const blockedMsg =
+          "This date is currently unavailable because it has been blocked by the administrator. Please select another date.";
+        setError(blockedMsg);
+        setFieldErrors((prev) => ({ ...prev, event_date: blockedMsg }));
+        const dtIndex = wizardSteps.findIndex((s) => s.id === "DateTime");
+        if (dtIndex >= 0) goToStep(dtIndex);
+        return;
+      }
+    } catch {
+      // Continue to API submit where backend will enforce
+    }
+
     setError("");
     setIsSubmitting(true);
     const eventType =
@@ -1717,6 +1755,7 @@ export default function BookingWizard() {
             onRetryAvailability={() => setAvailabilityNonce((n) => n + 1)}
             leadTimeDays={MIN_DATE_OFFSET_DAYS}
             errors={fieldErrors}
+            blockedDates={blockedDates}
           />
         );
 

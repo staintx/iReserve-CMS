@@ -66,6 +66,7 @@ export default function StepDateTime({
   onRetryAvailability,
   leadTimeDays,
   errors = {},
+  blockedDates: blockedDatesProp = [],
 }) {
   // Simple calendar logic
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -76,6 +77,7 @@ export default function StepDateTime({
   });
 
   const [bookedDates, setBookedDates] = useState([]);
+  const [fetchedBlockedDates, setFetchedBlockedDates] = useState([]);
 
   useEffect(() => {
     const fetchBookedDates = async () => {
@@ -91,6 +93,23 @@ export default function StepDateTime({
     };
     fetchBookedDates();
   }, [currentMonth]);
+
+  useEffect(() => {
+    let mounted = true;
+    CustomerAPI.getBlockedDates()
+      .then((res) => {
+        if (mounted && Array.isArray(res.data)) {
+          const keys = res.data.map((b) => (b.date ? String(b.date).split("T")[0] : null)).filter(Boolean);
+          setFetchedBlockedDates(keys);
+        }
+      })
+      .catch((err) => console.error("Failed to fetch blocked dates", err));
+    return () => { mounted = false; };
+  }, []);
+
+  const allBlockedDates = useMemo(() => {
+    return Array.from(new Set([...(blockedDatesProp || []), ...fetchedBlockedDates]));
+  }, [blockedDatesProp, fetchedBlockedDates]);
 
   const calendarDays = useMemo(() => {
     const year = currentMonth.getFullYear();
@@ -345,8 +364,9 @@ export default function StepDateTime({
               const dateStr = getDateKey(date);
               const isSelected = form.event_date === dateStr;
               const isPast = date < minDateObj;
+              const isBlocked = allBlockedDates.includes(dateStr);
               const isBooked = bookedDates.includes(dateStr);
-              const isDisabled = isPast || isBooked;
+              const isDisabled = isPast || isBooked || isBlocked;
 
               return (
                 <button
@@ -359,16 +379,23 @@ export default function StepDateTime({
                     day: "numeric",
                     year: "numeric",
                   })}
+                  title={
+                    isBlocked
+                      ? "This date is currently unavailable because it has been blocked by the administrator."
+                      : undefined
+                  }
                   onClick={() => setForm({ ...form, event_date: dateStr })}
                   className={cn(
                     "flex h-8 w-full items-center justify-center rounded-md text-xs font-semibold transition-all cursor-pointer select-none",
                     isSelected
                       ? "bg-[#4C81E0] text-white shadow-2xs font-bold"
-                      : isBooked
-                        ? "cursor-not-allowed bg-slate-50 text-slate-300 line-through opacity-60"
-                        : isPast
-                          ? "cursor-not-allowed text-slate-300"
-                          : "text-slate-700 hover:bg-slate-100 active:scale-95",
+                      : isBlocked
+                        ? "cursor-not-allowed bg-rose-50/80 text-rose-300 line-through opacity-70 border border-rose-200/40"
+                        : isBooked
+                          ? "cursor-not-allowed bg-slate-50 text-slate-300 line-through opacity-60"
+                          : isPast
+                            ? "cursor-not-allowed text-slate-300"
+                            : "text-slate-700 hover:bg-slate-100 active:scale-95",
                     focusRing,
                   )}
                 >
@@ -378,7 +405,7 @@ export default function StepDateTime({
             })}
           </div>
 
-          <div className="mt-2.5 pt-2 flex items-center justify-center gap-3.5 border-t border-slate-100 text-[10px] font-medium text-slate-400">
+          <div className="mt-2.5 pt-2 flex flex-wrap items-center justify-center gap-3.5 border-t border-slate-100 text-[10px] font-medium text-slate-400">
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-2 w-2 rounded-full bg-[#4C81E0]" />
               Selected
@@ -387,12 +414,20 @@ export default function StepDateTime({
               <span className="inline-block h-2 w-2 rounded-full bg-slate-300" />
               Fully booked
             </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-full bg-rose-400" />
+              Blocked by Admin
+            </span>
           </div>
 
-          {errors.event_date && (
+          {(errors.event_date || (form.event_date && allBlockedDates.includes(form.event_date))) && (
             <div className="mt-2.5 flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-600">
               <AlertCircle size={14} className="shrink-0 text-red-500" />
-              <span>{errors.event_date}</span>
+              <span>
+                {allBlockedDates.includes(form.event_date)
+                  ? "This date is currently unavailable because it has been blocked by the administrator. Please select another date."
+                  : errors.event_date}
+              </span>
             </div>
           )}
         </Card>

@@ -9,6 +9,16 @@ const blockedDateSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  group_id: {
+    type: String,
+    index: true,
+  },
+  range_start: {
+    type: Date,
+  },
+  range_end: {
+    type: Date,
+  },
   created_by: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",

@@ -11,6 +11,7 @@ const {
 } = require("../utils/quotationPricing");
 const { isSpecialOffer, offerPricePerPax } = require("../utils/specialOffers");
 const { MAX_FINANCIAL_AMOUNT } = require("../validations/rules.common");
+const { checkDateBlocked, BLOCKED_DATE_MESSAGE } = require("../utils/blockedDates");
 
 // Helper to check customer ownership of inquiry/quotation
 const verifyCustomerOwnership = (inquiry, userId) => {
@@ -531,6 +532,11 @@ exports.createQuotation = asyncHandler(async (req, res) => {
   if (isPastEventDate(inquiry.event_date)) {
     errors.event_date =
       "This event date has already passed. Update the event date before sending the quotation.";
+  } else if (inquiry.event_date) {
+    const blocked = await checkDateBlocked(inquiry.event_date);
+    if (blocked) {
+      errors.event_date = BLOCKED_DATE_MESSAGE;
+    }
   }
 
   const firstError = Object.values(errors)[0];
@@ -737,6 +743,10 @@ exports.acceptQuotation = asyncHandler(async (req, res) => {
   // Check 3-day lockout against event date
   const eventDateValue = quotation.event_snapshot?.event_date || quotation.inquiry_id?.event_date;
   if (eventDateValue) {
+    const blocked = await checkDateBlocked(eventDateValue);
+    if (blocked) {
+      return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
+    }
     const eventDate = new Date(eventDateValue);
     if (!Number.isNaN(eventDate.getTime())) {
       const startOfEventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());

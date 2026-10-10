@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseLocalDate, formatEventDate } from "@/utils/format";
+import { AdminAPI } from "@/api/admin";
 
 const PRESET_TIME_SLOTS = [
   "08:00 AM",
@@ -119,6 +120,22 @@ export default function AdminOcularDateTimePicker({
 
   const [isCustomTimeMode, setIsCustomTimeMode] = useState(false);
   const [customTime, setCustomTime] = useState("");
+  const [blockedDates, setBlockedDates] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    AdminAPI.getBlockedDates()
+      .then((res) => {
+        if (mounted && Array.isArray(res.data)) {
+          const keys = res.data
+            .map((b) => (b.date ? String(b.date).split("T")[0] : null))
+            .filter(Boolean);
+          setBlockedDates(keys);
+        }
+      })
+      .catch((err) => console.error("Failed to load blocked dates for ocular picker", err));
+    return () => { mounted = false; };
+  }, []);
 
   const isCurrentMonthOrPast = useMemo(() => {
     const thisMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
@@ -158,7 +175,11 @@ export default function AdminOcularDateTimePicker({
     // 1. Never allow dates before today
     if (d < startOfToday) return true;
 
-    // 2. Never allow dates after event date (unless disabled for event date selection)
+    // 2. Never allow blocked dates
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (blockedDates.includes(dateKey)) return true;
+
+    // 3. Never allow dates after event date (unless disabled for event date selection)
     if (!disableEventDateLimit && eventDateObj) {
       if (isWedding && maxAllowedOcularDateObj && d > maxAllowedOcularDateObj) {
         return true;
@@ -311,6 +332,14 @@ export default function AdminOcularDateTimePicker({
         </div>
       )}
 
+      {/* Blocked Date Warning */}
+      {dateValue && blockedDates.includes(dateValue) && (
+        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-900 flex items-start gap-2 shadow-2xs">
+          <AlertCircle size={15} className="text-rose-600 shrink-0 mt-0.5" />
+          <span>This date is currently unavailable because it has been blocked by the administrator. Please select another date.</span>
+        </div>
+      )}
+
       {/* Interactive Calendar Grid */}
       <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2.5 shadow-2xs">
         <div className="flex items-center justify-between">
@@ -351,6 +380,7 @@ export default function AdminOcularDateTimePicker({
 
             const dateKey = getDateKey(d);
             const isSelected = dateValue === dateKey;
+            const isBlocked = blockedDates.includes(dateKey);
             const disabled = isDateDisabled(d);
             const todayFlag = isTodayDate(d);
             const eventFlag = isEventDate(d);
@@ -361,14 +391,16 @@ export default function AdminOcularDateTimePicker({
                 type="button"
                 disabled={disabled}
                 onClick={() => handleSelectDay(d)}
-                title={eventFlag ? "Target Event Date" : undefined}
+                title={isBlocked ? "Date blocked by admin" : eventFlag ? "Target Event Date" : undefined}
                 className={cn(
                   "h-7 sm:h-8 rounded-lg text-xs font-semibold transition-all flex items-center justify-center relative",
-                  disabled
-                    ? "text-slate-300 bg-slate-50/50 cursor-not-allowed text-[11px]"
-                    : isSelected
-                      ? "bg-blue-600 text-white font-bold shadow-xs scale-[1.02]"
-                      : "text-slate-700 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 border border-slate-200/60",
+                  isBlocked
+                    ? "text-rose-400 bg-rose-50/80 border border-rose-200 cursor-not-allowed line-through"
+                    : disabled
+                      ? "text-slate-300 bg-slate-50/50 cursor-not-allowed text-[11px]"
+                      : isSelected
+                        ? "bg-blue-600 text-white font-bold shadow-xs scale-[1.02]"
+                        : "text-slate-700 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 border border-slate-200/60",
                   todayFlag && !isSelected && "ring-2 ring-blue-500/50 font-bold text-blue-600",
                   eventFlag && !isSelected && !disabled && "border-amber-400 bg-amber-50/40 text-amber-900"
                 )}
@@ -377,6 +409,20 @@ export default function AdminOcularDateTimePicker({
               </button>
             );
           })}
+        </div>
+
+        {/* Calendar Legend */}
+        <div className="flex items-center gap-3 pt-1 text-[10px] text-slate-500">
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
+            <span>Blocked Date</span>
+          </div>
+          {eventDateObj && (
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
+              <span>Event Date</span>
+            </div>
+          )}
         </div>
       </div>
 

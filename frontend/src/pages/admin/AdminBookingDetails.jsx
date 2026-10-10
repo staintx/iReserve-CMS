@@ -900,8 +900,22 @@ export default function AdminBookingDetails() {
     }
   };
 
-  const handleScheduleOcular = (e) => {
+  const handleScheduleOcular = async (e) => {
     e.preventDefault();
+    if (ocularDate) {
+      try {
+        const freshBlocked = await AdminAPI.getBlockedDates();
+        const freshKeys = (Array.isArray(freshBlocked.data) ? freshBlocked.data : [])
+          .map((b) => (b.date ? String(b.date).split("T")[0] : null))
+          .filter(Boolean);
+        if (freshKeys.includes(ocularDate)) {
+          notify("This date is currently unavailable because it has been blocked by the administrator. Please select another date.", "error");
+          return;
+        }
+      } catch {
+        // Backend will still validate
+      }
+    }
     AdminAPI.scheduleOcular(booking._id, {
       scheduled_date: ocularDate,
       scheduled_time: ocularTime

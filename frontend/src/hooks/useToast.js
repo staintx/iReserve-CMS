@@ -70,5 +70,10 @@ export default function useToast() {
 
   const removeToast = useCallback((id) => toast.dismiss(id), []);
 
-  return { notify, removeToast };
+  const success = useCallback((msg, opts) => notify(msg, "success", opts), [notify]);
+  const error = useCallback((msg, opts) => notify(msg, "error", opts), [notify]);
+  const warning = useCallback((msg, opts) => notify(msg, "warning", opts), [notify]);
+  const info = useCallback((msg, opts) => notify(msg, "info", opts), [notify]);
+
+  return { notify, removeToast, success, error, warning, info };
 }

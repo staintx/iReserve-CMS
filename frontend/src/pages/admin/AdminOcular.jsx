@@ -284,7 +284,7 @@ export default function AdminOcular() {
   };
 
   // Schedule Ocular Handler
-  const handleConfirmSchedule = (e) => {
+  const handleConfirmSchedule = async (e) => {
     e.preventDefault();
     const bId = selectedBookingId || drawerRow?._id;
     if (!bId) {
@@ -294,6 +294,19 @@ export default function AdminOcular() {
     if (!scheduleDate) {
       notify("Please select a date for the ocular visit.", "error");
       return;
+    }
+
+    try {
+      const freshBlocked = await AdminAPI.getBlockedDates();
+      const freshKeys = (Array.isArray(freshBlocked.data) ? freshBlocked.data : [])
+        .map((b) => (b.date ? String(b.date).split("T")[0] : null))
+        .filter(Boolean);
+      if (freshKeys.includes(scheduleDate)) {
+        notify("This date is currently unavailable because it has been blocked by the administrator. Please select another date.", "error");
+        return;
+      }
+    } catch {
+      // Backend will still validate
     }
 
     setIsSubmittingSchedule(true);

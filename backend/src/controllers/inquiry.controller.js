@@ -5,6 +5,7 @@ const BlockedDate = require("../models/BlockedDate");
 const Payment = require("../models/Payment");
 const Booking = require("../models/Booking");
 const asyncHandler = require("../utils/asyncHandler");
+const { checkDateBlocked, BLOCKED_DATE_MESSAGE } = require("../utils/blockedDates");
 const { checkInventoryAvailability } = require("./booking.controller");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
 const {
@@ -223,22 +224,9 @@ exports.createInquiry = asyncHandler(async (req, res) => {
 
   // Check if requested date is blocked by admin
   if (payload.event_date) {
-    const parsedDate = new Date(payload.event_date);
-    if (!isNaN(parsedDate.getTime())) {
-      const startOfDay = new Date(parsedDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(parsedDate);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      const blocked = await BlockedDate.findOne({
-        date: { $gte: startOfDay, $lte: endOfDay }
-      });
-
-      if (blocked) {
-        return res.status(400).json({
-          message: `The selected date (${payload.event_date}) is blocked for inquiries and bookings (${blocked.reason || 'Blocked by administration'}). Please select a different date.`
-        });
-      }
+    const blocked = await checkDateBlocked(payload.event_date);
+    if (blocked) {
+      return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
     }
   }
 
@@ -738,23 +726,9 @@ exports.updateInquiryByCustomer = asyncHandler(async (req, res) => {
     new Date(updates.event_date).getTime() !== new Date(inquiry.event_date).getTime();
 
   if (dateChanged) {
-    const parsedDate = new Date(updates.event_date);
-    if (isNaN(parsedDate.getTime())) {
-      return res.status(400).json({ message: "Invalid event date." });
-    }
-    const startOfDay = new Date(parsedDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(parsedDate);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    const blocked = await BlockedDate.findOne({
-      date: { $gte: startOfDay, $lte: endOfDay },
-    });
-
+    const blocked = await checkDateBlocked(updates.event_date);
     if (blocked) {
-      return res.status(400).json({
-        message: `The selected date (${updates.event_date}) is blocked for inquiries and bookings (${blocked.reason || "Blocked by administration"}). Please select a different date.`,
-      });
+      return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
     }
   }
 
@@ -783,6 +757,18 @@ exports.updateInquiryByCustomer = asyncHandler(async (req, res) => {
 exports.updateInquiry = asyncHandler(async (req, res) => {
   const previousInquiry = await Inquiry.findById(req.params.id);
   if (!previousInquiry) return res.status(404).json({ message: "Inquiry not found" });
+
+  if (req.body.event_date) {
+    const dateChanged =
+      !previousInquiry.event_date ||
+      new Date(req.body.event_date).getTime() !== new Date(previousInquiry.event_date).getTime();
+    if (dateChanged) {
+      const blocked = await checkDateBlocked(req.body.event_date);
+      if (blocked) {
+        return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
+      }
+    }
+  }
 
   const inquiry = await Inquiry.findByIdAndUpdate(req.params.id, req.body, {
     returnDocument: "after",

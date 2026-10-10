@@ -19,8 +19,30 @@ import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { useNavigate } from "react-router-dom";
 import { resolveServiceType } from "../customer/portal/statusMeta";
 
+// Helper to parse date string YYYY-MM-DD or date object into local start-of-day Date
+const parseDateStartOfDay = (val) => {
+  if (!val) return null;
+  if (typeof val === "string") {
+    const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const year = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1;
+      const day = parseInt(match[3], 10);
+      return new Date(year, month, day, 0, 0, 0, 0);
+    }
+  }
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
 // Helper to format date keys in YYYY-MM-DD
 const formatDateKey = (dateObj) => {
+  if (!dateObj) return "";
+  if (typeof dateObj === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateObj)) {
+    return dateObj;
+  }
   const d = new Date(dateObj);
   if (isNaN(d.getTime())) return "";
   const yr = d.getFullYear();
@@ -31,7 +53,14 @@ const formatDateKey = (dateObj) => {
 
 // Helper to format display date (e.g. "Aug 22" or "Thursday, Aug 22")
 const formatDisplayDate = (dateObj, includeWeekday = false) => {
-  const d = new Date(dateObj);
+  if (!dateObj) return "";
+  let d;
+  if (typeof dateObj === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateObj)) {
+    const [y, m, day] = dateObj.split("-").map(Number);
+    d = new Date(y, m - 1, day);
+  } else {
+    d = new Date(dateObj);
+  }
   if (isNaN(d.getTime())) return "";
   if (includeWeekday) {
     return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
@@ -46,10 +75,10 @@ const getCategoryStyle = (type, status) => {
 
   if (lowerStatus === "blocked" || lowerType.includes("blocked") || lowerType.includes("holiday")) {
     return {
-      dotBg: "bg-slate-500",
-      pillBg: "bg-slate-100 text-slate-700 border border-slate-200",
-      cardBg: "bg-slate-50 border-slate-200 text-slate-800",
-      label: "Blocked / Holiday"
+      dotBg: "bg-rose-500",
+      pillBg: "bg-rose-100 text-rose-800 border border-rose-200/90 font-semibold",
+      cardBg: "bg-rose-50/80 border-rose-200 text-rose-900",
+      label: "Blocked Date"
     };
   }
   if (lowerType.includes("ocular") || lowerStatus.includes("scheduled")) {
@@ -60,12 +89,12 @@ const getCategoryStyle = (type, status) => {
       label: "Ocular / Scheduled"
     };
   }
-  if (lowerStatus === "pending deposit" || lowerStatus === "pending" || lowerStatus.includes("review")) {
+  if (lowerStatus === "pending deposit" || lowerStatus === "pending" || lowerStatus.includes("review") || lowerType.includes("inquiry")) {
     return {
       dotBg: "bg-amber-500",
       pillBg: "bg-amber-50 text-amber-800 border border-amber-200",
       cardBg: "bg-amber-50/60 border-amber-200/70 text-amber-900",
-      label: "Pending Deposit / Review"
+      label: "Inquiry"
     };
   }
   // Confirmed & regular bookings
@@ -79,7 +108,7 @@ const getCategoryStyle = (type, status) => {
 
 
 export default function AdminEventCalendar({ bookingsProp = null }) {
-  const toast = useToast();
+  const { notify, success, error } = useToast();
   const navigate = useNavigate();
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -94,6 +123,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
 
   // Modal states
   const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockError, setBlockError] = useState("");
   const [blockForm, setBlockForm] = useState({
     isRange: false,
     startDate: formatDateKey(new Date()),
@@ -101,6 +131,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
     reason: ""
   });
   const [isSubmittingBlock, setIsSubmittingBlock] = useState(false);
+
 
   // Detail Modal
   const [activeItem, setActiveItem] = useState(null);
@@ -156,15 +187,15 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
           id: `blocked-${b._id}`,
           rawId: b._id,
           type: "blocked",
-          title: b.reason || "Blocked / Holiday",
-          serviceType: b.reason || "Blocked / Holiday",
+          title: b.reason || "Blocked Date",
+          serviceType: b.reason || "Blocked Date",
           recordId: b._id ? `#BLK-${String(b._id).slice(-6).toUpperCase()}` : "N/A",
           clientName: "—",
           eventDateFormatted: formatDisplayDate(b.date),
           eventType: b.reason || "Blocked Date",
           time: "All Day",
           status: "blocked",
-          categoryLabel: "Blocked / Holiday",
+          categoryLabel: "Blocked Date",
           rawItem: b
         });
       }
@@ -320,13 +351,84 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
   const selectedDateKey = formatDateKey(selectedDate);
   const todayKey = formatDateKey(new Date());
   const selectedDayEvents = eventsByDate.get(selectedDateKey) || [];
+  const hasConfirmedBookingOrEvent = selectedDayEvents.some(
+    (ev) =>
+      (ev.type === "booking" && !["cancelled", "refunded", "rejected"].includes(String(ev.status || "").toLowerCase())) ||
+      ev.type === "ocular"
+  );
 
   // Handlers for Block Date
+  const getConflictingDatesForRange = (startDateStr, endDateStr, isRange) => {
+    const conflicts = [];
+    const checkDateKey = (dateKey) => {
+      const dayEvs = eventsByDate.get(dateKey) || [];
+      return dayEvs.some(
+        (ev) =>
+          (ev.type === "booking" && !["cancelled", "refunded", "rejected"].includes(String(ev.status || "").toLowerCase())) ||
+          ev.type === "ocular"
+      );
+    };
+
+    if (!isRange) {
+      if (checkDateKey(startDateStr)) {
+        conflicts.push(startDateStr);
+      }
+    } else {
+      const runner = parseDateStartOfDay(startDateStr);
+      const end = parseDateStartOfDay(endDateStr);
+      if (runner && end) {
+        while (runner <= end) {
+          const k = formatDateKey(runner);
+          if (checkDateKey(k)) {
+            conflicts.push(k);
+          }
+          runner.setDate(runner.getDate() + 1);
+        }
+      }
+    }
+    return conflicts;
+  };
+
   const handleBlockSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingBlock) return;
+    setBlockError("");
+
     if (!blockForm.startDate) {
-      toast.error("Please select a date");
+      notify("Please select a date", "error");
       return;
+    }
+
+    if (blockForm.isRange) {
+      if (!blockForm.endDate) {
+        notify("Please select an end date", "error");
+        return;
+      }
+      if (blockForm.startDate > blockForm.endDate) {
+        const msg = "Start date cannot be after end date";
+        setBlockError(msg);
+        notify(msg, "error");
+        return;
+      }
+    }
+
+    // Check for conflicting confirmed bookings or scheduled events
+    const conflicts = getConflictingDatesForRange(blockForm.startDate, blockForm.endDate, blockForm.isRange);
+    if (conflicts.length > 0) {
+      if (!blockForm.isRange) {
+        const msg = "This date cannot be blocked because it already has a scheduled booking or event.";
+        setBlockError(msg);
+        notify(msg, "error");
+        return;
+      } else {
+        const formattedList = conflicts
+          .map((c) => formatDisplayDate(parseDateStartOfDay(c)))
+          .join(", ");
+        const msg = `Cannot block selected date range because ${formattedList} already has a scheduled booking or event.`;
+        setBlockError(msg);
+        notify(msg, "error");
+        return;
+      }
     }
 
     setIsSubmittingBlock(true);
@@ -335,36 +437,109 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
         ? { startDate: blockForm.startDate, endDate: blockForm.endDate, reason: blockForm.reason }
         : { date: blockForm.startDate, reason: blockForm.reason };
 
-      await AdminAPI.blockDate(payload);
-      toast.success("Date(s) blocked successfully");
+      const res = await AdminAPI.blockDate(payload);
+      const isRangeMode = blockForm.isRange;
+      const successMsg = isRangeMode
+        ? "Date range blocked successfully!"
+        : "Date blocked successfully!";
+
+      // Immediately update local blockedDates state to eliminate any delay
+      const createdList = Array.isArray(res.data?.blockedDates)
+        ? res.data.blockedDates
+        : res.data?.date
+        ? [res.data]
+        : [];
+
+      if (createdList.length > 0) {
+        setBlockedDates((prev) => {
+          const existingIds = new Set(prev.map((b) => String(b._id)));
+          const additions = createdList.filter((b) => !existingIds.has(String(b._id)));
+          return [...prev, ...additions];
+        });
+      }
+
+      // Automatically focus on the newly blocked date so selected-date panel updates immediately
+      const targetDateObj = parseDateStartOfDay(blockForm.startDate);
+      if (targetDateObj) {
+        setSelectedDate(targetDateObj);
+        if (
+          targetDateObj.getMonth() !== currentDate.getMonth() ||
+          targetDateObj.getFullYear() !== currentDate.getFullYear()
+        ) {
+          setCurrentDate(new Date(targetDateObj.getFullYear(), targetDateObj.getMonth(), 1));
+        }
+      }
+
+      notify(res.data?.message || successMsg, "success");
       setShowBlockModal(false);
+      setBlockError("");
       setBlockForm({
         isRange: false,
         startDate: formatDateKey(new Date()),
         endDate: formatDateKey(new Date()),
         reason: ""
       });
-      fetchCalendarData();
+
+      // Synchronize in background with fresh fetch
+      await fetchCalendarData();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to block date");
+      const errMsg = err.response?.data?.message || err.message || "Failed to block date";
+      setBlockError(errMsg);
+      notify(errMsg, "error");
     } finally {
       setIsSubmittingBlock(false);
     }
   };
 
-  const handleUnblock = async (blockedId) => {
+  const handleUnblock = async (blockedId, unblockRange = false) => {
     try {
-      await AdminAPI.unblockDate(blockedId);
-      toast.success("Date unblocked successfully");
-      if (activeItem?.rawId === blockedId) setActiveItem(null);
-      fetchCalendarData();
+      const res = await AdminAPI.unblockDate(blockedId, unblockRange);
+      const isRangeUnblock = unblockRange || (res.data?.deletedCount && res.data.deletedCount > 1);
+
+      // Identify the item being unblocked to locate its group
+      const targetItem = blockedDates.find((b) => String(b._id) === String(blockedId));
+      const targetGroupId = targetItem?.group_id;
+
+      // Immediate state update
+      setBlockedDates((prev) => {
+        if (isRangeUnblock && targetGroupId) {
+          return prev.filter((b) => b.group_id !== targetGroupId);
+        }
+        return prev.filter((b) => String(b._id) !== String(blockedId));
+      });
+
+      if (
+        activeItem?.rawId === blockedId ||
+        (isRangeUnblock && targetGroupId && activeItem?.rawItem?.group_id === targetGroupId)
+      ) {
+        setActiveItem(null);
+      }
+
+      const successMsg = isRangeUnblock
+        ? "Date range unblocked successfully!"
+        : "Date unblocked successfully!";
+
+      notify(res.data?.message || successMsg, "success");
+      await fetchCalendarData();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to unblock date");
+      const errMsg = err.response?.data?.message || err.message || "Failed to unblock date";
+      notify(errMsg, "error");
     }
   };
 
   const openBlockModalForDate = (dateObj) => {
     const formatted = formatDateKey(dateObj);
+    const dayEvs = eventsByDate.get(formatted) || [];
+    const hasBookingOrEvent = dayEvs.some(
+      (ev) =>
+        (ev.type === "booking" && !["cancelled", "refunded", "rejected"].includes(String(ev.status || "").toLowerCase())) ||
+        ev.type === "ocular"
+    );
+    if (hasBookingOrEvent) {
+      notify("This date cannot be blocked because it already has a scheduled booking or event.", "error");
+      return;
+    }
+    setBlockError("");
     const initialDate = formatted < todayKey ? todayKey : formatted;
     setBlockForm({
       isRange: false,
@@ -486,44 +661,81 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                   const isToday = dateKey === todayKey;
                   const isPast = dateKey < todayKey;
                   const dayEvents = eventsByDate.get(dateKey) || [];
+                  const blockedItem = dayEvents.find((ev) => ev.type === "blocked");
+                  const isBlocked = Boolean(blockedItem);
+
+                  let cellClasses = "min-h-[50px] sm:min-h-[56px] lg:min-h-[60px] rounded-lg p-1 border transition-all flex flex-col justify-between cursor-pointer overflow-hidden ";
+                  if (isBlocked) {
+                    if (isSelected) {
+                      cellClasses += "border-rose-500 ring-2 ring-rose-400/50 bg-rose-50 shadow-2xs";
+                    } else if (isToday) {
+                      cellClasses += "border-rose-400 ring-1.5 ring-blue-400/80 bg-rose-50/80 hover:bg-rose-100/80 shadow-2xs";
+                    } else if (isCurrentMonth) {
+                      cellClasses += "border-rose-200 bg-rose-50/70 hover:bg-rose-100/70 hover:border-rose-300 shadow-2xs";
+                    } else {
+                      cellClasses += "border-rose-200/50 bg-rose-50/30 opacity-60";
+                    }
+                  } else {
+                    if (isSelected) {
+                      cellClasses += "border-primary ring-1.5 ring-primary/40 bg-primary/5 shadow-2xs";
+                    } else if (isToday) {
+                      cellClasses += "border-blue-400/80 bg-blue-50/20";
+                    } else if (isPast) {
+                      cellClasses += isCurrentMonth
+                        ? "border-border/60 bg-slate-100/80 hover:border-slate-300 hover:bg-slate-100"
+                        : "border-border/30 bg-slate-100/50 opacity-50 hover:opacity-80";
+                    } else if (isCurrentMonth) {
+                      cellClasses += "border-border/70 bg-card hover:border-slate-300 hover:shadow-2xs";
+                    } else {
+                      cellClasses += "border-border/30 bg-muted/30 opacity-40";
+                    }
+                  }
+
+                  let dateBadgeClasses = "text-[10px] sm:text-[11px] font-semibold rounded-full w-4.5 h-4.5 flex items-center justify-center ";
+                  if (isBlocked) {
+                    if (isSelected) {
+                      dateBadgeClasses += "bg-rose-600 text-white font-bold shadow-2xs";
+                    } else if (isToday) {
+                      dateBadgeClasses += "bg-rose-600 text-white font-bold ring-2 ring-blue-400 shadow-2xs";
+                    } else {
+                      dateBadgeClasses += "bg-rose-100 text-rose-700 font-bold border border-rose-200";
+                    }
+                  } else {
+                    if (isToday) {
+                      dateBadgeClasses += "bg-primary text-white font-bold shadow-2xs";
+                    } else if (isSelected) {
+                      dateBadgeClasses += "bg-powder text-primary font-bold";
+                    } else if (isPast) {
+                      dateBadgeClasses += "text-slate-400 font-medium";
+                    } else if (isCurrentMonth) {
+                      dateBadgeClasses += "text-foreground";
+                    } else {
+                      dateBadgeClasses += "text-muted-foreground/60";
+                    }
+                  }
 
                   return (
                     <div
                       key={idx}
                       onClick={() => setSelectedDate(date)}
-                      className={`min-h-[50px] sm:min-h-[56px] lg:min-h-[60px] rounded-lg p-1 border transition-all flex flex-col justify-between cursor-pointer overflow-hidden ${
-                        isSelected
-                          ? "border-primary ring-1.5 ring-primary/40 bg-primary/5 shadow-2xs"
-                          : isToday
-                          ? "border-blue-400/80 bg-blue-50/20"
-                          : isPast
-                          ? isCurrentMonth
-                            ? "border-border/60 bg-slate-100/80 hover:border-slate-300 hover:bg-slate-100"
-                            : "border-border/30 bg-slate-100/50 opacity-50 hover:opacity-80"
-                          : isCurrentMonth
-                          ? "border-border/70 bg-card hover:border-slate-300 hover:shadow-2xs"
-                          : "border-border/30 bg-muted/30 opacity-40"
-                      }`}
+                      className={cellClasses}
                     >
                       {/* Top Row: Date Badge */}
                       <div className="flex items-center justify-between shrink-0">
-                        <span
-                          className={`text-[10px] sm:text-[11px] font-semibold rounded-full w-4.5 h-4.5 flex items-center justify-center ${
-                            isToday
-                              ? "bg-primary text-white font-bold shadow-2xs"
-                              : isSelected
-                              ? "bg-powder text-primary font-bold"
-                              : isPast
-                              ? "text-slate-400 font-medium"
-                              : isCurrentMonth
-                              ? "text-foreground"
-                              : "text-muted-foreground/60"
-                          }`}
-                        >
+                        <span className={dateBadgeClasses}>
                           {date.getDate()}
                         </span>
-                        {dayEvents.length > 0 && (
-                          <span className={`w-1.5 h-1.5 rounded-full ${isPast ? "bg-slate-400" : "bg-primary"} sm:hidden shrink-0`} />
+                        {isBlocked ? (
+                          <>
+                            <span className="hidden sm:inline-flex items-center gap-0.5 text-[8.5px] font-bold text-rose-700 uppercase tracking-wider px-1 py-0.5 rounded bg-rose-100/90 border border-rose-200/60 leading-none">
+                              <Lock size={8} /> Blocked
+                            </span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600 sm:hidden shrink-0" />
+                          </>
+                        ) : (
+                          dayEvents.length > 0 && (
+                            <span className={`w-1.5 h-1.5 rounded-full ${isPast ? "bg-slate-400" : "bg-primary"} sm:hidden shrink-0`} />
+                          )
                         )}
                       </div>
 
@@ -531,6 +743,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                       <div className="space-y-0.5 overflow-hidden flex-1 flex flex-col justify-end">
                         {/* Event Pill 1 */}
                         {dayEvents.slice(0, 1).map((ev) => {
+                          const isEvBlocked = ev.type === "blocked";
                           const catStyle = getCategoryStyle(ev.categoryLabel || ev.title, ev.status);
                           return (
                             <div
@@ -539,9 +752,12 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                                 e.stopPropagation();
                                 setActiveItem(ev);
                               }}
-                              className={`text-[9.5px] leading-tight font-medium px-1.5 py-[1.5px] rounded border truncate flex items-center gap-1 ${catStyle.pillBg} transition-transform hover:scale-[1.01]`}
+                              className={`text-[9.5px] leading-tight font-medium px-1.5 py-[1.5px] rounded border truncate flex items-center gap-1 ${
+                                isEvBlocked ? "bg-rose-100 text-rose-800 border-rose-200 font-semibold" : catStyle.pillBg
+                              } transition-transform hover:scale-[1.01]`}
                               title={`${ev.title} (${ev.clientName || ev.time})`}
                             >
+                              {isEvBlocked && <Lock size={9} className="shrink-0 text-rose-600" />}
                               <span className="truncate">{ev.title}</span>
                             </div>
                           );
@@ -551,6 +767,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                         {dayEvents.length > 1 && (
                           <div className="hidden sm:block">
                             {dayEvents.slice(1, 2).map((ev) => {
+                              const isEvBlocked = ev.type === "blocked";
                               const catStyle = getCategoryStyle(ev.categoryLabel || ev.title, ev.status);
                               return (
                                 <div
@@ -559,9 +776,12 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                                     e.stopPropagation();
                                     setActiveItem(ev);
                                   }}
-                                  className={`text-[9.5px] leading-tight font-medium px-1.5 py-[1.5px] rounded border truncate flex items-center gap-1 ${catStyle.pillBg} transition-transform hover:scale-[1.01]`}
+                                  className={`text-[9.5px] leading-tight font-medium px-1.5 py-[1.5px] rounded border truncate flex items-center gap-1 ${
+                                    isEvBlocked ? "bg-rose-100 text-rose-800 border-rose-200 font-semibold" : catStyle.pillBg
+                                  } transition-transform hover:scale-[1.01]`}
                                   title={`${ev.title} (${ev.clientName || ev.time})`}
                                 >
+                                  {isEvBlocked && <Lock size={9} className="shrink-0 text-rose-600" />}
                                   <span className="truncate">{ev.title}</span>
                                 </div>
                               );
@@ -594,15 +814,15 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                  <span>Pending Deposit / Review</span>
+                  <span>Inquiry</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
                   <span>Ocular / Scheduled</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-slate-500 shrink-0" />
-                  <span>Blocked / Holiday</span>
+                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                  <span>Blocked Date</span>
                 </div>
               </div>
             </div>
@@ -621,13 +841,18 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                   const isToday = dateKey === todayKey;
                   const isPast = dateKey < todayKey;
                   const dayEvs = eventsByDate.get(dateKey) || [];
+                  const isWeekBlocked = dayEvs.some((ev) => ev.type === "blocked");
 
                   return (
                     <div
                       key={i}
                       onClick={() => setSelectedDate(d)}
                       className={`p-2 rounded-md border text-left cursor-pointer min-h-[150px] flex flex-col shadow-2xs transition-all ${
-                        isSelected
+                        isWeekBlocked
+                          ? isSelected
+                            ? "border-rose-500 bg-rose-50/90 ring-1.5 ring-rose-400/50"
+                            : "border-rose-200 bg-rose-50/70 hover:border-rose-300 hover:bg-rose-100/60 shadow-2xs"
+                          : isSelected
                           ? "border-primary bg-primary/5 ring-1.5 ring-primary/40"
                           : isToday
                           ? "border-blue-400/80 bg-blue-50/20"
@@ -637,12 +862,20 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                       }`}
                     >
                       <div className={`text-[10px] font-bold uppercase ${
-                        isToday ? "text-primary" : isPast && !isSelected ? "text-slate-400" : "text-muted-foreground"
+                        isWeekBlocked
+                          ? "text-rose-600 font-bold"
+                          : isToday
+                          ? "text-primary"
+                          : isPast && !isSelected
+                          ? "text-slate-400"
+                          : "text-muted-foreground"
                       }`}>
                         {d.toLocaleDateString("en-US", { weekday: "short" })}
                       </div>
                       <div className={`text-xs font-bold mt-0.5 ${
-                        isToday
+                        isWeekBlocked
+                          ? "text-rose-700 font-extrabold"
+                          : isToday
                           ? "text-primary font-extrabold"
                           : isSelected
                           ? "text-primary font-bold"
@@ -760,7 +993,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
             <div className="text-center py-6 border border-dashed border-border rounded-md p-3 bg-muted/20 space-y-2">
               <CalendarIcon size={18} className="mx-auto text-muted-foreground" />
               <p className="text-xs text-muted-foreground font-medium">No events or blocks for this date.</p>
-              {selectedDateKey >= todayKey && (
+              {selectedDateKey >= todayKey && !hasConfirmedBookingOrEvent && (
                 <button
                   type="button"
                   onClick={() => openBlockModalForDate(selectedDate)}
@@ -773,23 +1006,42 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
           ) : (
             <div className="space-y-2 max-h-[380px] overflow-y-auto pr-0.5">
               {selectedDayEvents.map((ev) => {
+                const isBlocked = ev.type === "blocked";
                 const catStyle = getCategoryStyle(ev.categoryLabel || ev.title, ev.status);
                 return (
                   <div
                     key={ev.id}
-                    className={`p-2.5 rounded-md border ${catStyle.cardBg} space-y-1.5 transition-all shadow-2xs`}
+                    className={`p-2.5 rounded-md border ${
+                      isBlocked
+                        ? "bg-rose-50/90 border-rose-200 text-rose-950 shadow-2xs"
+                        : catStyle.cardBg
+                    } space-y-1.5 transition-all shadow-2xs`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="font-bold text-xs text-foreground leading-snug">{ev.title}</p>
-                        {ev.clientName && (
+                        <div className="flex items-center gap-1.5">
+                          {isBlocked && <Lock size={12} className="text-rose-600 shrink-0" />}
+                          <p className={`font-bold text-xs ${isBlocked ? "text-rose-950" : "text-foreground"} leading-snug`}>
+                            {ev.title}
+                          </p>
+                        </div>
+                        {ev.clientName && ev.clientName !== "—" && (
                           <p className="text-[11px] font-medium text-muted-foreground mt-0.5">
                             {ev.clientName}
                           </p>
                         )}
+                        {isBlocked && ev.rawItem?.range_start && ev.rawItem?.range_end && (
+                          <p className="text-[10px] font-semibold text-rose-700 mt-1">
+                            Range: {formatDisplayDate(ev.rawItem.range_start)} – {formatDisplayDate(ev.rawItem.range_end)}
+                          </p>
+                        )}
                       </div>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${catStyle.pillBg}`}>
-                        {ev.time}
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                        isBlocked
+                          ? "bg-rose-100 text-rose-800 border border-rose-200/90 font-semibold"
+                          : catStyle.pillBg
+                      }`}>
+                        {isBlocked ? "Blocked" : ev.time}
                       </span>
                     </div>
 
@@ -801,14 +1053,37 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
 
                     {/* Action buttons */}
                     <div className="pt-1.5 border-t border-border/40 flex items-center justify-between">
-                      {ev.type === "blocked" ? (
-                        <button
-                          type="button"
-                          onClick={() => handleUnblock(ev.rawId)}
-                          className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
-                        >
-                          <Unlock size={12} /> Unblock
-                        </button>
+                      {isBlocked ? (
+                        <div className="flex items-center gap-2 w-full justify-between">
+                          {ev.rawItem?.group_id ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleUnblock(ev.rawId, true)}
+                                className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer transition-colors"
+                                title="Unblock all dates in this range"
+                              >
+                                <Unlock size={12} /> Unblock Range
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUnblock(ev.rawId, false)}
+                                className="text-[11px] font-medium text-slate-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer transition-colors"
+                                title="Unblock only this single date"
+                              >
+                                Unblock Date Only
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleUnblock(ev.rawId, false)}
+                              className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <Unlock size={12} /> Unblock Date
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         <button
                           type="button"
@@ -825,6 +1100,23 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                   </div>
                 );
               })}
+
+              {hasConfirmedBookingOrEvent ? (
+                <div className="p-2.5 rounded-md bg-amber-50/90 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+                  <Info size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                  <span>This date cannot be blocked because it already has a scheduled booking or event.</span>
+                </div>
+              ) : selectedDateKey >= todayKey ? (
+                <div className="pt-1 text-center">
+                  <button
+                    type="button"
+                    onClick={() => openBlockModalForDate(selectedDate)}
+                    className="inline-block text-xs font-semibold text-primary hover:underline cursor-pointer"
+                  >
+                    + Block another date
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -835,25 +1127,36 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-card rounded-md border border-border max-w-md w-full p-4 sm:p-4.5 shadow-xl space-y-3.5 animate-in fade-in zoom-in duration-150">
             <div className="flex items-center justify-between border-b border-border pb-2.5">
-
               <h3 className="text-base font-bold text-foreground flex items-center gap-2">
                 <Lock size={16} className="text-primary" /> Block Calendar Date(s)
               </h3>
               <button
                 type="button"
-                onClick={() => setShowBlockModal(false)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
+                disabled={isSubmittingBlock}
+                onClick={() => {
+                  setShowBlockModal(false);
+                  setBlockError("");
+                }}
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md disabled:opacity-50"
               >
                 <X size={16} />
               </button>
             </div>
+
+            {blockError && (
+              <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 font-medium flex items-start gap-2">
+                <Info size={14} className="text-rose-600 shrink-0 mt-0.5" />
+                <span>{blockError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleBlockSubmit} className="space-y-3.5">
               {/* Range Toggle */}
               <div className="flex items-center justify-between bg-muted p-0.5 rounded-lg text-xs font-semibold">
                 <button
                   type="button"
-                  onClick={() => setBlockForm({ ...blockForm, isRange: false })}
+                  disabled={isSubmittingBlock}
+                  onClick={() => setBlockForm((prev) => ({ ...prev, isRange: false }))}
                   className={`flex-1 py-1 rounded-md text-center transition-all ${
                     !blockForm.isRange ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground"
                   }`}
@@ -862,7 +1165,14 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setBlockForm({ ...blockForm, isRange: true })}
+                  disabled={isSubmittingBlock}
+                  onClick={() =>
+                    setBlockForm((prev) => ({
+                      ...prev,
+                      isRange: true,
+                      endDate: prev.endDate < prev.startDate ? prev.startDate : prev.endDate
+                    }))
+                  }
                   className={`flex-1 py-1 rounded-md text-center transition-all ${
                     blockForm.isRange ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground"
                   }`}
@@ -917,7 +1227,6 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                 </div>
               )}
 
-
               {/* Reason Input */}
               <div>
                 <label className="block text-xs font-semibold text-foreground mb-1">
@@ -943,8 +1252,9 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                       <button
                         key={preset}
                         type="button"
+                        disabled={isSubmittingBlock}
                         onClick={() => setBlockForm({ ...blockForm, reason: preset })}
-                        className="text-[11px] bg-muted hover:bg-muted/80 text-foreground px-2 py-0.5 rounded-md border border-border/60 transition-colors"
+                        className="text-[11px] bg-muted hover:bg-muted/80 text-foreground px-2 py-0.5 rounded-md border border-border/60 transition-colors disabled:opacity-50"
                       >
                         {preset}
                       </button>
@@ -957,8 +1267,12 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
               <div className="pt-3 border-t border-border flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowBlockModal(false)}
-                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+                  disabled={isSubmittingBlock}
+                  onClick={() => {
+                    setShowBlockModal(false);
+                    setBlockError("");
+                  }}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -979,10 +1293,15 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
       {activeItem && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-card rounded-xl border border-border max-w-md w-full p-4 sm:p-5 shadow-xl space-y-4 animate-in fade-in zoom-in duration-150">
-            {/* Header: Service Type prominently displayed */}
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="text-base sm:text-lg font-bold text-foreground tracking-tight">
-                {activeItem.serviceType || (activeItem.rawItem ? resolveServiceType(activeItem.rawItem) : activeItem.title)}
+              <h3 className={`text-base sm:text-lg font-bold tracking-tight flex items-center gap-2 ${
+                activeItem.type === "blocked" ? "text-rose-800" : "text-foreground"
+              }`}>
+                {activeItem.type === "blocked" && <Lock size={18} className="text-rose-600" />}
+                {activeItem.type === "blocked"
+                  ? "Blocked Calendar Date"
+                  : activeItem.serviceType || (activeItem.rawItem ? resolveServiceType(activeItem.rawItem) : activeItem.title)}
               </h3>
               <button
                 type="button"
@@ -994,27 +1313,56 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
               </button>
             </div>
 
-            {/* Fields List: ID, Client, Event Date, Event Type */}
+            {/* Fields List */}
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between items-center py-1.5 border-b border-border/40">
-                <span className="font-semibold text-muted-foreground">ID</span>
-                <span className="font-mono font-bold text-foreground">{activeItem.recordId || "—"}</span>
-              </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-border/40">
-                <span className="font-semibold text-muted-foreground">Client</span>
-                <span className="font-medium text-foreground">{activeItem.clientName || "—"}</span>
-              </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-border/40">
-                <span className="font-semibold text-muted-foreground">Event Date</span>
-                <span className="font-medium text-foreground">{activeItem.eventDateFormatted || "—"}</span>
-              </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-border/40">
-                <span className="font-semibold text-muted-foreground">Event Type</span>
-                <span className="font-medium text-foreground">{activeItem.eventType || "—"}</span>
-              </div>
+              {activeItem.type === "blocked" ? (
+                <>
+                  <div className="flex justify-between items-center py-1.5 border-b border-border/40">
+                    <span className="font-semibold text-muted-foreground">Status</span>
+                    <span className="font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded border border-rose-200">
+                      Blocked
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-border/40">
+                    <span className="font-semibold text-muted-foreground">Reason / Note</span>
+                    <span className="font-medium text-foreground">{activeItem.title || "Admin Blocked"}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-border/40">
+                    <span className="font-semibold text-muted-foreground">Date</span>
+                    <span className="font-medium text-foreground">{activeItem.eventDateFormatted || "—"}</span>
+                  </div>
+                  {activeItem.rawItem?.range_start && activeItem.rawItem?.range_end && (
+                    <div className="flex justify-between items-center py-1.5 border-b border-border/40">
+                      <span className="font-semibold text-muted-foreground">Date Range</span>
+                      <span className="font-medium text-rose-700">
+                        {formatDisplayDate(activeItem.rawItem.range_start)} – {formatDisplayDate(activeItem.rawItem.range_end)}
+                      </span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center py-1.5 border-b border-border/40">
+                    <span className="font-semibold text-muted-foreground">ID</span>
+                    <span className="font-mono font-bold text-foreground">{activeItem.recordId || "—"}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-border/40">
+                    <span className="font-semibold text-muted-foreground">Client</span>
+                    <span className="font-medium text-foreground">{activeItem.clientName || "—"}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-border/40">
+                    <span className="font-semibold text-muted-foreground">Event Date</span>
+                    <span className="font-medium text-foreground">{activeItem.eventDateFormatted || "—"}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-border/40">
+                    <span className="font-semibold text-muted-foreground">Event Type</span>
+                    <span className="font-medium text-foreground">{activeItem.eventType || "—"}</span>
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* Footer Buttons: Close & Open Record */}
+            {/* Footer Buttons */}
             <div className="pt-3 border-t border-border flex items-center justify-end gap-2">
               <button
                 type="button"
@@ -1023,7 +1371,34 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
               >
                 Close
               </button>
-              {activeItem.rawId && activeItem.type !== "blocked" && (
+              {activeItem.type === "blocked" ? (
+                activeItem.rawItem?.group_id ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleUnblock(activeItem.rawId, true)}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
+                    >
+                      <Unlock size={13} /> Unblock Range
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUnblock(activeItem.rawId, false)}
+                      className="px-3.5 py-2 rounded-lg text-xs font-semibold border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
+                    >
+                      Unblock Date Only
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleUnblock(activeItem.rawId, false)}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
+                  >
+                    <Unlock size={13} /> Unblock Date
+                  </button>
+                )
+              ) : activeItem.rawId ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -1037,7 +1412,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                 >
                   Open Record
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Download, Calendar } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
+import useToast from "../../hooks/useToast";
 import { AdminAPI } from "../../api/admin";
 
 export default function AdminAnalytics() {
   const [range, setRange] = useState("This Year");
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState({ monthlyRevenue: [], bookingStatus: [], topPackages: [] });
+  const { notify } = useToast();
 
   useEffect(() => {
     AdminAPI.getMetrics()
@@ -19,6 +21,92 @@ export default function AdminAnalytics() {
   }, []);
 
   const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0 });
+
+  const filteredRevenue = useMemo(() => {
+    const list = metrics.monthlyRevenue || [];
+    if (!list.length) return [];
+    if (range === "Last 30 Days") return list.slice(-1);
+    if (range === "Last 6 Months") return list.slice(-6);
+    if (range === "This Year") {
+      const currentYear = new Date().getFullYear().toString();
+      const thisYear = list.filter((m) => m.month?.startsWith(currentYear));
+      return thisYear.length ? thisYear : list;
+    }
+    return list;
+  }, [metrics.monthlyRevenue, range]);
+
+  const handleExport = () => {
+    if (loading) {
+      notify("Please wait until analytics data finishes loading.", "warning");
+      return;
+    }
+
+    const revenueList = filteredRevenue.length > 0 ? filteredRevenue : (metrics.monthlyRevenue || []);
+    const statusList = metrics.bookingStatus || [];
+    const packageList = metrics.topPackages || [];
+    const eventTypeList = metrics.eventTypes || [];
+
+    const hasData =
+      revenueList.length > 0 ||
+      statusList.length > 0 ||
+      packageList.length > 0 ||
+      eventTypeList.length > 0;
+
+    if (!hasData) {
+      notify("No analytics data available to export.", "warning");
+      return;
+    }
+
+    const formatCell = (val) => `"${String(val ?? "").replace(/"/g, '""')}"`;
+    const toCsvRow = (arr) => arr.map(formatCell).join(",");
+
+    const rows = [
+      ["iReserve CMS - Analytics & Reports Summary"],
+      [`Generated On: ${new Date().toLocaleString("en-PH")}`],
+      [`Timeframe: ${range}`],
+      [],
+      ["--- SUMMARY METRICS ---"],
+      ["Metric", "Value"],
+      ["Total Revenue", metrics.summary?.monthlyRevenue != null ? `PHP ${Number(metrics.summary.monthlyRevenue).toLocaleString("en-PH")}` : "PHP 0"],
+      ["Completed Bookings / Events", metrics.summary?.completedEvents ?? 0],
+      ["Upcoming Bookings", metrics.summary?.upcomingBookings ?? 0],
+      ["Pending Quotations", metrics.summary?.pendingQuotations ?? 0],
+      [],
+      ["--- MONTHLY REVENUE ---"],
+      ["Month", "Revenue (PHP)"],
+      ...revenueList.map((item) => [item.month || "N/A", item.total ?? 0]),
+      [],
+      ["--- BOOKINGS BY STATUS ---"],
+      ["Status", "Bookings Count"],
+      ...statusList.map((item) => [item.status || "Unknown", item.count ?? 0]),
+      [],
+      ["--- TOP PACKAGES ---"],
+      ["Package Name", "Total Bookings", "Revenue (PHP)"],
+      ...packageList.map((item) => [item.name || "Custom Package", item.bookings ?? 0, item.revenue ?? 0]),
+    ];
+
+    if (eventTypeList.length > 0) {
+      rows.push(
+        [],
+        ["--- EVENT TYPES ---"],
+        ["Event Type", "Total Bookings"],
+        ...eventTypeList.map((item) => [item.event_type || "N/A", item.count ?? 0])
+      );
+    }
+
+    const csvContent = "\uFEFF" + rows.map(toCsvRow).join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `iReserve_Analytics_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    notify("Analytics report exported successfully.", "success");
+  };
 
   return (
     <AdminLayout>
@@ -41,7 +129,16 @@ export default function AdminAnalytics() {
                 <option>Last 30 Days</option>
               </select>
             </div>
-            <Btn variant="secondary" size="sm"><Download size={13} /> Export Data</Btn>
+            <Btn
+              id="btn-export-analytics"
+              variant="secondary"
+              size="sm"
+              onClick={handleExport}
+              disabled={loading}
+              title="Export analytics report to CSV"
+            >
+              <Download size={13} /> Export Data
+            </Btn>
           </div>
         </div>
 
@@ -57,11 +154,11 @@ export default function AdminAnalytics() {
             </div>
             {loading ? (
               <div className="h-[300px] flex items-center justify-center text-sm text-gray-400">Loading revenue data...</div>
-            ) : metrics.monthlyRevenue.length === 0 ? (
+            ) : filteredRevenue.length === 0 ? (
               <div className="h-[300px] flex items-center justify-center text-sm text-gray-400">No revenue recorded yet.</div>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={metrics.monthlyRevenue}>
+                <AreaChart data={filteredRevenue}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} tickFormatter={v => `₱${(v/1000).toFixed(0)}k`} />

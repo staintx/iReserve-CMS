@@ -13,6 +13,7 @@ import { isBookingOverdue } from "../../utils/overduePayment";
 import { useOverduePayment } from "../../context/OverduePaymentContext";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { getEventThumbnail } from "../../utils/eventThumbnails";
 import { Button } from "../../components/ui/button";
 import {
@@ -145,6 +146,8 @@ export default function CustomerBookings() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useRealTimeRefresh(() => loadData(true));
 
   // Outstanding balance per booking
   const balanceOf = useMemo(() => {

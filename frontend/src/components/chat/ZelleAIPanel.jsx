@@ -170,7 +170,7 @@ export default function ZelleAIPanel() {
 
   // ── Lock mobile background body scroll when chatbot is open ──
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || window.innerWidth >= 768) return;
 
     const originalBodyOverflow = document.body.style.overflow;
     const originalHtmlOverflow = document.documentElement.style.overflow;

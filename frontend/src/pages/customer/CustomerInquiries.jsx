@@ -177,7 +177,12 @@ export default function CustomerInquiries() {
     }
   }, [location.search]);
 
-  useRealTimeRefresh(() => fetchInquiries(true), ["inquiry"]);
+  useRealTimeRefresh((data) => {
+    fetchInquiries(true);
+    if (data?.action === "converted") {
+      notify("Your request was converted and moved to My Bookings.", "success", { id: "inquiry-converted" });
+    }
+  }, ["inquiry"]);
 
   // Sort helper function
   const sortInquiriesList = (list, isCancelledSection = false) => {

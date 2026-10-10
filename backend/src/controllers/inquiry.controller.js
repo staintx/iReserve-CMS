@@ -327,7 +327,7 @@ exports.getInquiries = asyncHandler(async (req, res) => {
       ]
     }).lean(),
     convertedBookingIds.length > 0 ? Booking.find({ _id: { $in: convertedBookingIds } }).lean() : [],
-    Quotation.find({ inquiry_id: { $in: inqIds }, status: { $ne: "Draft" } }).sort({ version_number: -1 }).lean(),
+    Quotation.find({ inquiry_id: { $in: inqIds } }).sort({ version_number: -1 }).lean(),
   ]);
 
   const approvedInquiryMap = new Map();
@@ -337,10 +337,17 @@ exports.getInquiries = asyncHandler(async (req, res) => {
   });
 
   const quotationMap = new Map();
+  const draftMap = new Map();
   quotations.forEach(q => {
     const inqIdStr = String(q.inquiry_id);
-    if (!quotationMap.has(inqIdStr)) {
-      quotationMap.set(inqIdStr, q);
+    if (q.status === "Draft") {
+      if (!draftMap.has(inqIdStr)) {
+        draftMap.set(inqIdStr, q);
+      }
+    } else {
+      if (!quotationMap.has(inqIdStr)) {
+        quotationMap.set(inqIdStr, q);
+      }
     }
   });
 
@@ -356,7 +363,13 @@ exports.getInquiries = asyncHandler(async (req, res) => {
         : BOOKING_TYPES.CUSTOM;
     }
 
-    const latestQuote = quotationMap.get(String(inquiry._id));
+    const latestSentQuote = quotationMap.get(String(inquiry._id));
+    const draftQuote = draftMap.get(String(inquiry._id));
+    const latestQuote = latestSentQuote || draftQuote;
+
+    inquiry.has_draft = Boolean(draftQuote);
+    inquiry.draftQuote = draftQuote || null;
+
     if (latestQuote) {
       inquiry.latestQuote = latestQuote;
       inquiry.total_price = Number(latestQuote.total_cost) || inquiry.total_price || 0;
@@ -440,15 +453,20 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
     } catch (e) { }
   }
 
-  const [approvedPayment, latestQuote] = await Promise.all([
+  const [approvedPayment, latestSentQuote, draftQuote] = await Promise.all([
     Payment.findOne({
       $or: [
         { inquiry_id: inquiry._id, status: "approved" },
         ...(inquiry.converted_booking_id ? [{ booking_id: inquiry.converted_booking_id, status: "approved" }] : [])
       ]
     }).lean(),
-    Quotation.findOne({ inquiry_id: inquiry._id, status: { $ne: "Draft" } }).sort({ version_number: -1 }).lean()
+    Quotation.findOne({ inquiry_id: inquiry._id, status: { $ne: "Draft" } }).sort({ version_number: -1 }).lean(),
+    Quotation.findOne({ inquiry_id: inquiry._id, status: "Draft" }).lean()
   ]);
+
+  const latestQuote = latestSentQuote || draftQuote;
+  inquiryObj.has_draft = Boolean(draftQuote);
+  inquiryObj.draftQuote = draftQuote || null;
 
   if (latestQuote) {
     inquiryObj.latestQuote = latestQuote;

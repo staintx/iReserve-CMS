@@ -2,6 +2,61 @@ export default function Badge({ status, variant, icon, children, dot = false, cl
   const resolvedStatus = status || (typeof children === "string" ? children : "") || (variant === "success" ? "available" : variant === "error" || variant === "destructive" ? "unavailable" : variant) || "";
   const norm = String(resolvedStatus || "").toLowerCase().trim();
 
+  // Inquiry workflow statuses
+  if (norm === "needs quotation" || norm === "needs quotations") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
+        <span>Needs Quotation</span>
+      </span>
+    );
+  }
+
+  if (norm === "draft quotation" || norm === "draft") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-300 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />}
+        <span>Draft Quotation</span>
+      </span>
+    );
+  }
+
+  if (norm === "quoted") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/80 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />}
+        <span>Quoted</span>
+      </span>
+    );
+  }
+
+  if (norm === "revision requested") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-300 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
+        <span>Revision Requested</span>
+      </span>
+    );
+  }
+
+  if (norm === "expired") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />}
+        <span>Expired</span>
+      </span>
+    );
+  }
+
+  if (norm === "cancelled") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />}
+        <span>Cancelled</span>
+      </span>
+    );
+  }
+
   // Specific custom inquiry status & priority tones
   if (norm === "pending review") {
     return (

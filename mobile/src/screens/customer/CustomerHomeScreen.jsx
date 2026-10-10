@@ -26,6 +26,9 @@ import {
   ChevronRight,
   ArrowUpRight,
   Calendar,
+  CalendarCheck,
+  FileText,
+  CreditCard,
   CheckCircle2,
   Clock,
   Cake,
@@ -65,6 +68,25 @@ const PACKAGE_CATEGORIES = [
   { id: "food", label: "Food Only" },
   { id: "special", label: "Special Offers" },
 ];
+
+const recordTitle = (record) => {
+  if (!record) return "";
+  const celebrant = record.celebrant_name?.trim();
+  const eventName = record.event_type === "Other" ? record.event_type_other : record.event_type;
+  if (celebrant) {
+    if (eventName && celebrant.toLowerCase().includes(eventName.toLowerCase())) {
+      return celebrant;
+    }
+    const suffix = celebrant.endsWith("s") || celebrant.endsWith("S") ? "'" : "'s";
+    return `${celebrant}${suffix} ${eventName || "Event"}`;
+  }
+  const owner = record.contact_first_name ? `${record.contact_first_name}'s ` : "";
+  if (eventName) return `${owner}${eventName}`;
+  const pkgName = record.package_name_snapshot || record.package_name || record.package_id?.name;
+  if (pkgName) return `${owner}${pkgName}`;
+  if (record.service_type) return record.service_type;
+  return record.reference || "Catering Event";
+};
 
 export const CustomerHomeScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -165,20 +187,37 @@ export const CustomerHomeScreen = ({ navigation }) => {
         if (cachedG) setGalleryItems(cachedG);
       }
 
-      // Check for active booking
+      // Check for active booking (signed-in customer)
       if (Array.isArray(bookingsData)) {
-        const upcoming = bookingsData.find(
-          (b) => !["Completed", "completed", "Cancelled", "cancelled"].includes(b.status)
+        const activeList = bookingsData.filter(
+          (b) => !["Completed", "completed", "Cancelled", "cancelled", "refunded"].includes(b.status)
         );
-        setActiveBooking(upcoming || null);
+        activeList.sort((a, b) => {
+          const dateA = a.event_date ? new Date(a.event_date).getTime() : Infinity;
+          const dateB = b.event_date ? new Date(b.event_date).getTime() : Infinity;
+          return dateA - dateB;
+        });
+        setActiveBooking(activeList[0] || null);
+      } else {
+        setActiveBooking(null);
       }
 
-      // Check for active inquiry
+      // Check for active inquiry (signed-in customer)
       if (Array.isArray(inquiriesData)) {
-        const pending = inquiriesData.find(
-          (i) => !["Converted to Booking", "Cancelled", "Quote Rejected"].includes(i.status)
+        const activeList = inquiriesData.filter(
+          (i) => !["Converted to Booking", "Cancelled", "Quote Rejected", "Expired"].includes(i.status)
         );
-        setActiveInquiry(pending || null);
+        // Prioritize quotes needing action ("Quotation Sent"), then nearest event date
+        activeList.sort((a, b) => {
+          if (a.status === "Quotation Sent" && b.status !== "Quotation Sent") return -1;
+          if (b.status === "Quotation Sent" && a.status !== "Quotation Sent") return 1;
+          const dateA = a.event_date ? new Date(a.event_date).getTime() : Infinity;
+          const dateB = b.event_date ? new Date(b.event_date).getTime() : Infinity;
+          return dateA - dateB;
+        });
+        setActiveInquiry(activeList[0] || null);
+      } else {
+        setActiveInquiry(null);
       }
     } catch (error) {
       console.warn("Failed to load customer home catalog data:", error);
@@ -280,6 +319,94 @@ export const CustomerHomeScreen = ({ navigation }) => {
       return String(item.category || "").trim().toLowerCase() === activeGalleryCat.toLowerCase();
     });
   }, [galleryItems, searchQuery, activeGalleryCat]);
+
+  // Derive contextual active record (booking or inquiry) for signed-in customer
+  const activeRecordMeta = useMemo(() => {
+    // 1. Signed-in customer's active booking takes primary precedence
+    if (activeBooking) {
+      const b = activeBooking;
+      const statusLower = String(b.status || "").trim().toLowerCase();
+      const isDepositNeeded =
+        statusLower.includes("deposit") || statusLower === "customer_accepted";
+
+      let kicker = "Active Reservation";
+      let subtitlePrompt = "Tap to view milestones";
+
+      if (isDepositNeeded) {
+        kicker = "Action Required";
+        subtitlePrompt = "Tap to settle deposit & lock date";
+      } else if (["preparing", "food prep"].includes(statusLower)) {
+        subtitlePrompt = "Kitchen preparing your menu";
+      } else if (["out for delivery", "in transit"].includes(statusLower)) {
+        subtitlePrompt = "Delivery dispatched to venue";
+      } else if (statusLower === "ready for event") {
+        subtitlePrompt = "Ready for your event celebration";
+      } else if (statusLower === "ocular scheduled") {
+        subtitlePrompt = "Site visit scheduled";
+      }
+
+      const title = recordTitle(b);
+      const dateStr = b.event_date ? formatDate(b.event_date) : "";
+      const subtitle = dateStr
+        ? `Date: ${dateStr} • ${subtitlePrompt}`
+        : subtitlePrompt;
+
+      return {
+        type: "booking",
+        id: b._id,
+        kicker,
+        status: b.status,
+        title,
+        subtitle,
+        iconType: isDepositNeeded ? "deposit" : "booking",
+        onPress: () => navigation.navigate("BookingDetail", { id: b._id }),
+      };
+    }
+
+    // 2. Signed-in customer's active inquiry
+    if (activeInquiry) {
+      const i = activeInquiry;
+      const isQuoteReady = i.status === "Quotation Sent";
+      const isRevision = i.status === "Revision Requested";
+
+      let kicker = "Inquiry in Progress";
+      let subtitlePrompt = "Proposal being prepared by team";
+
+      if (isQuoteReady) {
+        kicker = "Quotation Update";
+        subtitlePrompt = "Tap to review pricing & menu options";
+      } else if (isRevision) {
+        kicker = "Quotation Revision";
+        subtitlePrompt = "Catering team updating your quote";
+      }
+
+      const title = recordTitle(i);
+      const dateStr = i.event_date ? formatDate(i.event_date) : "";
+      const subtitle = dateStr
+        ? `Date: ${dateStr} • ${subtitlePrompt}`
+        : subtitlePrompt;
+
+      return {
+        type: "inquiry",
+        id: i._id,
+        kicker,
+        status: i.status,
+        title,
+        subtitle,
+        iconType: isQuoteReady ? "quote" : "inquiry",
+        onPress: () => {
+          if (isQuoteReady) {
+            navigation.navigate("QuotationDetail", { inquiryId: i._id });
+          } else {
+            navigation.navigate("InquiryDetail", { inquiryId: i._id });
+          }
+        },
+      };
+    }
+
+    // 3. No real active record -> completely hidden
+    return null;
+  }, [activeBooking, activeInquiry, navigation]);
 
   return (
     <View style={styles.container}>
@@ -395,72 +522,70 @@ export const CustomerHomeScreen = ({ navigation }) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
         }
       >
-        {/* In-Flow Active Catering Reservation / Quotation Live Tracker Card */}
-        {(activeBooking || activeInquiry) && (
+        {/* Contextual Active Reservation / Quotation Status Card */}
+        {activeRecordMeta && (
           <TouchableOpacity
             style={styles.liveTrackerCard}
-            onPress={() => {
-              if (activeBooking) {
-                navigation.navigate("BookingDetail", { id: activeBooking._id });
-              } else if (activeInquiry) {
-                navigation.navigate("QuotationDetail", { inquiryId: activeInquiry._id });
-              }
-            }}
+            onPress={activeRecordMeta.onPress}
             activeOpacity={0.88}
           >
             <View style={styles.trackerLeft}>
               <View style={styles.trackerIconWrap}>
-                <Calendar size={20} color={colors.primary} />
+                {activeRecordMeta.iconType === "deposit" ? (
+                  <CreditCard size={18} color="#D97706" />
+                ) : activeRecordMeta.iconType === "quote" ? (
+                  <FileText size={18} color={colors.primary} />
+                ) : activeRecordMeta.iconType === "inquiry" ? (
+                  <Clock size={18} color="#D97706" />
+                ) : (
+                  <CalendarCheck size={18} color={colors.primary} />
+                )}
               </View>
               <View style={styles.trackerInfo}>
                 <View style={styles.trackerBadgeRow}>
                   <Text style={styles.trackerKicker}>
-                    {activeBooking ? "Active Reservation" : "Quotation Update"}
+                    {activeRecordMeta.kicker}
                   </Text>
                   <StatusBadge
-                    status={activeBooking ? activeBooking.status : activeInquiry?.status}
+                    status={activeRecordMeta.status}
                     size="sm"
                   />
                 </View>
                 <Text style={styles.trackerTitle} numberOfLines={1}>
-                  {activeBooking
-                    ? activeBooking.event_name || "Confirmed Catering Event"
-                    : activeInquiry?.event_name || "Pending Event Proposal"}
+                  {activeRecordMeta.title}
                 </Text>
                 <Text style={styles.trackerSub} numberOfLines={1}>
-                  {activeBooking?.event_date
-                    ? `Date: ${formatDate(activeBooking.event_date)} • Tap to view milestones`
-                    : "Tap to review pricing & menu options"}
+                  {activeRecordMeta.subtitle}
                 </Text>
               </View>
             </View>
             <View style={styles.trackerActionBtn}>
-              <ChevronRight size={18} color={colors.primary} />
+              <ChevronRight size={16} color={colors.primary} />
             </View>
           </TouchableOpacity>
         )}
 
-        {/* Promotional Hero Card (Baemin Reference 1) */}
+        {/* Promotional Hero Card */}
         <View style={styles.heroPromoCard}>
           <View style={styles.heroPromoLeft}>
             <View style={styles.promoTag}>
-              <Sparkles size={12} color={colors.primary} />
+              <Sparkles size={11} color={colors.primary} />
               <Text style={styles.promoTagText}>Batangas' Premier Caterer</Text>
             </View>
             <Text style={styles.heroPromoTitle}>
-              Handcrafted Feasts for Your Milestones
+              Effortless Catering for Your Celebration
             </Text>
-            <Text style={styles.heroPromoSub}>
-              Full buffet spread, premium table styling & dedicated banquet staff.
+            <Text style={styles.heroPromoSub} numberOfLines={2}>
+              Custom buffet spreads, event styling & dedicated banquet staff.
             </Text>
             <View ref={heroCtaRef} collapsable={false} style={{ alignSelf: "flex-start" }}>
               <TouchableOpacity
                 style={styles.heroCtaBtn}
                 onPress={() => navigation.navigate("InquiryWizard")}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
               >
                 <Text style={styles.heroCtaText}>Request a Quote</Text>
-                <ChevronRight size={14} color={colors.white} />
+                <ChevronRight size={13} color={colors.primary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -479,13 +604,10 @@ export const CustomerHomeScreen = ({ navigation }) => {
           />
         </View>
 
-        {/* Custom Event Services Strip (Matches Website) */}
+        {/* Custom Event Services Strip */}
         <View style={styles.customServicesSection}>
-          <View style={styles.sectionHeaderRow}>
-            <View>
-              <Text style={styles.sectionHeading}>Custom Event Services</Text>
-              <Text style={styles.sectionSub}>Tailored catering, staging, or full banquet</Text>
-            </View>
+          <View style={styles.customServicesHeaderRow}>
+            <Text style={styles.customServicesHeading}>Custom Event Services</Text>
           </View>
 
           <View style={styles.customServicesGrid}>
@@ -495,10 +617,10 @@ export const CustomerHomeScreen = ({ navigation }) => {
               activeOpacity={0.8}
             >
               <View style={[styles.customServiceIconBox, { backgroundColor: "#FEF3C7" }]}>
-                <Utensils size={18} color="#D97706" />
+                <Utensils size={16} color="#D97706" />
               </View>
               <Text style={styles.customServiceTitle}>Food Only</Text>
-              <Text style={styles.customServiceDesc}>Buffet delivery or pickup</Text>
+              <Text style={styles.customServiceDesc}>Delivery or pickup</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -507,10 +629,10 @@ export const CustomerHomeScreen = ({ navigation }) => {
               activeOpacity={0.8}
             >
               <View style={[styles.customServiceIconBox, { backgroundColor: "#EDE9FE" }]}>
-                <Layers size={18} color="#7C3AED" />
+                <Layers size={16} color="#7C3AED" />
               </View>
               <Text style={styles.customServiceTitle}>Setup Only</Text>
-              <Text style={styles.customServiceDesc}>Scaffolding & styling</Text>
+              <Text style={styles.customServiceDesc}>Styling & setup</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -519,10 +641,10 @@ export const CustomerHomeScreen = ({ navigation }) => {
               activeOpacity={0.8}
             >
               <View style={[styles.customServiceIconBox, { backgroundColor: colors.primaryLight }]}>
-                <Sparkles size={18} color={colors.primary} />
+                <Sparkles size={16} color={colors.primary} />
               </View>
               <Text style={styles.customServiceTitle}>Full Service</Text>
-              <Text style={styles.customServiceDesc}>Banquet & complete setup</Text>
+              <Text style={styles.customServiceDesc}>Banquet & setup</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1000,12 +1122,12 @@ const styles = StyleSheet.create({
   heroPromoCard: {
     backgroundColor: colors.primary,
     borderRadius: radius.xl,
-    padding: spacing.lg,
+    padding: spacing.md,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
     overflow: "hidden",
-    ...shadows.md,
+    ...shadows.sm,
   },
   heroPromoLeft: {
     flex: 1,
@@ -1017,52 +1139,52 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: colors.white,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: radius.pill,
     alignSelf: "flex-start",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   promoTagText: {
-    fontSize: typography.sizes.micro,
+    fontSize: 10,
     fontFamily: typography.fontFamily.bold,
     color: colors.primary,
   },
   heroPromoTitle: {
-    fontSize: typography.sizes.lg,
+    fontSize: typography.sizes.md,
     fontFamily: typography.fontFamily.extraBold,
     color: colors.white,
-    lineHeight: 24,
-    marginBottom: 6,
+    lineHeight: 21,
+    marginBottom: 3,
   },
   heroPromoSub: {
-    fontSize: typography.sizes.xs,
+    fontSize: 11,
     fontFamily: typography.fontFamily.regular,
     color: "rgba(255, 255, 255, 0.9)",
-    lineHeight: 17,
-    marginBottom: spacing.md,
+    lineHeight: 15,
+    marginBottom: 10,
   },
   heroCtaBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    minHeight: 44,
-    backgroundColor: "rgba(255, 255, 255, 0.25)",
-    paddingHorizontal: spacing.base,
-    paddingVertical: 10,
+    gap: 4,
+    backgroundColor: colors.white,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: radius.pill,
     alignSelf: "flex-start",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.4)",
+    ...shadows.xs,
   },
   heroCtaText: {
-    fontSize: typography.sizes.sm,
+    fontSize: 12,
     fontFamily: typography.fontFamily.bold,
-    color: colors.white,
+    color: colors.primary,
   },
   heroPromoImage: {
-    width: 90,
-    height: 90,
-    borderRadius: radius.lg,
+    width: 78,
+    height: 78,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   sectionContainer: {
     marginBottom: spacing.lg,
@@ -1441,27 +1563,27 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.base,
-    borderWidth: 1.5,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
     borderColor: colors.primaryBorder,
-    marginBottom: spacing.base,
-    ...shadows.sm,
+    marginBottom: spacing.sm + 2,
+    ...shadows.xs,
   },
   trackerLeft: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    marginRight: spacing.sm,
+    marginRight: spacing.xs,
   },
   trackerIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: spacing.md,
+    marginRight: spacing.sm + 2,
   },
   trackerInfo: {
     flex: 1,
@@ -1473,59 +1595,70 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   trackerKicker: {
-    fontSize: typography.sizes.micro,
-    fontFamily: typography.fontFamilies.bold,
+    fontSize: 10,
+    fontFamily: typography.fontFamily.bold,
     color: colors.primary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   trackerTitle: {
-    fontSize: typography.sizes.base,
-    fontFamily: typography.fontFamilies.bold,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
-    marginBottom: 2,
+    lineHeight: 18,
+    marginBottom: 1,
   },
   trackerSub: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamilies.regular,
+    fontSize: 11,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
+    lineHeight: 15,
   },
   trackerActionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.powder,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
+    marginLeft: 6,
   },
   customServicesSection: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  customServicesHeaderRow: {
+    marginBottom: spacing.xs,
+  },
+  customServicesHeading: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.extraBold,
+    color: colors.foreground,
   },
   customServicesGrid: {
     flexDirection: "row",
     gap: spacing.sm,
-    marginTop: spacing.sm,
   },
   customServiceCard: {
     flex: 1,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    padding: spacing.md,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
     borderWidth: 1,
     borderColor: colors.borderLight,
     alignItems: "center",
     ...shadows.xs,
   },
   customServiceIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.xs,
+    marginBottom: 5,
   },
   customServiceTitle: {
-    fontSize: typography.sizes.xs,
+    fontSize: 12,
     fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
     textAlign: "center",
@@ -1536,7 +1669,7 @@ const styles = StyleSheet.create({
     color: colors.foregroundMuted,
     textAlign: "center",
     marginTop: 2,
-    lineHeight: 13,
+    lineHeight: 12,
   },
 });
 

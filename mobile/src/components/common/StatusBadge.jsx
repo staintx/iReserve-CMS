@@ -100,6 +100,18 @@ export const StatusBadge = ({ status, size = "md", showDot = true, style }) => {
   // Clean label mapping matching web
   if (normalized === "deposit_paid") label = "Deposit Paid";
   if (normalized === "fully_paid") label = "Fully Paid";
+  if (normalized === "confirmed") label = "Confirmed";
+  if (normalized === "deposit pending" || normalized === "pending deposit") label = "Deposit Needed";
+  if (normalized === "customer_accepted") label = "Quote Accepted";
+  if (normalized === "ocular scheduled") label = "Site Visit Scheduled";
+  if (normalized === "preparing" || normalized === "food prep") label = "Food Prep";
+  if (normalized === "out for delivery" || normalized === "ready for delivery" || normalized === "in transit") label = "Out for Delivery";
+  if (normalized === "ready for event") label = "Ready for Event";
+  if (normalized === "delivered") label = "Delivered";
+  if (normalized === "completed") label = "Completed";
+  if (normalized === "cancelled") label = "Cancelled";
+  if (normalized === "revision requested") label = "Revision in Progress";
+  if (normalized === "pending review") label = "Pending Review";
   if (normalized === "under review") label = "Under Review";
   if (normalized === "pending quote review") label = "Pending Quote Review";
   if (normalized === "quotation sent") label = "Quote Ready";

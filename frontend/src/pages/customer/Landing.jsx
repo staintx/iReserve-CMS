@@ -8,6 +8,7 @@ import useRevealOnScroll from "../../hooks/useRevealOnScroll";
 import { useOverduePayment } from "../../context/OverduePaymentContext";
 import {
   capacityLabel,
+  eventTypeForPackage,
   packagePriceParts,
   priceLabel,
 } from "../../lib/packageDisplay";
@@ -26,6 +27,7 @@ import {
   CheckCircle2,
   Quote,
   X,
+  Package,
 } from "lucide-react";
 
 const peso = (amount) =>
@@ -448,14 +450,12 @@ export default function Landing() {
                    unmistakable without becoming a different component. */
                 if (isSpecialOffer(pkg)) {
                   const perPax = offerPricePerPax(pkg);
-                  const pax = offerGuestCount(pkg);
 
                   return (
                     <LandingComboCard
                       key={pkg._id || pkg.name}
                       pkg={pkg}
                       perPax={perPax}
-                      pax={pax}
                       peso={peso}
                       navigate={navigate}
                     />
@@ -464,6 +464,7 @@ export default function Landing() {
 
                 const capacity = capacityLabel(pkg);
                 const priceInfo = packagePriceParts(pkg);
+                const eventTag = eventTypeForPackage(pkg) || pkg.event_type || "Package";
 
                 return (
                   <article className="ls-pkg ls-pkg--standard" key={pkg._id || pkg.name}>
@@ -471,14 +472,16 @@ export default function Landing() {
                       {pkg.image_url ? (
                         <img src={pkg.image_url} alt={`${pkg.name} package`} loading="lazy" />
                       ) : (
-                        <div className="ls-pkg-media-empty">{pkg.name}</div>
+                        <div className="ls-pkg-media-empty">
+                          <Package size={34} strokeWidth={1.5} className="ls-pkg-empty-icon" aria-hidden="true" />
+                        </div>
                       )}
-                      {pkg.event_type && <span className="ls-pkg-tag">{pkg.event_type}</span>}
+                      <span className="ls-pkg-tag">{eventTag}</span>
                     </div>
 
                     <div className="ls-pkg-body">
                       <h3>{pkg.name}</h3>
-                      {pkg.description && <p className="ls-pkg-desc">{pkg.description}</p>}
+                      <p className="ls-pkg-desc">{pkg.description || "\u00A0"}</p>
 
                       <dl className="ls-pkg-facts">
                         <div className="ls-pkg-fact">
@@ -499,14 +502,14 @@ export default function Landing() {
                             )}
                           </dd>
                         </div>
-                        {capacity && (
-                          <div className="ls-pkg-fact">
-                            <dt>Estimated Guests</dt>
-                            <dd>
-                              <strong className="ls-pkg-guests-val">{capacity}</strong>
-                            </dd>
-                          </div>
-                        )}
+                        <div className="ls-pkg-fact">
+                          <dt>Estimated Guests</dt>
+                          <dd>
+                            <strong className="ls-pkg-guests-val">
+                              {capacity || "Flexible capacity"}
+                            </strong>
+                          </dd>
+                        </div>
                       </dl>
 
                       <div className="ls-pkg-actions">
@@ -1026,9 +1029,9 @@ function CustomerReviewCard({ review, index = 0, formatReviewDate }) {
   );
 }
 
-function LandingComboCard({ pkg, perPax, pax, peso, navigate }) {
+function LandingComboCard({ pkg, perPax, peso, navigate }) {
   return (
-    <article className="ls-pkg ls-offer ls-pkg--combo" key={pkg._id || pkg.name}>
+    <article className="ls-pkg ls-pkg--combo" key={pkg._id || pkg.name}>
       <div className="ls-pkg-media">
         {pkg.image_url ? (
           <img
@@ -1037,24 +1040,32 @@ function LandingComboCard({ pkg, perPax, pax, peso, navigate }) {
             loading="lazy"
           />
         ) : (
-          <div className="ls-pkg-media-empty">{pkg.name}</div>
+          <div className="ls-pkg-media-empty">
+            <Package size={34} strokeWidth={1.5} className="ls-pkg-empty-icon" aria-hidden="true" />
+          </div>
         )}
-        <span className="ls-offer-tag">Combo Pack</span>
+        <span className="ls-pkg-tag ls-pkg-tag--combo">Combo Pack</span>
       </div>
 
       <div className="ls-pkg-body">
         <h3>{pkg.name}</h3>
+        <p className="ls-pkg-desc">{pkg.description || "\u00A0"}</p>
 
-        {perPax > 0 && (
-          <p className="ls-offer-price">
-            <strong>{peso(perPax)}</strong>
-            <span>per pax</span>
-          </p>
-        )}
-
-        {pkg.description && (
-          <p className="ls-pkg-desc">{pkg.description}</p>
-        )}
+        <dl className="ls-pkg-facts">
+          <div className="ls-pkg-fact">
+            <dt>Price</dt>
+            <dd className="ls-pkg-price-val">
+              {perPax > 0 ? (
+                <>
+                  <strong className="ls-pkg-price-amount">{peso(perPax)}</strong>
+                  <span className="ls-pkg-price-sub">per pax</span>
+                </>
+              ) : (
+                <strong className="ls-pkg-price-text">Quoted per event</strong>
+              )}
+            </dd>
+          </div>
+        </dl>
 
         <div className="ls-pkg-actions">
           <button
@@ -1062,7 +1073,7 @@ function LandingComboCard({ pkg, perPax, pax, peso, navigate }) {
             className="ls-btn ls-btn--primary ls-btn--block"
             onClick={() => navigate(`/packages/${pkg._id}`)}
           >
-            View Combo
+            View combo
           </button>
         </div>
       </div>

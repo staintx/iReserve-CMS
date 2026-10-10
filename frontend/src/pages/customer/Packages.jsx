@@ -19,7 +19,7 @@ import {
   offerFoodByCategory,
 } from "../../lib/specialOffers";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Package } from "lucide-react";
 import { useOverduePayment } from "../../context/OverduePaymentContext";
 
 const peso = (amount) =>
@@ -363,6 +363,7 @@ export default function Packages() {
                     const service = serviceLabel(pkg);
                     const event = eventTypeForPackage(pkg);
                     const priceInfo = packagePriceParts(pkg);
+                    const categoryTag = event || service || pkg.package_type || "Package";
 
                     return (
                       <article className="ls-pkg ls-pkg--standard" key={pkg._id || pkg.name}>
@@ -374,17 +375,16 @@ export default function Packages() {
                               loading="lazy"
                             />
                           ) : (
-                            <div className="ls-pkg-media-empty">{pkg.name}</div>
+                            <div className="ls-pkg-media-empty">
+                              <Package size={34} strokeWidth={1.5} className="ls-pkg-empty-icon" aria-hidden="true" />
+                            </div>
                           )}
-                          {event && <span className="ls-pkg-tag">{event}</span>}
+                          <span className="ls-pkg-tag">{categoryTag}</span>
                         </div>
 
                         <div className="ls-pkg-body">
                           <h3>{pkg.name}</h3>
-                          {service && <p className="ls-pkg-service">{service}</p>}
-                          {pkg.description && (
-                            <p className="ls-pkg-desc">{pkg.description}</p>
-                          )}
+                          <p className="ls-pkg-desc">{pkg.description || "\u00A0"}</p>
 
                           <dl className="ls-pkg-facts">
                             <div className="ls-pkg-fact">
@@ -405,14 +405,14 @@ export default function Packages() {
                                 )}
                               </dd>
                             </div>
-                            {capacity && (
-                              <div className="ls-pkg-fact">
-                                <dt>Estimated Guests</dt>
-                                <dd>
-                                  <strong className="ls-pkg-guests-val">{capacity}</strong>
-                                </dd>
-                              </div>
-                            )}
+                            <div className="ls-pkg-fact">
+                              <dt>Estimated Guests</dt>
+                              <dd>
+                                <strong className="ls-pkg-guests-val">
+                                  {capacity || "Flexible capacity"}
+                                </strong>
+                              </dd>
+                            </div>
                           </dl>
 
                           <div className="ls-pkg-actions">
@@ -459,14 +459,12 @@ export default function Packages() {
             <div className="ls-card-grid">
               {offers.map((offer) => {
                 const perPax = offerPricePerPax(offer);
-                const pax = offerGuestCount(offer);
 
                 return (
                   <ComboCard
                     key={offer._id || offer.name}
                     offer={offer}
                     perPax={perPax}
-                    pax={pax}
                     peso={peso}
                     navigate={navigate}
                   />
@@ -508,9 +506,9 @@ export default function Packages() {
   );
 }
 
-function ComboCard({ offer, perPax, pax, peso, navigate }) {
+function ComboCard({ offer, perPax, peso, navigate }) {
   return (
-    <article className="ls-pkg ls-offer ls-pkg--combo" key={offer._id || offer.name}>
+    <article className="ls-pkg ls-pkg--combo" key={offer._id || offer.name}>
       <div className="ls-pkg-media">
         {offer.image_url ? (
           <img
@@ -519,24 +517,32 @@ function ComboCard({ offer, perPax, pax, peso, navigate }) {
             loading="lazy"
           />
         ) : (
-          <div className="ls-pkg-media-empty">{offer.name}</div>
+          <div className="ls-pkg-media-empty">
+            <Package size={34} strokeWidth={1.5} className="ls-pkg-empty-icon" aria-hidden="true" />
+          </div>
         )}
-        <span className="ls-offer-tag">Combo pack</span>
+        <span className="ls-pkg-tag ls-pkg-tag--combo">Combo Pack</span>
       </div>
 
       <div className="ls-pkg-body">
         <h3>{offer.name}</h3>
+        <p className="ls-pkg-desc">{offer.description || "\u00A0"}</p>
 
-        {perPax > 0 && (
-          <p className="ls-offer-price">
-            <strong>{peso(perPax)}</strong>
-            <span>per pax</span>
-          </p>
-        )}
-
-        {offer.description && (
-          <p className="ls-pkg-desc">{offer.description}</p>
-        )}
+        <dl className="ls-pkg-facts">
+          <div className="ls-pkg-fact">
+            <dt>Price</dt>
+            <dd className="ls-pkg-price-val">
+              {perPax > 0 ? (
+                <>
+                  <strong className="ls-pkg-price-amount">{peso(perPax)}</strong>
+                  <span className="ls-pkg-price-sub">per pax</span>
+                </>
+              ) : (
+                <strong className="ls-pkg-price-text">Quoted per event</strong>
+              )}
+            </dd>
+          </div>
+        </dl>
 
         <div className="ls-pkg-actions">
           <button
@@ -544,7 +550,7 @@ function ComboCard({ offer, perPax, pax, peso, navigate }) {
             className="ls-btn ls-btn--primary ls-btn--block"
             onClick={() => navigate(`/packages/${offer._id}`)}
           >
-            View Combo
+            View combo
           </button>
         </div>
       </div>

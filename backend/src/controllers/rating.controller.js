@@ -74,7 +74,10 @@ exports.getPublic = asyncHandler(async (req, res) => {
 	const ratings = await Rating.find()
 		.select("stars review customer_id booking_id createdAt")
 		.populate({ path: "customer_id", select: "full_name" })
-		.populate({ path: "booking_id", select: "event_type guest_count" })
+		.populate({
+			path: "booking_id",
+			select: "event_type guest_count package_id package_name_snapshot"
+		})
 		.sort({ createdAt: -1 });
 
 	res.json(ratings);

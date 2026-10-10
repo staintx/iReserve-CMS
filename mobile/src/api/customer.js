@@ -162,6 +162,11 @@ export const customerApi = {
   },
 
   // Ratings & Reviews
+  getRatings: async () => {
+    const response = await client.get("/ratings/public");
+    return response.data;
+  },
+
   getRatingByBooking: async (bookingId) => {
     const response = await client.get(`/ratings/booking/${bookingId}`);
     return response.data;

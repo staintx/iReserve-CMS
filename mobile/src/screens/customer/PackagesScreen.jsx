@@ -9,7 +9,7 @@ import {
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Sparkles, Utensils, Users, ChevronRight, Layers } from "lucide-react-native";
+import { Sparkles, Utensils, Users, ChevronRight, Layers, Star, CheckCircle2 } from "lucide-react-native";
 import { colors, radius, spacing, typography, shadows } from "../../constants/theme";
 import customerApi from "../../api/customer";
 import { resolvePackageCover } from "../../constants/cateringData";
@@ -24,13 +24,19 @@ import {
   isSpecialOffer,
   offerPricePerPax,
   offerGuestCount,
+  offerInclusions,
   packagePriceParts,
   capacityLabel,
+  eventTypeForPackage,
+  serviceLabel,
+  inclusionDisplayName,
+  getPackageRatingStats,
 } from "../../utils/packageDisplay";
 
 export const PackagesScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [packages, setPackages] = useState([]);
+  const [ratings, setRatings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -39,16 +45,25 @@ export const PackagesScreen = ({ navigation }) => {
   const loadPackages = async () => {
     setError("");
     try {
-      const data = await customerApi.getPackages();
+      const [data, ratingsData] = await Promise.all([
+        customerApi.getPackages(),
+        customerApi.getRatings().catch(() => []),
+      ]);
       const list = Array.isArray(data) ? data : [];
       setPackages(list);
       if (list.length > 0) {
         cacheData(CACHE_KEYS.PACKAGES, list);
       }
+      if (Array.isArray(ratingsData)) {
+        setRatings(ratingsData);
+        cacheData(CACHE_KEYS.RATINGS, ratingsData);
+      }
     } catch (err) {
       const cached = await getCachedData(CACHE_KEYS.PACKAGES);
+      const cachedRatings = await getCachedData(CACHE_KEYS.RATINGS);
       if (Array.isArray(cached) && cached.length > 0) {
         setPackages(cached);
+        if (Array.isArray(cachedRatings)) setRatings(cachedRatings);
       } else {
         setError("Unable to load packages. Please check your connection.");
       }
@@ -89,9 +104,30 @@ export const PackagesScreen = ({ navigation }) => {
   const renderPackageItem = ({ item }) => {
     const isCombo = isSpecialOffer(item);
     const coverUrl = resolvePackageCover(item);
-    const priceInfo = packagePriceParts(item);
-    const paxCount = offerGuestCount(item);
-    const guestCapacity = capacityLabel(item);
+    const priceParts = packagePriceParts(item);
+    const ratingStats = getPackageRatingStats(item, ratings);
+
+    const priceLabel = isCombo
+      ? (offerPricePerPax(item) > 0 ? `${formatCurrency(offerPricePerPax(item))} / pax` : "Custom Quote")
+      : (priceParts.amount
+          ? `${priceParts.prefix ? priceParts.prefix + " " : ""}${priceParts.amount}${priceParts.suffix ? " " + priceParts.suffix : ""}`.trim()
+          : (priceParts.text || "Quoted per event"));
+
+    const guestLabel = isCombo
+      ? `Fixed ${offerGuestCount(item) || item.guest_count || 10} Pax`
+      : capacityLabel(item) || (item.guest_max ? `Up to ${item.guest_max} Pax` : "Flexible Pax");
+
+    const categoryTag = isCombo
+      ? "Combo Pack"
+      : eventTypeForPackage(item) || item.event_type || serviceLabel(item) || "Package";
+
+    const displayInclusions = isCombo
+      ? (offerInclusions(item).length > 0
+          ? offerInclusions(item).slice(0, 3)
+          : ["Fixed Multi-Course Meal", "Buffet Setup", "Serving Utensils"])
+      : (Array.isArray(item.inclusions) && item.inclusions.length > 0
+          ? item.inclusions.slice(0, 3).map((inc) => inclusionDisplayName(inc))
+          : ["Full Table Setup", "Uniformed Waitstaff", "Chafing Dishes"]);
 
     return (
       <Card
@@ -102,17 +138,17 @@ export const PackagesScreen = ({ navigation }) => {
           <View style={styles.cardCoverContainer}>
             <Image source={{ uri: coverUrl }} style={styles.cardCoverImage} resizeMode="cover" />
             <View style={styles.coverBadgeRow}>
-              {item.event_type ? (
-                <View style={styles.eventBadge}>
-                  <Text style={styles.eventBadgeText}>{item.event_type}</Text>
-                </View>
-              ) : null}
               {isCombo ? (
                 <View style={styles.comboCoverBadge}>
                   <Sparkles size={11} color={colors.white} />
                   <Text style={styles.comboCoverBadgeText}>Combo Pack</Text>
                 </View>
-              ) : item.badge_text ? (
+              ) : (
+                <View style={styles.eventBadge}>
+                  <Text style={styles.eventBadgeText}>{categoryTag}</Text>
+                </View>
+              )}
+              {!isCombo && item.badge_text ? (
                 <View style={styles.featuredBadge}>
                   <Text style={styles.featuredBadgeText}>{item.badge_text}</Text>
                 </View>
@@ -122,91 +158,57 @@ export const PackagesScreen = ({ navigation }) => {
         ) : null}
 
         <View style={styles.cardBody}>
-          <View style={styles.cardHeader}>
-            <View style={styles.titleContainer}>
-              {isCombo && !coverUrl && (
-                <View style={styles.specialBadge}>
-                  <Sparkles size={12} color={colors.accentDark} />
-                  <Text style={styles.specialBadgeText}>
-                    {item.badge_text || "Combo Pack"}
-                  </Text>
-                </View>
-              )}
-              <Text style={styles.packageName} numberOfLines={2}>
-                {item.name}
-              </Text>
-              <Text style={styles.packageCategory}>
-                {isCombo
-                  ? "Curated Combo Meal · Food Only"
-                  : item.package_type || "Event Setup & Catering"}
-              </Text>
+          <View style={styles.packageTitleRow}>
+            <Text style={styles.packageName} numberOfLines={1}>
+              {item.name}
+            </Text>
+            {ratingStats && (
+              <View style={styles.packageTitleRatingBadge}>
+                <Star size={12} color="#F59E0B" fill="#F59E0B" />
+                <Text style={styles.packageTitleRatingText}>
+                  {ratingStats.averageRating.toFixed(1)} ({ratingStats.reviewCount})
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <Text style={styles.packageDesc} numberOfLines={2}>
+            {item.description ||
+              (isCombo
+                ? "Curated multi-course celebration meal prepared fresh and delivered hot."
+                : "Includes multi-course buffet dining, professional uniformed waitstaff, full banquet tables and floral styling.")}
+          </Text>
+
+          {/* Badges & Meta Row */}
+          <View style={styles.packageMetaRow}>
+            <View style={styles.metaChip}>
+              <Users size={12} color={colors.primary} />
+              <Text style={styles.metaChipText}>{guestLabel}</Text>
             </View>
 
-            <View style={styles.priceContainer}>
-              {isCombo ? (
-                <>
-                  <Text style={styles.price}>
-                    {formatCurrency(offerPricePerPax(item))}
-                  </Text>
-                  <Text style={styles.priceUnit}>per pax</Text>
-                </>
-              ) : priceInfo.amount ? (
-                <>
-                  <Text style={styles.price}>{priceInfo.amount}</Text>
-                  <Text style={styles.priceUnit}>
-                    {priceInfo.suffix || (priceInfo.prefix ? priceInfo.prefix.toLowerCase() : "base rate")}
-                  </Text>
-                </>
-              ) : (
-                <Text style={styles.priceQuoted}>{priceInfo.text}</Text>
-              )}
+            <View style={styles.metaChipPrice}>
+              <Text style={styles.metaPriceText}>{priceLabel}</Text>
             </View>
           </View>
 
-          <Text style={styles.description} numberOfLines={2}>
-            {item.description ||
-              "Complete catering solution with tables, chairs, centerpieces, and customizable menu choices."}
-          </Text>
+          {/* Inclusions Vertical Strip (Matches Reference) */}
+          <View style={styles.inclusionsList}>
+            {displayInclusions.map((inc, iIdx) => (
+              <View key={iIdx} style={styles.inclusionItem}>
+                <CheckCircle2 size={13} color={colors.success} />
+                <Text style={styles.inclusionText} numberOfLines={1}>
+                  {inc}
+                </Text>
+              </View>
+            ))}
+          </View>
 
-          <View style={styles.inclusionsRow}>
-            {isCombo ? (
-              <>
-                {paxCount > 0 && (
-                  <View style={styles.tag}>
-                    <Users size={12} color={colors.primary} />
-                    <Text style={styles.tagText}>{paxCount} pax fixed</Text>
-                  </View>
-                )}
-                {Array.isArray(item.offer_food_items) && item.offer_food_items.length > 0 && (
-                  <View style={styles.tag}>
-                    <Utensils size={12} color={colors.primary} />
-                    <Text style={styles.tagText}>
-                      {item.offer_food_items.length} Course Items
-                    </Text>
-                  </View>
-                )}
-              </>
-            ) : (
-              <>
-                {guestCapacity ? (
-                  <View style={styles.tag}>
-                    <Users size={12} color={colors.primary} />
-                    <Text style={styles.tagText}>{guestCapacity}</Text>
-                  </View>
-                ) : null}
-
-                {Array.isArray(item.inclusions) && item.inclusions.length > 0 && (
-                  <View style={styles.tag}>
-                    <Layers size={12} color={colors.primary} />
-                    <Text style={styles.tagText}>{item.inclusions.length} Inclusions</Text>
-                  </View>
-                )}
-              </>
-            )}
-
-            <View style={styles.actionChevron}>
-              <ChevronRight size={16} color={colors.primary} />
-            </View>
+          {/* Full-width Pill View CTA */}
+          <View style={styles.packageActionBtn}>
+            <Text style={styles.packageActionText}>
+              {isCombo ? "View Combo Details & Gallery" : "View Package Details & Gallery"}
+            </Text>
+            <ChevronRight size={15} color={colors.white} />
           </View>
         </View>
       </Card>
@@ -416,116 +418,115 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   cardBody: {
-    padding: spacing.base,
+    padding: spacing.md,
   },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: spacing.xs,
-  },
-  titleContainer: {
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  specialBadge: {
+  packageTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.primaryLight,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    borderRadius: radius.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    alignSelf: "flex-start",
-    marginBottom: 6,
-  },
-  specialBadgeText: {
-    fontSize: 11,
-    fontFamily: typography.fontFamilies.bold,
-    fontWeight: "700",
-    color: colors.primary,
-    marginLeft: 3,
+    justifyContent: "space-between",
+    marginBottom: 4,
+    gap: spacing.xs,
   },
   packageName: {
     fontSize: typography.sizes.base,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.foreground,
-    lineHeight: 20,
+    flex: 1,
   },
-  packageCategory: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamilies.medium,
-    color: colors.foregroundMuted,
-    marginTop: 3,
+  packageTitleRatingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
-  priceContainer: {
-    alignItems: "flex-end",
-    minWidth: 80,
-  },
-  price: {
-    fontSize: typography.sizes.base,
-    fontFamily: typography.fontFamilies.extraBold,
-    fontWeight: "800",
-    color: colors.primary,
-  },
-  priceQuoted: {
-    fontSize: typography.sizes.xs,
+  packageTitleRatingText: {
+    fontSize: 11.5,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
-    color: colors.foregroundMuted,
-    textAlign: "right",
+    color: colors.foreground,
   },
-  priceUnit: {
-    fontSize: 11,
-    fontFamily: typography.fontFamilies.regular,
-    color: colors.foregroundMuted,
-    marginTop: 1,
-  },
-  description: {
+  packageDesc: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     lineHeight: 18,
-    marginVertical: spacing.xs,
+    marginBottom: spacing.sm,
   },
-  inclusionsRow: {
+  packageMetaRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-    flexWrap: "wrap",
-    gap: spacing.xs,
+    justifyContent: "space-between",
+    marginBottom: spacing.xs,
   },
-  tag: {
+  metaChip: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 5,
     backgroundColor: colors.primaryLight,
-    paddingVertical: 4,
     paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 5.5,
     borderRadius: radius.pill,
-    marginRight: spacing.xs,
   },
-  tagText: {
-    fontSize: 11,
+  metaChipText: {
+    fontSize: 11.5,
     fontFamily: typography.fontFamilies.bold,
-    color: colors.primaryDark,
     fontWeight: "700",
-    marginLeft: 4,
+    color: colors.primary,
   },
-  actionChevron: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceAlt,
+  metaChipPrice: {
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 5.5,
+    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "#E2E8F0",
+  },
+  metaPriceText: {
+    fontSize: 12.5,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foreground,
+  },
+  inclusionsList: {
+    gap: 7,
+    marginVertical: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  inclusionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  inclusionText: {
+    fontSize: 11.5,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foreground,
+    flex: 1,
+  },
+  packageActionBtn: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: "auto",
+    gap: 4,
+    backgroundColor: colors.primary,
+    paddingVertical: 10,
+    borderRadius: radius.pill,
+    marginTop: spacing.xs,
+  },
+  packageActionText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.white,
   },
 });
 

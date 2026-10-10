@@ -23,6 +23,8 @@ import customerApi from "../../api/customer";
 import Header from "../../components/common/Header";
 import Card from "../../components/common/Card";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
+import EmptyState from "../../components/common/EmptyState";
+import ErrorState from "../../components/common/ErrorState";
 import GalleryLightboxModal from "../../components/common/GalleryLightboxModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -34,6 +36,7 @@ export const GalleryScreen = ({ navigation }) => {
   const [galleryItems, setGalleryItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [selectedItem, setSelectedItem] = useState(null);
@@ -41,11 +44,15 @@ export const GalleryScreen = ({ navigation }) => {
   const loadGallery = useCallback(async () => {
     try {
       setLoading(true);
+      setError("");
       const data = await customerApi.getGallery();
-      const valid = Array.isArray(data) ? data.filter((item) => item?.image_url) : [];
+      const valid = Array.isArray(data)
+        ? data.filter((item) => Boolean(item?.image_url && String(item.image_url).trim() !== ""))
+        : [];
       setGalleryItems(valid);
-    } catch (error) {
-      console.error("Failed to load gallery:", error);
+    } catch (err) {
+      console.error("Failed to load gallery:", err);
+      setError("Unable to load event gallery setups. Please check your connection.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -139,13 +146,24 @@ export const GalleryScreen = ({ navigation }) => {
 
       {/* Gallery Grid */}
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.xxl }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          (filteredGallery.length === 0 || Boolean(error && galleryItems.length === 0)) &&
+            styles.scrollContentEmpty,
+          { paddingBottom: Math.max(insets.bottom, 16) + 120 },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
         }
       >
-        {loading ? (
+        {error && galleryItems.length === 0 ? (
+          <ErrorState
+            title="Unable to Load Gallery"
+            message={error}
+            onRetry={loadGallery}
+          />
+        ) : loading ? (
           <View style={styles.gridContainer}>
             <SkeletonLoader height={180} style={{ width: CARD_WIDTH, borderRadius: radius.md }} />
             <SkeletonLoader height={180} style={{ width: CARD_WIDTH, borderRadius: radius.md }} />
@@ -153,11 +171,32 @@ export const GalleryScreen = ({ navigation }) => {
             <SkeletonLoader height={180} style={{ width: CARD_WIDTH, borderRadius: radius.md }} />
           </View>
         ) : filteredGallery.length === 0 ? (
-          <Card style={styles.emptyCard} variant="flat">
-            <Camera size={36} color={colors.textDisabled} />
-            <Text style={styles.emptyTitle}>No Setups Found</Text>
-            <Text style={styles.emptySub}>Try searching for a different style or category.</Text>
-          </Card>
+          <EmptyState
+            icon={Camera}
+            title={
+              searchQuery || activeCategory !== "all"
+                ? "No Setups Match Your Filters"
+                : "No Event Gallery Photos Published Yet"
+            }
+            description={
+              searchQuery || activeCategory !== "all"
+                ? "Try searching for a different styling theme or clear your category filter."
+                : "Our event styling portfolio is being refreshed with recent Batangas celebrations. Browse our catering packages to plan your setup."
+            }
+            actionLabel={
+              searchQuery || activeCategory !== "all"
+                ? "Clear Search & Filters"
+                : "Browse Packages"
+            }
+            onAction={
+              searchQuery || activeCategory !== "all"
+                ? () => {
+                    setSearchQuery("");
+                    setActiveCategory("all");
+                  }
+                : () => navigation.navigate("Packages")
+            }
+          />
         ) : (
           <View style={styles.gridContainer}>
             {filteredGallery.map((item) => (
@@ -261,6 +300,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.base,
+  },
+  scrollContentEmpty: {
+    flexGrow: 1,
+    justifyContent: "center",
   },
   gridContainer: {
     flexDirection: "row",

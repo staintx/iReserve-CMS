@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -9,19 +9,21 @@ import {
   ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { X, Utensils, CheckCircle2, ChevronRight, Tag } from "lucide-react-native";
+import { X, Utensils, CheckCircle2, ChevronRight } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
-import { resolveDishImage } from "../../constants/cateringData";
+import { resolveDishImage, CATEGORY_FALLBACK_IMAGES } from "../../constants/cateringData";
 import AppButton from "./AppButton";
-import { formatCurrency } from "../../utils/format";
 
 export const DishDetailModal = ({ visible, dish, onClose, onSelectDish }) => {
   const insets = useSafeAreaInsets();
+  const [imageError, setImageError] = useState(false);
 
   if (!dish) return null;
 
-  const imageUrl = resolveDishImage(dish);
-  const price = Number(dish.price || 0);
+  const resolvedImage = resolveDishImage(dish);
+  const fallbackImage =
+    CATEGORY_FALLBACK_IMAGES[dish.category] || CATEGORY_FALLBACK_IMAGES.default;
+  const imageSource = imageError ? fallbackImage : resolvedImage;
 
   return (
     <Modal
@@ -43,6 +45,7 @@ export const DishDetailModal = ({ visible, dish, onClose, onSelectDish }) => {
               onPress={onClose}
               activeOpacity={0.7}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Close dish details"
             >
               <X size={18} color={colors.foreground} />
             </TouchableOpacity>
@@ -51,14 +54,16 @@ export const DishDetailModal = ({ visible, dish, onClose, onSelectDish }) => {
           <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
             {/* Dish Photo */}
             <View style={styles.imageContainer}>
-              <Image
-                source={{ uri: imageUrl }}
-                style={styles.image}
-                resizeMode="cover"
-              />
-              {price > 0 && (
-                <View style={styles.priceTag}>
-                  <Text style={styles.priceTagText}>{formatCurrency(price)} / serving</Text>
+              {imageSource ? (
+                <Image
+                  source={{ uri: imageSource }}
+                  style={styles.image}
+                  resizeMode="cover"
+                  onError={() => setImageError(true)}
+                />
+              ) : (
+                <View style={styles.imagePlaceholder}>
+                  <Utensils size={36} color={colors.primary} />
                 </View>
               )}
             </View>
@@ -87,7 +92,7 @@ export const DishDetailModal = ({ visible, dish, onClose, onSelectDish }) => {
           {/* Action CTA */}
           <View style={styles.ctaRow}>
             <AppButton
-              title="Add to Event Inquiry"
+              title="Plan Event with Caezelle's"
               variant="primary"
               size="lg"
               icon={ChevronRight}
@@ -161,19 +166,12 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  priceTag: {
-    position: "absolute",
-    bottom: 12,
-    right: 12,
-    backgroundColor: "rgba(15, 23, 42, 0.85)",
-    paddingHorizontal: spacing.md,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-  },
-  priceTagText: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.white,
+  imagePlaceholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
   },
   infoSection: {
     paddingVertical: spacing.md,

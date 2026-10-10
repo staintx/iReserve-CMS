@@ -20,6 +20,10 @@ import {
   Camera,
   X,
   Plus,
+  Star,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import customerApi from "../../api/customer";
@@ -29,7 +33,7 @@ import AppButton from "../../components/common/AppButton";
 import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import Card from "../../components/common/Card";
-import { formatCurrency } from "../../utils/format";
+import { formatCurrency, formatDate } from "../../utils/format";
 import {
   isSpecialOffer,
   offerPricePerPax,
@@ -42,6 +46,9 @@ import {
   serviceLabel,
   eventTypeForPackage,
   setupFromPrice,
+  getPackageRatingStats,
+  getCustomerInitials,
+  getCustomerEventDetails,
 } from "../../utils/packageDisplay";
 
 export const PackageDetailScreen = ({ route, navigation }) => {
@@ -49,9 +56,11 @@ export const PackageDetailScreen = ({ route, navigation }) => {
   const { id } = route?.params || {};
 
   const [packageData, setPackageData] = useState(null);
+  const [ratingStats, setRatingStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lightboxImage, setLightboxImage] = useState(null);
+  const [showAllReviews, setShowAllReviews] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -62,8 +71,15 @@ export const PackageDetailScreen = ({ route, navigation }) => {
 
     const fetchPackage = async () => {
       try {
-        const data = await customerApi.getPackageById(id);
+        const [data, ratingsData] = await Promise.all([
+          customerApi.getPackageById(id),
+          customerApi.getRatings().catch(() => []),
+        ]);
         setPackageData(data);
+        if (data && Array.isArray(ratingsData)) {
+          const stats = getPackageRatingStats(data, ratingsData);
+          setRatingStats(stats);
+        }
       } catch (err) {
         setError("Unable to load package details.");
       } finally {
@@ -177,6 +193,14 @@ export const PackageDetailScreen = ({ route, navigation }) => {
                 <Text style={styles.featuredBadgeText}>{packageData.badge_text}</Text>
               </View>
             ) : null}
+            {ratingStats && (
+              <View style={styles.detailRatingBadge}>
+                <Star size={11} color="#D97706" fill="#D97706" />
+                <Text style={styles.detailRatingText}>
+                  {ratingStats.averageRating.toFixed(1)} ({ratingStats.reviewCount} {ratingStats.reviewCount === 1 ? "review" : "reviews"})
+                </Text>
+              </View>
+            )}
           </View>
 
           <Text style={styles.packageName}>{packageData.name}</Text>
@@ -493,6 +517,165 @@ export const PackageDetailScreen = ({ route, navigation }) => {
             </ScrollView>
           </Card>
         )}
+
+        {/* Customer Reviews Section */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderTitleRow}>
+              <Star size={18} color="#D97706" fill="#D97706" />
+              <Text style={styles.sectionHeaderTitle}>Customer Reviews</Text>
+            </View>
+            {ratingStats && (
+              <Text style={styles.sectionHeaderBadge}>
+                {ratingStats.reviewCount} {ratingStats.reviewCount === 1 ? "Review" : "Reviews"}
+              </Text>
+            )}
+          </View>
+          <Text style={styles.sectionHeaderSubtitle}>
+            {ratingStats && ratingStats.reviews.length > 0
+              ? "Genuine feedback from verified bookings with this package:"
+              : "Verified client reviews and feedback for this catering package:"}
+          </Text>
+
+          {ratingStats && ratingStats.reviews.length > 0 ? (
+            <>
+              {/* Aggregate Trust Summary Card */}
+              <Card style={styles.trustSummaryCard}>
+                <View style={styles.trustScoreBlock}>
+                  <Text style={styles.trustScoreNumber}>
+                    {ratingStats.averageRating.toFixed(1)}
+                  </Text>
+                  <Text style={styles.trustScoreDenominator}>/ 5</Text>
+                </View>
+
+                <View style={styles.trustStarsBlock}>
+                  <View style={styles.trustStarRow}>
+                    {[1, 2, 3, 4, 5].map((starIdx) => (
+                      <Star
+                        key={starIdx}
+                        size={17}
+                        color="#F59E0B"
+                        fill={
+                          starIdx <= Math.round(ratingStats.averageRating)
+                            ? "#F59E0B"
+                            : "transparent"
+                        }
+                      />
+                    ))}
+                  </View>
+                  <Text style={styles.trustCountText}>
+                    {ratingStats.reviewCount === 1
+                      ? "Based on 1 verified customer review"
+                      : `Based on ${ratingStats.reviewCount} verified customer reviews`}
+                  </Text>
+                </View>
+              </Card>
+
+              {/* Individual Review Cards */}
+              <View style={styles.reviewCardsList}>
+                {(showAllReviews ? ratingStats.reviews : ratingStats.reviews.slice(0, 3)).map(
+                  (rev, rIdx) => {
+                    const stars = Math.max(1, Math.min(5, Number(rev.stars) || 5));
+                    const customerName =
+                      rev.customer_id?.full_name?.trim() ||
+                      [rev.customer_id?.first_name, rev.customer_id?.last_name]
+                        .filter(Boolean)
+                        .join(" ")
+                        .trim() ||
+                      "Verified Customer";
+                    const initials = getCustomerInitials(customerName);
+                    const dateFormatted = formatDate(rev.createdAt);
+                    const eventDetails = getCustomerEventDetails(rev);
+
+                    return (
+                      <Card key={rev._id || rIdx} style={styles.reviewCard}>
+                        <View style={styles.reviewCardHeader}>
+                          <View style={styles.reviewStarRow}>
+                            {[1, 2, 3, 4, 5].map((starIdx) => (
+                              <Star
+                                key={starIdx}
+                                size={14}
+                                color="#F59E0B"
+                                fill={starIdx <= stars ? "#F59E0B" : "transparent"}
+                              />
+                            ))}
+                          </View>
+                          {dateFormatted ? (
+                            <Text style={styles.reviewDateText}>{dateFormatted}</Text>
+                          ) : null}
+                        </View>
+
+                        <Text style={styles.reviewQuoteText}>
+                          {rev.review?.trim()
+                            ? `"${rev.review.trim()}"`
+                            : "Rating submitted for completed event."}
+                        </Text>
+
+                        <View style={styles.reviewAuthorRow}>
+                          <View style={styles.reviewAvatar}>
+                            <Text style={styles.reviewAvatarText}>{initials}</Text>
+                          </View>
+                          <View style={styles.reviewIdentityCol}>
+                            <Text style={styles.reviewAuthorName}>{customerName}</Text>
+                            <View style={styles.reviewVerifiedBadgeRow}>
+                              <CheckCircle2 size={12} color={colors.success} />
+                              <Text style={styles.reviewVerifiedBadgeText}>Verified Booking</Text>
+                              {eventDetails ? (
+                                <>
+                                  <Text style={styles.reviewMetaDot}>•</Text>
+                                  <Text style={styles.reviewEventDetailsText} numberOfLines={1}>
+                                    {eventDetails}
+                                  </Text>
+                                </>
+                              ) : null}
+                            </View>
+                          </View>
+                        </View>
+                      </Card>
+                    );
+                  }
+                )}
+              </View>
+
+              {/* View More Reviews Button if > 3 */}
+              {ratingStats.reviews.length > 3 && (
+                <TouchableOpacity
+                  style={styles.seeAllReviewsBtn}
+                  onPress={() => setShowAllReviews((prev) => !prev)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.seeAllReviewsBtnText}>
+                    {showAllReviews
+                      ? "Show Fewer Reviews"
+                      : `See All ${ratingStats.reviewCount} Reviews`}
+                  </Text>
+                  {showAllReviews ? (
+                    <ChevronUp size={15} color={colors.primary} />
+                  ) : (
+                    <ChevronDown size={15} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              )}
+            </>
+          ) : (
+            /* Empty State for Packages with No Valid Reviews Yet */
+            <Card style={styles.emptyReviewsCard}>
+              <View style={styles.emptyReviewsIconBox}>
+                <Star size={24} color="#D97706" strokeWidth={1.75} />
+              </View>
+              <Text style={styles.emptyReviewsTitle}>No Reviews for This Package Yet</Text>
+              <Text style={styles.emptyReviewsDesc}>
+                There are currently no customer reviews published for this package. Verified ratings will appear here after clients celebrate an event with this package.
+              </Text>
+              <View style={styles.emptyReviewsBadge}>
+                <CheckCircle2 size={13} color={colors.primary} />
+                <Text style={styles.emptyReviewsBadgeText}>
+                  100% genuine verified client ratings
+                </Text>
+              </View>
+            </Card>
+          )}
+        </View>
       </ScrollView>
 
       {/* Sticky Bottom Action Bar with Proper Safe Area Clearance */}
@@ -666,6 +849,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
+  },
+  detailRatingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: radius.pill,
+  },
+  detailRatingText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: "#B45309",
   },
   packageName: {
     fontSize: 22,
@@ -1065,6 +1263,206 @@ const styles = StyleSheet.create({
   inquireBtn: {
     flex: 1.2,
     minHeight: 44,
+  },
+  // Customer Reviews Section Styles
+  trustSummaryCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.base,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    marginBottom: spacing.md,
+    gap: spacing.base,
+    ...shadows.sm,
+  },
+  trustScoreBlock: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    paddingRight: spacing.base,
+    borderRightWidth: 1,
+    borderRightColor: colors.borderLight,
+  },
+  trustScoreNumber: {
+    fontSize: 32,
+    fontFamily: typography.fontFamilies.extraBold,
+    fontWeight: "800",
+    color: colors.foreground,
+  },
+  trustScoreDenominator: {
+    fontSize: 13,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundMuted,
+    marginLeft: 3,
+  },
+  trustStarsBlock: {
+    flex: 1,
+    gap: 4,
+  },
+  trustStarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  trustCountText: {
+    fontSize: 11.5,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundMuted,
+  },
+  reviewCardsList: {
+    gap: spacing.md,
+  },
+  reviewCard: {
+    padding: spacing.base,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    ...shadows.sm,
+  },
+  reviewCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  reviewStarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  reviewDateText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+  },
+  reviewQuoteText: {
+    fontSize: 13,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foreground,
+    lineHeight: 20,
+    marginBottom: spacing.md,
+  },
+  reviewAuthorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+  },
+  reviewAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewAvatarText: {
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.primaryDark,
+  },
+  reviewIdentityCol: {
+    flex: 1,
+  },
+  reviewAuthorName: {
+    fontSize: 12.5,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foreground,
+  },
+  reviewVerifiedBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 1,
+  },
+  reviewVerifiedBadgeText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.success,
+  },
+  reviewMetaDot: {
+    fontSize: 10,
+    color: colors.foregroundMuted,
+  },
+  reviewEventDetailsText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    flexShrink: 1,
+  },
+  seeAllReviewsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    marginTop: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  seeAllReviewsBtnText: {
+    fontSize: 12.5,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  emptyReviewsCard: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    ...shadows.sm,
+  },
+  emptyReviewsIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FEF3C7",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.sm,
+  },
+  emptyReviewsTitle: {
+    fontSize: 14,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foreground,
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  emptyReviewsDesc: {
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    textAlign: "center",
+    lineHeight: 18,
+    maxWidth: 280,
+    marginBottom: spacing.md,
+  },
+  emptyReviewsBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+  },
+  emptyReviewsBadgeText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.primaryDark,
   },
 });
 

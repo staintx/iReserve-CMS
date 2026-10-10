@@ -18,7 +18,6 @@ import {
   Bell,
   Sparkles,
   Heart,
-  Star,
   Users,
   Utensils,
   Camera,
@@ -26,6 +25,9 @@ import {
   ChevronRight,
   ArrowUpRight,
   Calendar,
+  CalendarCheck,
+  FileText,
+  CreditCard,
   CheckCircle2,
   Clock,
   Cake,
@@ -34,6 +36,8 @@ import {
   GlassWater,
   X,
   Plus,
+  Star,
+  RefreshCw,
 } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography, layout } from "../../constants/theme";
 import { useAuth } from "../../context/AuthContext";
@@ -43,15 +47,30 @@ import NotificationBadge from "../../components/common/NotificationBadge";
 import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
+import EmptyState from "../../components/common/EmptyState";
+import ErrorState from "../../components/common/ErrorState";
 import AppButton from "../../components/common/AppButton";
 import GalleryLightboxModal from "../../components/common/GalleryLightboxModal";
 import DishDetailModal from "../../components/common/DishDetailModal";
+import DishCard from "../../components/common/DishCard";
 import CoachMarkSequence from "../../components/common/CoachMarkSequence";
 import {
   resolveDishImage,
   resolvePackageCover,
   resolvePackagePreviewDishes,
 } from "../../constants/cateringData";
+import {
+  isSpecialOffer,
+  offerPricePerPax,
+  offerGuestCount,
+  offerInclusions,
+  capacityLabel,
+  packagePriceParts,
+  inclusionDisplayName,
+  eventTypeForPackage,
+  serviceLabel,
+  getPackageRatingStats,
+} from "../../utils/packageDisplay";
 import { formatCurrency, formatDate } from "../../utils/format";
 import { cacheData, getCachedData, CACHE_KEYS } from "../../utils/offlineStorage";
 import useRealTimeRefresh from "../../utils/useRealTimeRefresh";
@@ -60,11 +79,31 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const PACKAGE_CATEGORIES = [
   { id: "all", label: "All Packages" },
+  { id: "combo", label: "Combo Packs" },
   { id: "wedding", label: "Weddings" },
   { id: "birthday", label: "Birthdays & Debuts" },
-  { id: "food", label: "Food Only" },
-  { id: "special", label: "Special Offers" },
+  { id: "corporate", label: "Corporate" },
+  { id: "setup", label: "Setup Only" },
 ];
+
+const recordTitle = (record) => {
+  if (!record) return "";
+  const celebrant = record.celebrant_name?.trim();
+  const eventName = record.event_type === "Other" ? record.event_type_other : record.event_type;
+  if (celebrant) {
+    if (eventName && celebrant.toLowerCase().includes(eventName.toLowerCase())) {
+      return celebrant;
+    }
+    const suffix = celebrant.endsWith("s") || celebrant.endsWith("S") ? "'" : "'s";
+    return `${celebrant}${suffix} ${eventName || "Event"}`;
+  }
+  const owner = record.contact_first_name ? `${record.contact_first_name}'s ` : "";
+  if (eventName) return `${owner}${eventName}`;
+  const pkgName = record.package_name_snapshot || record.package_name || record.package_id?.name;
+  if (pkgName) return `${owner}${pkgName}`;
+  if (record.service_type) return record.service_type;
+  return record.reference || "Catering Event";
+};
 
 export const CustomerHomeScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -84,20 +123,32 @@ export const CustomerHomeScreen = ({ navigation }) => {
   const [packages, setPackages] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [galleryItems, setGalleryItems] = useState([]);
+  const [ratings, setRatings] = useState([]);
   const [activeBooking, setActiveBooking] = useState(null);
   const [activeInquiry, setActiveInquiry] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchErrors, setFetchErrors] = useState({
+    packages: false,
+    menu: false,
+    gallery: false,
+  });
 
   // Modals & Image State
   const [selectedGalleryItem, setSelectedGalleryItem] = useState(null);
   const [selectedDish, setSelectedDish] = useState(null);
   const [heroImageError, setHeroImageError] = useState(false);
 
-  // Coach Mark Refs & Steps
+  // Coach Mark & Scroll Refs
   const tabNavRef = useRef(null);
   const heroCtaRef = useRef(null);
   const zelleBtnRef = useRef(null);
+  const mainScrollRef = useRef(null);
+
+  // Automatically reset scroll position when switching catalog tabs
+  useEffect(() => {
+    mainScrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [activeTab]);
 
   const coachMarkSteps = useMemo(
     () => [
@@ -131,54 +182,114 @@ export const CustomerHomeScreen = ({ navigation }) => {
 
   const loadAllData = useCallback(async () => {
     try {
-      const [pkgsData, menuData, galData, bookingsData, inquiriesData] =
-        await Promise.all([
-          customerApi.getPackages().catch(() => null),
-          customerApi.getMenu().catch(() => null),
-          customerApi.getGallery().catch(() => null),
-          customerApi.getBookings().catch(() => null),
-          customerApi.getInquiries().catch(() => null),
-        ]);
+      const [
+        pkgsRes,
+        menuRes,
+        galRes,
+        bookingsRes,
+        inquiriesRes,
+        ratingsRes,
+      ] = await Promise.allSettled([
+        customerApi.getPackages(),
+        customerApi.getMenu(),
+        customerApi.getGallery(),
+        customerApi.getBookings(),
+        customerApi.getInquiries(),
+        customerApi.getRatings(),
+      ]);
 
-      if (Array.isArray(pkgsData) && pkgsData.length > 0) {
-        setPackages(pkgsData);
-        cacheData(CACHE_KEYS.PACKAGES, pkgsData);
+      // Packages Data & Error Handling
+      if (pkgsRes.status === "fulfilled" && Array.isArray(pkgsRes.value)) {
+        setPackages(pkgsRes.value);
+        cacheData(CACHE_KEYS.PACKAGES, pkgsRes.value);
+        setFetchErrors((prev) => ({ ...prev, packages: false }));
       } else {
         const cachedP = await getCachedData(CACHE_KEYS.PACKAGES);
-        if (cachedP) setPackages(cachedP);
+        if (Array.isArray(cachedP) && cachedP.length > 0) {
+          setPackages(cachedP);
+          setFetchErrors((prev) => ({ ...prev, packages: false }));
+        } else if (pkgsRes.status === "rejected") {
+          setFetchErrors((prev) => ({ ...prev, packages: true }));
+        }
       }
 
-      if (Array.isArray(menuData) && menuData.length > 0) {
-        setMenuItems(menuData);
-        cacheData(CACHE_KEYS.MENU, menuData);
+      // Menu Data & Error Handling
+      if (menuRes.status === "fulfilled" && Array.isArray(menuRes.value)) {
+        setMenuItems(menuRes.value);
+        cacheData(CACHE_KEYS.MENU, menuRes.value);
+        setFetchErrors((prev) => ({ ...prev, menu: false }));
       } else {
         const cachedM = await getCachedData(CACHE_KEYS.MENU);
-        if (cachedM) setMenuItems(cachedM);
+        if (Array.isArray(cachedM) && cachedM.length > 0) {
+          setMenuItems(cachedM);
+          setFetchErrors((prev) => ({ ...prev, menu: false }));
+        } else if (menuRes.status === "rejected") {
+          setFetchErrors((prev) => ({ ...prev, menu: true }));
+        }
       }
 
-      if (Array.isArray(galData) && galData.length > 0) {
-        const validGallery = galData.filter((item) => item?.image_url);
+      // Gallery Data: Displays genuine admin-uploaded photos without artificial exclusion filters
+      if (galRes.status === "fulfilled" && Array.isArray(galRes.value)) {
+        const validGallery = galRes.value.filter(
+          (item) => Boolean(item?.image_url && String(item.image_url).trim() !== "")
+        );
         setGalleryItems(validGallery);
         cacheData(CACHE_KEYS.GALLERY, validGallery);
+        setFetchErrors((prev) => ({ ...prev, gallery: false }));
       } else {
         const cachedG = await getCachedData(CACHE_KEYS.GALLERY);
-        if (cachedG) setGalleryItems(cachedG);
+        if (Array.isArray(cachedG)) {
+          const validCached = cachedG.filter(
+            (item) => Boolean(item?.image_url && String(item.image_url).trim() !== "")
+          );
+          setGalleryItems(validCached);
+          setFetchErrors((prev) => ({ ...prev, gallery: false }));
+        } else if (galRes.status === "rejected") {
+          setFetchErrors((prev) => ({ ...prev, gallery: true }));
+        }
       }
 
-      // Check for active booking
+      // Public Ratings Data
+      if (ratingsRes.status === "fulfilled" && Array.isArray(ratingsRes.value)) {
+        setRatings(ratingsRes.value);
+        cacheData(CACHE_KEYS.RATINGS, ratingsRes.value);
+      } else {
+        const cachedR = await getCachedData(CACHE_KEYS.RATINGS);
+        if (Array.isArray(cachedR)) setRatings(cachedR);
+      }
+
+      // Check for active booking (signed-in customer)
+      const bookingsData = bookingsRes.status === "fulfilled" ? bookingsRes.value : null;
       if (Array.isArray(bookingsData)) {
-        const upcoming = bookingsData.find(
-          (b) => !["Completed", "completed", "Cancelled", "cancelled"].includes(b.status)
+        const activeList = bookingsData.filter(
+          (b) => !["Completed", "completed", "Cancelled", "cancelled", "refunded"].includes(b.status)
         );
-        setActiveBooking(upcoming || null);
+        activeList.sort((a, b) => {
+          const dateA = a.event_date ? new Date(a.event_date).getTime() : Infinity;
+          const dateB = b.event_date ? new Date(b.event_date).getTime() : Infinity;
+          return dateA - dateB;
+        });
+        setActiveBooking(activeList[0] || null);
+      } else {
+        setActiveBooking(null);
       }
 
-      // Check for active inquiry
+      // Check for active inquiry (signed-in customer)
       if (Array.isArray(inquiriesData)) {
-        const pending = inquiriesData.find(
-          (i) => !["Converted to Booking", "Cancelled", "Quote Rejected"].includes(i.status)
+        const activeList = inquiriesData.filter(
+          (i) => !["Converted to Booking", "Cancelled", "Quote Rejected", "Expired"].includes(i.status)
         );
-        setActiveInquiry(pending || null);
+        // Prioritize quotes needing action ("Quotation Sent"), then nearest event date
+        activeList.sort((a, b) => {
+          if (a.status === "Quotation Sent" && b.status !== "Quotation Sent") return -1;
+          if (b.status === "Quotation Sent" && a.status !== "Quotation Sent") return 1;
+          const dateA = a.event_date ? new Date(a.event_date).getTime() : Infinity;
+          const dateB = b.event_date ? new Date(b.event_date).getTime() : Infinity;
+          return dateA - dateB;
+        });
+        setActiveInquiry(activeList[0] || null);
+      } else {
+        setActiveInquiry(null);
       }
     } catch (error) {
       console.warn("Failed to load customer home catalog data:", error);
@@ -230,23 +341,62 @@ export const CustomerHomeScreen = ({ navigation }) => {
   // Filtered Packages
   const filteredPackages = useMemo(() => {
     return packages.filter((pkg) => {
-      const matchesSearch =
-        !searchQuery ||
-        pkg.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        pkg.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      // Exclude unavailable packages
+      if (pkg?.available === false) return false;
+      // Filter out test development scrap
+      if (pkg?.name === "ddadad") return false;
 
-      if (!matchesSearch) return false;
+      const query = searchQuery.trim().toLowerCase();
+      if (query) {
+        const name = String(pkg.name || "").toLowerCase();
+        const desc = String(pkg.description || "").toLowerCase();
+        const evType = String(eventTypeForPackage(pkg) || pkg.event_type || "").toLowerCase();
+        const svcType = String(serviceLabel(pkg) || pkg.package_type || "").toLowerCase();
+        const inclusions = Array.isArray(pkg.inclusions)
+          ? pkg.inclusions.map((inc) => String(inc).toLowerCase()).join(" ")
+          : "";
+
+        const matches =
+          name.includes(query) ||
+          desc.includes(query) ||
+          evType.includes(query) ||
+          svcType.includes(query) ||
+          inclusions.includes(query);
+
+        if (!matches) return false;
+      }
 
       if (activePackageCat === "all") return true;
-      if (activePackageCat === "special") {
-        return pkg.offer_type === "special" || pkg.is_combo || pkg.package_type === "Special Offer";
+      if (activePackageCat === "combo" || activePackageCat === "special") {
+        return isSpecialOffer(pkg);
+      }
+      if (activePackageCat === "wedding") {
+        const ev = String(eventTypeForPackage(pkg) || pkg.event_type || "").toLowerCase();
+        const nm = String(pkg.name || "").toLowerCase();
+        return ev.includes("wedding") || nm.includes("wedding");
+      }
+      if (activePackageCat === "birthday") {
+        const ev = String(eventTypeForPackage(pkg) || pkg.event_type || "").toLowerCase();
+        const nm = String(pkg.name || "").toLowerCase();
+        return (
+          ev.includes("birthday") ||
+          ev.includes("debut") ||
+          nm.includes("birthday") ||
+          nm.includes("debut")
+        );
+      }
+      if (activePackageCat === "corporate") {
+        const ev = String(eventTypeForPackage(pkg) || pkg.event_type || "").toLowerCase();
+        const nm = String(pkg.name || "").toLowerCase();
+        return ev.includes("corporate") || nm.includes("corporate");
+      }
+      if (activePackageCat === "setup") {
+        return pkg.package_type === "Event Setup Only";
       }
       if (activePackageCat === "food") {
-        return pkg.package_type === "Food Only";
+        return pkg.package_type === "Food Only" && !isSpecialOffer(pkg);
       }
-      const nameLower = String(pkg.name || "").toLowerCase();
-      const typeLower = String(pkg.event_type || pkg.service_type || pkg.package_type || "").toLowerCase();
-      return nameLower.includes(activePackageCat) || typeLower.includes(activePackageCat);
+      return true;
     });
   }, [packages, searchQuery, activePackageCat]);
 
@@ -281,19 +431,145 @@ export const CustomerHomeScreen = ({ navigation }) => {
     });
   }, [galleryItems, searchQuery, activeGalleryCat]);
 
+  // Derive contextual active record (booking or inquiry) for signed-in customer
+  const activeRecordMeta = useMemo(() => {
+    // 1. Signed-in customer's active booking takes primary precedence
+    if (activeBooking) {
+      const b = activeBooking;
+      const statusLower = String(b.status || "").trim().toLowerCase();
+      const isDepositNeeded =
+        statusLower.includes("deposit") || statusLower === "customer_accepted";
+
+      let kicker = "Active Reservation";
+      let subtitlePrompt = "Tap to view milestones";
+
+      if (isDepositNeeded) {
+        kicker = "Action Required";
+        subtitlePrompt = "Tap to settle deposit & lock date";
+      } else if (["preparing", "food prep"].includes(statusLower)) {
+        subtitlePrompt = "Kitchen preparing your menu";
+      } else if (["out for delivery", "in transit"].includes(statusLower)) {
+        subtitlePrompt = "Delivery dispatched to venue";
+      } else if (statusLower === "ready for event") {
+        subtitlePrompt = "Ready for your event celebration";
+      } else if (statusLower === "ocular scheduled") {
+        subtitlePrompt = "Site visit scheduled";
+      }
+
+      const title = recordTitle(b);
+      const dateStr = b.event_date ? formatDate(b.event_date) : "";
+      const subtitle = dateStr
+        ? `Date: ${dateStr} • ${subtitlePrompt}`
+        : subtitlePrompt;
+
+      return {
+        type: "booking",
+        id: b._id,
+        kicker,
+        status: b.status,
+        title,
+        subtitle,
+        iconType: isDepositNeeded ? "deposit" : "booking",
+        onPress: () => navigation.navigate("BookingDetail", { id: b._id }),
+      };
+    }
+
+    // 2. Signed-in customer's active inquiry
+    if (activeInquiry) {
+      const i = activeInquiry;
+      const isQuoteReady = i.status === "Quotation Sent";
+      const isRevision = i.status === "Revision Requested";
+
+      let kicker = "Inquiry in Progress";
+      let subtitlePrompt = "Proposal being prepared by team";
+
+      if (isQuoteReady) {
+        kicker = "Quotation Update";
+        subtitlePrompt = "Tap to review pricing & menu options";
+      } else if (isRevision) {
+        kicker = "Quotation Revision";
+        subtitlePrompt = "Catering team updating your quote";
+      }
+
+      const title = recordTitle(i);
+      const dateStr = i.event_date ? formatDate(i.event_date) : "";
+      const subtitle = dateStr
+        ? `Date: ${dateStr} • ${subtitlePrompt}`
+        : subtitlePrompt;
+
+      return {
+        type: "inquiry",
+        id: i._id,
+        kicker,
+        status: i.status,
+        title,
+        subtitle,
+        iconType: isQuoteReady ? "quote" : "inquiry",
+        onPress: () => {
+          if (isQuoteReady) {
+            navigation.navigate("QuotationDetail", { inquiryId: i._id });
+          } else {
+            navigation.navigate("InquiryDetail", { inquiryId: i._id });
+          }
+        },
+      };
+    }
+
+    // 3. No real active record -> completely hidden
+    return null;
+  }, [activeBooking, activeInquiry, navigation]);
+
   return (
     <View style={styles.container}>
-      {/* 1. Header (Baemin Reference 1) */}
-      <View style={[styles.header, { paddingTop: insets.top + spacing.xs }]}>
-        <View style={styles.brandRow}>
+      {/* 1. Header with System Bars and Safe Area handling */}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: Math.max(insets.top, Platform.OS === "android" ? 14 : 10) + 6,
+          },
+        ]}
+      >
+        {/* Top Control Bar: Search input with integrated Notification & AI controls */}
+        <View style={styles.headerTopRow}>
+          <View style={styles.searchBar}>
+            <Search size={18} color={colors.foregroundMuted} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder={
+                activeTab === "packages"
+                  ? "Search packages, buffets..."
+                  : activeTab === "menu"
+                  ? "Search dishes, pasta, desserts..."
+                  : "Search event styling, venues..."
+              }
+              placeholderTextColor={colors.textDisabled}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              accessibilityLabel="Search catalog"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery("")}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Clear search text"
+              >
+                <X size={16} color={colors.foregroundMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
+
           <View style={styles.headerIcons}>
             <TouchableOpacity
               style={styles.iconBtn}
               onPress={() => navigation.navigate("Notifications")}
               activeOpacity={0.7}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={`Notifications, ${unreadCount} unread`}
             >
-              <Bell size={20} color={colors.foreground} />
+              <Bell size={19} color={colors.foreground} />
               <NotificationBadge count={unreadCount} />
             </TouchableOpacity>
 
@@ -302,6 +578,8 @@ export const CustomerHomeScreen = ({ navigation }) => {
                 style={[styles.iconBtn, styles.zelleBtn]}
                 onPress={() => navigation.navigate("ZelleChat")}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Ask Zelle AI Assistant"
               >
                 <Sparkles size={18} color={colors.primary} />
               </TouchableOpacity>
@@ -309,35 +587,14 @@ export const CustomerHomeScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* 2. Full-Pill Search Bar (Baemin/Glovo References 1 & 3) */}
-        <View style={styles.searchBar}>
-          <Search size={18} color={colors.foregroundMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={
-              activeTab === "packages"
-                ? "Search catering packages, sets, buffets..."
-                : activeTab === "menu"
-                ? "Search dishes, appetizers, pasta, desserts..."
-                : "Search event styling, floral setups, venues..."
-            }
-            placeholderTextColor={colors.textDisabled}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <X size={16} color={colors.foregroundMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* 3. Sticky Segmented Top Navigation Tabs (Baemin Reference 1) */}
+        {/* 2. Sticky Segmented Top Navigation Tabs */}
         <View ref={tabNavRef} collapsable={false} style={styles.tabNavRow}>
           <TouchableOpacity
             style={[styles.tabNavItem, activeTab === "packages" && styles.tabNavItemActive]}
             onPress={() => setActiveTab("packages")}
             activeOpacity={0.8}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === "packages" }}
           >
             <Layers size={16} color={activeTab === "packages" ? colors.primary : colors.foregroundMuted} />
             <Text
@@ -355,6 +612,8 @@ export const CustomerHomeScreen = ({ navigation }) => {
             style={[styles.tabNavItem, activeTab === "menu" && styles.tabNavItemActive]}
             onPress={() => setActiveTab("menu")}
             activeOpacity={0.8}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === "menu" }}
           >
             <Utensils size={16} color={activeTab === "menu" ? colors.primary : colors.foregroundMuted} />
             <Text
@@ -372,6 +631,8 @@ export const CustomerHomeScreen = ({ navigation }) => {
             style={[styles.tabNavItem, activeTab === "gallery" && styles.tabNavItemActive]}
             onPress={() => setActiveTab("gallery")}
             activeOpacity={0.8}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === "gallery" }}
           >
             <Camera size={16} color={activeTab === "gallery" ? colors.primary : colors.foregroundMuted} />
             <Text
@@ -387,151 +648,150 @@ export const CustomerHomeScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Main Scrollable Catalog Content */}
+      {/* Main Scrollable Catalog Content with dynamic bottom safe-area clearance */}
       <ScrollView
+        ref={mainScrollRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 16) + 120 },
+        ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
         }
       >
-        {/* In-Flow Active Catering Reservation / Quotation Live Tracker Card */}
-        {(activeBooking || activeInquiry) && (
+        {/* Contextual Active Reservation / Quotation Status Card */}
+        {activeRecordMeta && (
           <TouchableOpacity
             style={styles.liveTrackerCard}
-            onPress={() => {
-              if (activeBooking) {
-                navigation.navigate("BookingDetail", { id: activeBooking._id });
-              } else if (activeInquiry) {
-                navigation.navigate("QuotationDetail", { inquiryId: activeInquiry._id });
-              }
-            }}
+            onPress={activeRecordMeta.onPress}
             activeOpacity={0.88}
           >
             <View style={styles.trackerLeft}>
               <View style={styles.trackerIconWrap}>
-                <Calendar size={20} color={colors.primary} />
+                {activeRecordMeta.iconType === "deposit" ? (
+                  <CreditCard size={18} color="#D97706" />
+                ) : activeRecordMeta.iconType === "quote" ? (
+                  <FileText size={18} color={colors.primary} />
+                ) : activeRecordMeta.iconType === "inquiry" ? (
+                  <Clock size={18} color="#D97706" />
+                ) : (
+                  <CalendarCheck size={18} color={colors.primary} />
+                )}
               </View>
               <View style={styles.trackerInfo}>
                 <View style={styles.trackerBadgeRow}>
                   <Text style={styles.trackerKicker}>
-                    {activeBooking ? "Active Reservation" : "Quotation Update"}
+                    {activeRecordMeta.kicker}
                   </Text>
                   <StatusBadge
-                    status={activeBooking ? activeBooking.status : activeInquiry?.status}
+                    status={activeRecordMeta.status}
                     size="sm"
                   />
                 </View>
                 <Text style={styles.trackerTitle} numberOfLines={1}>
-                  {activeBooking
-                    ? activeBooking.event_name || "Confirmed Catering Event"
-                    : activeInquiry?.event_name || "Pending Event Proposal"}
+                  {activeRecordMeta.title}
                 </Text>
                 <Text style={styles.trackerSub} numberOfLines={1}>
-                  {activeBooking?.event_date
-                    ? `Date: ${formatDate(activeBooking.event_date)} • Tap to view milestones`
-                    : "Tap to review pricing & menu options"}
+                  {activeRecordMeta.subtitle}
                 </Text>
               </View>
             </View>
             <View style={styles.trackerActionBtn}>
-              <ChevronRight size={18} color={colors.primary} />
+              <ChevronRight size={16} color={colors.primary} />
             </View>
           </TouchableOpacity>
         )}
 
-        {/* Promotional Hero Card (Baemin Reference 1) */}
-        <View style={styles.heroPromoCard}>
-          <View style={styles.heroPromoLeft}>
-            <View style={styles.promoTag}>
-              <Sparkles size={12} color={colors.primary} />
-              <Text style={styles.promoTagText}>Batangas' Premier Caterer</Text>
-            </View>
-            <Text style={styles.heroPromoTitle}>
-              Handcrafted Feasts for Your Milestones
-            </Text>
-            <Text style={styles.heroPromoSub}>
-              Full buffet spread, premium table styling & dedicated banquet staff.
-            </Text>
-            <View ref={heroCtaRef} collapsable={false} style={{ alignSelf: "flex-start" }}>
-              <TouchableOpacity
-                style={styles.heroCtaBtn}
-                onPress={() => navigation.navigate("InquiryWizard")}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.heroCtaText}>Request a Quote</Text>
-                <ChevronRight size={14} color={colors.white} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <Image
-            source={
-              heroImageError
-                ? require("../../../assets/images/logo.jpg")
-                : {
-                    uri: "https://images.pexels.com/photos/28736727/pexels-photo-28736727.jpeg?auto=compress&cs=tinysrgb&w=800",
-                  }
-            }
-            style={styles.heroPromoImage}
-            resizeMode="cover"
-            onError={() => setHeroImageError(true)}
-          />
-        </View>
-
-        {/* Custom Event Services Strip (Matches Website) */}
-        <View style={styles.customServicesSection}>
-          <View style={styles.sectionHeaderRow}>
-            <View>
-              <Text style={styles.sectionHeading}>Custom Event Services</Text>
-              <Text style={styles.sectionSub}>Tailored catering, staging, or full banquet</Text>
-            </View>
-          </View>
-
-          <View style={styles.customServicesGrid}>
-            <TouchableOpacity
-              style={styles.customServiceCard}
-              onPress={() => navigation.navigate("InquiryWizard", { serviceType: "Food Only" })}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.customServiceIconBox, { backgroundColor: "#FEF3C7" }]}>
-                <Utensils size={18} color="#D97706" />
-              </View>
-              <Text style={styles.customServiceTitle}>Food Only</Text>
-              <Text style={styles.customServiceDesc}>Buffet delivery or pickup</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.customServiceCard}
-              onPress={() => navigation.navigate("InquiryWizard", { serviceType: "Event Setup Only" })}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.customServiceIconBox, { backgroundColor: "#EDE9FE" }]}>
-                <Layers size={18} color="#7C3AED" />
-              </View>
-              <Text style={styles.customServiceTitle}>Setup Only</Text>
-              <Text style={styles.customServiceDesc}>Scaffolding & styling</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.customServiceCard}
-              onPress={() => navigation.navigate("InquiryWizard", { serviceType: "Food and Event Setup" })}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.customServiceIconBox, { backgroundColor: colors.primaryLight }]}>
-                <Sparkles size={18} color={colors.primary} />
-              </View>
-              <Text style={styles.customServiceTitle}>Full Service</Text>
-              <Text style={styles.customServiceDesc}>Banquet & complete setup</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* ══════════════════════════════════════════════════════════════════════
-            TAB 1: PACKAGES BROWSER (Matches Website with real Hero Covers)
+            TAB 1: PACKAGES BROWSER (Matches Website with real Hero Covers & Combos)
            ══════════════════════════════════════════════════════════════════════ */}
         {activeTab === "packages" && (
           <View style={styles.sectionContainer}>
+            {/* Promotional Hero Card */}
+            <View style={styles.heroPromoCard}>
+              <View style={styles.heroPromoLeft}>
+                <View style={styles.promoTag}>
+                  <Sparkles size={11} color={colors.primary} />
+                  <Text style={styles.promoTagText}>Batangas' Premier Caterer</Text>
+                </View>
+                <Text style={styles.heroPromoTitle}>
+                  Effortless Catering for Your Celebration
+                </Text>
+                <Text style={styles.heroPromoSub} numberOfLines={2}>
+                  Custom buffet spreads, event styling & dedicated banquet staff.
+                </Text>
+                <View ref={heroCtaRef} collapsable={false} style={{ alignSelf: "flex-start" }}>
+                  <TouchableOpacity
+                    style={styles.heroCtaBtn}
+                    onPress={() => navigation.navigate("InquiryWizard")}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.heroCtaText}>Request a Quote</Text>
+                    <ChevronRight size={13} color={colors.primary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <Image
+                source={
+                  heroImageError
+                    ? require("../../../assets/images/logo.jpg")
+                    : {
+                        uri: "https://images.pexels.com/photos/28736727/pexels-photo-28736727.jpeg?auto=compress&cs=tinysrgb&w=800",
+                      }
+                }
+                style={styles.heroPromoImage}
+                resizeMode="cover"
+                onError={() => setHeroImageError(true)}
+              />
+            </View>
+
+            {/* Custom Event Services Strip */}
+            <View style={styles.customServicesSection}>
+              <View style={styles.customServicesHeaderRow}>
+                <Text style={styles.customServicesHeading}>Custom Event Services</Text>
+              </View>
+
+              <View style={styles.customServicesGrid}>
+                <TouchableOpacity
+                  style={styles.customServiceCard}
+                  onPress={() => navigation.navigate("InquiryWizard", { serviceType: "Food Only" })}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.customServiceIconBox, { backgroundColor: "#FEF3C7" }]}>
+                    <Utensils size={16} color="#D97706" />
+                  </View>
+                  <Text style={styles.customServiceTitle}>Food Only</Text>
+                  <Text style={styles.customServiceDesc}>Delivery or pickup</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.customServiceCard}
+                  onPress={() => navigation.navigate("InquiryWizard", { serviceType: "Event Setup Only" })}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.customServiceIconBox, { backgroundColor: "#EDE9FE" }]}>
+                    <Layers size={16} color="#7C3AED" />
+                  </View>
+                  <Text style={styles.customServiceTitle}>Setup Only</Text>
+                  <Text style={styles.customServiceDesc}>Styling & setup</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.customServiceCard}
+                  onPress={() => navigation.navigate("InquiryWizard", { serviceType: "Food and Event Setup" })}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.customServiceIconBox, { backgroundColor: colors.primaryLight }]}>
+                    <Sparkles size={16} color={colors.primary} />
+                  </View>
+                  <Text style={styles.customServiceTitle}>Full Service</Text>
+                  <Text style={styles.customServiceDesc}>Banquet & setup</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* Category Filter Pills */}
             <ScrollView
               horizontal
@@ -555,11 +815,21 @@ export const CustomerHomeScreen = ({ navigation }) => {
               })}
             </ScrollView>
 
-            {/* Featured / Best Seller Highlight */}
+            {/* Featured / Signature Packages Heading */}
             <View style={styles.sectionHeaderRow}>
               <View>
-                <Text style={styles.sectionHeading}>Signature Packages</Text>
-                <Text style={styles.sectionSub}>Complete catering & event space packages</Text>
+                <Text style={styles.sectionHeading}>
+                  {activePackageCat === "combo"
+                    ? "Combo Packs"
+                    : activePackageCat === "setup"
+                    ? "Event Setup Packages"
+                    : "Signature Packages"}
+                </Text>
+                <Text style={styles.sectionSub}>
+                  {activePackageCat === "combo"
+                    ? "Curated fixed celebration meals at a set price per pax"
+                    : "Complete catering & event space packages in Batangas"}
+                </Text>
               </View>
               <TouchableOpacity
                 onPress={() => navigation.navigate("Packages")}
@@ -570,35 +840,73 @@ export const CustomerHomeScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            {loading ? (
+            {fetchErrors.packages && packages.length === 0 ? (
+              <ErrorState
+                title="Unable to Load Packages"
+                message="We could not connect to the catering server. Please check your connection."
+                onRetry={loadAllData}
+              />
+            ) : loading ? (
               <View style={{ gap: spacing.md }}>
                 <SkeletonLoader height={240} borderRadius={radius.xl} />
                 <SkeletonLoader height={240} borderRadius={radius.xl} />
               </View>
             ) : filteredPackages.length === 0 ? (
-              <Card style={styles.emptyCard} variant="flat">
-                <Utensils size={32} color={colors.textDisabled} />
-                <Text style={styles.emptyTitle}>No Packages Found</Text>
-                <Text style={styles.emptySub}>Try searching for a different keyword or category.</Text>
-              </Card>
+              <EmptyState
+                icon={UtensilsCrossed}
+                title={
+                  searchQuery || activePackageCat !== "all"
+                    ? "No Packages Match Your Search"
+                    : "No Packages Available"
+                }
+                description={
+                  searchQuery || activePackageCat !== "all"
+                    ? `We couldn't find any catering packages matching your filters. Try a different keyword or reset filters.`
+                    : "There are currently no packages published in this category. You can request a custom proposal directly."
+                }
+                actionLabel={
+                  searchQuery || activePackageCat !== "all"
+                    ? "Reset All Filters"
+                    : "Request a Quote"
+                }
+                onAction={
+                  searchQuery || activePackageCat !== "all"
+                    ? () => {
+                        setSearchQuery("");
+                        setActivePackageCat("all");
+                      }
+                    : () => navigation.navigate("InquiryWizard")
+                }
+              />
             ) : (
               <View style={styles.packageList}>
                 {filteredPackages.map((pkg) => {
+                  const isCombo = isSpecialOffer(pkg);
                   const packageCover = resolvePackageCover(pkg);
-                  const priceLabel =
-                    pkg.price_per_guest > 0
-                      ? `${formatCurrency(pkg.price_per_guest)} / pax`
-                      : pkg.price_label || "Custom Quotation";
-                  const guestRange =
-                    pkg.guest_max
-                      ? `Up to ${pkg.guest_max} Pax`
-                      : pkg.guest_count
-                      ? `Up to ${pkg.guest_count} Pax`
-                      : "Flexible Pax";
+                  const priceParts = packagePriceParts(pkg);
+                  const ratingStats = getPackageRatingStats(pkg, ratings);
 
-                  const displayInclusions = Array.isArray(pkg.inclusions) && pkg.inclusions.length > 0
-                    ? pkg.inclusions.slice(0, 3).map((inc) => String(inc).replace(/^\[[^\]]+\]\s*/, ""))
-                    : ["Full Table Setup", "Waitstaff", "Chafing Dishes"];
+                  const priceLabel = isCombo
+                    ? (offerPricePerPax(pkg) > 0 ? `${formatCurrency(offerPricePerPax(pkg))} / pax` : "Custom Quote")
+                    : (priceParts.amount
+                        ? `${priceParts.prefix ? priceParts.prefix + " " : ""}${priceParts.amount}${priceParts.suffix ? " " + priceParts.suffix : ""}`.trim()
+                        : (priceParts.text || "Quoted per event"));
+
+                  const guestLabel = isCombo
+                    ? `Fixed ${offerGuestCount(pkg) || pkg.guest_count || 10} Pax`
+                    : capacityLabel(pkg) || (pkg.guest_max ? `Up to ${pkg.guest_max} Pax` : "Flexible Pax");
+
+                  const categoryTag = isCombo
+                    ? "Combo Pack"
+                    : eventTypeForPackage(pkg) || pkg.event_type || serviceLabel(pkg) || "Package";
+
+                  const displayInclusions = isCombo
+                    ? (offerInclusions(pkg).length > 0
+                        ? offerInclusions(pkg).slice(0, 3)
+                        : ["Fixed Multi-Course Meal", "Buffet Setup", "Serving Utensils"])
+                    : (Array.isArray(pkg.inclusions) && pkg.inclusions.length > 0
+                        ? pkg.inclusions.slice(0, 3).map((inc) => inclusionDisplayName(inc))
+                        : ["Full Table Setup", "Uniformed Waitstaff", "Chafing Dishes"]);
 
                   return (
                     <Card
@@ -615,25 +923,41 @@ export const CustomerHomeScreen = ({ navigation }) => {
                             resizeMode="cover"
                           />
                         ) : (
-                          <View style={styles.packageImageFallback}>
-                            <Utensils size={28} color={colors.primary} />
-                            <Text style={styles.packageImageFallbackText}>{pkg.name}</Text>
+                          <View
+                            style={[
+                              styles.packageImageFallback,
+                              isCombo && styles.packageImageFallbackCombo,
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.packageFallbackIconBox,
+                                isCombo && styles.packageFallbackIconBoxCombo,
+                              ]}
+                            >
+                              <UtensilsCrossed
+                                size={30}
+                                color={isCombo ? colors.primaryDark : colors.primary}
+                                strokeWidth={1.75}
+                              />
+                            </View>
                           </View>
                         )}
 
-                        {/* Event & Offer Badges Overlay */}
+                        {/* Category & Combo Badges Overlay */}
                         <View style={styles.packageBadgeRow}>
-                          {pkg.event_type ? (
-                            <View style={styles.packageEventBadge}>
-                              <Text style={styles.packageEventBadgeText}>{pkg.event_type}</Text>
-                            </View>
-                          ) : null}
-                          {(pkg.offer_type === "special" || pkg.is_combo || pkg.package_type === "Special Offer") && (
-                            <View style={styles.packageOfferBadge}>
-                              <Sparkles size={11} color={colors.white} />
-                              <Text style={styles.packageOfferBadgeText}>Combo Pack</Text>
-                            </View>
-                          )}
+                          <View style={{ flexDirection: "row", gap: spacing.xs }}>
+                            {isCombo ? (
+                              <View style={styles.packageComboBadge}>
+                                <Sparkles size={11} color={colors.white} />
+                                <Text style={styles.packageComboBadgeText}>Combo Pack</Text>
+                              </View>
+                            ) : (
+                              <View style={styles.packageEventBadge}>
+                                <Text style={styles.packageEventBadgeText}>{categoryTag}</Text>
+                              </View>
+                            )}
+                          </View>
                         </View>
                       </View>
 
@@ -643,22 +967,28 @@ export const CustomerHomeScreen = ({ navigation }) => {
                           <Text style={styles.packageName} numberOfLines={1}>
                             {pkg.name}
                           </Text>
-                          <View style={styles.ratingBadge}>
-                            <Star size={12} color="#EAB308" fill="#EAB308" />
-                            <Text style={styles.ratingText}>4.9 (120+)</Text>
-                          </View>
+                          {ratingStats && (
+                            <View style={styles.packageTitleRatingBadge}>
+                              <Star size={12} color="#F59E0B" fill="#F59E0B" />
+                              <Text style={styles.packageTitleRatingText}>
+                                {ratingStats.averageRating.toFixed(1)} ({ratingStats.reviewCount})
+                              </Text>
+                            </View>
+                          )}
                         </View>
 
                         <Text style={styles.packageDesc} numberOfLines={2}>
                           {pkg.description ||
-                            "Includes multi-course buffet dining, professional uniformed waitstaff, full banquet tables and floral styling."}
+                            (isCombo
+                              ? "Curated multi-course celebration meal prepared fresh and delivered hot."
+                              : "Includes multi-course buffet dining, professional uniformed waitstaff, full banquet tables and floral styling.")}
                         </Text>
 
                         {/* Badges & Meta Row */}
                         <View style={styles.packageMetaRow}>
                           <View style={styles.metaChip}>
                             <Users size={12} color={colors.primary} />
-                            <Text style={styles.metaChipText}>{guestRange}</Text>
+                            <Text style={styles.metaChipText}>{guestLabel}</Text>
                           </View>
 
                           <View style={styles.metaChipPrice}>
@@ -666,11 +996,11 @@ export const CustomerHomeScreen = ({ navigation }) => {
                           </View>
                         </View>
 
-                        {/* Inclusions Strip */}
-                        <View style={styles.inclusionsRow}>
+                        {/* Inclusions Vertical Strip (Matches Reference) */}
+                        <View style={styles.inclusionsList}>
                           {displayInclusions.map((inc, iIdx) => (
                             <View key={iIdx} style={styles.inclusionItem}>
-                              <CheckCircle2 size={12} color={colors.success} />
+                              <CheckCircle2 size={13} color={colors.success} />
                               <Text style={styles.inclusionText} numberOfLines={1}>
                                 {inc}
                               </Text>
@@ -680,7 +1010,9 @@ export const CustomerHomeScreen = ({ navigation }) => {
 
                         {/* Full-width Pill View CTA */}
                         <View style={styles.packageActionBtn}>
-                          <Text style={styles.packageActionText}>View Package Details & Gallery</Text>
+                          <Text style={styles.packageActionText}>
+                            {isCombo ? "View Combo Details & Gallery" : "View Package Details & Gallery"}
+                          </Text>
                           <ChevronRight size={15} color={colors.white} />
                         </View>
                       </View>
@@ -711,6 +1043,8 @@ export const CustomerHomeScreen = ({ navigation }) => {
                     style={[styles.filterPill, isSelected && styles.filterPillActive]}
                     onPress={() => setActiveMenuCat(cat.id)}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
                   >
                     <Text style={[styles.filterPillText, isSelected && styles.filterPillTextActive]}>
                       {cat.label}
@@ -729,61 +1063,54 @@ export const CustomerHomeScreen = ({ navigation }) => {
               </View>
             </View>
 
-            {loading ? (
+            {fetchErrors.menu && menuItems.length === 0 ? (
+              <ErrorState
+                title="Unable to Load Menu"
+                message="We could not load the catering dishes. Please check your connection."
+                onRetry={loadAllData}
+              />
+            ) : loading ? (
               <View style={{ gap: spacing.sm }}>
-                <SkeletonLoader height={110} borderRadius={radius.lg} />
-                <SkeletonLoader height={110} borderRadius={radius.lg} />
-                <SkeletonLoader height={110} borderRadius={radius.lg} />
+                <SkeletonLoader height={104} borderRadius={radius.xl} />
+                <SkeletonLoader height={104} borderRadius={radius.xl} />
+                <SkeletonLoader height={104} borderRadius={radius.xl} />
               </View>
             ) : filteredMenuItems.length === 0 ? (
-              <Card style={styles.emptyCard} variant="flat">
-                <Utensils size={32} color={colors.textDisabled} />
-                <Text style={styles.emptyTitle}>No Dishes Found</Text>
-                <Text style={styles.emptySub}>Try selecting a different food category or query.</Text>
-              </Card>
+              <EmptyState
+                icon={Utensils}
+                title={
+                  searchQuery || activeMenuCat !== "all"
+                    ? "No Dishes Match Your Search"
+                    : "No Dishes Found"
+                }
+                description={
+                  searchQuery || activeMenuCat !== "all"
+                    ? "We couldn't find any culinary dishes matching your filters. Try another keyword or clear filters."
+                    : "Our catering menu dishes are currently being refreshed."
+                }
+                actionLabel={
+                  searchQuery || activeMenuCat !== "all"
+                    ? "Reset Menu Filters"
+                    : "Browse Packages"
+                }
+                onAction={
+                  searchQuery || activeMenuCat !== "all"
+                    ? () => {
+                        setSearchQuery("");
+                        setActiveMenuCat("all");
+                      }
+                    : () => setActiveTab("packages")
+                }
+              />
             ) : (
               <View style={styles.menuGrid}>
-                {filteredMenuItems.map((dish) => {
-                  const dishImage = resolveDishImage(dish);
-                  const price = Number(dish.price || 0);
-
-                  return (
-                    <TouchableOpacity
-                      key={dish._id}
-                      style={styles.dishCard}
-                      onPress={() => setSelectedDish(dish)}
-                      activeOpacity={0.85}
-                    >
-                      <Image
-                        source={{ uri: dishImage }}
-                        style={styles.dishCardImage}
-                        resizeMode="cover"
-                      />
-                      <View style={styles.dishCardBody}>
-                        <View style={styles.dishCourseTag}>
-                          <Text style={styles.dishCourseTagText}>{dish.category || "Catering Dish"}</Text>
-                        </View>
-                        <Text style={styles.dishCardTitle} numberOfLines={1}>
-                          {dish.name}
-                        </Text>
-                        <Text style={styles.dishCardDesc} numberOfLines={2}>
-                          {dish.description ||
-                            "Prepared fresh with savory spices, tender cuts, and signature marinades."}
-                        </Text>
-
-                        <View style={styles.dishCardBottom}>
-                          <Text style={styles.dishCardPrice}>
-                            {price > 0 ? `${formatCurrency(price)}` : "Package Included"}
-                          </Text>
-                          <View style={styles.addDishPill}>
-                            <Plus size={13} color={colors.primary} />
-                            <Text style={styles.addDishText}>Inquire</Text>
-                          </View>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
+                {filteredMenuItems.map((dish) => (
+                  <DishCard
+                    key={dish._id || dish.name}
+                    dish={dish}
+                    onPress={() => setSelectedDish(dish)}
+                  />
+                ))}
               </View>
             )}
           </View>
@@ -794,49 +1121,81 @@ export const CustomerHomeScreen = ({ navigation }) => {
            ══════════════════════════════════════════════════════════════════════ */}
         {activeTab === "gallery" && (
           <View style={styles.sectionContainer}>
-            {/* Gallery Category Filter Pills */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterPillsScroll}
-            >
-              {galleryCategories.map((cat) => {
-                const isSelected = activeGalleryCat === cat.id;
-                return (
-                  <TouchableOpacity
-                    key={cat.id}
-                    style={[styles.filterPill, isSelected && styles.filterPillActive]}
-                    onPress={() => setActiveGalleryCat(cat.id)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.filterPillText, isSelected && styles.filterPillTextActive]}>
-                      {cat.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            {/* Gallery Category Filter Pills (rendered only when categories exist) */}
+            {galleryCategories.length > 1 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterPillsScroll}
+              >
+                {galleryCategories.map((cat) => {
+                  const isSelected = activeGalleryCat === cat.id;
+                  return (
+                    <TouchableOpacity
+                      key={cat.id}
+                      style={[styles.filterPill, isSelected && styles.filterPillActive]}
+                      onPress={() => setActiveGalleryCat(cat.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.filterPillText, isSelected && styles.filterPillTextActive]}>
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
 
-            <View style={styles.sectionHeaderRow}>
-              <View>
-                <Text style={styles.sectionHeading}>Event Styling & Setups</Text>
-                <Text style={styles.sectionSub}>
-                  Real celebrations styled & catered by Caezelle's ({filteredGallery.length} setups)
-                </Text>
+            {filteredGallery.length > 0 && (
+              <View style={styles.sectionHeaderRow}>
+                <View>
+                  <Text style={styles.sectionHeading}>Event Styling & Setups</Text>
+                  <Text style={styles.sectionSub}>
+                    Real celebrations styled & catered by Caezelle's ({filteredGallery.length}{" "}
+                    {filteredGallery.length === 1 ? "setup" : "setups"})
+                  </Text>
+                </View>
               </View>
-            </View>
+            )}
 
-            {loading ? (
+            {fetchErrors.gallery && galleryItems.length === 0 ? (
+              <ErrorState
+                title="Unable to Load Gallery"
+                message="We could not load event styling photos. Please check your connection."
+                onRetry={loadAllData}
+              />
+            ) : loading ? (
               <View style={{ gap: spacing.md }}>
                 <SkeletonLoader height={220} borderRadius={radius.xl} />
                 <SkeletonLoader height={220} borderRadius={radius.xl} />
               </View>
             ) : filteredGallery.length === 0 ? (
-              <Card style={styles.emptyCard} variant="flat">
-                <Camera size={32} color={colors.textDisabled} />
-                <Text style={styles.emptyTitle}>No Setups Found</Text>
-                <Text style={styles.emptySub}>Try selecting a different gallery theme.</Text>
-              </Card>
+              <EmptyState
+                icon={Camera}
+                title={
+                  searchQuery || activeGalleryCat !== "all"
+                    ? "No Matching Event Setups"
+                    : "No Event Gallery Photos Published Yet"
+                }
+                description={
+                  searchQuery || activeGalleryCat !== "all"
+                    ? `We couldn't find any setups matching "${searchQuery}". Try a different search keyword or reset filters.`
+                    : "Our event styling portfolio is being refreshed with recent Batangas celebrations. Browse our catering packages or request a custom quote for your venue."
+                }
+                actionLabel={
+                  searchQuery || activeGalleryCat !== "all"
+                    ? "Clear Search & Filters"
+                    : "Browse Packages"
+                }
+                onAction={
+                  searchQuery || activeGalleryCat !== "all"
+                    ? () => {
+                        setSearchQuery("");
+                        setActiveGalleryCat("all");
+                      }
+                    : () => setActiveTab("packages")
+                }
+              />
             ) : (
               <View style={styles.galleryList}>
                 {filteredGallery.map((item) => (
@@ -886,11 +1245,10 @@ export const CustomerHomeScreen = ({ navigation }) => {
         visible={Boolean(selectedDish)}
         dish={selectedDish}
         onClose={() => setSelectedDish(null)}
-        onSelectDish={(dish) =>
-          navigation.navigate("InquiryWizard", {
-            favoriteDish: dish.name,
-          })
-        }
+        onSelectDish={() => {
+          setSelectedDish(null);
+          navigation.navigate("InquiryWizard");
+        }}
       />
 
       {/* In-App Coach Marks Feature Tour */}
@@ -912,11 +1270,31 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.borderLight,
     ...shadows.sm,
   },
-  brandRow: {
+  headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
-    marginBottom: spacing.xs,
+    gap: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.inputBackground,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    height: 42,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.foreground,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
   },
   headerIcons: {
     flexDirection: "row",
@@ -924,8 +1302,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   iconBtn: {
-    width: 38,
-    height: 38,
+    width: 42,
+    height: 42,
     borderRadius: radius.pill,
     backgroundColor: colors.surfaceAlt,
     alignItems: "center",
@@ -937,39 +1315,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryLight,
     borderColor: colors.powder,
   },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    backgroundColor: colors.inputBackground,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: Platform.OS === "ios" ? 10 : 6,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    marginVertical: spacing.xs,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.medium,
-    color: colors.foreground,
-    padding: 0,
-  },
   tabNavRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
-    marginTop: spacing.xs,
   },
   tabNavItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    minHeight: 46,
-    paddingVertical: spacing.md,
+    minHeight: 44,
+    paddingVertical: 10,
     paddingHorizontal: spacing.md,
     position: "relative",
   },
@@ -995,17 +1353,16 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.base,
-    paddingBottom: 130, // Generous clearance for FloatingTabBar
   },
   heroPromoCard: {
     backgroundColor: colors.primary,
     borderRadius: radius.xl,
-    padding: spacing.lg,
+    padding: spacing.md,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
     overflow: "hidden",
-    ...shadows.md,
+    ...shadows.sm,
   },
   heroPromoLeft: {
     flex: 1,
@@ -1017,52 +1374,52 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: colors.white,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: radius.pill,
     alignSelf: "flex-start",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   promoTagText: {
-    fontSize: typography.sizes.micro,
+    fontSize: 10,
     fontFamily: typography.fontFamily.bold,
     color: colors.primary,
   },
   heroPromoTitle: {
-    fontSize: typography.sizes.lg,
+    fontSize: typography.sizes.md,
     fontFamily: typography.fontFamily.extraBold,
     color: colors.white,
-    lineHeight: 24,
-    marginBottom: 6,
+    lineHeight: 21,
+    marginBottom: 3,
   },
   heroPromoSub: {
-    fontSize: typography.sizes.xs,
+    fontSize: 11,
     fontFamily: typography.fontFamily.regular,
     color: "rgba(255, 255, 255, 0.9)",
-    lineHeight: 17,
-    marginBottom: spacing.md,
+    lineHeight: 15,
+    marginBottom: 10,
   },
   heroCtaBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    minHeight: 44,
-    backgroundColor: "rgba(255, 255, 255, 0.25)",
-    paddingHorizontal: spacing.base,
-    paddingVertical: 10,
+    gap: 4,
+    backgroundColor: colors.white,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: radius.pill,
     alignSelf: "flex-start",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.4)",
+    ...shadows.xs,
   },
   heroCtaText: {
-    fontSize: typography.sizes.sm,
+    fontSize: 12,
     fontFamily: typography.fontFamily.bold,
-    color: colors.white,
+    color: colors.primary,
   },
   heroPromoImage: {
-    width: 90,
-    height: 90,
-    borderRadius: radius.lg,
+    width: 78,
+    height: 78,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   sectionContainer: {
     marginBottom: spacing.lg,
@@ -1070,17 +1427,19 @@ const styles = StyleSheet.create({
   filterPillsScroll: {
     gap: spacing.xs,
     marginBottom: spacing.md,
+    paddingRight: spacing.md,
   },
   filterPill: {
-    paddingHorizontal: spacing.base,
-    paddingVertical: 9,
-    minHeight: 42,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    minHeight: 38,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surface,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.borderLight,
+    flexShrink: 0,
   },
   filterPillActive: {
     backgroundColor: colors.primary,
@@ -1127,17 +1486,74 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.xs,
     marginTop: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  emptyIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xs,
   },
   emptyTitle: {
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.base,
     fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
+    textAlign: "center",
   },
   emptySub: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
     textAlign: "center",
+    lineHeight: 18,
+    maxWidth: 290,
+  },
+  emptyResetBtn: {
+    marginTop: spacing.md,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.base,
+    paddingVertical: 9,
+    borderRadius: radius.pill,
+  },
+  emptyResetBtnText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.white,
+  },
+  emptyActionRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  emptyActionBtnSecondary: {
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 9,
+    borderRadius: radius.pill,
+  },
+  emptyActionBtnSecondaryText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.foreground,
+  },
+  emptyActionBtnPrimary: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 9,
+    borderRadius: radius.pill,
+  },
+  emptyActionBtnPrimaryText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.white,
   },
   packageList: {
     gap: spacing.md,
@@ -1165,46 +1581,68 @@ const styles = StyleSheet.create({
     height: "100%",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primaryLight,
-    padding: spacing.md,
+    backgroundColor: "#E6EEF6",
   },
-  packageImageFallbackText: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.primary,
-    marginTop: spacing.xs,
-    textAlign: "center",
+  packageImageFallbackCombo: {
+    backgroundColor: "#CBDCEF",
+  },
+  packageFallbackIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255, 255, 255, 0.75)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  packageFallbackIconBoxCombo: {
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
   },
   packageBadgeRow: {
     position: "absolute",
     top: spacing.sm,
     left: spacing.sm,
+    right: spacing.sm,
     flexDirection: "row",
-    gap: spacing.xs,
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  packageRatingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(15, 23, 42, 0.78)",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  packageRatingBadgeText: {
+    color: colors.white,
+    fontSize: 10.5,
+    fontFamily: typography.fontFamily.bold,
   },
   packageEventBadge: {
-    backgroundColor: "rgba(10, 15, 29, 0.8)",
-    paddingHorizontal: spacing.sm,
+    backgroundColor: "rgba(15, 23, 42, 0.78)",
+    paddingHorizontal: spacing.sm + 2,
     paddingVertical: 4,
     borderRadius: radius.pill,
   },
   packageEventBadgeText: {
     color: colors.white,
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: typography.fontFamily.bold,
   },
-  packageOfferBadge: {
+  packageComboBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    backgroundColor: colors.accentDark,
-    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm + 2,
     paddingVertical: 4,
     borderRadius: radius.pill,
   },
-  packageOfferBadgeText: {
+  packageComboBadgeText: {
     color: colors.white,
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: typography.fontFamily.bold,
   },
   packageBody: {
@@ -1215,25 +1653,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 4,
+    gap: spacing.xs,
   },
   packageName: {
     fontSize: typography.sizes.base,
     fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
     flex: 1,
-    marginRight: spacing.xs,
   },
-  ratingBadge: {
+  packageTitleRatingBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    backgroundColor: colors.surfaceAlt,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    gap: 4,
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
     borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
-  ratingText: {
-    fontSize: 10,
+  packageTitleRatingText: {
+    fontSize: 11.5,
     fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
@@ -1253,36 +1693,35 @@ const styles = StyleSheet.create({
   metaChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 5.5,
     borderRadius: radius.pill,
   },
   metaChipText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontFamily: typography.fontFamily.bold,
     color: colors.primary,
   },
   metaChipPrice: {
-    backgroundColor: colors.surfaceAlt,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 5.5,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: "#E2E8F0",
   },
   metaPriceText: {
-    fontSize: 11,
-    fontFamily: typography.fontFamily.extraBold,
+    fontSize: 12.5,
+    fontFamily: typography.fontFamily.bold,
+    fontWeight: "700",
     color: colors.foreground,
   },
-  inclusionsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginVertical: spacing.xs,
-    paddingVertical: 6,
+  inclusionsList: {
+    gap: 7,
+    marginVertical: spacing.sm,
+    paddingVertical: spacing.sm,
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: colors.borderLight,
@@ -1290,12 +1729,13 @@ const styles = StyleSheet.create({
   inclusionItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 7,
   },
   inclusionText: {
-    fontSize: 10,
+    fontSize: 11.5,
     fontFamily: typography.fontFamily.medium,
-    color: colors.foregroundMuted,
+    color: colors.foreground,
+    flex: 1,
   },
   packageActionBtn: {
     flexDirection: "row",
@@ -1314,75 +1754,6 @@ const styles = StyleSheet.create({
   },
   menuGrid: {
     gap: spacing.sm,
-  },
-  dishCard: {
-    flexDirection: "row",
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    ...shadows.sm,
-  },
-  dishCardImage: {
-    width: 110,
-    height: 110,
-    backgroundColor: colors.surfaceAlt,
-  },
-  dishCardBody: {
-    flex: 1,
-    padding: spacing.sm + 2,
-    justifyContent: "space-between",
-  },
-  dishCourseTag: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: radius.xs,
-    alignSelf: "flex-start",
-  },
-  dishCourseTagText: {
-    fontSize: 9,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.primary,
-    textTransform: "uppercase",
-  },
-  dishCardTitle: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.foreground,
-    marginTop: 2,
-  },
-  dishCardDesc: {
-    fontSize: 11,
-    fontFamily: typography.fontFamily.regular,
-    color: colors.foregroundMuted,
-    lineHeight: 15,
-  },
-  dishCardBottom: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 4,
-  },
-  dishCardPrice: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.foreground,
-  },
-  addDishPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radius.pill,
-  },
-  addDishText: {
-    fontSize: 10,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.primary,
   },
   galleryList: {
     gap: spacing.md,
@@ -1441,27 +1812,27 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.base,
-    borderWidth: 1.5,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
     borderColor: colors.primaryBorder,
-    marginBottom: spacing.base,
-    ...shadows.sm,
+    marginBottom: spacing.sm + 2,
+    ...shadows.xs,
   },
   trackerLeft: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    marginRight: spacing.sm,
+    marginRight: spacing.xs,
   },
   trackerIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: spacing.md,
+    marginRight: spacing.sm + 2,
   },
   trackerInfo: {
     flex: 1,
@@ -1473,59 +1844,70 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   trackerKicker: {
-    fontSize: typography.sizes.micro,
-    fontFamily: typography.fontFamilies.bold,
+    fontSize: 10,
+    fontFamily: typography.fontFamily.bold,
     color: colors.primary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   trackerTitle: {
-    fontSize: typography.sizes.base,
-    fontFamily: typography.fontFamilies.bold,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
-    marginBottom: 2,
+    lineHeight: 18,
+    marginBottom: 1,
   },
   trackerSub: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamilies.regular,
+    fontSize: 11,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
+    lineHeight: 15,
   },
   trackerActionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.powder,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
+    marginLeft: 6,
   },
   customServicesSection: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  customServicesHeaderRow: {
+    marginBottom: spacing.xs,
+  },
+  customServicesHeading: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.extraBold,
+    color: colors.foreground,
   },
   customServicesGrid: {
     flexDirection: "row",
     gap: spacing.sm,
-    marginTop: spacing.sm,
   },
   customServiceCard: {
     flex: 1,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    padding: spacing.md,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
     borderWidth: 1,
     borderColor: colors.borderLight,
     alignItems: "center",
     ...shadows.xs,
   },
   customServiceIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.xs,
+    marginBottom: 5,
   },
   customServiceTitle: {
-    fontSize: typography.sizes.xs,
+    fontSize: 12,
     fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
     textAlign: "center",
@@ -1536,7 +1918,7 @@ const styles = StyleSheet.create({
     color: colors.foregroundMuted,
     textAlign: "center",
     marginTop: 2,
-    lineHeight: 13,
+    lineHeight: 12,
   },
 });
 

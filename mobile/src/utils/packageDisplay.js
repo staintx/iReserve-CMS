@@ -354,6 +354,132 @@ export const eventTypeForPackage = (pkg) => {
   return "";
 };
 
+export const getCustomerInitials = (name) => {
+  if (!name || typeof name !== "string") return "CU";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "CU";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+export const getCustomerEventDetails = (review) => {
+  if (!review) return null;
+
+  const rawEventType =
+    review.event_type ||
+    review.eventType ||
+    review.booking_id?.event_type ||
+    review.booking_id?.eventType ||
+    review.booking?.event_type ||
+    review.booking?.eventType ||
+    review.booking_id?.event_name ||
+    review.booking_id?.eventName ||
+    null;
+
+  const rawCount =
+    review.guest_count ??
+    review.guestCount ??
+    review.pax ??
+    review.booking_id?.guest_count ??
+    review.booking_id?.guestCount ??
+    review.booking_id?.pax ??
+    review.booking?.guest_count ??
+    review.booking?.guestCount ??
+    review.booking?.pax ??
+    null;
+
+  const eventType =
+    typeof rawEventType === "string" && rawEventType.trim().length > 0
+      ? rawEventType.trim()
+      : null;
+
+  const countNum = Number(rawCount);
+  const guestCount =
+    !isNaN(countNum) && countNum > 0
+      ? `${countNum} ${countNum === 1 ? "Guest" : "Guests"}`
+      : null;
+
+  if (eventType && guestCount) {
+    return `${eventType} · ${guestCount}`;
+  }
+  if (eventType) {
+    return eventType;
+  }
+  if (guestCount) {
+    return guestCount;
+  }
+  return null;
+};
+
+/**
+ * Resolves genuine ratings associated with a package based on database booking links.
+ * Follows website rating rules:
+ * - Valid ratings must have a numeric star score between 1 and 5.
+ * - Matches booking_id.package_id OR booking_id.package_name_snapshot (case-insensitive).
+ * - Never fabricates fake ratings or counts.
+ */
+export const getPackageRatingStats = (pkg, allRatings = []) => {
+  if (!pkg || !Array.isArray(allRatings) || allRatings.length === 0) {
+    return null;
+  }
+
+  const pkgId = pkg._id ? String(pkg._id) : "";
+  const pkgName = String(pkg.name || "").trim().toLowerCase();
+
+  const matchingReviews = allRatings.filter((r) => {
+    if (!r || typeof r.stars !== "number" || r.stars < 1 || r.stars > 5) {
+      return false;
+    }
+    const b = r.booking_id;
+    if (b) {
+      // Check direct package_id link on booking (handles both ObjectId string and populated object)
+      const bPkgId = b.package_id?._id ? String(b.package_id._id) : (b.package_id ? String(b.package_id) : "");
+      if (pkgId && bPkgId && bPkgId === pkgId) {
+        return true;
+      }
+
+      // Check package_name_snapshot on booking
+      if (pkgName && b.package_name_snapshot) {
+        const snapName = String(b.package_name_snapshot).trim().toLowerCase();
+        if (snapName === pkgName) return true;
+      }
+    }
+
+    // Direct package reference on review if present
+    const rPkgId = r.package_id?._id ? String(r.package_id._id) : (r.package_id ? String(r.package_id) : "");
+    if (pkgId && rPkgId && rPkgId === pkgId) {
+      return true;
+    }
+
+    const rPkgName = String(r.package_name || r.packageName || "").trim().toLowerCase();
+    if (pkgName && rPkgName && rPkgName === pkgName) {
+      return true;
+    }
+
+    return false;
+  });
+
+  if (matchingReviews.length === 0) {
+    return null; // Strictly return null when no genuine ratings exist
+  }
+
+  // Sort reviews newest first
+  const sortedReviews = [...matchingReviews].sort((a, b) => {
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return timeB - timeA;
+  });
+
+  const sum = sortedReviews.reduce((acc, curr) => acc + curr.stars, 0);
+  const average = Number((sum / sortedReviews.length).toFixed(1));
+
+  return {
+    averageRating: average,
+    reviewCount: sortedReviews.length,
+    reviews: sortedReviews,
+  };
+};
+
 export default {
   isSpecialOffer,
   offerPricePerPax,
@@ -374,4 +500,7 @@ export default {
   serviceLabel,
   eventTypeForPackage,
   cleanItemName,
+  getCustomerInitials,
+  getCustomerEventDetails,
+  getPackageRatingStats,
 };

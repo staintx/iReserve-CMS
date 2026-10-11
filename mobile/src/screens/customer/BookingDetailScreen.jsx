@@ -137,8 +137,6 @@ export const BookingDetailScreen = ({ route, navigation }) => {
     booking?.payment_status === "deposit_paid" || booking?.payment_status === "fully_paid";
   const isFullyPaid = booking?.payment_status === "fully_paid";
   const isPast = booking?.event_date && new Date(booking.event_date) < new Date();
-  const canCancel = !isPast && !isCancelled && !isCompleted;
-
   const hasPendingRevision = Boolean(
     (booking?.pending_revision && booking?.pending_revision?.status === "pending_customer_approval") ||
       booking?.revision_proposal
@@ -164,6 +162,8 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   const isOverdue = Boolean(
     isPast && remainingBalance > 0 && !isCancelled
   );
+  const isCancelReqPending = booking?.cancellation_request?.status === "pending";
+  const canCancel = !isPast && !isCancelled && !isCompleted && !isOverdue && !isCancelReqPending;
 
   // Milestone Stepper Calculation (Consistent 5 steps matching website)
   const isOcularDone =

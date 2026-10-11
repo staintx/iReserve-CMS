@@ -124,19 +124,23 @@ export default function PaymentChoiceModal({
 
   const footerContent = (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 w-full font-sans">
-      <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-        {selectedMethod === "online" ? (
-          <>
-            <Lock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span>256-bit encrypted checkout · PayMongo</span>
-          </>
-        ) : (
-          <>
-            <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-            <span>Official receipt issued on-site upon handover</span>
-          </>
-        )}
-      </div>
+      {selectedMethod === "online" ? (
+        <div className="hidden sm:flex items-start gap-2 text-slate-500 shrink-0 text-left">
+          <Lock className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+          <div className="text-[11px] leading-tight font-medium">
+            <span className="font-semibold text-slate-700 block">256-bit Encrypted Checkout</span>
+            <span className="text-slate-500">Processed securely via PayMongo</span>
+          </div>
+        </div>
+      ) : (
+        <div className="hidden sm:flex items-start gap-2 text-slate-500 shrink-0 text-left">
+          <ShieldCheck className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
+          <div className="text-[11px] leading-tight font-medium">
+            <span className="font-semibold text-slate-700 block">On-Site Cash Settlement</span>
+            <span className="text-slate-500">Official receipt issued upon handover</span>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
         <button

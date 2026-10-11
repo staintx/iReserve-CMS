@@ -522,7 +522,7 @@ export default function CustomerBookings() {
     }
 
     // 10. Cancelled
-    if (rawStatus === "cancelled") {
+    if (["cancelled", "canceled", "rejected", "refunded"].includes(rawStatus)) {
       return {
         state: "cancelled",
         badge: "Cancelled",
@@ -1421,25 +1421,38 @@ export default function CustomerBookings() {
                       </div>
                     </div>
 
-                    {/* 3. ASSIGNED CATERING LEAD & DIRECT MESSAGING */}
+                    {/* 3. ASSIGNED ON-SITE COORDINATION */}
                     <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3 space-y-2">
                       <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                        Catering &amp; Dispatch Coordination
+                        {isFoodOnly(resolveServiceType(selectedBooking)) ? "Dispatch & Kitchen Management" : "On-Site Event Coordination"}
                       </div>
 
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-slate-200/80 text-slate-700 border border-slate-300/80 flex items-center justify-center text-xs font-bold shrink-0">
+                          {assignedLead?.full_name?.charAt(0) || assignedLead?.name?.charAt(0) || "C"}
+                        </div>
+                        <div className="min-w-0">
+                          <h5 className="font-bold text-xs text-slate-900 truncate">
+                            {assignedLead?.full_name || assignedLead?.name || "Caezelle Catering Team"}
+                          </h5>
+                          <p className="text-[11px] text-slate-500">
+                            {isFoodOnly(resolveServiceType(selectedBooking)) ? "Assigned Dispatch & Kitchen Lead" : "Assigned Event Coordinator"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 4. CATERING SUPPORT & DIRECT MESSAGING WITH ADMIN DESK */}
+                    <div className="bg-white border border-slate-200/90 rounded-xl p-3 space-y-2 shadow-2xs">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-full bg-[#4C81E0]/10 text-[#4C81E0] border border-[#4C81E0]/20 flex items-center justify-center text-xs font-bold shrink-0">
-                            {assignedLead?.full_name?.charAt(0) || assignedLead?.name?.charAt(0) || "C"}
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                            <MessageSquare className="w-3 h-3 text-[#4C81E0]" />
+                            <span>Catering Support Desk</span>
                           </div>
-                          <div className="min-w-0">
-                            <h5 className="font-bold text-xs text-slate-900 truncate">
-                              {assignedLead?.full_name || assignedLead?.name || "Caezelle Catering Team"}
-                            </h5>
-                            <p className="text-[11px] text-slate-600">
-                              {isFoodOnly(resolveServiceType(selectedBooking)) ? "Dispatch & Kitchen Lead" : "Event Coordinator"}
-                            </p>
-                          </div>
+                          <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+                            Need help with your booking, schedule, or menu? Message our admin team.
+                          </p>
                         </div>
 
                         <Button
@@ -1447,7 +1460,7 @@ export default function CustomerBookings() {
                           variant="outline"
                           onClick={() => handleOpenChat(selectedBooking)}
                           disabled={isOpeningChat}
-                          className="h-7.5 px-2.5 text-xs font-semibold rounded-lg border-slate-200 text-slate-700 hover:text-[#4C81E0] hover:border-[#4C81E0] gap-1 shrink-0 cursor-pointer shadow-2xs"
+                          className="h-7.5 px-2.5 text-xs font-semibold rounded-lg border-slate-200 text-slate-700 hover:text-[#4C81E0] hover:border-[#4C81E0] hover:bg-blue-50/40 gap-1 shrink-0 cursor-pointer shadow-2xs"
                         >
                           <MessageSquare className="w-3.5 h-3.5 text-[#4C81E0]" />
                           <span>Chat</span>

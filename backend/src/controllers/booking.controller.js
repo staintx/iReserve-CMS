@@ -14,7 +14,11 @@ const {
   isBookingAwaitingDeposit,
   awaitingDepositInquiryBookingQuery,
 } = require("../utils/bookingDeposit");
-const { getCustomerOverdueBookings } = require("../utils/overduePayment");
+const {
+  getCustomerOverdueBookings,
+  parseLocalDate,
+  isBookingPaymentOverdue,
+} = require("../utils/overduePayment");
 
 // --- Perf: batch inventory check (2 queries instead of 2N) ---
 const checkInventoryAvailability = async (
@@ -2592,8 +2596,26 @@ exports.requestCancellation = asyncHandler(async (req, res) => {
   }
 
   const currentStatus = String(booking.status || "").toLowerCase();
-  if (["completed", "event completed", "cancelled", "refunded"].includes(currentStatus)) {
+  if (["completed", "event completed", "cancelled", "canceled", "rejected", "refunded"].includes(currentStatus)) {
     return res.status(400).json({ message: "Cannot request cancellation for completed, cancelled, or refunded bookings." });
+  }
+
+  if (booking.cancellation_request?.status === "pending") {
+    return res.status(400).json({ message: "A cancellation request is already pending review for this booking." });
+  }
+
+  const eventDate = parseLocalDate(booking.event_date);
+  const today = parseLocalDate(new Date());
+  if (eventDate && today && eventDate.getTime() <= today.getTime()) {
+    return res.status(400).json({ message: "Cannot request cancellation for an event that has already occurred or is scheduled for today." });
+  }
+
+  if (isBookingPaymentOverdue(booking)) {
+    return res.status(400).json({ message: "Cannot request cancellation for an overdue booking. Please settle the remaining balance." });
+  }
+
+  if (["ongoing"].includes(currentStatus)) {
+    return res.status(400).json({ message: "Cannot request cancellation for an ongoing event." });
   }
 
   const reason = (req.body?.reason || "").trim() || "Customer requested a cancellation and refund.";

@@ -210,8 +210,8 @@ export const BOOKING_STATUS_GROUPS = {
     "ready for event"
   ],
   deposit_needed: ["deposit pending", "pending deposit", "customer_accepted"],
-  completed: ["completed"],
-  cancelled: ["cancelled"],
+  completed: ["completed", "event completed"],
+  cancelled: ["cancelled", "canceled", "rejected", "refunded"],
 };
 
 export const bookingStatusGroup = (booking) => {
@@ -363,6 +363,16 @@ export const INQUIRY_STATUS_GROUPS = {
   cancelled: ["Cancelled", "Quote Rejected", "Expired"],
 };
 
+export const isPastDay = (value) => {
+  if (!value) return false;
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return false;
+  const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return startOfDay < startOfToday;
+};
+
 export const isDepositConfirmed = (inquiry) => {
   return Boolean(
     inquiry?.payment_status === "deposit_paid" ||
@@ -376,7 +386,9 @@ export const isConvertedBooking = (inquiry) => {
 };
 
 export const isCancelledInquiry = (inquiry) => {
-  return ["Cancelled", "Quote Rejected", "Expired"].includes(inquiry?.status);
+  if (["Cancelled", "Quote Rejected", "Expired"].includes(inquiry?.status)) return true;
+  if (inquiry?.event_date && isPastDay(inquiry.event_date) && !isConvertedBooking(inquiry)) return true;
+  return false;
 };
 
 export const inquiryStatusGroup = (inquiry) => {
@@ -424,16 +436,23 @@ export const inquiryStatusMeta = (inquiry) => {
   }
 
   if (group === "cancelled") {
+    const isExpired = inquiry?.status === "Expired" || (inquiry?.event_date && isPastDay(inquiry.event_date));
     return {
       group: "cancelled",
-      tone: "danger",
-      label: "Cancelled",
-      icon: XCircle,
-      notice: {
-        tone: "neutral",
-        title: "This request is closed.",
-        text: "Send a new request any time you're ready.",
-      },
+      tone: isExpired ? "neutral" : "danger",
+      label: isExpired ? "Expired" : "Cancelled",
+      icon: isExpired ? Clock : XCircle,
+      notice: isExpired
+        ? {
+            tone: "neutral",
+            title: "This inquiry has expired.",
+            text: "The requested event date has passed without confirmation. You can submit a new inquiry whenever you're ready.",
+          }
+        : {
+            tone: "neutral",
+            title: "This request is closed.",
+            text: "Send a new request any time you're ready.",
+          },
     };
   }
 

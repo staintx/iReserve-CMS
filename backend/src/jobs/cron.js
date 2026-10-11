@@ -1,6 +1,8 @@
 const cron = require('node-cron');
 const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
+const Inquiry = require('../models/Inquiry');
+const Quotation = require('../models/Quotation');
 const { notifyAdmins, notifyAdminsOnly, createNotification } = require('../utils/notify');
 const { createCheckoutSession } = require('../services/payment.service');
 const { sendFinalInvoiceEmail } = require('../utils/booking-emails');
@@ -231,99 +233,126 @@ const startCronJobs = (io) => {
         }
     });
 
-    // Run every day at 6 AM — Auto-status transitions
-    cron.schedule('0 6 * * *', async () => {
-        try {
-            console.log('Running auto-status transition cron...');
-
-            const todayStart = new Date();
-            todayStart.setHours(0, 0, 0, 0);
-            const todayEnd = new Date(todayStart);
-            todayEnd.setHours(23, 59, 59, 999);
-
-            // Alert Admins if an event starting today has an assigned manager but no staff
-            const todayUnstaffed = await Booking.find({
-                event_date: { $gte: todayStart, $lte: todayEnd },
-                status: { $in: ACTIVE_UPCOMING_STATUSES },
-                event_manager_id: { $exists: true, $ne: null },
-                $or: [
-                    { staff_assignments: { $exists: false } },
-                    { staff_assignments: { $size: 0 } }
-                ]
-            });
-
-            for (const booking of todayUnstaffed) {
-                await notifyAdminsOnly({
-                    title: "Event Today Unstaffed",
-                    body: `Booking ${booking.reference || booking._id} starts today with zero assigned staff. Immediate attention required.`,
-                    type: "warning",
-                    link: `/admin/bookings/${booking._id}/details`,
-                    meta: { booking_id: booking._id }
-                }, io);
-            }
-
-            // Events happening today → ongoing
-            const todayResult = await Booking.updateMany(
-                { event_date: { $gte: todayStart, $lte: todayEnd }, status: { $in: ACTIVE_UPCOMING_STATUSES } },
-                { $set: { status: "ongoing" } }
-            );
-
-            if (todayResult.modifiedCount > 0) {
-                console.log(`Transitioned ${todayResult.modifiedCount} bookings to 'ongoing'.`);
-            }
-
-            // Events from yesterday → completed (guarded against unverified equipment returns and unstaffed manager events)
-            const yesterdayStart = new Date(todayStart);
-            yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-            const yesterdayEnd = new Date(yesterdayStart);
-            yesterdayEnd.setHours(23, 59, 59, 999);
-
-            const yesterdayCandidates = await Booking.find({
-                event_date: { $gte: yesterdayStart, $lte: yesterdayEnd },
-                status: { $in: ["ongoing", "Ready for Event", "ready for event", "confirmed", "Confirmed", "preparing"] }
-            });
-
-            let completedCount = 0;
-            for (const b of yesterdayCandidates) {
-                const isUnstaffedManagerEvent = b.event_manager_id &&
-                    (!Array.isArray(b.staff_assignments) || b.staff_assignments.length === 0);
-
-                if (isUnstaffedManagerEvent) {
-                    if (b.status !== "ongoing") {
-                        b.status = "ongoing";
-                        await b.save();
-                    }
-                    await notifyAdminsOnly({
-                        title: "Event Completion Blocked",
-                        body: `Booking ${b.reference || b._id} concluded yesterday but staff was never assigned. Held in ongoing state for administrative review.`,
-                        type: "warning",
-                        link: `/admin/bookings/${b._id}/details`,
-                        meta: { booking_id: b._id }
-                    }, io);
-                    continue;
-                }
-
-                const hasPendingEquipment = (Array.isArray(b.inventory_items) && b.inventory_items.length > 0) &&
-                    (!b.equipment_manager_verified?.confirmed &&
-                     Array.isArray(b.equipment_returns) &&
-                     b.equipment_returns.some(eq => !eq.verified_at));
-
-                if (!hasPendingEquipment) {
-                    b.status = "Completed";
-                    b.completed_at = new Date();
-                    await b.save();
-                    completedCount++;
-                }
-            }
-
-            if (completedCount > 0) {
-                console.log(`Transitioned ${completedCount} bookings to 'Completed'.`);
-            }
-        } catch (error) {
-            console.error('Error in auto-status transition cron:', error);
-        }
+    // Run auto-status transitions on startup
+    runAutoStatusTransitions(io).catch((err) => {
+        console.error('Initial auto-status transition error:', err);
     });
 
+    // Run every day at 6 AM — Auto-status transitions
+    cron.schedule('0 6 * * *', async () => {
+        await runAutoStatusTransitions(io);
+    });
+};
+
+const runAutoStatusTransitions = async (io) => {
+    try {
+        console.log('Running auto-status transition routine...');
+
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date(todayStart);
+        todayEnd.setHours(23, 59, 59, 999);
+
+        // Alert Admins if an event starting today has an assigned manager but no staff
+        const todayUnstaffed = await Booking.find({
+            event_date: { $gte: todayStart, $lte: todayEnd },
+            status: { $in: ACTIVE_UPCOMING_STATUSES },
+            event_manager_id: { $exists: true, $ne: null },
+            $or: [
+                { staff_assignments: { $exists: false } },
+                { staff_assignments: { $size: 0 } }
+            ]
+        });
+
+        for (const booking of todayUnstaffed) {
+            await notifyAdminsOnly({
+                title: "Event Today Unstaffed",
+                body: `Booking ${booking.reference || booking._id} starts today with zero assigned staff. Immediate attention required.`,
+                type: "warning",
+                link: `/admin/bookings/${booking._id}/details`,
+                meta: { booking_id: booking._id }
+            }, io);
+        }
+
+        // Events happening today → ongoing
+        const todayResult = await Booking.updateMany(
+            { event_date: { $gte: todayStart, $lte: todayEnd }, status: { $in: ACTIVE_UPCOMING_STATUSES } },
+            { $set: { status: "ongoing" } }
+        );
+
+        if (todayResult.modifiedCount > 0) {
+            console.log(`Transitioned ${todayResult.modifiedCount} bookings to 'ongoing'.`);
+        }
+
+        // Events concluded before today (< todayStart) → Completed (guarded against unverified equipment returns and unstaffed manager events)
+        const pastCandidates = await Booking.find({
+            event_date: { $lt: todayStart },
+            status: { $in: ["ongoing", "Ready for Event", "ready for event", "confirmed", "Confirmed", "preparing"] }
+        });
+
+        let completedCount = 0;
+        for (const b of pastCandidates) {
+            const isUnstaffedManagerEvent = b.event_manager_id &&
+                (!Array.isArray(b.staff_assignments) || b.staff_assignments.length === 0);
+
+            if (isUnstaffedManagerEvent) {
+                if (b.status !== "ongoing") {
+                    b.status = "ongoing";
+                    await b.save();
+                }
+                await notifyAdminsOnly({
+                    title: "Event Completion Blocked",
+                    body: `Booking ${b.reference || b._id} concluded but staff was never assigned. Held in ongoing state for administrative review.`,
+                    type: "warning",
+                    link: `/admin/bookings/${b._id}/details`,
+                    meta: { booking_id: b._id }
+                }, io);
+                continue;
+            }
+
+            const hasPendingEquipment = (Array.isArray(b.inventory_items) && b.inventory_items.length > 0) &&
+                (!b.equipment_manager_verified?.confirmed &&
+                 Array.isArray(b.equipment_returns) &&
+                 b.equipment_returns.some(eq => !eq.verified_at));
+
+            if (!hasPendingEquipment) {
+                b.status = "Completed";
+                if (!b.completed_at) b.completed_at = new Date();
+                await b.save();
+                completedCount++;
+            }
+        }
+
+        if (completedCount > 0) {
+            console.log(`Transitioned ${completedCount} bookings to 'Completed'.`);
+            if (io) io.emit("system:refresh", { type: "booking", action: "update" });
+        }
+
+        // Auto-expire unconfirmed inquiries whose requested event date has passed
+        const expiredInquiries = await Inquiry.find({
+            event_date: { $lt: todayStart },
+            status: { $in: ["Pending Review", "Under Review", "Revision Requested", "Quotation Sent"] },
+            converted_booking_id: { $exists: false }
+        }).select("_id");
+
+        if (expiredInquiries.length > 0) {
+            const expiredIds = expiredInquiries.map(i => i._id);
+            await Inquiry.updateMany(
+                { _id: { $in: expiredIds } },
+                { $set: { status: "Expired" } }
+            );
+
+            await Quotation.updateMany(
+                { inquiry_id: { $in: expiredIds }, status: { $in: ["Draft", "Sent"] } },
+                { $set: { status: "Expired" } }
+            );
+
+            console.log(`Transitioned ${expiredIds.length} inquiries to 'Expired'.`);
+            if (io) io.emit("system:refresh", { type: "inquiry", action: "update" });
+        }
+    } catch (error) {
+        console.error('Error in auto-status transition routine:', error);
+    }
 };
 
 module.exports = startCronJobs;

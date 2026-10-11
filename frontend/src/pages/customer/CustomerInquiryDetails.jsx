@@ -28,6 +28,7 @@ import {
   formatEventDateWithDay,
   formatTime,
   formatShortDate,
+  formatDateTime,
 } from "../../utils/format";
 import {
   ArrowLeft,
@@ -834,6 +835,13 @@ export default function CustomerInquiryDetails() {
                       </>
                     )}
                   </span>
+
+                  {inquiry.createdAt && (
+                    <span className="flex items-center gap-1.5 text-slate-500">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Submitted: <strong className="font-semibold text-slate-700">{formatDateTime(inquiry.createdAt)}</strong></span>
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -894,6 +902,11 @@ export default function CustomerInquiryDetails() {
                       >
                         {step.title}
                       </span>
+                      {step.id === "submitted" && inquiry.createdAt && (
+                        <span className="text-[10px] text-slate-500 mt-0.5 leading-tight font-normal">
+                          {formatDateTime(inquiry.createdAt)}
+                        </span>
+                      )}
                     </div>
                   );
                 })}
@@ -972,6 +985,16 @@ export default function CustomerInquiryDetails() {
                       )}
                     </div>
                   </div>
+
+                  {inquiry.createdAt && (
+                    <div>
+                      <span className="text-slate-500 font-medium block">Date &amp; Time Submitted</span>
+                      <div className="font-bold text-slate-900 text-sm mt-0.5 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{formatDateTime(inquiry.createdAt)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Venue Location & Logistics */}
@@ -1405,6 +1428,12 @@ export default function CustomerInquiryDetails() {
                     <div className="flex items-center gap-1.5 text-slate-600 truncate">
                       <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span className="truncate">{inquiry.contact_email}</span>
+                    </div>
+                  )}
+                  {inquiry.createdAt && (
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                      <span>Submitted</span>
+                      <span className="font-medium text-slate-700">{formatDateTime(inquiry.createdAt)}</span>
                     </div>
                   )}
                 </div>

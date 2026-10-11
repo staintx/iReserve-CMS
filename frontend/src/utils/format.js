@@ -85,6 +85,16 @@ export const formatShortDate = (value, fallback = "—") => {
   return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
+/** "Oct 11, 2026 · 8:28 AM" — formatted date and time for submission and transaction timestamps. */
+export const formatDateTime = (value, fallback = "—") => {
+  if (!value) return fallback;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return fallback;
+  const datePart = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const timePart = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `${datePart} · ${timePart}`;
+};
+
 /**
  * Determines whether an event has started, is in progress, finished, or is upcoming.
  */

@@ -33,7 +33,7 @@ import {
 } from "../../components/customer/portal/statusMeta";
 import { isSpecialOffer } from "../../lib/specialOffers";
 import { cn } from "@/lib/utils";
-import { formatShortDate } from "../../utils/format";
+import { formatShortDate, formatDateTime } from "../../utils/format";
 import {
   FileText,
   Plus,
@@ -664,6 +664,15 @@ export default function CustomerInquiries() {
                     </>
                   )}
                 </span>
+                {inq.createdAt && (
+                  <>
+                    <span className="text-slate-300">·</span>
+                    <span className="flex items-center gap-1 text-[11px] text-slate-500" title="Submitted Date & Time">
+                      <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span>Submitted {formatDateTime(inq.createdAt)}</span>
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>

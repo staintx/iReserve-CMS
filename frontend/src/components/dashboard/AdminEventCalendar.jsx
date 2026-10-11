@@ -18,6 +18,7 @@ import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { useNavigate } from "react-router-dom";
 import { resolveServiceType } from "../customer/portal/statusMeta";
+import ConfirmDialog from "../common/ConfirmDialog";
 
 // Helper to parse date string YYYY-MM-DD or date object into local start-of-day Date
 const parseDateStartOfDay = (val) => {
@@ -40,8 +41,9 @@ const parseDateStartOfDay = (val) => {
 // Helper to format date keys in YYYY-MM-DD
 const formatDateKey = (dateObj) => {
   if (!dateObj) return "";
-  if (typeof dateObj === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateObj)) {
-    return dateObj;
+  if (typeof dateObj === "string") {
+    const match = dateObj.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return match[0];
   }
   const d = new Date(dateObj);
   if (isNaN(d.getTime())) return "";
@@ -55,9 +57,14 @@ const formatDateKey = (dateObj) => {
 const formatDisplayDate = (dateObj, includeWeekday = false) => {
   if (!dateObj) return "";
   let d;
-  if (typeof dateObj === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateObj)) {
-    const [y, m, day] = dateObj.split("-").map(Number);
-    d = new Date(y, m - 1, day);
+  if (typeof dateObj === "string") {
+    const match = dateObj.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const [y, m, day] = match[0].split("-").map(Number);
+      d = new Date(y, m - 1, day);
+    } else {
+      d = new Date(dateObj);
+    }
   } else {
     d = new Date(dateObj);
   }
@@ -135,6 +142,9 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
 
   // Detail Modal
   const [activeItem, setActiveItem] = useState(null);
+
+  // Unblock Confirmation State
+  const [unblockConfirmTarget, setUnblockConfirmTarget] = useState(null);
 
   const fetchCalendarData = async () => {
     setLoading(true);
@@ -404,6 +414,12 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
         notify("Please select an end date", "error");
         return;
       }
+      if (blockForm.startDate === blockForm.endDate) {
+        const msg = "Start date and end date cannot be the same. Please select a different end date or use Single Day mode.";
+        setBlockError(msg);
+        notify(msg, "error");
+        return;
+      }
       if (blockForm.startDate > blockForm.endDate) {
         const msg = "Start date cannot be after end date";
         setBlockError(msg);
@@ -549,6 +565,18 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
     });
     setShowBlockModal(true);
   };
+
+  const rangeValidationError = useMemo(() => {
+    if (!blockForm.isRange) return "";
+    if (!blockForm.startDate || !blockForm.endDate) return "";
+    if (blockForm.startDate === blockForm.endDate) {
+      return "Start date and end date cannot be the same. Please select a different end date or use Single Day mode.";
+    }
+    if (blockForm.startDate > blockForm.endDate) {
+      return "End date cannot be earlier than start date.";
+    }
+    return "";
+  }, [blockForm.isRange, blockForm.startDate, blockForm.endDate]);
 
   return (
     <div className="space-y-3.5">
@@ -1059,7 +1087,12 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                             <>
                               <button
                                 type="button"
-                                onClick={() => handleUnblock(ev.rawId, true)}
+                                onClick={() =>
+                                  setUnblockConfirmTarget({
+                                    blockedId: ev.rawId,
+                                    unblockRange: true,
+                                  })
+                                }
                                 className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer transition-colors"
                                 title="Unblock all dates in this range"
                               >
@@ -1067,7 +1100,12 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleUnblock(ev.rawId, false)}
+                                onClick={() =>
+                                  setUnblockConfirmTarget({
+                                    blockedId: ev.rawId,
+                                    unblockRange: false,
+                                  })
+                                }
                                 className="text-[11px] font-medium text-slate-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer transition-colors"
                                 title="Unblock only this single date"
                               >
@@ -1077,7 +1115,12 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                           ) : (
                             <button
                               type="button"
-                              onClick={() => handleUnblock(ev.rawId, false)}
+                              onClick={() =>
+                                setUnblockConfirmTarget({
+                                    blockedId: ev.rawId,
+                                    unblockRange: false,
+                                })
+                              }
                               className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer transition-colors"
                             >
                               <Unlock size={12} /> Unblock Date
@@ -1227,6 +1270,14 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                 </div>
               )}
 
+              {/* Range Validation Error Message */}
+              {rangeValidationError && (
+                <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 font-medium flex items-start gap-2">
+                  <Info size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                  <span>{rangeValidationError}</span>
+                </div>
+              )}
+
               {/* Reason Input */}
               <div>
                 <label className="block text-xs font-semibold text-foreground mb-1">
@@ -1278,8 +1329,12 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmittingBlock}
-                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary-hover text-white transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
+                  disabled={
+                    isSubmittingBlock ||
+                    !blockForm.startDate ||
+                    (blockForm.isRange && (!blockForm.endDate || Boolean(rangeValidationError)))
+                  }
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary-hover text-white transition-all shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {isSubmittingBlock ? "Blocking..." : "Confirm Block"}
                 </button>
@@ -1376,14 +1431,24 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                   <>
                     <button
                       type="button"
-                      onClick={() => handleUnblock(activeItem.rawId, true)}
+                      onClick={() =>
+                        setUnblockConfirmTarget({
+                          blockedId: activeItem.rawId,
+                          unblockRange: true,
+                        })
+                      }
                       className="px-4 py-2 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
                     >
                       <Unlock size={13} /> Unblock Range
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleUnblock(activeItem.rawId, false)}
+                      onClick={() =>
+                        setUnblockConfirmTarget({
+                          blockedId: activeItem.rawId,
+                          unblockRange: false,
+                        })
+                      }
                       className="px-3.5 py-2 rounded-lg text-xs font-semibold border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
                     >
                       Unblock Date Only
@@ -1392,7 +1457,12 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => handleUnblock(activeItem.rawId, false)}
+                    onClick={() =>
+                      setUnblockConfirmTarget({
+                        blockedId: activeItem.rawId,
+                        unblockRange: false,
+                      })
+                    }
                     className="px-4 py-2 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
                   >
                     <Unlock size={13} /> Unblock Date
@@ -1416,6 +1486,28 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Unblock Confirmation Dialog */}
+      {unblockConfirmTarget && (
+        <ConfirmDialog
+          title={unblockConfirmTarget.unblockRange ? "Unblock Date Range" : "Unblock Date"}
+          message={
+            unblockConfirmTarget.unblockRange
+              ? "Are you sure you want to unblock this date range? Customers will be able to select these dates for their event if they are otherwise available."
+              : "Are you sure you want to unblock this date? Customers will be able to select this date for their event if it is otherwise available."
+          }
+          confirmText={unblockConfirmTarget.unblockRange ? "Unblock Range" : "Unblock Date"}
+          cancelText="Cancel"
+          onConfirm={async () => {
+            const target = unblockConfirmTarget;
+            setUnblockConfirmTarget(null);
+            if (target) {
+              await handleUnblock(target.blockedId, target.unblockRange);
+            }
+          }}
+          onCancel={() => setUnblockConfirmTarget(null)}
+        />
       )}
     </div>
   );

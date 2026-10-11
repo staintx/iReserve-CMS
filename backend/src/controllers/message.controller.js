@@ -192,6 +192,10 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Message body or attachment is required" });
   }
 
+  if (body.length > 1000) {
+    return res.status(400).json({ message: "Message cannot exceed 1,000 characters." });
+  }
+
   const message = await Message.create({
     conversation_id: conversation._id,
     sender_id: req.user._id,

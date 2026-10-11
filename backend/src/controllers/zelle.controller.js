@@ -7,13 +7,17 @@ const { executeTool } = require("../services/zelleToolExecutor");
 exports.customerChat = asyncHandler(async (req, res) => {
   const { message, conversation_id, session_id } = req.body;
 
-  if (!message || !String(message).trim()) {
+  const cleanMessage = String(message || "").trim();
+  if (!cleanMessage) {
     return res.status(400).json({ message: "Message text is required." });
+  }
+  if (cleanMessage.length > 1000) {
+    return res.status(400).json({ message: "Message cannot exceed 1,000 characters." });
   }
 
   const io = req.app.get("io");
   const result = await chatWithZelle({
-    message: String(message).trim(),
+    message: cleanMessage,
     conversationId: conversation_id || null,
     sessionId: session_id || null,
     user: req.user || null,
@@ -182,13 +186,17 @@ exports.clearCustomerHistory = asyncHandler(async (req, res) => {
 exports.adminChat = asyncHandler(async (req, res) => {
   const { message, conversation_id } = req.body;
 
-  if (!message || !String(message).trim()) {
+  const cleanMessage = String(message || "").trim();
+  if (!cleanMessage) {
     return res.status(400).json({ message: "Message text is required." });
+  }
+  if (cleanMessage.length > 1000) {
+    return res.status(400).json({ message: "Message cannot exceed 1,000 characters." });
   }
 
   const io = req.app.get("io");
   const result = await chatWithZelle({
-    message: String(message).trim(),
+    message: cleanMessage,
     conversationId: conversation_id || null,
     user: req.user,
     context: "admin",

@@ -297,6 +297,9 @@ io.on("connection", (socket) => {
 		if (!cleanBody && cleanAttachments.length === 0) {
 			throw new Error("Message body or attachment is required");
 		}
+		if (cleanBody.length > 1000) {
+			throw new Error("Message cannot exceed 1,000 characters.");
+		}
 
 		const message = await Message.create({
 			conversation_id: conversation._id,

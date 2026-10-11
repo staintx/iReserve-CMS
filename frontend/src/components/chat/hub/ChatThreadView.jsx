@@ -86,7 +86,7 @@ export default function ChatThreadView({
   const handleSubmit = (e) => {
     e.preventDefault();
     const text = draft.trim();
-    if (!text) return;
+    if (!text || text.length > 1000) return;
 
     if (mode === "zelle") {
       onSendZelle(text);
@@ -336,20 +336,31 @@ export default function ChatThreadView({
           <form onSubmit={handleSubmit} className="flex items-center gap-2">
             <Input
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => setDraft(e.target.value.slice(0, 1000))}
               placeholder={mode === "zelle" ? "Ask Zelle about packages, dates, menu..." : "Message catering support directly..."}
               disabled={mode === "zelle" ? isZelleLoading : isSupportSending}
+              maxLength={1000}
               className="text-xs h-10 rounded-xl border-slate-200 bg-slate-50 focus:bg-white text-slate-900 placeholder:text-slate-400 focus-visible:ring-1.5 focus-visible:ring-[#2C4B8A]"
             />
             <Button
               type="submit"
               size="icon"
-              disabled={(mode === "zelle" ? isZelleLoading : isSupportSending) || !draft.trim()}
+              disabled={(mode === "zelle" ? isZelleLoading : isSupportSending) || !draft.trim() || draft.length > 1000}
               className="h-10 w-10 rounded-xl shrink-0 bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-xs cursor-pointer disabled:opacity-40 transition-all"
             >
               <Send className="w-4 h-4" />
             </Button>
           </form>
+          {draft.length >= 800 && (
+            <div className="flex justify-end pt-1 pr-1">
+              <span className={cn(
+                "text-[10px] font-mono tabular-nums",
+                draft.length >= 1000 ? "text-rose-600 font-semibold" : "text-amber-600"
+              )}>
+                {draft.length}/1,000
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

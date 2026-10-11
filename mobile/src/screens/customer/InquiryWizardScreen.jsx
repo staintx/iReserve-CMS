@@ -260,6 +260,11 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   }, [selectedPackage]);
 
   const [selectedScaffoldId, setSelectedScaffoldId] = useState(() => {
+    const passedScaffoldId = route?.params?.selectedScaffoldOptionId;
+    if (passedScaffoldId) {
+      const match = availableScaffoldOptions.find((o) => String(o._id) === String(passedScaffoldId));
+      if (match) return match._id;
+    }
     return availableScaffoldOptions[0]?._id || "scaffold_20x20";
   });
 

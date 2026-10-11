@@ -30,6 +30,7 @@ import {
   inquiryStatusMeta,
   recordTitle,
   resolveServiceType,
+  isPastDay,
 } from "../../components/customer/portal/statusMeta";
 import { isSpecialOffer } from "../../lib/specialOffers";
 import { cn } from "@/lib/utils";
@@ -454,8 +455,9 @@ export default function CustomerInquiries() {
       badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200/80";
       label = "Accepted";
     } else if (meta.tone === "danger" || meta.group === "cancelled") {
-      badgeClass = "bg-rose-50 text-rose-700 border-rose-200/80";
-      label = "Cancelled";
+      const isExp = inq.status === "Expired" || isPastDay(inq.event_date);
+      badgeClass = isExp ? "bg-slate-100 text-slate-700 border-slate-200/80" : "bg-rose-50 text-rose-700 border-rose-200/80";
+      label = isExp ? "Expired" : "Cancelled";
     } else {
       badgeClass = "bg-slate-100 text-slate-700 border-slate-200/80";
       label = meta.label;
@@ -578,7 +580,13 @@ export default function CustomerInquiries() {
     let NextIcon = Clock;
     let nextStepMessage = meta.notice?.text || "Our team is reviewing your event request details.";
 
-    if (isQuotationSent) {
+    const isPastEvent = inq.event_date && isPastDay(inq.event_date);
+    const isExpired = inq.status === "Expired" || (isPastEvent && !isConverted);
+
+    if (isExpired) {
+      NextIcon = Clock;
+      nextStepMessage = "The requested event date has passed without confirmation.";
+    } else if (isQuotationSent) {
       NextIcon = FileCheck2;
       nextStepMessage = "Official quotation ready. Review itemized proposal to lock your pricing.";
     } else if (isQuoteAcceptedAwaitingPayment) {

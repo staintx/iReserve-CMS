@@ -1,6 +1,8 @@
 const cron = require('node-cron');
 const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
+const Inquiry = require('../models/Inquiry');
+const Quotation = require('../models/Quotation');
 const { notifyAdmins, notifyAdminsOnly, createNotification } = require('../utils/notify');
 const { createCheckoutSession } = require('../services/payment.service');
 const { sendFinalInvoiceEmail } = require('../utils/booking-emails');
@@ -318,6 +320,29 @@ const startCronJobs = (io) => {
 
             if (completedCount > 0) {
                 console.log(`Transitioned ${completedCount} bookings to 'Completed'.`);
+            }
+
+            // Auto-expire unconfirmed inquiries whose requested event date has passed
+            const expiredInquiries = await Inquiry.find({
+                event_date: { $lt: todayStart },
+                status: { $in: ["Pending Review", "Under Review", "Revision Requested", "Quotation Sent"] },
+                converted_booking_id: { $exists: false }
+            }).select("_id");
+
+            if (expiredInquiries.length > 0) {
+                const expiredIds = expiredInquiries.map(i => i._id);
+                await Inquiry.updateMany(
+                    { _id: { $in: expiredIds } },
+                    { $set: { status: "Expired" } }
+                );
+
+                await Quotation.updateMany(
+                    { inquiry_id: { $in: expiredIds }, status: { $in: ["Draft", "Sent"] } },
+                    { $set: { status: "Expired" } }
+                );
+
+                console.log(`Transitioned ${expiredIds.length} inquiries to 'Expired'.`);
+                if (io) io.emit("system:refresh", { type: "inquiry", action: "update" });
             }
         } catch (error) {
             console.error('Error in auto-status transition cron:', error);

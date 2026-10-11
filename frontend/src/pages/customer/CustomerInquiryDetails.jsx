@@ -21,6 +21,7 @@ import {
   inquiryStatusMeta,
   recordTitle,
   resolveServiceType,
+  isPastDay,
 } from "../../components/customer/portal/statusMeta";
 import { cn } from "@/lib/utils";
 import {
@@ -531,10 +532,11 @@ export default function CustomerInquiryDetails() {
     !isDepositPaid &&
     !isConverted;
   const isUnderRevision = inquiry.status === "Revision Requested" || inquiry.quotation_status === "Revision Requested";
-  const isClosedOrCancelled = ["Cancelled", "Quote Rejected", "Expired"].includes(inquiry.status);
+  const isPastEvent = inquiry.event_date && isPastDay(inquiry.event_date);
+  const isClosedOrCancelled = ["Cancelled", "Quote Rejected", "Expired"].includes(inquiry.status) || (isPastEvent && !isConverted);
 
   // Direct editing is allowed strictly according to backend CUSTOMER_EDITABLE_STATUSES
-  const canEditInquiry = ["Pending Review", "Under Review"].includes(inquiry.status);
+  const canEditInquiry = ["Pending Review", "Under Review"].includes(inquiry.status) && !isPastEvent;
 
   // Add-on counts
   const serviceItemsCount = Array.isArray(inquiry.service_items) ? inquiry.service_items.length : 0;
@@ -614,9 +616,12 @@ export default function CustomerInquiryDetails() {
       };
     }
     if (isClosedOrCancelled) {
+      const isExp = inquiry.status === "Expired" || isPastEvent;
       return {
-        title: "Inquiry Closed",
-        description: "This inquiry is no longer active. Feel free to submit a new inquiry or explore our catering packages anytime.",
+        title: isExp ? "Inquiry Expired" : "Inquiry Closed",
+        description: isExp
+          ? "The requested event date has passed without confirmation. You can submit a new inquiry whenever you are ready to reschedule."
+          : "This inquiry is no longer active. Feel free to submit a new inquiry or explore our catering packages anytime.",
         validity: null,
       };
     }

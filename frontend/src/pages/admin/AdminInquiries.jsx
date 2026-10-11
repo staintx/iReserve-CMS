@@ -252,7 +252,8 @@ export const getInquiryWorkflowStatus = (b) => {
     b.status === "Expired" ||
     b.raw?.status === "Expired" ||
     b.latestQuote?.status === "Expired" ||
-    (b.latestQuote && ["Sent", "Quotation Sent"].includes(b.latestQuote.status) && isPastDay(quoteExp));
+    (b.latestQuote && ["Sent", "Quotation Sent"].includes(b.latestQuote.status) && isPastDay(quoteExp)) ||
+    isPastDay(b.event_date || b.raw?.event_date);
   if (isExpired) return "Expired";
 
   // 5. Revision Requested
@@ -664,7 +665,7 @@ export default function AdminInquiries() {
     if (r.workflowStatus === "Draft Quotation") quoteActionLabel = "Edit Draft Quotation";
     else if (r.workflowStatus === "Revision Requested") quoteActionLabel = "Process Revision";
     else if (r.workflowStatus === "Quoted") quoteActionLabel = "View Quotation";
-    else if (r.workflowStatus === "Expired") quoteActionLabel = "View Expired Quotation";
+    else if (r.workflowStatus === "Expired") quoteActionLabel = r.latestQuote ? "View Expired Quotation" : "View Expired Inquiry";
 
     const canReject = r.workflowStatus !== "Cancelled";
 

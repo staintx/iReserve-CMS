@@ -365,10 +365,21 @@ exports.getInquiries = asyncHandler(async (req, res) => {
 
   const bookingMap = new Map(bookings.map(b => [String(b._id), b]));
   const inqIdsToUpdate = [];
+  const inqIdsToExpire = [];
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
 
   // Requests submitted before booking_type existed still have to identify
   // themselves. Resolved from the same relation, never from the name.
   inquiries.forEach((inquiry) => {
+    // Check if event date has passed without conversion or terminal status
+    const isPastEvent = inquiry.event_date && new Date(inquiry.event_date) < startOfToday;
+    const isTerminal = ["Converted to Booking", "Cancelled", "Quote Rejected", "Expired"].includes(inquiry.status) || Boolean(inquiry.converted_booking_id);
+    if (isPastEvent && !isTerminal) {
+      inquiry.status = "Expired";
+      inqIdsToExpire.push(inquiry._id);
+    }
+
     if (!inquiry.booking_type) {
       inquiry.booking_type = inquiry.package_id
         ? bookingTypeForPackage(inquiry.package_id)
@@ -406,6 +417,13 @@ exports.getInquiries = asyncHandler(async (req, res) => {
     inquiry.booking_awaiting_deposit = Boolean(booking && isBookingAwaitingDeposit(booking));
   });
 
+  if (inqIdsToExpire.length > 0) {
+    Inquiry.updateMany(
+      { _id: { $in: inqIdsToExpire } },
+      { $set: { status: "Expired" } }
+    ).catch(() => {});
+  }
+
   if (inqIdsToUpdate.length > 0) {
     Inquiry.updateMany(
       { _id: { $in: inqIdsToUpdate }, payment_status: { $in: ["unpaid", "pending", null] } },
@@ -434,8 +452,17 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: "Forbidden: You do not have access to this inquiry" });
   }
 
-  // Only transition status to "Under Review" when an admin/staff actually opens/views an ACTIVE (unarchived) inquiry details
-  if (
+  // Auto-expire if event date has passed without confirmation
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const isPastEvent = rawInquiry.event_date && new Date(rawInquiry.event_date) < startOfToday;
+  const isTerminal = ["Converted to Booking", "Cancelled", "Quote Rejected", "Expired"].includes(rawInquiry.status) || Boolean(rawInquiry.converted_booking_id);
+
+  if (isPastEvent && !isTerminal) {
+    rawInquiry.status = "Expired";
+    await rawInquiry.save();
+    inquiry.status = "Expired";
+  } else if (
     ["admin", "staff", "manager"].includes(req.user?.role) &&
     rawInquiry.status === "Pending Review" &&
     !rawInquiry.archived
@@ -606,6 +633,14 @@ exports.updateInquiryByCustomer = asyncHandler(async (req, res) => {
   if (!CUSTOMER_EDITABLE_STATUSES.includes(inquiry.status)) {
     return res.status(409).json({
       message: "This request can no longer be edited directly. Message us instead to request changes.",
+    });
+  }
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  if (inquiry.event_date && new Date(inquiry.event_date) < startOfToday) {
+    return res.status(409).json({
+      message: "The requested event date has already passed. Please submit a new inquiry to reschedule.",
     });
   }
 

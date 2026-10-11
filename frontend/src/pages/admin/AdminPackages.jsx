@@ -34,7 +34,7 @@ import ConfirmDialog from "../../components/common/ConfirmDialog";
 import DataTable from "../../components/admin/table/DataTable";
 import Pagination from "../../components/admin/table/Pagination";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
-import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
+import FilterPill from "../../components/admin/table/FilterPill";
 import {
   OFFER_TYPES,
   isSpecialOffer,
@@ -117,7 +117,7 @@ export default function AdminPackages() {
 
   // Filter states
   const [availabilityFilter, setAvailabilityFilter] = useState("");
-  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
+  const [draftAvailabilityFilter, setDraftAvailabilityFilter] = useState("");
 
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -221,6 +221,7 @@ export default function AdminPackages() {
   };
 
   const clearFilters = () => {
+    setDraftAvailabilityFilter("");
     setAvailabilityFilter("");
   };
 
@@ -618,110 +619,27 @@ export default function AdminPackages() {
 
               {/* Filter Controls & View Switcher */}
               <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                {/* Popover Filter Dropdown */}
-                <Popover open={filterDropdownOpen} onOpenChange={setFilterDropdownOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors border cursor-pointer shadow-2xs ${
-                        hasActiveFilters || filterDropdownOpen
-                          ? "bg-primary/10 border-primary text-primary"
-                          : "bg-muted/60 border-border/70 text-foreground hover:bg-muted"
-                      }`}
-                    >
-                      <Filter size={13} />
-                      <span>Filters</span>
-                      {hasActiveFilters && (
-                        <span className="text-[11px] font-bold text-primary">
-                          · {availabilityFilter === "true" ? "Available" : "Unavailable"}
-                        </span>
-                      )}
-                      <ChevronDown
-                        size={13}
-                        className={`transition-transform duration-200 ${
-                          filterDropdownOpen ? "rotate-180" : ""
-                        }`}
-                      />
-                    </button>
-                  </PopoverTrigger>
-
-                  <PopoverContent
-                    align="end"
-                    sideOffset={6}
-                    className="w-56 p-1.5 rounded-xl border border-border bg-white shadow-xl z-50 text-xs font-sans text-foreground"
-                  >
-                    <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-border/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      <span>Availability</span>
-                      {hasActiveFilters && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            clearFilters();
-                            setFilterDropdownOpen(false);
-                          }}
-                          className="text-primary hover:underline text-[11px] font-semibold lowercase cursor-pointer"
-                        >
-                          reset
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="py-1 space-y-0.5">
-                      {[
-                        { value: "", label: "All Status", count: inTab.length },
-                        {
-                          value: "true",
-                          label: "Available",
-                          count: inTab.filter((p) => p.available).length,
-                        },
-                        {
-                          value: "false",
-                          label: "Unavailable",
-                          count: inTab.filter((p) => !p.available).length,
-                        },
-                      ].map((opt) => {
-                        const selected = availabilityFilter === opt.value;
-                        return (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => {
-                              setAvailabilityFilter(opt.value);
-                              setFilterDropdownOpen(false);
-                            }}
-                            className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-left text-xs transition-colors cursor-pointer group ${
-                              selected
-                                ? "bg-primary/10 text-primary font-bold"
-                                : "text-foreground hover:bg-muted/60"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <div
-                                className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 border ${
-                                  selected
-                                    ? "border-primary bg-primary text-white"
-                                    : "border-slate-300 text-transparent"
-                                }`}
-                              >
-                                {selected && <CheckCircle2 size={10} className="text-white" />}
-                              </div>
-                              <span>{opt.label}</span>
-                            </div>
-                            <span
-                              className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
-                                selected
-                                  ? "bg-primary/20 text-primary"
-                                  : "bg-muted text-muted-foreground"
-                              }`}
-                            >
-                              {opt.count}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                {/* Popover Filter Dropdown matching Photo 2 */}
+                <FilterPill
+                  label="Availability"
+                  icon={Filter}
+                  value={availabilityFilter}
+                  defaultValue=""
+                  onSelect={(val) => setAvailabilityFilter(val)}
+                  options={[
+                    { value: "", label: "All Status", count: inTab.length },
+                    {
+                      value: "true",
+                      label: "Available",
+                      count: inTab.filter((p) => p.available).length,
+                    },
+                    {
+                      value: "false",
+                      label: "Unavailable",
+                      count: inTab.filter((p) => !p.available).length,
+                    },
+                  ]}
+                />
 
                 {hasActiveFilters && (
                   <button

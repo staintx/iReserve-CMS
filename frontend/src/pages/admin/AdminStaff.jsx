@@ -11,7 +11,7 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import DataTable from "../../components/admin/table/DataTable";
 import TableToolbar from "../../components/admin/table/TableToolbar";
-import FilterPopover from "../../components/admin/table/FilterPopover";
+import FilterPill from "../../components/admin/table/FilterPill";
 import FilterChip from "../../components/admin/table/FilterChip";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import DetailDrawer from "../../components/admin/table/DetailDrawer";
@@ -232,29 +232,20 @@ export default function AdminStaff() {
             activeQuickFilter={positionFilter}
             onQuickFilterChange={setPositionFilter}
             right={
-              <FilterPopover
+              <FilterPill
                 label="Status"
-                activeCount={statusFilter !== "all" ? 1 : 0}
-                onApply={() => setStatusFilter(draftStatusFilter)}
-                onClear={() => {
-                  setDraftStatusFilter("all");
-                  setStatusFilter("all");
+                value={statusFilter}
+                defaultValue="all"
+                onSelect={(val) => {
+                  setStatusFilter(val);
+                  setPage(1);
                 }}
-              >
-                <div className="space-y-1.5">
-                  {["all", "available", "off"].map((v) => (
-                    <label key={v} className="flex items-center gap-2 text-sm text-foreground capitalize cursor-pointer">
-                      <input
-                        type="radio"
-                        name="staff-status"
-                        checked={draftStatusFilter === v}
-                        onChange={() => setDraftStatusFilter(v)}
-                      />
-                      {v === "all" ? "All statuses" : v}
-                    </label>
-                  ))}
-                </div>
-              </FilterPopover>
+                options={[
+                  { value: "all", label: "All Statuses" },
+                  { value: "available", label: "Available" },
+                  { value: "off", label: "Off Duty" },
+                ]}
+              />
             }
           />
           {statusFilter !== "all" && (

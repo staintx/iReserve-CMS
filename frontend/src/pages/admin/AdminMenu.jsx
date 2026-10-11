@@ -31,6 +31,7 @@ import ConfirmDialog from "../../components/common/ConfirmDialog";
 import ItemDeleteWarningModal from "../../components/admin/common/ItemDeleteWarningModal";
 import DataTable from "../../components/admin/table/DataTable";
 import TableToolbar from "../../components/admin/table/TableToolbar";
+import FilterPill from "../../components/admin/table/FilterPill";
 import BulkActionBar from "../../components/admin/table/BulkActionBar";
 import Pagination from "../../components/admin/table/Pagination";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
@@ -53,7 +54,9 @@ export default function AdminMenu() {
   // Search, filter, sorting
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [draftCategoryFilter, setDraftCategoryFilter] = useState("all");
   const [availabilityFilter, setAvailabilityFilter] = useState("all"); // 'all' | 'available' | 'unavailable'
+  const [draftAvailabilityFilter, setDraftAvailabilityFilter] = useState("all");
   const [sortField, setSortField] = useState("category"); // 'name' | 'category' | 'price' | 'status' | 'packages' | 'updatedAt'
   const [sortOrder, setSortOrder] = useState("asc"); // 'asc' | 'desc'
   const [currentPage, setCurrentPage] = useState(1);
@@ -549,54 +552,56 @@ export default function AdminMenu() {
               )}
             </div>
 
-            {/* Filter and View Controls */}
+            {/* Filter and View Controls matching Photo 2 */}
             <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              {/* Category select */}
-              <div className="relative shrink-0 w-36 sm:w-44">
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="w-full bg-muted/60 border border-border/70 rounded-md px-2.5 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shadow-2xs capitalize"
-                >
-                  {categories.map((c) => (
-                    <option key={c} value={c} className="capitalize text-slate-800 bg-white">
-                      {c === "all" ? "All Categories" : c}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Category Filter */}
+              <FilterPill
+                label="Category"
+                icon={Filter}
+                value={categoryFilter}
+                defaultValue="all"
+                onSelect={(val) => setCategoryFilter(val)}
+                options={categories.map((c) => ({
+                  value: c,
+                  label: c === "all" ? "All Categories" : c,
+                  count: c === "all" ? menuItems.length : menuItems.filter((i) => (i.category || "Uncategorized") === c).length,
+                }))}
+              />
 
-              {/* Status select */}
-              <div className="relative shrink-0 w-32 sm:w-36">
-                <select
-                  value={availabilityFilter}
-                  onChange={(e) => setAvailabilityFilter(e.target.value)}
-                  className="w-full bg-muted/60 border border-border/70 rounded-md px-2.5 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shadow-2xs"
-                >
-                  <option value="all">All Status</option>
-                  <option value="available">Available</option>
-                  <option value="unavailable">Unavailable</option>
-                </select>
-              </div>
+              {/* Availability Filter */}
+              <FilterPill
+                label="Availability"
+                icon={Filter}
+                value={availabilityFilter}
+                defaultValue="all"
+                onSelect={(val) => setAvailabilityFilter(val)}
+                options={[
+                  { value: "all", label: "All Items", count: menuItems.length },
+                  { value: "available", label: "Available", count: menuItems.filter((i) => i.available).length },
+                  { value: "unavailable", label: "Unavailable", count: menuItems.filter((i) => !i.available).length },
+                ]}
+              />
 
-              {/* Sorting select */}
-              <div className="relative shrink-0 w-36 sm:w-40">
-                <select
-                  value={`${sortField}-${sortOrder}`}
-                  onChange={(e) => {
-                    const [f, o] = e.target.value.split("-");
-                    setSortField(f);
-                    setSortOrder(o);
-                  }}
-                  className="w-full bg-muted/60 border border-border/70 rounded-md px-2.5 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shadow-2xs"
-                >
-                  <option value="category-asc">Sort: Category</option>
-                  <option value="name-asc">Sort: Name (A-Z)</option>
-                  <option value="name-desc">Sort: Name (Z-A)</option>
-                  <option value="packages-desc">Sort: Most Used in Pkgs</option>
-                  <option value="updatedAt-desc">Sort: Recently Updated</option>
-                </select>
-              </div>
+              {/* Sorting Filter */}
+              <FilterPill
+                label="Sort"
+                icon={ArrowUpDown}
+                value={`${sortField}-${sortOrder}`}
+                defaultValue="category-asc"
+                align="end"
+                onSelect={(val) => {
+                  const [f, o] = val.split("-");
+                  setSortField(f);
+                  setSortOrder(o);
+                }}
+                options={[
+                  { value: "category-asc", label: "Category" },
+                  { value: "name-asc", label: "Name (A-Z)" },
+                  { value: "name-desc", label: "Name (Z-A)" },
+                  { value: "packages-desc", label: "Most Used in Packages" },
+                  { value: "updatedAt-desc", label: "Recently Updated" },
+                ]}
+              />
 
               {/* View Toggle: Table / Cards */}
               <div className="flex items-center border border-border/80 rounded-md p-0.5 bg-muted/60 shrink-0">

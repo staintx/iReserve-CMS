@@ -40,7 +40,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { getBookingOcularActionMeta } from "../../utils/ocularStatusHelper";
-import { isBookingOverdue } from "../../utils/overduePayment";
+import { isBookingOverdue, parseLocalDate } from "../../utils/overduePayment";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
@@ -483,6 +483,28 @@ export default function CustomerEventDashboard() {
   const outstandingAmount = Math.max(0, grandTotal - displayPaid);
   const isFullyPaid = outstandingAmount <= 0 && grandTotal > 0;
 
+  const rawStatus = (booking?.status || "").toLowerCase();
+  const isCancelled = ["cancelled", "canceled", "rejected", "refunded"].includes(rawStatus);
+  const isCompleted = ["completed", "event completed"].includes(rawStatus);
+  const eventLocalDate = parseLocalDate(booking?.event_date);
+  const todayLocalDate = parseLocalDate(new Date());
+  const isEventPastOrToday = eventLocalDate && todayLocalDate ? eventLocalDate.getTime() <= todayLocalDate.getTime() : false;
+  const isOverdue = isBookingOverdue(booking, displayPaid);
+  const isCancelReqPending =
+    booking?.cancellation_request?.status === "pending" ||
+    (booking?.change_request?.status === "pending" &&
+      booking?.change_request?.message?.toLowerCase().includes("cancel"));
+
+  const canRequestCancellation = Boolean(
+    booking &&
+    !isCancelled &&
+    !isCompleted &&
+    !isOverdue &&
+    !isEventPastOrToday &&
+    !isCancelReqPending &&
+    !['inquiry', 'quote_sent', 'customer_accepted', 'completed', 'event completed', 'cancelled', 'canceled', 'rejected', 'refunded', 'ongoing'].includes(rawStatus)
+  );
+
   const fetchPayments = async () => {
     setPaymentLoading(true);
     try {
@@ -567,7 +589,7 @@ export default function CustomerEventDashboard() {
   };
 
   const submitCancellationRequest = async () => {
-    if (!booking?._id) return;
+    if (!booking?._id || !canRequestCancellation) return;
     try {
       setIsSubmittingCancellation(true);
       await CustomerAPI.requestCancellation(booking._id, { reason: cancellationReason });
@@ -798,9 +820,7 @@ export default function CustomerEventDashboard() {
   const serviceType = booking.service_type || "Food and Event Setup";
   const isFoodOnlyService = isFoodOnly(serviceType);
   const isSetupOnlyService = isSetupOnly(serviceType);
-  const rawStatus = (booking.status || "").toLowerCase();
-  const isCancelled = ["cancelled", "canceled", "rejected", "refunded"].includes(rawStatus);
-  const isCompleted = ["completed", "event completed"].includes(rawStatus);
+
 
   const eventDateObj = booking.event_date ? new Date(booking.event_date) : null;
   const isEventFuture = eventDateObj ? (eventDateObj.getTime() - Date.now() > 24 * 60 * 60 * 1000) : false;
@@ -1182,7 +1202,7 @@ export default function CustomerEventDashboard() {
     return null;
   };
 
-  const isOverdue = isBookingOverdue(booking, displayPaid);
+
   const guideMeta = getActionGuideMeta();
 
   // Status badge config
@@ -1862,7 +1882,7 @@ export default function CustomerEventDashboard() {
                 </div>
 
                 {/* DISCREET CANCELLATION REQUEST BUTTON */}
-                {!['inquiry', 'quote_sent', 'customer_accepted', 'completed', 'event completed', 'cancelled', 'canceled', 'refunded'].includes(rawStatus) && (
+                {canRequestCancellation && (
                   <div className="pt-1 text-center">
                     <button
                       type="button"
@@ -2757,7 +2777,7 @@ export default function CustomerEventDashboard() {
       </Dialog>
 
       {/* CANCELLATION REQUEST DIALOG */}
-      <Dialog open={requestingCancellation} onOpenChange={setRequestingCancellation}>
+      <Dialog open={requestingCancellation && canRequestCancellation} onOpenChange={setRequestingCancellation}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-rose-600">

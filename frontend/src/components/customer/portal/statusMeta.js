@@ -210,8 +210,8 @@ export const BOOKING_STATUS_GROUPS = {
     "ready for event"
   ],
   deposit_needed: ["deposit pending", "pending deposit", "customer_accepted"],
-  completed: ["completed"],
-  cancelled: ["cancelled"],
+  completed: ["completed", "event completed"],
+  cancelled: ["cancelled", "canceled", "rejected", "refunded"],
 };
 
 export const bookingStatusGroup = (booking) => {

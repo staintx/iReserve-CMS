@@ -522,7 +522,7 @@ export default function CustomerBookings() {
     }
 
     // 10. Cancelled
-    if (rawStatus === "cancelled") {
+    if (["cancelled", "canceled", "rejected", "refunded"].includes(rawStatus)) {
       return {
         state: "cancelled",
         badge: "Cancelled",

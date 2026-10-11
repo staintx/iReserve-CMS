@@ -662,6 +662,80 @@ exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
   res.json({ message: "Equipment returns saved successfully", equipment_returns: updated.equipment_returns });
 });
 
+exports.updateStaffAttendance = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({
+    _id: req.params.id,
+    ...(req.user.role === "admin" ? {} : { event_manager_id: req.user._id })
+  });
+
+  if (!booking) {
+    return res.status(404).json({ message: "Assigned event not found" });
+  }
+
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is completed and read-only. Staff attendance cannot be modified." });
+  }
+
+  if (!isBookingStartedOrFinished(booking)) {
+    return res.status(400).json({
+      message: `Staff attendance check-in is locked until the event starts (${formatBookingEventSchedule(booking.event_date, booking.start_time)}).`
+    });
+  }
+
+  const { attendance } = req.body;
+  if (!Array.isArray(attendance)) {
+    return res.status(400).json({ message: "attendance must be an array" });
+  }
+
+  if (!Array.isArray(booking.staff_assignments)) {
+    booking.staff_assignments = [];
+  }
+
+  for (const item of attendance) {
+    const targetUserId = item.user_id?._id || item.user_id;
+    const staffEntry = booking.staff_assignments.find(
+      (sa) => (targetUserId && String(sa.user_id) === String(targetUserId)) ||
+              (item._id && String(sa._id) === String(item._id)) ||
+              (item.name && sa.name && sa.name.toLowerCase() === item.name.toLowerCase())
+    );
+
+    if (staffEntry) {
+      if (item.attendance_status) {
+        staffEntry.attendance_status = item.attendance_status;
+      }
+      if (item.check_in_time !== undefined) {
+        staffEntry.check_in_time = item.check_in_time;
+      }
+      if (item.attendance_notes !== undefined) {
+        staffEntry.attendance_notes = item.attendance_notes;
+      }
+      if (item.attendance_status === "not_recorded" || item.attendance_status === "unmarked") {
+        staffEntry.marked_at = null;
+        staffEntry.marked_by = null;
+      } else {
+        staffEntry.marked_at = new Date();
+        staffEntry.marked_by = req.user._id;
+      }
+    }
+  }
+
+  await booking.save();
+
+  const populated = await Booking.findById(booking._id)
+    .populate("staff_assignments.user_id", "full_name email phone position role");
+
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("system:refresh", { type: "booking", action: "update_staff_attendance", booking_id: booking._id });
+  }
+
+  res.json({
+    message: "Staff attendance updated successfully",
+    staff_assignments: populated.staff_assignments
+  });
+});
+
+
 exports.updateEquipment = asyncHandler(async (req, res) => {
   const booking = await Booking.findOne({
     _id: req.params.id,
@@ -739,6 +813,16 @@ exports.markCompleted = asyncHandler(async (req, res) => {
 
   if (!booking) {
     return res.status(404).json({ message: "Booking not found" });
+  }
+
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is already completed and read-only." });
+  }
+
+  if (!isBookingStartedOrFinished(booking)) {
+    return res.status(400).json({
+      message: `Event completion is locked until the event starts (${formatBookingEventSchedule(booking.event_date, booking.start_time)}).`
+    });
   }
 
   // Handle balance payment and validate settlement

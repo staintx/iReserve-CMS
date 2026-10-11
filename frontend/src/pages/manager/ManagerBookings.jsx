@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { ManagerAPI } from "../../api/manager";
 import ManagerLayout from "../../components/layout/ManagerLayout";
 import PageHeader from "../../components/admin/ui/PageHeader";
 import Badge from "../../components/admin/ui/Badge";
+import ManagerEventDetailsModal from "../../components/manager/ManagerEventDetailsModal";
 import useToast from "../../hooks/useToast";
-import useAuth from "../../hooks/useAuth";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -23,10 +23,8 @@ import {
 } from "../../utils/format";
 
 export default function ManagerBookings() {
-  const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user } = useAuth();
   const { notify } = useToast();
 
   const tabParam = searchParams.get("tab") || "upcoming";
@@ -36,6 +34,9 @@ export default function ManagerBookings() {
   const [upcomingBookings, setUpcomingBookings] = useState([]);
   const [completedBookings, setCompletedBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Active detail modal
+  const [selectedBooking, setSelectedBooking] = useState(null);
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -64,16 +65,30 @@ export default function ManagerBookings() {
     loadBookings();
   }, []);
 
-  // Handle URL query params (e.g. ?booking_id=123 redirect to dedicated page)
+  // Handle URL query params (e.g. ?booking_id=123 to open modal)
   useEffect(() => {
     const bookingId = searchParams.get("booking_id") || location.state?.booking_id;
     if (bookingId) {
-      navigate(`/manager/events/${bookingId}`, { 
-        replace: true, 
-        state: { fromTab: activeTab, fromSearch: searchQuery } 
-      });
+      openDetail(bookingId);
     }
   }, [searchParams, location.state]);
+
+  const openDetail = async (id) => {
+    try {
+      const res = await ManagerAPI.getBooking(id);
+      setSelectedBooking(res.data);
+    } catch {
+      notify("Failed to load booking details.", "error");
+    }
+  };
+
+  const closeDetail = () => {
+    setSelectedBooking(null);
+    const params = new URLSearchParams(searchParams);
+    params.delete("booking_id");
+    params.delete("action");
+    setSearchParams(params, { replace: true });
+  };
 
   const currentList = activeTab === "completed" ? completedBookings : upcomingBookings;
 
@@ -259,7 +274,7 @@ export default function ManagerBookings() {
 
                     <button
                       type="button"
-                      onClick={() => navigate(`/manager/events/${booking._id}`, { state: { fromTab: activeTab, fromSearch: searchQuery } })}
+                      onClick={() => openDetail(booking._id)}
                       className="inline-flex min-h-[38px] items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#4C81E0] text-white text-xs font-bold hover:bg-[#3b6bc4] transition-colors cursor-pointer shadow-2xs shrink-0"
                     >
                       <Eye size={13} />
@@ -270,6 +285,20 @@ export default function ManagerBookings() {
               );
             })}
           </div>
+        )}
+
+        {/* Manager Event Details Modal (Equipment Verification, Attendance, Scope, & Shift Closeout) */}
+        {selectedBooking && (
+          <ManagerEventDetailsModal
+            booking={selectedBooking}
+            open={Boolean(selectedBooking)}
+            onClose={closeDetail}
+            onRefresh={() => openDetail(selectedBooking._id)}
+            onCompleteEvent={() => {
+              closeDetail();
+              loadBookings();
+            }}
+          />
         )}
       </div>
     </ManagerLayout>

@@ -78,6 +78,7 @@ import AdminNotifications from "../pages/admin/AdminNotifications";
 import ManagerDashboard from "../pages/manager/ManagerDashboard";
 import ManagerBookings from "../pages/manager/ManagerBookings";
 import ManagerStaff from "../pages/manager/ManagerStaff";
+import ManagerEventDetails from "../pages/manager/ManagerEventDetails";
 import StaffDashboard from "../pages/staff/StaffDashboard";
 import StaffBookings from "../pages/staff/StaffBookings";
 import StaffEventDetails from "../pages/staff/StaffEventDetails";
@@ -204,6 +205,8 @@ export default function AppRoutes() {
           {/* Manager (protected by role) */}
           <Route path="/manager/dashboard" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerDashboard /></ProtectedRoute>} />
           <Route path="/manager/bookings" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerBookings /></ProtectedRoute>} />
+          <Route path="/manager/events/:id" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerEventDetails /></ProtectedRoute>} />
+          <Route path="/manager/bookings/:id" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerEventDetails /></ProtectedRoute>} />
           <Route path="/manager/staff" element={<Navigate to="/manager/dashboard" replace />} />
 
           {/* Staff (protected by role) */}

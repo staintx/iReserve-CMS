@@ -311,10 +311,10 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
 
     const unavailableStaff = chosenIds
       .map((id) => staffMap[id])
-      .filter((s) => s && ["Unavailable", "Conflict"].includes(s.availability_status));
+      .filter((s) => s && (s.availability_status?.startsWith("Unavailable") || s.availability_status?.startsWith("Conflict")));
 
     if (unavailableStaff.length > 0) {
-      const names = unavailableStaff.map((s) => s.full_name).join(", ");
+      const names = unavailableStaff.map((s) => `${s.full_name}${s.unavailability_reason ? ` (${s.unavailability_reason})` : ""}`).join(", ");
       notify(`Cannot assign: ${names} is marked as unavailable on this event date. Please select an available staff member.`, "error");
       return;
     }

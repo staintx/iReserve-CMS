@@ -1,35 +1,35 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { ManagerAPI } from "../../api/manager";
 import ManagerLayout from "../../components/layout/ManagerLayout";
 import PageHeader from "../../components/admin/ui/PageHeader";
 import Badge from "../../components/admin/ui/Badge";
 import ManagerEventDetailsModal from "../../components/manager/ManagerEventDetailsModal";
 import useToast from "../../hooks/useToast";
-import useAuth from "../../hooks/useAuth";
 import {
   Calendar as CalendarIcon,
   Clock,
   MapPin,
   CheckCircle2,
   Search,
-  Lock,
   Sparkles,
   Eye,
   ShieldCheck
 } from "lucide-react";
-import { getEventTimingStatus } from "../../utils/format";
+import { 
+  getEventTimingStatus, 
+  getBookingVenueLocation, 
+  formatEventStartTime 
+} from "../../utils/format";
 
 export default function ManagerBookings() {
-  const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user } = useAuth();
   const { notify } = useToast();
 
   const tabParam = searchParams.get("tab") || "upcoming";
   const [activeTab, setActiveTab] = useState(tabParam === "completed" ? "completed" : "upcoming");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") || "");
 
   const [upcomingBookings, setUpcomingBookings] = useState([]);
   const [completedBookings, setCompletedBookings] = useState([]);
@@ -37,7 +37,6 @@ export default function ManagerBookings() {
 
   // Active detail modal
   const [selectedBooking, setSelectedBooking] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -66,23 +65,20 @@ export default function ManagerBookings() {
     loadBookings();
   }, []);
 
-  // Handle URL query params (e.g. ?booking_id=123)
+  // Handle URL query params (e.g. ?booking_id=123 to open modal)
   useEffect(() => {
     const bookingId = searchParams.get("booking_id") || location.state?.booking_id;
     if (bookingId) {
       openDetail(bookingId);
     }
-  }, [location.search, location.state]);
+  }, [searchParams, location.state]);
 
   const openDetail = async (id) => {
-    setDetailLoading(true);
     try {
       const res = await ManagerAPI.getBooking(id);
       setSelectedBooking(res.data);
     } catch {
       notify("Failed to load booking details.", "error");
-    } finally {
-      setDetailLoading(false);
     }
   };
 
@@ -103,7 +99,7 @@ export default function ManagerBookings() {
       const client = (b.customer_id?.full_name || "").toLowerCase();
       const type = (b.event_type || "").toLowerCase();
       const ref = (b.reference || "").toLowerCase();
-      const venue = (b.venue_type || b.municipality || "").toLowerCase();
+      const venue = getBookingVenueLocation(b).toLowerCase();
       return client.includes(q) || type.includes(q) || ref.includes(q) || venue.includes(q);
     });
   }, [currentList, searchQuery]);
@@ -191,92 +187,95 @@ export default function ManagerBookings() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {filteredList.map((booking) => {
               const isCompleted = activeTab === "completed" || ["completed", "Completed"].includes(booking.status);
               const eventTiming = getEventTimingStatus(booking);
-              const venue = booking.venue_type || [booking.street, booking.barangay, booking.municipality].filter(Boolean).join(", ") || "Venue TBA";
+              const venue = getBookingVenueLocation(booking);
 
               return (
                 <div
                   key={booking._id}
-                  className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-2xs hover:border-[#4C81E0]/50 transition-all space-y-3.5"
+                  className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-2xs hover:border-[#4C81E0]/50 transition-all space-y-4 h-full"
                 >
-                  {/* Top Row: Type, Status */}
-                  <div className="space-y-2">
+                  {/* Top Row: Type, Title, Client, Ref */}
+                  <div className="space-y-1.5">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
+                      <div className="min-w-0">
                         <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500 block">
                           {isCompleted ? "Historical Event" : "Assigned Event"}
                         </span>
-                        <h3 className="text-base font-bold text-slate-900 leading-snug">
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug break-words">
                           {booking.event_type || "Catering Event"}
                         </h3>
                       </div>
-                      <Badge status={booking.status || (isCompleted ? "Completed" : "confirmed")} />
+                      {isCompleted ? (
+                        <Badge status={booking.status || "Completed"} />
+                      ) : (
+                        (booking.payment_status === "deposit_pending" || booking.status === "Deposit Pending") && (
+                          <Badge status="Deposit Pending" />
+                        )
+                      )}
                     </div>
 
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-slate-500 break-words">
                       Client: <strong className="text-slate-800">{booking.customer_id?.full_name || "Valued Client"}</strong> · Ref <span className="font-mono text-slate-700 font-semibold">{booking.reference || booking._id?.slice(-6).toUpperCase()}</span>
                     </div>
                   </div>
 
                   {/* Operational Details Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs">
+                    {/* Left: Prominent Event Date & Start Time */}
                     <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-slate-700 font-semibold">
-                        <CalendarIcon size={13} className="text-[#4C81E0] shrink-0" />
-                        <span>
+                      <div className="flex items-center gap-2">
+                        <CalendarIcon size={16} className="text-[#4C81E0] shrink-0" />
+                        <span className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
                           {booking.event_date
                             ? new Date(booking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                             : "Date TBA"}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-slate-500 pl-5 text-[11.5px]">
-                        <Clock size={11} className="shrink-0" />
-                        <span>{booking.start_time || "Time TBA"} ({booking.duration_hours || 4} hrs)</span>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-600 pl-6 pt-0.5 font-medium">
+                        <Clock size={13} className="text-slate-400 shrink-0" />
+                        <span>{formatEventStartTime(booking.start_time)}</span>
                       </div>
                     </div>
 
+                    {/* Right: Actual Venue Location & Lead Role */}
                     <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-slate-700 font-semibold truncate">
-                        <MapPin size={13} className="text-[#4C81E0] shrink-0" />
-                        <span className="truncate">{venue}</span>
+                      <div className="flex items-start gap-2">
+                        <MapPin size={16} className="text-[#4C81E0] shrink-0 mt-0.5" />
+                        <span className="text-xs sm:text-[13px] font-semibold text-slate-800 leading-snug line-clamp-2" title={venue}>
+                          {venue}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-slate-600 pl-5 text-[11.5px]">
-                        <ShieldCheck size={11} className="text-amber-600 shrink-0" />
-                        <span>Lead: <strong>Event Lead</strong></span>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-600 pl-6 pt-0.5">
+                        <ShieldCheck size={13} className="text-amber-600 shrink-0" />
+                        <span>Lead: <strong className="text-slate-900">Event Lead</strong></span>
                       </div>
                     </div>
                   </div>
 
                   {/* Footer Action */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
+                    <div className="flex items-center gap-1.5 min-h-[22px]">
                       {isCompleted ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500">
                           <CheckCircle2 size={12} className="text-emerald-600" /> Read-only record
                         </span>
                       ) : (
-                        <>
-                          {eventTiming.isUpcoming && (
-                            <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold bg-slate-100 text-slate-700">
-                              <Lock size={10} className="text-slate-500" /> Upcoming
-                            </span>
-                          )}
-                          {eventTiming.isStarted && !eventTiming.isFinished && (
-                            <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold bg-emerald-50 text-emerald-800">
-                              <Sparkles size={10} className="text-emerald-600" /> In Progress
-                            </span>
-                          )}
-                        </>
+                        eventTiming.isStarted && !eventTiming.isFinished && (
+                          <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold bg-emerald-50 text-emerald-800">
+                            <Sparkles size={10} className="text-emerald-600" /> In Progress
+                          </span>
+                        )
                       )}
                     </div>
 
                     <button
                       type="button"
                       onClick={() => openDetail(booking._id)}
-                      className="inline-flex min-h-[38px] items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#4C81E0] text-white text-xs font-bold hover:bg-[#3b6bc4] transition-colors cursor-pointer shadow-2xs"
+                      className="inline-flex min-h-[38px] items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#4C81E0] text-white text-xs font-bold hover:bg-[#3b6bc4] transition-colors cursor-pointer shadow-2xs shrink-0"
                     >
                       <Eye size={13} />
                       <span>View Details</span>

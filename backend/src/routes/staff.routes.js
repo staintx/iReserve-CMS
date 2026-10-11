@@ -12,6 +12,8 @@ router.put("/me/bookings/:id/equipment-returns", protect, authorize("admin", "ma
 router.put("/me/bookings/:id/complete", protect, authorize("admin", "manager"), ctrl.completeEvent);
 router.get("/me/availability", protect, authorize("staff", "admin", "manager"), ctrl.getMyAvailability);
 router.put("/me/availability", protect, authorize("staff", "admin", "manager"), ctrl.setMyAvailability);
+router.delete("/me/availability/:id", protect, authorize("staff", "admin", "manager"), ctrl.removeMyAvailability);
+router.delete("/me/availability", protect, authorize("staff", "admin", "manager"), ctrl.removeMyAvailability);
 router.post("/", protect, authorize("admin"), validate(staffSchema), ctrl.createStaff);
 router.get("/", protect, authorize("admin"), ctrl.getAllStaff);
 router.put("/:id", protect, authorize("admin"), validate(staffUpdateSchema), ctrl.updateStaff);

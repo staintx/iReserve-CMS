@@ -24,14 +24,28 @@ const parseMonth = (month) => {
 const parseDateKey = (value) => {
   const [year, monthIndex, day] = String(value).split("-").map((v) => Number(v));
   if (!year || !monthIndex || !day) return null;
-  return new Date(year, monthIndex - 1, day);
+  return new Date(Date.UTC(year, monthIndex - 1, day, 12, 0, 0));
 };
 
 const toDateKey = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  const d = new Date(date);
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+};
+
+const getDateRangeList = (startDateStr, endDateStr) => {
+  const dates = [];
+  const start = parseDateKey(startDateStr);
+  const end = parseDateKey(endDateStr);
+  if (!start || !end) return dates;
+  const curr = new Date(start);
+  while (curr <= end) {
+    dates.push(new Date(curr));
+    curr.setUTCDate(curr.getUTCDate() + 1);
+  }
+  return dates;
 };
 
 exports.createStaff = asyncHandler(async (req, res) => {
@@ -133,7 +147,7 @@ exports.getMyBookings = asyncHandler(async (req, res) => {
     .populate("customer_id", "full_name first_name last_name email phone")
     .populate("event_manager_id", "full_name email phone")
     .populate("staff_assignments.user_id", "full_name email phone position role")
-    .select("event_type event_date start_time duration_hours venue_type municipality street barangay status staff_assignments customer_id event_manager_id reference")
+    .select("event_type event_date start_time duration_hours venue_type municipality street barangay province landmark delivery_method pickup_location status staff_assignments customer_id event_manager_id reference")
     .sort({ event_date: 1 });
 
   const status = String(req.query.status || "").toLowerCase();
@@ -480,26 +494,37 @@ exports.completeEvent = asyncHandler(async (req, res) => {
 
 exports.getMyAvailability = asyncHandler(async (req, res) => {
   const month = String(req.query.month || "").trim();
-  const range = parseMonth(month);
+  const range = month ? parseMonth(month) : null;
+
+  const dateFilter = { user_id: req.user._id };
+  if (range) {
+    dateFilter.date = { $gte: range.start, $lte: range.end };
+  } else if (req.query.upcoming === "true") {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    dateFilter.date = { $gte: today };
+  }
 
   const [availability, assignments] = await Promise.all([
-    StaffAvailability.find({
-      user_id: req.user._id,
-      date: { $gte: range.start, $lte: range.end }
-    }).select("date"),
+    StaffAvailability.find(dateFilter).sort({ date: 1 }).select("date reason"),
     Booking.find({
       $or: [
         { "staff_assignments.user_id": req.user._id },
         ...(req.user.full_name ? [{ "staff_assignments.name": req.user.full_name }] : [])
       ],
-      event_date: { $gte: range.start, $lte: range.end },
+      ...(range ? { event_date: { $gte: range.start, $lte: range.end } } : {}),
       status: { $nin: ["Cancelled", "cancelled", "refunded"] }
     }).select("event_date status")
   ]);
 
   res.json({
-    month: month || `${range.start.getFullYear()}-${String(range.start.getMonth() + 1).padStart(2, "0")}`,
+    month: month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`,
     unavailable: availability.map((item) => toDateKey(item.date)),
+    records: availability.map((item) => ({
+      _id: item._id,
+      date: toDateKey(item.date),
+      reason: item.reason || ""
+    })),
     assignments: assignments.map((booking) => ({
       date: booking.event_date,
       status: booking.status
@@ -508,35 +533,153 @@ exports.getMyAvailability = asyncHandler(async (req, res) => {
 });
 
 exports.setMyAvailability = asyncHandler(async (req, res) => {
-  const month = String(req.body.month || "").trim();
-  const range = parseMonth(month);
+  const { date, startDate, endDate, dates, reason, month } = req.body;
+  const reasonText = typeof reason === "string" ? reason.trim() : "";
 
-  if (!range) {
-    return res.status(400).json({ message: "Month must be YYYY-MM" });
+  if ((date || (startDate && endDate)) && !reasonText) {
+    return res.status(400).json({ message: "Reason / Notes is required for recording unavailability." });
   }
 
-  const rawDates = Array.isArray(req.body.dates) ? req.body.dates : [];
-  const uniqueDates = Array.from(new Set(rawDates.map((value) => String(value))));
-  const parsedDates = uniqueDates
-    .map(parseDateKey)
-    .filter((date) => date && date >= range.start && date <= range.end);
+  // 1. Single Day mode
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const parsed = parseDateKey(date);
+    if (!parsed) return res.status(400).json({ message: "Invalid date format" });
 
-  await StaffAvailability.deleteMany({
-    user_id: req.user._id,
-    date: { $gte: range.start, $lte: range.end }
-  });
+    const dayStart = new Date(parsed);
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(parsed);
+    dayEnd.setUTCHours(23, 59, 59, 999);
 
-  if (parsedDates.length > 0) {
+    await StaffAvailability.deleteMany({
+      user_id: req.user._id,
+      date: { $gte: dayStart, $lte: dayEnd }
+    });
+
+    const created = await StaffAvailability.create({
+      user_id: req.user._id,
+      date: parsed,
+      reason: reasonText
+    });
+
+    return res.status(201).json({
+      message: "Availability saved successfully",
+      record: {
+        _id: created._id,
+        date: toDateKey(created.date),
+        reason: created.reason
+      }
+    });
+  }
+
+  // 2. Date Range mode
+  if (startDate && endDate) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      return res.status(400).json({ message: "Start Date and End Date must be in YYYY-MM-DD format" });
+    }
+    if (startDate >= endDate) {
+      return res.status(400).json({ message: "Start Date and End Date must be different, and End Date cannot be earlier than Start Date." });
+    }
+
+    const rangeDates = getDateRangeList(startDate, endDate);
+    if (rangeDates.length === 0) {
+      return res.status(400).json({ message: "Invalid date range" });
+    }
+
+    const startBoundary = new Date(rangeDates[0]);
+    startBoundary.setUTCHours(0, 0, 0, 0);
+    const endBoundary = new Date(rangeDates[rangeDates.length - 1]);
+    endBoundary.setUTCHours(23, 59, 59, 999);
+
+    await StaffAvailability.deleteMany({
+      user_id: req.user._id,
+      date: { $gte: startBoundary, $lte: endBoundary }
+    });
+
     await StaffAvailability.insertMany(
-      parsedDates.map((date) => ({
+      rangeDates.map((d) => ({
         user_id: req.user._id,
-        date
+        date: d,
+        reason: reasonText
       }))
     );
+
+    return res.status(201).json({
+      message: `Saved ${rangeDates.length} unavailable dates successfully`,
+      dates: rangeDates.map(toDateKey)
+    });
   }
 
-  res.json({
-    month,
-    unavailable: parsedDates.map((date) => toDateKey(date))
-  });
+  // 3. Array of dates or Month-based replacement (legacy support)
+  if (Array.isArray(dates)) {
+    const parsedDates = dates.map(parseDateKey).filter(Boolean);
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const range = parseMonth(month);
+      await StaffAvailability.deleteMany({
+        user_id: req.user._id,
+        date: { $gte: range.start, $lte: range.end }
+      });
+    }
+
+    if (parsedDates.length > 0) {
+      for (const d of parsedDates) {
+        const dayStart = new Date(d);
+        dayStart.setUTCHours(0, 0, 0, 0);
+        const dayEnd = new Date(d);
+        dayEnd.setUTCHours(23, 59, 59, 999);
+        await StaffAvailability.deleteMany({
+          user_id: req.user._id,
+          date: { $gte: dayStart, $lte: dayEnd }
+        });
+      }
+
+      await StaffAvailability.insertMany(
+        parsedDates.map((d) => ({
+          user_id: req.user._id,
+          date: d,
+          reason: reasonText
+        }))
+      );
+    }
+
+    return res.json({
+      message: "Availability updated successfully",
+      unavailable: parsedDates.map(toDateKey)
+    });
+  }
+
+  return res.status(400).json({ message: "Please provide a valid date or date range" });
+});
+
+exports.removeMyAvailability = asyncHandler(async (req, res) => {
+  const id = req.params?.id || req.body?.id;
+  const date = req.query?.date || req.body?.date;
+
+  if (id) {
+    const deleted = await StaffAvailability.findOneAndDelete({
+      _id: id,
+      user_id: req.user._id
+    });
+    if (!deleted) {
+      return res.status(404).json({ message: "Availability record not found" });
+    }
+    return res.json({ message: "Availability record removed successfully" });
+  }
+
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const parsed = parseDateKey(date);
+    if (parsed) {
+      const dayStart = new Date(parsed);
+      dayStart.setUTCHours(0, 0, 0, 0);
+      const dayEnd = new Date(parsed);
+      dayEnd.setUTCHours(23, 59, 59, 999);
+
+      await StaffAvailability.deleteMany({
+        user_id: req.user._id,
+        date: { $gte: dayStart, $lte: dayEnd }
+      });
+      return res.json({ message: "Availability record removed successfully" });
+    }
+  }
+
+  return res.status(400).json({ message: "Please provide a record ID or date to remove" });
 });

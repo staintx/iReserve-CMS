@@ -12,6 +12,7 @@ const {
 const { isSpecialOffer, offerPricePerPax } = require("../utils/specialOffers");
 const { MAX_FINANCIAL_AMOUNT } = require("../validations/rules.common");
 const { checkDateBlocked, BLOCKED_DATE_MESSAGE } = require("../utils/blockedDates");
+const { sendInquiryStatusEmail, resolveCustomerEmail } = require("../utils/booking-emails");
 
 // Helper to check customer ownership of inquiry/quotation
 const verifyCustomerOwnership = (inquiry, userId) => {
@@ -603,6 +604,23 @@ exports.createQuotation = asyncHandler(async (req, res) => {
     }, io);
   }
 
+  // Non-blocking email to customer with quotation details
+  resolveCustomerEmail(inquiry).then((customerEmail) => {
+    if (customerEmail) {
+      const isRevision = (nextVersion > 1);
+      const quoteRef = quotation.quotation_number || inquiry.reference;
+      sendInquiryStatusEmail({
+        inquiry,
+        newStatus: "Quotation Sent",
+        customerEmail,
+        quotation,
+        customMessage: isRevision
+          ? `An updated quotation (${quoteRef}) is ready for your review.`
+          : `A quotation for your inquiry (${inquiry.reference}) is ready for your review.`,
+      }).catch((err) => console.error("[Email Error] Failed to send quotation email:", err.message));
+    }
+  }).catch(() => {});
+
   if (io) {
     io.emit("system:refresh", { type: "quotation", action: "create", inquiryId: inquiry._id });
     io.emit("system:refresh", { type: "inquiry", action: "update", id: inquiry._id });
@@ -863,6 +881,22 @@ exports.acceptQuotation = asyncHandler(async (req, res) => {
     }, io);
   }
 
+  // Non-blocking email to customer confirming quote acceptance
+  resolveCustomerEmail(inquiry).then((customerEmail) => {
+    if (customerEmail) {
+      const quoteRef = quotation.quotation_number || inquiry?.reference || "quotation";
+      sendInquiryStatusEmail({
+        inquiry,
+        newStatus: "Awaiting Final Confirmation",
+        customerEmail,
+        quotation,
+        customMessage: paymentMethod === "cash"
+          ? `You accepted quotation ${quoteRef} with Cash payment method. Please coordinate with our team to pay your cash deposit.`
+          : `You accepted quotation ${quoteRef}. Please complete your deposit payment to lock in your event date.`,
+      }).catch((err) => console.error("[Email Error] Failed to send quote acceptance email:", err.message));
+    }
+  }).catch(() => {});
+
   if (io) {
     io.emit("system:refresh", { type: "quotation", action: "accept", inquiryId });
     io.emit("system:refresh", { type: "inquiry", action: "update", id: inquiryId });
@@ -922,6 +956,19 @@ exports.requestRevision = asyncHandler(async (req, res) => {
       meta: { inquiry_id: inquiryId, quotation_id: quotation._id, openQuoteId: inquiryId }
     }, io);
   }
+
+  // Non-blocking email to customer acknowledging revision request
+  resolveCustomerEmail(inquiry).then((customerEmail) => {
+    if (customerEmail) {
+      sendInquiryStatusEmail({
+        inquiry,
+        newStatus: "Revision Requested",
+        customerEmail,
+        quotation,
+        customMessage: `Your change request for quotation ${quotation.quotation_number || inquiry?.reference} has been submitted. Our team will review and update your proposal.`,
+      }).catch((err) => console.error("[Email Error] Failed to send revision request email:", err.message));
+    }
+  }).catch(() => {});
 
   if (io) {
     io.emit("system:refresh", { type: "quotation", action: "revise", inquiryId });
@@ -984,6 +1031,20 @@ exports.rejectQuotation = asyncHandler(async (req, res) => {
       meta: { inquiry_id: inquiryId, quotation_id: quotation._id, openQuoteId: inquiryId }
     }, io);
   }
+
+  // Non-blocking email to customer acknowledging quote decline
+  resolveCustomerEmail(inquiry).then((customerEmail) => {
+    if (customerEmail) {
+      const quoteRef = quotation.quotation_number || inquiry?.reference || "quotation";
+      sendInquiryStatusEmail({
+        inquiry,
+        newStatus: "Quote Rejected",
+        customerEmail,
+        quotation,
+        customMessage: `You declined quotation ${quoteRef}. If you would like to explore alternative options, feel free to submit a new inquiry.`,
+      }).catch((err) => console.error("[Email Error] Failed to send quote decline email:", err.message));
+    }
+  }).catch(() => {});
 
   if (io) {
     io.emit("system:refresh", { type: "quotation", action: "reject", inquiryId });

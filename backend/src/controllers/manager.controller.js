@@ -35,22 +35,15 @@ exports.getSummary = asyncHandler(async (req, res) => {
     .sort({ event_date: 1 })
     .lean();
 
-  const now = new Date();
-  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfThisMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-
-  let pendingCount = 0;
-  let upcomingCount = 0;
+  let assignedCount = 0;
   let completedCount = 0;
 
-  const pendingList = [];
   const upcomingList = [];
   const calendarEvents = [];
 
   bookings.forEach((b) => {
     const isCompleted = ["Completed", "completed"].includes(b.status);
     const isCancelled = ["Cancelled", "cancelled", "refunded"].includes(b.status);
-    const hasStaff = Array.isArray(b.staff_assignments) && b.staff_assignments.length > 0;
 
     const customerName = b.customer_id?.full_name 
       || `${b.contact_first_name || ""} ${b.contact_last_name || ""}`.trim() 
@@ -68,29 +61,23 @@ exports.getSummary = asyncHandler(async (req, res) => {
     }
 
     if (isCompleted) {
-      if (b.event_date && new Date(b.event_date) >= startOfThisMonth && new Date(b.event_date) <= endOfThisMonth) {
-        completedCount += 1;
-      }
+      completedCount += 1;
     } else if (!isCancelled) {
-      if (!hasStaff) {
-        pendingCount += 1;
-        if (pendingList.length < 5) pendingList.push(b);
-      } else {
-        upcomingCount += 1;
-        if (upcomingList.length < 5) upcomingList.push(b);
-      }
+      assignedCount += 1;
+      upcomingList.push(b);
     }
   });
 
   res.json({
     counts: {
-      pending: pendingCount,
-      upcoming: upcomingCount,
-      completed: completedCount
+      assigned: assignedCount,
+      upcoming: assignedCount,
+      completed: completedCount,
+      pending: 0
     },
     quickActions: {
-      pending: pendingList,
-      upcoming: upcomingList
+      pending: [],
+      upcoming: upcomingList.slice(0, 10)
     },
     calendarEvents
   });
@@ -168,12 +155,8 @@ exports.getBookings = asyncHandler(async (req, res) => {
 
   if (statusTab === "completed") {
     query.status = { $in: ["Completed", "completed"] };
-  } else if (statusTab === "upcoming") {
+  } else if (statusTab === "upcoming" || statusTab === "active" || !statusTab) {
     query.status = { $nin: ["Completed", "completed", "Cancelled", "cancelled", "refunded"] };
-    query["staff_assignments.0"] = { $exists: true };
-  } else if (statusTab === "pending") {
-    query.status = { $nin: ["Completed", "completed", "Cancelled", "cancelled", "refunded"] };
-    query["staff_assignments.0"] = { $exists: false };
   }
 
   const bookings = await Booking.find(query)
@@ -262,13 +245,16 @@ exports.getBooking = asyncHandler(async (req, res) => {
 });
 
 exports.assignStaff = asyncHandler(async (req, res) => {
-  const booking = await Booking.findOne({
-    _id: req.params.id,
-    ...(req.user.role === "admin" ? {} : { event_manager_id: req.user._id })
-  });
+  if (req.user.role !== "admin") {
+    return res.status(403).json({
+      message: "Only Administrators are authorized to assign staff to events. Managers no longer manage staff assignments."
+    });
+  }
+
+  const booking = await Booking.findById(req.params.id);
 
   if (!booking) {
-    return res.status(404).json({ message: "Booking not found or not assigned to you" });
+    return res.status(404).json({ message: "Booking not found" });
   }
 
   if (["completed", "Completed"].includes(booking.status)) {
@@ -278,6 +264,29 @@ exports.assignStaff = asyncHandler(async (req, res) => {
   const { staff_assignments } = req.body;
   if (!Array.isArray(staff_assignments)) {
     return res.status(400).json({ message: "staff_assignments must be an array" });
+  }
+
+  // Validate Staff Availability on event date
+  const assignedUserIds = staff_assignments
+    .map((a) => a.user_id?._id || a.user_id)
+    .filter(Boolean);
+
+  if (assignedUserIds.length > 0 && booking.event_date) {
+    const eventDate = new Date(booking.event_date);
+    const dayStart = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+    const dayEnd = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), 23, 59, 59, 999);
+
+    const unavailabilities = await StaffAvailability.find({
+      user_id: { $in: assignedUserIds },
+      date: { $gte: dayStart, $lte: dayEnd }
+    }).populate("user_id", "full_name");
+
+    if (unavailabilities.length > 0 && !req.body.override_unavailability) {
+      const names = unavailabilities.map((u) => u.user_id?.full_name || "A selected staff member").join(", ");
+      return res.status(409).json({
+        message: `Cannot assign: ${names} is marked as unavailable/off-duty on this event date.`
+      });
+    }
   }
 
   booking.staff_assignments = staff_assignments;
@@ -341,6 +350,10 @@ exports.addNote = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Booking not found" });
   }
 
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is already completed and read-only. Notes cannot be added." });
+  }
+
   const { note } = req.body;
   if (!note || !note.trim()) {
     return res.status(400).json({ message: "Note is required" });
@@ -357,6 +370,156 @@ exports.addNote = asyncHandler(async (req, res) => {
 
   await booking.save();
   res.json(booking.event_manager_notes);
+});
+
+exports.submitReport = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({
+    _id: req.params.id,
+    ...(req.user.role === "admin" ? {} : { event_manager_id: req.user._id })
+  });
+
+  if (!booking) {
+    return res.status(404).json({ message: "Assigned event not found" });
+  }
+
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is completed and read-only. Shift reports cannot be submitted or altered." });
+  }
+
+  const { note, role } = req.body;
+  if (!note || !note.trim()) {
+    return res.status(400).json({ message: "Report note is required" });
+  }
+
+  if (!Array.isArray(booking.staff_reports)) {
+    booking.staff_reports = [];
+  }
+
+  booking.staff_reports.push({
+    staff_id: req.user._id,
+    role: role || (req.user.role === "admin" ? "Administrator" : "Lead Manager"),
+    note: note.trim(),
+    created_at: new Date()
+  });
+
+  await booking.save();
+  res.json({ message: "Report submitted successfully", staff_reports: booking.staff_reports });
+});
+
+const isBookingStartedOrFinished = (booking) => {
+  if (!booking) return false;
+  const status = String(booking.status || "").toLowerCase();
+  if (["completed", "ongoing"].includes(status)) {
+    return true;
+  }
+
+  if (!booking.event_date) return true;
+
+  const dateObj = new Date(booking.event_date);
+  if (Number.isNaN(dateObj.getTime())) return true;
+
+  const year = dateObj.getFullYear();
+  const month = dateObj.getMonth();
+  const day = dateObj.getDate();
+
+  let hours = 0;
+  let minutes = 0;
+  if (booking.start_time) {
+    const match = String(booking.start_time).trim().match(/^(\d{1,2}):(\d{2})/);
+    if (match) {
+      hours = parseInt(match[1], 10);
+      minutes = parseInt(match[2], 10);
+    }
+  }
+
+  const startDateTime = new Date(year, month, day, hours, minutes, 0, 0);
+  const now = new Date();
+
+  return now >= startDateTime;
+};
+
+const formatBookingEventSchedule = (eventDate, startTime) => {
+  if (!eventDate) return "the scheduled event time";
+  const d = new Date(eventDate);
+  const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return startTime ? `${dateStr} at ${startTime}` : dateStr;
+};
+
+exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({
+    _id: req.params.id,
+    ...(req.user.role === "admin" ? {} : { event_manager_id: req.user._id })
+  });
+
+  if (!booking) {
+    return res.status(404).json({ message: "Assigned event not found" });
+  }
+
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is completed and read-only. Equipment check cannot be modified." });
+  }
+
+  if (!isBookingStartedOrFinished(booking)) {
+    return res.status(400).json({
+      message: `Equipment check is locked until the event starts (${formatBookingEventSchedule(booking.event_date, booking.start_time)}).`
+    });
+  }
+
+  const returns = req.body.returns || req.body.equipment_returns;
+  const noteText = (req.body.note || req.body.notes || req.body.equipment_notes || "").trim();
+
+  if (!Array.isArray(booking.equipment_returns) || booking.equipment_returns.length === 0) {
+    booking.equipment_returns = (booking.inventory_items || []).map((item) => ({
+      inventory_id: item.inventory_id,
+      name: item.name,
+      quantity_booked: item.quantity || 1,
+      quantity_returned: item.quantity || 1,
+      verified_at: new Date(),
+      verified_by: req.user._id
+    }));
+  }
+
+  if (Array.isArray(returns)) {
+    for (const ret of returns) {
+      const item = booking.equipment_returns.find(
+        (eq) => String(eq.inventory_id) === String(ret.inventory_id) || String(eq._id) === String(ret._id)
+      );
+      if (item) {
+        const returnedVal = Number(ret.quantity_returned !== undefined ? ret.quantity_returned : ret.quantity_booked || 0);
+        const damagedVal = Number(ret.quantity_damaged || 0);
+        if (returnedVal + damagedVal > item.quantity_booked) {
+          return res.status(400).json({
+            message: `Invalid return amount for ${item.name || 'equipment'}. Returned (${returnedVal}) + Damaged (${damagedVal}) cannot exceed dispatched amount (${item.quantity_booked}).`
+          });
+        }
+      }
+    }
+
+    const { reconcileEquipmentTurnover } = require("../utils/reconcileInventory");
+    await reconcileEquipmentTurnover({
+      booking,
+      returns,
+      actorId: req.user._id,
+      notes: noteText,
+      isManagerVerification: true,
+    });
+  }
+
+  if (noteText) {
+    booking.equipment_notes = noteText;
+    if (!Array.isArray(booking.staff_reports)) booking.staff_reports = [];
+    booking.staff_reports.push({
+      staff_id: req.user._id,
+      role: "Lead Manager - Equipment Check",
+      note: noteText,
+      created_at: new Date()
+    });
+  }
+
+  await booking.save();
+
+  const updated = await Booking.findById(booking._id).populate("equipment_returns.inventory_id");
+  res.json({ message: "Equipment returns saved successfully", equipment_returns: updated.equipment_returns });
 });
 
 exports.updateEquipment = asyncHandler(async (req, res) => {
@@ -390,6 +553,10 @@ exports.verifyEquipment = asyncHandler(async (req, res) => {
 
   if (!booking) {
     return res.status(404).json({ message: "Booking not found or not assigned to you" });
+  }
+
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is already completed and read-only. Equipment verification cannot be modified." });
   }
 
   const { confirmed, additional_notes } = req.body;

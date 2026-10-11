@@ -141,15 +141,6 @@ export default function ManagerSidebar() {
               </>
             )}
           </NavLink>
-
-          <NavLink to="/manager/staff" className={linkClass} title={isCollapsed ? "Staff" : undefined}>
-            {({ isActive }) => (
-              <>
-                <Users className={iconClass(isActive)} />
-                {!isCollapsed && <span>Staff</span>}
-              </>
-            )}
-          </NavLink>
         </nav>
 
 

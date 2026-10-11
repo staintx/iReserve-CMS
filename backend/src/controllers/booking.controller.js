@@ -8,6 +8,7 @@ const MenuItem = require("../models/MenuItem");
 const BusinessInfo = require("../models/BusinessInfo");
 const BlockedDate = require("../models/BlockedDate");
 const User = require("../models/User");
+const StaffAvailability = require("../models/StaffAvailability");
 const { checkDateBlocked, BLOCKED_DATE_MESSAGE } = require("../utils/blockedDates");
 const { MAX_FINANCIAL_AMOUNT } = require("../validations/rules.common");
 const {
@@ -291,44 +292,52 @@ const filterAvailableStaff = async (
   };
   if (excludeBookingId) query._id = { $ne: excludeBookingId };
 
-  const conflictingBookings = await Booking.find(query);
-  if (conflictingBookings.length === 0) return staffIds;
+  const [conflictingBookings, unavailabilities] = await Promise.all([
+    Booking.find(query),
+    StaffAvailability.find({
+      user_id: { $in: staffIds },
+      date: { $gte: dayStart, $lte: dayEnd }
+    }).select("user_id")
+  ]);
 
-  const newRange = getTimeRange(startTime, durationHours);
-  const bookedStaff = new Set();
+  const bookedStaff = new Set(unavailabilities.map((u) => u.user_id.toString()));
 
-  conflictingBookings.forEach((b) => {
-    const addAllAssigned = () => {
-      if (b.event_manager_id) bookedStaff.add(b.event_manager_id.toString());
-      if (b.staff_ids) b.staff_ids.forEach((id) => bookedStaff.add(id.toString()));
-      if (Array.isArray(b.staff_assignments)) {
-        b.staff_assignments.forEach((sa) => {
-          if (sa.user_id) bookedStaff.add(sa.user_id.toString());
-        });
+  if (conflictingBookings.length > 0) {
+    const newRange = getTimeRange(startTime, durationHours);
+
+    conflictingBookings.forEach((b) => {
+      const addAllAssigned = () => {
+        if (b.event_manager_id) bookedStaff.add(b.event_manager_id.toString());
+        if (b.staff_ids) b.staff_ids.forEach((id) => bookedStaff.add(id.toString()));
+        if (Array.isArray(b.staff_assignments)) {
+          b.staff_assignments.forEach((sa) => {
+            if (sa.user_id) bookedStaff.add(sa.user_id.toString());
+          });
+        }
+      };
+
+      if (!newRange) {
+        addAllAssigned();
+        return;
       }
-    };
 
-    if (!newRange) {
-      addAllAssigned();
-      return;
-    }
+      const existingRange = getTimeRange(b.start_time, b.duration_hours);
+      if (!existingRange) {
+        addAllAssigned();
+        return;
+      }
 
-    const existingRange = getTimeRange(b.start_time, b.duration_hours);
-    if (!existingRange) {
-      addAllAssigned();
-      return;
-    }
+      const existingStart = existingRange.startMinutes - buffer;
+      const existingEnd = existingRange.endMinutes + buffer;
+      const isOverlap =
+        newRange.startMinutes < existingEnd &&
+        newRange.endMinutes > existingStart;
 
-    const existingStart = existingRange.startMinutes - buffer;
-    const existingEnd = existingRange.endMinutes + buffer;
-    const isOverlap =
-      newRange.startMinutes < existingEnd &&
-      newRange.endMinutes > existingStart;
-
-    if (isOverlap) {
-      addAllAssigned();
-    }
-  });
+      if (isOverlap) {
+        addAllAssigned();
+      }
+    });
+  }
 
   return staffIds.filter((id) => !bookedStaff.has(id.toString()));
 };

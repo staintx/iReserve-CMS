@@ -232,6 +232,12 @@ const formatBookingEventSchedule = (eventDate, startTime) => {
 };
 
 exports.submitReport = asyncHandler(async (req, res) => {
+  if (req.user.role === "staff") {
+    return res.status(403).json({
+      message: "Staff members cannot submit incident reports or shift notes. This responsibility belongs to the Event Manager."
+    });
+  }
+
   const booking = await Booking.findOne({
     _id: req.params.id,
     "staff_assignments.user_id": req.user._id
@@ -262,6 +268,12 @@ exports.submitReport = asyncHandler(async (req, res) => {
 });
 
 exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
+  if (req.user.role === "staff") {
+    return res.status(403).json({
+      message: "Staff members cannot perform equipment checks. This responsibility belongs to the Event Manager."
+    });
+  }
+
   const booking = await Booking.findOne({
     _id: req.params.id,
     "staff_assignments.user_id": req.user._id
@@ -335,6 +347,12 @@ exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
 });
 
 exports.completeEvent = asyncHandler(async (req, res) => {
+  if (req.user.role === "staff") {
+    return res.status(403).json({
+      message: "Staff members cannot complete events. This responsibility belongs to the Event Manager."
+    });
+  }
+
   const booking = await Booking.findOne({
     _id: req.params.id,
     "staff_assignments.user_id": req.user._id

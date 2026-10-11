@@ -1,374 +1,527 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ManagerAPI } from "../../api/manager";
 import ManagerLayout from "../../components/layout/ManagerLayout";
-import AdminCard from "../../components/admin/ui/AdminCard";
-import KPICard from "../../components/admin/ui/KPICard";
 import PageHeader from "../../components/admin/ui/PageHeader";
-import Btn from "../../components/admin/ui/Btn";
-import ManagerEventCalendar from "../../components/dashboard/ManagerEventCalendar";
+import KPICard from "../../components/admin/ui/KPICard";
+import Badge from "../../components/admin/ui/Badge";
+import AvailabilityModal from "../../components/common/AvailabilityModal";
 import useToast from "../../hooks/useToast";
+import useAuth from "../../hooks/useAuth";
+import { getSocket } from "../../api/socket";
 import {
   Calendar as CalendarIcon,
   Clock,
-  AlertCircle,
-  AlertTriangle,
-  Users,
-  ArrowRight,
-  CheckCircle2,
-  UserCheck,
-  UserPlus,
-  Eye,
   MapPin,
+  CheckCircle2,
+  CalendarDays,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  ShieldCheck,
+  Lock,
+  Sparkles
 } from "lucide-react";
+import { getEventTimingStatus } from "../../utils/format";
 
-const isPastDate = (dateVal) => {
-  if (!dateVal) return false;
-  const d = new Date(dateVal);
-  if (isNaN(d.getTime())) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return d < today;
+const toDateKey = (date) => {
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
+  const yr = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  return `${yr}-${mo}-${da}`;
 };
-
-const getDateBadgeParts = (dateVal) => {
-  if (!dateVal) return { month: "TBD", day: "—" };
-  const d = new Date(dateVal);
-  if (isNaN(d.getTime())) return { month: "TBD", day: "—" };
-  return {
-    month: d.toLocaleDateString("en-US", { month: "short" }).toUpperCase(),
-    day: d.getDate(),
-  };
-};
-
-const formatShortDate = (dateVal) => {
-  if (!dateVal) return "Date TBD";
-  const d = new Date(dateVal);
-  if (isNaN(d.getTime())) return "Date TBD";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-};
-
-/**
- * ActionRow: A clear, scannable event item for operational queues.
- * Distinguishes urgent pending staffing items from secondary ready items.
- */
-function ActionRow({ booking, tone, primaryLabel, primaryIcon: PrimaryIcon, onOpen, onPrimary, secondary }) {
-  const isPast = isPastDate(booking.event_date);
-  const isUrgent = tone === "alert";
-  const dateParts = getDateBadgeParts(booking.event_date);
-  const venue = booking.venue_type || booking.venue || "Venue not set";
-
-  return (
-    <li
-      className={`rounded-xl border transition-all ${
-        isUrgent
-          ? isPast
-            ? "border-rose-200/90 bg-rose-50/40 hover:bg-rose-50/70"
-            : "border-amber-200/90 bg-amber-50/30 hover:bg-amber-50/60 shadow-2xs"
-          : "border-slate-200/80 bg-white hover:bg-slate-50/70 shadow-2xs"
-      }`}
-    >
-      <div className="flex flex-col gap-2.5 p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        {/* Clickable Event Summary Block */}
-        <button
-          type="button"
-          onClick={onOpen}
-          className="flex min-w-0 flex-1 items-start gap-3 text-left cursor-pointer rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-        >
-          {/* Scannable Date Badge */}
-          <div
-            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-lg border flex flex-col items-center justify-center shrink-0 shadow-2xs ${
-              isUrgent
-                ? isPast
-                  ? "bg-rose-100/80 border-rose-200 text-rose-800"
-                  : "bg-amber-100/70 border-amber-200 text-amber-900"
-                : "bg-slate-100 border-slate-200 text-slate-700"
-            }`}
-          >
-            <span className="text-[10px] font-bold tracking-tight uppercase leading-none">{dateParts.month}</span>
-            <span className="text-sm sm:text-base font-bold tabular-nums leading-none mt-0.5">{dateParts.day}</span>
-          </div>
-
-          {/* Event Metadata */}
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-              <span className="text-[13.5px] font-bold text-slate-900 truncate">
-                {booking.customer_id?.full_name || "Client"}
-              </span>
-              <span className="text-xs text-slate-500 font-medium">· {booking.event_type || "Event"}</span>
-              {isPast && (
-                <span
-                  title="Event date has passed"
-                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-rose-50 text-rose-700 border border-rose-200/80 shrink-0"
-                >
-                  <Clock size={10} className="text-rose-600" />
-                  <span>Event Passed</span>
-                </span>
-              )}
-              {!isUrgent && !isPast && (
-                <span className="inline-flex items-center gap-1 rounded border border-emerald-200/80 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
-                  ✓ Team Ready
-                </span>
-              )}
-            </div>
-
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[11.5px] text-slate-500">
-              <span className="flex items-center gap-1 font-medium text-slate-700">
-                <Clock size={11} className="shrink-0 text-slate-400" />
-                {secondary || booking.start_time || "Time TBA"}
-              </span>
-              <span aria-hidden="true" className="text-slate-300">•</span>
-              <span className="flex items-center gap-1 truncate max-w-[200px] sm:max-w-[240px]">
-                <MapPin size={11} className="shrink-0 text-slate-400" />
-                <span className="truncate">{venue}</span>
-              </span>
-            </div>
-          </div>
-        </button>
-
-        {/* Action Controls */}
-        <div className="flex shrink-0 items-center gap-2 pt-1 sm:pt-0 border-t border-slate-200/60 sm:border-t-0">
-          <button
-            type="button"
-            onClick={onOpen}
-            title="View event details"
-            aria-label="View event details"
-            className="h-9 w-9 shrink-0 grid place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
-          >
-            <Eye size={14} />
-          </button>
-
-          {isUrgent ? (
-            /* Primary Urgent Action (Royal Blue #4C81E0 for high prominence) */
-            <button
-              type="button"
-              onClick={onPrimary}
-              className={`flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-lg px-3.5 text-xs font-bold text-white shadow-2xs transition-all cursor-pointer portal-press sm:min-h-9 sm:flex-initial ${
-                isPast
-                  ? "bg-slate-700 hover:bg-slate-800"
-                  : "bg-[#4C81E0] hover:bg-[#3b6bc4]"
-              }`}
-            >
-              {PrimaryIcon ? <PrimaryIcon size={14} /> : <UserPlus size={14} />}
-              <span>{isPast ? "Log Past Staff" : primaryLabel || "Assign Team"}</span>
-              <ArrowRight size={13} className="opacity-80" />
-            </button>
-          ) : (
-            /* Secondary Action for already staffed items */
-            <button
-              type="button"
-              onClick={onPrimary}
-              className="flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-2xs transition-all hover:bg-slate-50 hover:text-slate-900 cursor-pointer sm:min-h-9 sm:flex-initial"
-            >
-              {PrimaryIcon ? <PrimaryIcon size={14} className="text-emerald-600" /> : <UserCheck size={14} className="text-emerald-600" />}
-              <span>{primaryLabel || "Edit Staff"}</span>
-            </button>
-          )}
-        </div>
-      </div>
-    </li>
-  );
-}
-
-/**
- * QueueCard: Container for action queues with distinct visual weight.
- */
-function QueueCard({
-  icon: Icon,
-  iconClass,
-  title,
-  subtitle,
-  count,
-  countLabel,
-  countClass,
-  emptyCopy,
-  isUrgent = false,
-  children,
-}) {
-  return (
-    <AdminCard
-      className={`space-y-3 !p-3.5 sm:!p-4.5 rounded-2xl border transition-all ${
-        isUrgent
-          ? "border-amber-300/80 bg-white ring-1 ring-amber-400/20 shadow-xs"
-          : "border-border/80 bg-white shadow-2xs"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2 border-b border-border/60 pb-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-sm sm:text-[15px] font-bold text-slate-900 tracking-tight">
-            <span
-              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                isUrgent ? "bg-amber-100 text-amber-700" : "bg-blue-50 text-[#4C81E0]"
-              }`}
-            >
-              <Icon size={15} className={iconClass} />
-            </span>
-            <span>{title}</span>
-          </h2>
-          {subtitle && <p className="text-[11.5px] text-slate-500 mt-0.5 ml-9">{subtitle}</p>}
-        </div>
-        <span className={`shrink-0 rounded-md border px-2.5 py-0.5 text-[11px] font-semibold tabular-nums ${countClass}`}>
-          {count} {countLabel}
-        </span>
-      </div>
-
-      {count === 0 ? (
-        <div className="py-6 text-center space-y-1">
-          <p className="text-xs font-medium text-slate-600">{emptyCopy}</p>
-        </div>
-      ) : (
-        <ul className="space-y-2">{children}</ul>
-      )}
-    </AdminCard>
-  );
-}
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { notify } = useToast();
-  const [summary, setSummary] = useState({
-    counts: { pending: 0, upcoming: 0, completed: 0, assigned: 0, unassigned: 0, today: 0 },
-    quickActions: { pending: [], upcoming: [] },
-    calendarEvents: [],
-  });
+
+  const [upcomingBookings, setUpcomingBookings] = useState([]);
+  const [completedBookings, setCompletedBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  // Calendar & Availability states
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [availabilityData, setAvailabilityData] = useState({ month: "", unavailable: [], assignments: [] });
+  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+
+  const monthKey = useMemo(() => {
+    return `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, "0")}`;
+  }, [calendarMonth]);
+
+  const monthLabel = useMemo(() => {
+    return calendarMonth.toLocaleString("default", { month: "long", year: "numeric" });
+  }, [calendarMonth]);
+
+  const loadData = async () => {
     setLoading(true);
-    ManagerAPI.getSummary()
-      .then((res) => {
-        setSummary({
-          counts: res.data?.counts || { pending: 0, upcoming: 0, completed: 0, assigned: 0, unassigned: 0, today: 0 },
-          quickActions: res.data?.quickActions || { pending: [], upcoming: [] },
-          calendarEvents: res.data?.calendarEvents || [],
-        });
-      })
-      .catch(() => notify("Failed to load manager operations summary.", "error"))
-      .finally(() => setLoading(false));
+    try {
+      const [upcomingRes, completedRes, availRes] = await Promise.all([
+        ManagerAPI.getBookings("upcoming").catch(() => ({ data: [] })),
+        ManagerAPI.getBookings("completed").catch(() => ({ data: [] })),
+        ManagerAPI.getAvailability(monthKey).catch(() => ({ data: { month: monthKey, unavailable: [], assignments: [] } }))
+      ]);
+
+      setUpcomingBookings(Array.isArray(upcomingRes.data) ? upcomingRes.data : []);
+      setCompletedBookings(Array.isArray(completedRes.data) ? completedRes.data : []);
+      setAvailabilityData(availRes.data || { month: monthKey, unavailable: [], assignments: [] });
+    } catch {
+      notify("Failed to load manager operations data.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [monthKey]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket.connected) socket.connect();
+
+    const handleRefresh = (data) => {
+      if (!data || data.type === "booking" || data.type === "staff") {
+        loadData();
+      }
+    };
+
+    socket.on("system:refresh", handleRefresh);
+    socket.on("notification:new", handleRefresh);
+    return () => {
+      socket.off("system:refresh", handleRefresh);
+      socket.off("notification:new", handleRefresh);
+    };
   }, []);
 
-  const pending = summary.quickActions.pending || [];
-  const upcoming = summary.quickActions.upcoming || [];
+  const handleSaveAvailability = async (month, dates) => {
+    try {
+      await ManagerAPI.setAvailability(month, dates);
+      notify("Your availability schedule has been updated.", "success");
+      // Refresh availability
+      const availRes = await ManagerAPI.getAvailability(monthKey);
+      setAvailabilityData(availRes.data || { month: monthKey, unavailable: dates, assignments: [] });
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to update availability.", "error");
+      throw err;
+    }
+  };
+
+  // Map active assignments by date
+  const eventsByDate = useMemo(() => {
+    const map = new Map();
+    upcomingBookings.forEach((b) => {
+      if (b.event_date) {
+        const key = toDateKey(b.event_date);
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(b);
+      }
+    });
+    return map;
+  }, [upcomingBookings]);
+
+  // Calendar month grid
+  const calendarDays = useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startOffset = firstDay.getDay();
+
+    const days = [];
+    for (let i = 0; i < startOffset; i++) {
+      days.push(null);
+    }
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      days.push(new Date(year, month, d));
+    }
+    return days;
+  }, [calendarMonth]);
+
+  const stepMonth = (delta) => {
+    setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + delta, 1));
+  };
+
+  const selectedDateKey = toDateKey(selectedDate);
+  const selectedDateEvents = eventsByDate.get(selectedDateKey) || [];
+  const isSelectedDateUnavailable = (availabilityData.unavailable || []).includes(selectedDateKey);
 
   const openEvent = (id) => navigate(`/manager/bookings?booking_id=${id}&action=view`);
-  const openAssign = (id) => navigate(`/manager/bookings?booking_id=${id}&action=assign`);
 
   return (
     <ManagerLayout>
-      <div className="space-y-4">
+      <div className="space-y-5">
         {/* Page Header */}
         <PageHeader
           title="Manager Operations"
-          description="Coordinate catering logistics, dispatch staff teams, and monitor event readiness"
-          actions={
-            <>
-              <Btn variant="secondary" size="sm" onClick={() => navigate("/manager/staff")}>
-                <Users className="h-4 w-4" /> View Staff Roster
-              </Btn>
-              <Btn variant="primary" size="sm" onClick={() => navigate("/manager/bookings")}>
-                <CalendarIcon className="h-4 w-4" /> All Assigned Events
-              </Btn>
-            </>
-          }
+          description="Review assigned catering events, monitor schedules, conduct equipment checks, and report operational logs"
         />
 
-        {/* Top KPI Cards (Top section) */}
-        <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-4 sm:gap-3">
+        {/* SECTION A: Summary Cards (Top) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <KPICard
             label="Assigned Events"
-            value={loading ? "—" : summary.counts.assigned}
+            value={loading ? "—" : upcomingBookings.length}
             sub="Under your management"
             icon={CalendarIcon}
-            tone="neutral"
-            onClick={() => navigate("/manager/bookings")}
-          />
-          <KPICard
-            label="Needs Staffing"
-            value={loading ? "—" : summary.counts.unassigned}
-            sub="Action required"
-            icon={Users}
-            tone={summary.counts.unassigned > 0 ? "warning" : "success"}
-            onClick={() => navigate("/manager/bookings?staffing=unassigned")}
-          />
-          <KPICard
-            label="Today's Events"
-            value={loading ? "—" : summary.counts.today}
-            sub="Scheduled today"
-            icon={Clock}
             tone="info"
-            onClick={() => navigate("/manager/bookings?date=today")}
+            onClick={() => navigate("/manager/bookings?tab=upcoming")}
           />
           <KPICard
             label="Completed Events"
-            value={loading ? "—" : summary.counts.completed}
-            sub="This month"
+            value={loading ? "—" : completedBookings.length}
+            sub="Successfully coordinated events"
             icon={CheckCircle2}
             tone="success"
-            onClick={() => navigate("/manager/bookings?status=completed")}
+            onClick={() => navigate("/manager/bookings?tab=completed")}
           />
         </div>
 
-        {/* Main Section Directly Below KPIs: Event Staffing & Logistics Schedule / Calendar */}
-        <section aria-label="Event Staffing and Logistics Schedule">
-          <ManagerEventCalendar
-            onSelectBooking={(b) => openEvent(b.id || b._id)}
-          />
+        {/* SECTION B & C: Calendar View & Set My Availability */}
+        <section className="rounded-2xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden" aria-label="Manager Schedule Calendar">
+          {/* Calendar Header with Set My Availability Button */}
+          <div className="p-3.5 sm:p-4.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                <span className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                  <CalendarDays size={15} />
+                </span>
+                <span>Assigned Event Calendar</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5 ml-9">
+                Dates of events assigned under your lead and your recorded personal availability
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setShowAvailabilityModal(true)}
+                className="inline-flex min-h-[38px] items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#4C81E0] text-white text-xs font-bold hover:bg-[#3b6bc4] transition-all cursor-pointer shadow-2xs"
+              >
+                <CalendarDays size={14} />
+                <span>Set My Availability</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="p-3.5 sm:p-5 space-y-4">
+            {/* Month Navigation Toolbar */}
+            <div className="flex items-center justify-between border rounded-xl p-2 sm:p-2.5 bg-slate-50/60 border-slate-200">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900">{monthLabel}</h3>
+                <span className="text-xs text-slate-400 font-mono hidden sm:inline">({monthKey})</span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => stepMonth(-1)}
+                  className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="Previous Month"
+                  aria-label="Previous Month"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    setCalendarMonth(today);
+                    setSelectedDate(today);
+                  }}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => stepMonth(1)}
+                  className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="Next Month"
+                  aria-label="Next Month"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Calendar Grid */}
+            <div className="space-y-1">
+              <div className="grid grid-cols-7 text-center text-[10.5px] sm:text-xs font-bold uppercase tracking-wider text-slate-400 py-1">
+                <div>Sun</div>
+                <div>Mon</div>
+                <div>Tue</div>
+                <div>Wed</div>
+                <div>Thu</div>
+                <div>Fri</div>
+                <div>Sat</div>
+              </div>
+
+              <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+                {calendarDays.map((dateObj, idx) => {
+                  if (!dateObj) {
+                    return <div key={`empty-${idx}`} className="h-14 sm:h-16 rounded-xl bg-slate-50/40" />;
+                  }
+
+                  const dateKey = toDateKey(dateObj);
+                  const isSelected = selectedDateKey === dateKey;
+                  const isToday = toDateKey(new Date()) === dateKey;
+                  const hasAssigned = eventsByDate.has(dateKey);
+                  const isUnavailable = (availabilityData.unavailable || []).includes(dateKey);
+                  const dayEvents = eventsByDate.get(dateKey) || [];
+
+                  return (
+                    <button
+                      key={dateKey}
+                      type="button"
+                      onClick={() => setSelectedDate(dateObj)}
+                      className={`h-14 sm:h-16 rounded-xl border p-1 sm:p-2 text-left transition-all flex flex-col justify-between cursor-pointer select-none relative ${
+                        isSelected
+                          ? "border-[#4C81E0] ring-2 ring-[#4C81E0]/30 bg-blue-50/40 shadow-xs"
+                          : hasAssigned
+                          ? "border-amber-300 bg-amber-50/40 hover:bg-amber-50/70"
+                          : isUnavailable
+                          ? "border-rose-200 bg-rose-50/50 hover:bg-rose-50/80"
+                          : "border-slate-200/80 bg-white hover:bg-slate-50"
+                      } ${isToday && !isSelected ? "ring-1 ring-slate-400" : ""}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs font-bold tabular-nums ${isSelected ? "text-[#4C81E0]" : "text-slate-800"}`}>
+                          {dateObj.getDate()}
+                        </span>
+
+                        {hasAssigned && (
+                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Assigned Event" />
+                        )}
+                        {!hasAssigned && isUnavailable && (
+                          <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" title="Unavailable" />
+                        )}
+                      </div>
+
+                      <div className="space-y-0.5 min-w-0">
+                        {hasAssigned ? (
+                          <span className="block truncate text-[9px] sm:text-[10px] font-bold text-amber-900 bg-amber-100/90 px-1 py-0.2 rounded leading-tight">
+                            {dayEvents[0]?.event_type || "Event"}
+                          </span>
+                        ) : isUnavailable ? (
+                          <span className="block truncate text-[9px] sm:text-[10px] font-bold text-rose-700 bg-rose-100/80 px-1 py-0.2 rounded leading-tight">
+                            Off-duty
+                          </span>
+                        ) : null}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Selected Date Information Panel */}
+            <div className="pt-2 border-t border-slate-100">
+              <div className="p-3 sm:p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                  <div className="font-bold text-slate-900">
+                    {selectedDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {isSelectedDateUnavailable && (
+                      <span className="px-2 py-0.5 rounded bg-rose-100 border border-rose-200 text-rose-800 text-[11px] font-semibold">
+                        Marked Off-Duty (Unavailable)
+                      </span>
+                    )}
+                    {selectedDateEvents.length > 0 && (
+                      <span className="px-2 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-900 text-[11px] font-semibold">
+                        {selectedDateEvents.length} Event Assigned
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {selectedDateEvents.length === 0 ? (
+                  <p className="text-xs text-slate-500">
+                    No assigned events on this date.
+                  </p>
+                ) : (
+                  <div className="space-y-2 pt-1">
+                    {selectedDateEvents.map((booking) => (
+                      <div
+                        key={booking._id}
+                        className="p-3 rounded-lg border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs"
+                      >
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs sm:text-sm font-bold text-slate-900">
+                              {booking.event_type || "Catering Event"}
+                            </span>
+                            <span className="text-xs text-slate-500 font-medium">
+                              · Client: <strong>{booking.customer_id?.full_name || "Client"}</strong>
+                            </span>
+                          </div>
+                          <div className="text-[11.5px] text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                            <span className="flex items-center gap-1">
+                              <Clock size={11} className="text-slate-400" />
+                              {booking.start_time || "Time TBA"} ({booking.duration_hours || 4} hrs)
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1 truncate max-w-[220px]">
+                              <MapPin size={11} className="text-slate-400 shrink-0" />
+                              <span className="truncate">{booking.venue_type || booking.municipality || "Venue TBA"}</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => openEvent(booking._id)}
+                          className="inline-flex min-h-[36px] items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#4C81E0] text-white text-xs font-bold hover:bg-[#3b6bc4] transition-colors cursor-pointer shrink-0"
+                        >
+                          <Eye size={13} />
+                          <span>View Details</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </section>
 
-        {/* Action Queues Directly Below the Calendar */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {/* Pending Staff Assignment (Visually More Prominent - Urgent Actions) */}
-          <QueueCard
-            icon={AlertCircle}
-            iconClass="text-amber-600"
-            title="Pending Staff Assignment"
-            subtitle="Events needing crew dispatched before event date"
-            count={pending.length}
-            countLabel={pending.length === 1 ? "needs crew" : "need crew"}
-            countClass="border-amber-300 bg-amber-100 text-amber-800"
-            emptyCopy="All assigned events currently have teams dispatched."
-            isUrgent={true}
-          >
-            {pending.map((booking) => (
-              <ActionRow
-                key={booking._id}
-                booking={booking}
-                tone="alert"
-                primaryLabel="Assign Team"
-                primaryIcon={UserPlus}
-                secondary={booking.start_time || "Time TBA"}
-                onOpen={() => openEvent(booking._id)}
-                onPrimary={() => openAssign(booking._id)}
-              />
-            ))}
-          </QueueCard>
+        {/* SECTION D: Upcoming Scheduled Events */}
+        <section className="space-y-3" aria-label="Upcoming Scheduled Events">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+              Upcoming Scheduled Events
+            </h2>
+            <span className="text-xs font-semibold text-slate-500 tabular-nums">
+              {upcomingBookings.length} event{upcomingBookings.length === 1 ? "" : "s"}
+            </span>
+          </div>
 
-          {/* Upcoming Scheduled Events (Visually Secondary - Already Staffed) */}
-          <QueueCard
-            icon={CalendarIcon}
-            iconClass="text-[#4C81E0]"
-            title="Upcoming Scheduled Events"
-            subtitle="Confirmed bookings with crew already assigned"
-            count={upcoming.length}
-            countLabel="ready"
-            countClass="border-slate-200 bg-slate-100 text-slate-700"
-            emptyCopy="No upcoming events ready yet."
-            isUrgent={false}
-          >
-            {upcoming.map((booking) => (
-              <ActionRow
-                key={booking._id}
-                booking={booking}
-                tone="calm"
-                primaryLabel="Edit Staff"
-                primaryIcon={UserCheck}
-                secondary={booking.start_time || "Time TBA"}
-                onOpen={() => openEvent(booking._id)}
-                onPrimary={() => openAssign(booking._id)}
-              />
-            ))}
-          </QueueCard>
-        </div>
+          {loading ? (
+            <div className="p-10 text-center text-xs text-slate-500 bg-white border border-slate-200/80 rounded-xl">
+              Loading your upcoming assignments...
+            </div>
+          ) : upcomingBookings.length === 0 ? (
+            <div className="p-8 sm:p-10 text-center space-y-3 bg-white border border-slate-200/80 rounded-2xl shadow-2xs">
+              <CalendarIcon size={32} className="mx-auto text-slate-400" />
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-900">
+                  No upcoming scheduled events
+                </h3>
+                <p className="mx-auto max-w-md text-xs leading-relaxed text-slate-500">
+                  You do not have any active catering assignments under your lead right now. When the Administrator assigns you to an event, it will appear here.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
+              {upcomingBookings.map((booking) => {
+                const timing = getEventTimingStatus(booking);
+                const venue = booking.venue_type || [booking.street, booking.barangay, booking.municipality].filter(Boolean).join(", ") || "Venue TBA";
+
+                return (
+                  <div
+                    key={booking._id}
+                    className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-2xs hover:border-[#4C81E0]/50 transition-all space-y-3.5"
+                  >
+                    {/* Top Row: Type, Status */}
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500 block">
+                            Event Coordination
+                          </span>
+                          <h3 className="text-base font-bold text-slate-900 leading-snug">
+                            {booking.event_type || "Catering Event"}
+                          </h3>
+                        </div>
+                        <Badge status={booking.status || "confirmed"} />
+                      </div>
+
+                      <div className="text-xs text-slate-500">
+                        Client: <strong className="text-slate-800">{booking.customer_id?.full_name || "Valued Client"}</strong> · Ref <span className="font-mono text-slate-700 font-semibold">{booking.reference || booking._id?.slice(-6).toUpperCase()}</span>
+                      </div>
+                    </div>
+
+                    {/* Operational Details Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 text-slate-700 font-semibold">
+                          <CalendarIcon size={13} className="text-[#4C81E0] shrink-0" />
+                          <span>
+                            {booking.event_date
+                              ? new Date(booking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                              : "Date TBA"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-500 pl-5 text-[11.5px]">
+                          <Clock size={11} className="shrink-0" />
+                          <span>{booking.start_time || "Time TBA"} ({booking.duration_hours || 4} hrs)</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 text-slate-700 font-semibold truncate">
+                          <MapPin size={13} className="text-[#4C81E0] shrink-0" />
+                          <span className="truncate">{venue}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-600 pl-5 text-[11.5px]">
+                          <ShieldCheck size={11} className="text-amber-600 shrink-0" />
+                          <span>Lead: <strong>Event Coordinator</strong></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer Action */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        {timing.isUpcoming && (
+                          <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold bg-slate-100 text-slate-700">
+                            <Lock size={10} className="text-slate-500" /> Upcoming
+                          </span>
+                        )}
+                        {timing.isStarted && !timing.isFinished && (
+                          <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold bg-emerald-50 text-emerald-800">
+                            <Sparkles size={10} className="text-emerald-600" /> In Progress
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => openEvent(booking._id)}
+                        className="inline-flex min-h-[38px] items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#4C81E0] text-white text-xs font-bold hover:bg-[#3b6bc4] transition-colors cursor-pointer shadow-2xs"
+                      >
+                        <span>View Details</span>
+                        <ArrowRight size={13} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Set My Availability Modal */}
+        {showAvailabilityModal && (
+          <AvailabilityModal
+            open={showAvailabilityModal}
+            onClose={() => setShowAvailabilityModal(false)}
+            initialMonth={calendarMonth}
+            initialUnavailable={availabilityData.unavailable || []}
+            assignments={availabilityData.assignments || []}
+            onSave={handleSaveAvailability}
+            userRole="manager"
+          />
+        )}
       </div>
     </ManagerLayout>
   );

@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
  * bottom of a list of selects to find the Save button.
  */
 export default function Modal({
+  open = true,
   title,
   description,
   icon: Icon,
@@ -47,12 +48,15 @@ export default function Modal({
   className = "",
   bodyClassName = "",
 }) {
+  if (open === false) return null;
+
   return (
-    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen && onClose) onClose(); }}>
       <DialogContent
         /* A titleless dialog draws its own header and close button, so the
            built-in one would be a second X on top of it. */
         hideClose={!title}
+        onClose={onClose}
         className={cn(
           "admin-shell admin-layout flex flex-col gap-0 overflow-hidden p-0 max-h-[90dvh] bg-card text-foreground font-sans border border-border/80 shadow-2xl rounded-2xl",
           // Below `sm` the dialog becomes a bottom sheet. Only `max-sm:`

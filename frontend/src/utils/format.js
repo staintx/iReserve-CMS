@@ -78,6 +78,64 @@ export const formatTime = (value) => {
   return `${displayHour}:${minutes} ${suffix}`;
 };
 
+/** Formats start time like "09:00 AM" or "02:30 PM" cleanly without appending durations. */
+export const formatEventStartTime = (value, fallback = "Time TBA") => {
+  if (!value) return fallback;
+  const match = String(value).trim().match(/^(\d{1,2}):(\d{2})/i);
+  if (!match) return String(value).trim() || fallback;
+  const hours = Number(match[1]);
+  const minutes = match[2];
+  if (!Number.isFinite(hours) || hours > 23) return String(value).trim() || fallback;
+  const suffix = hours >= 12 ? "PM" : "AM";
+  const displayHour = hours % 12 === 0 ? 12 : hours % 12;
+  return `${String(displayHour).padStart(2, "0")}:${minutes} ${suffix}`;
+};
+
+/**
+ * Resolves the real venue location or address entered for an event.
+ * Never fabricates from or returns venue_type ("Garden", etc.).
+ * Falls back to "Location not specified" if no real location is provided.
+ */
+export const getBookingVenueLocation = (booking) => {
+  if (!booking) return "Location not specified";
+
+  if (booking.delivery_method === "pickup" && booking.pickup_location?.trim()) {
+    return `Pickup: ${booking.pickup_location.trim()}`;
+  }
+
+  // Full address parts
+  const addressParts = [
+    booking.street,
+    booking.barangay,
+    booking.municipality,
+    booking.province
+  ]
+    .map((part) => (typeof part === "string" ? part.trim() : ""))
+    .filter(Boolean);
+
+  if (addressParts.length > 0) {
+    return addressParts.join(", ");
+  }
+
+  if (booking.location && typeof booking.location === "string" && booking.location.trim()) {
+    return booking.location.trim();
+  }
+  if (booking.venue_address && typeof booking.venue_address === "string" && booking.venue_address.trim()) {
+    return booking.venue_address.trim();
+  }
+  if (booking.address && typeof booking.address === "string" && booking.address.trim()) {
+    return booking.address.trim();
+  }
+  if (booking.venue_name && typeof booking.venue_name === "string" && booking.venue_name.trim()) {
+    return booking.venue_name.trim();
+  }
+  if (booking.landmark && typeof booking.landmark === "string" && booking.landmark.trim()) {
+    return booking.landmark.trim();
+  }
+
+  return "Location not specified";
+};
+
 export const formatShortDate = (value, fallback = "—") => {
   if (!value) return fallback;
   const parsed = parseLocalDate(value);

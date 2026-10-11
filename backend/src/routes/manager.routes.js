@@ -6,6 +6,8 @@ const { authorize } = require("../middleware/role.middleware");
 router.get("/summary", protect, authorize("manager", "admin"), ctrl.getSummary);
 router.get("/me/availability", protect, authorize("manager", "admin"), ctrl.getAvailability);
 router.put("/me/availability", protect, authorize("manager", "admin"), ctrl.setAvailability);
+router.delete("/me/availability/:id", protect, authorize("manager", "admin"), ctrl.removeAvailability);
+router.delete("/me/availability", protect, authorize("manager", "admin"), ctrl.removeAvailability);
 
 router.get("/bookings", protect, authorize("manager", "admin"), ctrl.getBookings);
 router.get("/bookings/:id", protect, authorize("manager", "admin"), ctrl.getBooking);

@@ -3,6 +3,7 @@ const Package = require("../models/Package");
 const MenuItem = require("../models/MenuItem");
 const Addon = require("../models/Addon");
 const BlockedDate = require("../models/BlockedDate");
+const { checkDateBlocked } = require("../utils/blockedDates");
 const BusinessInfo = require("../models/BusinessInfo");
 const Inquiry = require("../models/Inquiry");
 const Quotation = require("../models/Quotation");
@@ -219,15 +220,8 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
           return { error: "Invalid date format. Please use YYYY-MM-DD." };
         }
 
-        const startOfDay = new Date(targetDate);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(targetDate);
-        endOfDay.setHours(23, 59, 59, 999);
-
         // 1. Check blocked dates
-        const blocked = await BlockedDate.findOne({
-          date: { $gte: startOfDay, $lte: endOfDay },
-        }).lean();
+        const blocked = await checkDateBlocked(params.date);
 
         if (blocked) {
           return {

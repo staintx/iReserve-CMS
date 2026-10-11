@@ -3,8 +3,8 @@ const BlockedDate = require("../models/BlockedDate");
 const Booking = require("../models/Booking");
 const asyncHandler = require("../utils/asyncHandler");
 
-// Helper to parse date string YYYY-MM-DD or date object into local start-of-day Date
-const parseDateStartOfDay = (val) => {
+// Helper to parse date string YYYY-MM-DD or date object into UTC start-of-day Date (date-only)
+const parseDateOnlyUTC = (val) => {
   if (!val) return null;
   if (typeof val === "string") {
     const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -12,17 +12,25 @@ const parseDateStartOfDay = (val) => {
       const year = parseInt(match[1], 10);
       const month = parseInt(match[2], 10) - 1;
       const day = parseInt(match[3], 10);
-      return new Date(year, month, day, 0, 0, 0, 0);
+      return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
     }
   }
   const d = new Date(val);
   if (isNaN(d.getTime())) return null;
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
 };
 
 exports.getAll = asyncHandler(async (req, res) => {
   const dates = await BlockedDate.find().populate("created_by", "full_name email");
+  // Automatically normalize any legacy records stored with local timezone offsets
+  for (const doc of dates) {
+    if (doc.date && doc.date.getUTCHours() !== 0) {
+      const localTime = new Date(doc.date.getTime() + 8 * 3600 * 1000);
+      const normalized = new Date(Date.UTC(localTime.getUTCFullYear(), localTime.getUTCMonth(), localTime.getUTCDate(), 0, 0, 0, 0));
+      await BlockedDate.updateOne({ _id: doc._id }, { $set: { date: normalized } });
+      doc.date = normalized;
+    }
+  }
   res.json(dates);
 });
 
@@ -40,8 +48,14 @@ exports.create = asyncHandler(async (req, res) => {
   const groupId = isRange ? new mongoose.Types.ObjectId().toString() : null;
 
   if (isRange) {
-    const current = parseDateStartOfDay(startDate);
-    const end = parseDateStartOfDay(endDate);
+    if (startDate === endDate) {
+      return res.status(400).json({
+        message: "Start date and end date cannot be the same. Please select a different end date or use Single Day mode."
+      });
+    }
+
+    const current = parseDateOnlyUTC(startDate);
+    const end = parseDateOnlyUTC(endDate);
 
     if (!current || !end) {
       return res.status(400).json({ message: "Invalid date format for date range" });
@@ -54,11 +68,11 @@ exports.create = asyncHandler(async (req, res) => {
     const runner = new Date(current);
     while (runner <= end) {
       datesToBlock.push(new Date(runner));
-      runner.setDate(runner.getDate() + 1);
+      runner.setUTCDate(runner.getUTCDate() + 1);
     }
   } else {
     const targetDate = date || startDate;
-    const singleDate = parseDateStartOfDay(targetDate);
+    const singleDate = parseDateOnlyUTC(targetDate);
     if (!singleDate) {
       return res.status(400).json({ message: "Invalid date format" });
     }
@@ -69,9 +83,9 @@ exports.create = asyncHandler(async (req, res) => {
   const conflictingDates = [];
   for (const d of datesToBlock) {
     const startOfDay = new Date(d);
-    startOfDay.setHours(0, 0, 0, 0);
+    startOfDay.setUTCHours(0, 0, 0, 0);
     const endOfDay = new Date(d);
-    endOfDay.setHours(23, 59, 59, 999);
+    endOfDay.setUTCHours(23, 59, 59, 999);
 
     const activeBooking = await Booking.findOne({
       event_date: { $gte: startOfDay, $lte: endOfDay },
@@ -103,6 +117,7 @@ exports.create = asyncHandler(async (req, res) => {
         new Set(
           conflictingDates.map((cd) =>
             new Date(cd).toLocaleDateString("en-US", {
+              timeZone: "UTC",
               month: "long",
               day: "numeric",
               year: "numeric"
@@ -122,9 +137,9 @@ exports.create = asyncHandler(async (req, res) => {
 
   for (const d of datesToBlock) {
     const startOfDay = new Date(d);
-    startOfDay.setHours(0, 0, 0, 0);
+    startOfDay.setUTCHours(0, 0, 0, 0);
     const endOfDay = new Date(d);
-    endOfDay.setHours(23, 59, 59, 999);
+    endOfDay.setUTCHours(23, 59, 59, 999);
 
     const existing = await BlockedDate.findOne({
       date: { $gte: startOfDay, $lte: endOfDay }

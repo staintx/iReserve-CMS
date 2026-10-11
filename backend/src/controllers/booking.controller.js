@@ -425,13 +425,25 @@ const ACTIVE_BOOKING_STATUSES = [
 
 const checkMaxBookingsLimit = async (eventDate, excludeId = null) => {
   if (!eventDate) return false;
-  const date = new Date(eventDate);
-  if (Number.isNaN(date.getTime())) return false;
+  let year, month, day;
+  if (typeof eventDate === "string") {
+    const match = eventDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      year = parseInt(match[1], 10);
+      month = parseInt(match[2], 10) - 1;
+      day = parseInt(match[3], 10);
+    }
+  }
+  if (year === undefined) {
+    const date = new Date(eventDate);
+    if (Number.isNaN(date.getTime())) return false;
+    year = date.getUTCFullYear();
+    month = date.getUTCMonth();
+    day = date.getUTCDate();
+  }
 
-  const dayStart = new Date(date);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(date);
-  dayEnd.setHours(23, 59, 59, 999);
+  const dayStart = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+  const dayEnd = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
 
   const query = {
     status: { $in: ACTIVE_BOOKING_STATUSES },
@@ -2861,27 +2873,23 @@ exports.getBookedDates = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Month and year are required" });
   }
 
-  const startOfMonth = new Date(year, month - 1, 1);
-  const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+  const m = parseInt(month, 10);
+  const y = parseInt(year, 10);
+  const startOfMonth = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
+  const endOfMonth = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
 
   const formatDateKey = (d) => {
+    if (!d) return null;
+    if (typeof d === "string") {
+      const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (match) return match[0];
+    }
     const dt = new Date(d);
     if (isNaN(dt.getTime())) return null;
-    const yr = dt.getFullYear();
-    const mo = String(dt.getMonth() + 1).padStart(2, '0');
-    const da = String(dt.getDate()).padStart(2, '0');
-    return `${yr}-${mo}-${da}`;
+    return dt.toISOString().slice(0, 10);
   };
 
-  // 1. Get dates from BlockedDate model
-  const blockedDates = await BlockedDate.find({
-    date: { $gte: startOfMonth, $lte: endOfMonth }
-  });
-  const blockedDatesSet = new Set(
-    blockedDates.map(b => formatDateKey(b.date)).filter(Boolean)
-  );
-
-  // 2. Get bookings to check against max limit
+  // Get bookings to check against max limit
   const businessInfo = await getCachedBusinessInfo();
   const limit = businessInfo?.max_bookings_per_day || 2;
 
@@ -2900,10 +2908,8 @@ exports.getBookedDates = asyncHandler(async (req, res) => {
 
   const fullyBookedDates = Object.keys(dateCounts).filter(dateStr => dateCounts[dateStr] >= limit);
 
-  // Merge blocked dates and fully booked dates
-  const result = Array.from(new Set([...blockedDatesSet, ...fullyBookedDates]));
-
-  res.json(result);
+  // Return fully booked dates. (Blocked dates are served separately via /api/blocked-dates)
+  res.json(fullyBookedDates);
 });
 
 // --- Perf: 1 query instead of 11 (one per time slot) ---
@@ -2915,9 +2921,7 @@ exports.getAvailableTimes = asyncHandler(async (req, res) => {
   }
 
   // 0. Check BlockedDate model
-  const parsedEventDate = new Date(event_date);
-  parsedEventDate.setHours(0, 0, 0, 0);
-  const blocked = await BlockedDate.findOne({ date: parsedEventDate });
+  const blocked = await checkDateBlocked(event_date);
 
   // 1. Check max bookings limit for the day first.
   const maxLimitReached = await checkMaxBookingsLimit(event_date);

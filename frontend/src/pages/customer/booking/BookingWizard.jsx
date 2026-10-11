@@ -20,6 +20,7 @@ import Modal from "../../../components/common/Modal";
 import CustomerPolicyModal from "../../../components/policy/CustomerPolicyModal";
 import { CustomerAPI } from "../../../api/customer";
 import useAuth from "../../../hooks/useAuth";
+import useRealTimeRefresh from "../../../hooks/useRealTimeRefresh";
 import { useOverduePayment } from "../../../context/OverduePaymentContext";
 import {
   BATANGAS_PROVINCE,
@@ -676,18 +677,29 @@ export default function BookingWizard() {
       .catch(() => { });
   }, []);
 
-  useEffect(() => {
+  const refreshBlockedDates = useCallback(() => {
     CustomerAPI.getBlockedDates()
       .then((res) => {
         if (Array.isArray(res.data)) {
           const keys = res.data
-            .map((b) => (b.date ? String(b.date).split("T")[0] : null))
+            .map((b) => {
+              if (!b.date) return null;
+              const str = String(b.date);
+              const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+              return match ? match[0] : str.split("T")[0];
+            })
             .filter(Boolean);
           setBlockedDates(keys);
         }
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    refreshBlockedDates();
+  }, [refreshBlockedDates]);
+
+  useRealTimeRefresh(refreshBlockedDates);
 
   useEffect(() => {
     if (!selectedPackageId) {
@@ -1547,7 +1559,12 @@ export default function BookingWizard() {
       const freshBlockedRes = await CustomerAPI.getBlockedDates();
       const freshBlockedKeys = Array.isArray(freshBlockedRes.data)
         ? freshBlockedRes.data
-            .map((b) => (b.date ? String(b.date).split("T")[0] : null))
+            .map((b) => {
+              if (!b.date) return null;
+              const str = String(b.date);
+              const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+              return match ? match[0] : str.split("T")[0];
+            })
             .filter(Boolean)
         : [];
       if (freshBlockedKeys.includes(form.event_date)) {

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,6 +18,7 @@ import {
 import { focusRing } from "../lib/bookingUI";
 import { cn } from "@/lib/utils";
 import { CustomerAPI } from "../../../../api/customer";
+import useRealTimeRefresh from "../../../../hooks/useRealTimeRefresh";
 
 const DEFAULT_TIME_SLOTS = [
   "09:00 AM",
@@ -34,6 +35,14 @@ const DEFAULT_TIME_SLOTS = [
 ].map((time) => ({ time, status: "available" }));
 
 const parseLocalDate = (value) => {
+  if (!value) return new Date();
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const day = parseInt(match[3], 10);
+    return new Date(year, month, day);
+  }
   const [year, month, day] = String(value).split("-").map(Number);
   return new Date(year, month - 1, day);
 };
@@ -79,33 +88,50 @@ export default function StepDateTime({
   const [bookedDates, setBookedDates] = useState([]);
   const [fetchedBlockedDates, setFetchedBlockedDates] = useState([]);
 
-  useEffect(() => {
-    const fetchBookedDates = async () => {
-      try {
-        const res = await CustomerAPI.getBookedDates(
-          currentMonth.getMonth() + 1,
-          currentMonth.getFullYear(),
-        );
-        setBookedDates(res.data || []);
-      } catch (err) {
-        console.error("Failed to fetch booked dates", err);
-      }
-    };
-    fetchBookedDates();
+  const fetchBookedDates = useCallback(async () => {
+    try {
+      const res = await CustomerAPI.getBookedDates(
+        currentMonth.getMonth() + 1,
+        currentMonth.getFullYear(),
+      );
+      setBookedDates(res.data || []);
+    } catch (err) {
+      console.error("Failed to fetch booked dates", err);
+    }
   }, [currentMonth]);
 
-  useEffect(() => {
-    let mounted = true;
-    CustomerAPI.getBlockedDates()
-      .then((res) => {
-        if (mounted && Array.isArray(res.data)) {
-          const keys = res.data.map((b) => (b.date ? String(b.date).split("T")[0] : null)).filter(Boolean);
-          setFetchedBlockedDates(keys);
-        }
-      })
-      .catch((err) => console.error("Failed to fetch blocked dates", err));
-    return () => { mounted = false; };
+  const fetchBlockedDates = useCallback(async () => {
+    try {
+      const res = await CustomerAPI.getBlockedDates();
+      if (Array.isArray(res.data)) {
+        const keys = res.data
+          .map((b) => {
+            if (!b.date) return null;
+            const str = String(b.date);
+            const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            return match ? match[0] : str.split("T")[0];
+          })
+          .filter(Boolean);
+        setFetchedBlockedDates(keys);
+      }
+    } catch (err) {
+      console.error("Failed to fetch blocked dates", err);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchBookedDates();
+  }, [fetchBookedDates]);
+
+  useEffect(() => {
+    fetchBlockedDates();
+  }, [fetchBlockedDates]);
+
+  // Real-time synchronization when admin blocks or unblocks dates
+  useRealTimeRefresh(() => {
+    fetchBookedDates();
+    fetchBlockedDates();
+  });
 
   const allBlockedDates = useMemo(() => {
     return Array.from(new Set([...(blockedDatesProp || []), ...fetchedBlockedDates]));

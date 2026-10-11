@@ -9,6 +9,7 @@ export const ManagerAPI = {
   assignStaff: (id, data) => api.put(`/manager/bookings/${id}/assign-staff`, data),
   addNote: (id, data) => api.put(`/manager/bookings/${id}/notes`, data),
   submitReport: (id, data) => api.put(`/manager/bookings/${id}/report`, data),
+  updateStaffAttendance: (id, data) => api.put(`/manager/bookings/${id}/staff-attendance`, data),
   submitEquipmentReturns: (id, data) => api.put(`/manager/bookings/${id}/equipment-returns`, data),
   updateEquipment: (id, data) => api.put(`/manager/bookings/${id}/equipment`, data),
   verifyEquipment: (id, data) => api.put(`/manager/bookings/${id}/verify-equipment`, data),

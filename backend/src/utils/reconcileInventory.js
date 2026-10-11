@@ -81,14 +81,37 @@ async function reconcileEquipmentTurnover({
           (r._id && String(r._id) === String(record._id))
       );
       if (match) {
-        newReturned = Math.max(0, Number(match.quantity_returned !== undefined ? match.quantity_returned : (record.quantity_returned || 0)));
-        newDamaged = Math.max(0, Number(match.quantity_damaged !== undefined ? match.quantity_damaged : (record.quantity_damaged || 0)));
-        if (match.quantity_missing !== undefined) {
-          newMissing = Math.max(0, Number(match.quantity_missing));
-        } else {
-          newMissing = Math.max(0, bookedQty - (newReturned + newDamaged));
-        }
+        var itemStatus = match.verification_status || (match.notes ? "issue_recorded" : (match.verified_at ? "verified_ok" : "pending"));
+        var itemCategory = match.issue_category || "";
         itemNotes = match.notes !== undefined ? match.notes : (record.notes || "");
+
+        if (itemStatus === "pending") {
+          newReturned = 0;
+          newDamaged = 0;
+          newMissing = 0;
+          itemNotes = "";
+          itemCategory = "";
+        } else if (itemStatus === "verified_ok") {
+          newReturned = bookedQty;
+          newDamaged = 0;
+          newMissing = 0;
+        } else if (itemStatus === "issue_recorded") {
+          if (match.quantity_damaged !== undefined || match.quantity_missing !== undefined) {
+            newDamaged = Math.max(0, Number(match.quantity_damaged || 0));
+            newMissing = Math.max(0, Number(match.quantity_missing || 0));
+            newReturned = Math.max(0, bookedQty - (newDamaged + newMissing));
+          } else {
+            newReturned = bookedQty;
+            newDamaged = 0;
+            newMissing = 0;
+          }
+        } else {
+          newReturned = Math.max(0, Number(match.quantity_returned !== undefined ? match.quantity_returned : (record.quantity_returned || 0)));
+          newDamaged = Math.max(0, Number(match.quantity_damaged !== undefined ? match.quantity_damaged : (record.quantity_damaged || 0)));
+          newMissing = match.quantity_missing !== undefined
+            ? Math.max(0, Number(match.quantity_missing))
+            : Math.max(0, bookedQty - (newReturned + newDamaged));
+        }
       } else {
         newReturned = Number(record.quantity_returned || 0);
         newDamaged = Number(record.quantity_damaged || 0);
@@ -96,6 +119,8 @@ async function reconcileEquipmentTurnover({
           ? Number(record.quantity_missing)
           : Math.max(0, bookedQty - (newReturned + newDamaged));
         itemNotes = record.notes || "";
+        var itemStatus = record.verification_status || (itemNotes ? "issue_recorded" : "pending");
+        var itemCategory = record.issue_category || "";
       }
     } else {
       newReturned = Number(record.quantity_returned || 0);
@@ -104,13 +129,21 @@ async function reconcileEquipmentTurnover({
         ? Number(record.quantity_missing)
         : Math.max(0, bookedQty - (newReturned + newDamaged));
       itemNotes = record.notes || "";
+      var itemStatus = record.verification_status || (itemNotes ? "issue_recorded" : "pending");
+      var itemCategory = record.issue_category || "";
     }
 
-    // Sanity check: sum cannot exceed bookedQty
-    if (newReturned + newDamaged > bookedQty) {
-      newReturned = Math.max(0, bookedQty - newDamaged);
+    if (itemStatus !== "pending") {
+      // Sanity check: sum cannot exceed bookedQty
+      if (newReturned + newDamaged > bookedQty) {
+        newReturned = Math.max(0, bookedQty - newDamaged);
+      }
+      newMissing = Math.max(0, bookedQty - (newReturned + newDamaged));
+    } else {
+      newReturned = 0;
+      newDamaged = 0;
+      newMissing = 0;
     }
-    newMissing = Math.max(0, bookedQty - (newReturned + newDamaged));
 
     // Persisted previous reconciled state
     const prevReconciledReturned = Number(record.reconciled_returned || 0);
@@ -243,8 +276,10 @@ async function reconcileEquipmentTurnover({
     record.reconciled_damaged = newDamaged;
     record.reconciled_missing = newMissing;
     record.notes = itemNotes;
-    record.verified_at = new Date();
-    record.verified_by = actorId;
+    if (typeof itemStatus !== "undefined") record.verification_status = itemStatus;
+    if (typeof itemCategory !== "undefined") record.issue_category = itemCategory;
+    record.verified_at = itemStatus === "pending" ? null : new Date();
+    record.verified_by = itemStatus === "pending" ? null : actorId;
 
     summary.push({
       inventory_id: invIdStr,

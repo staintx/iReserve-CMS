@@ -316,6 +316,15 @@ const BookingSchema = new mongoose.Schema(
         user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         name: String,
         phone: String,
+        attendance_status: {
+          type: String,
+          enum: ["unmarked", "not_recorded", "present", "late", "absent"],
+          default: "not_recorded",
+        },
+        check_in_time: String,
+        attendance_notes: String,
+        marked_at: Date,
+        marked_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       },
     ],
     event_manager_notes: [
@@ -359,6 +368,16 @@ const BookingSchema = new mongoose.Schema(
         damage_fee: { type: Number, default: 0 },
         damage_charge_id: { type: mongoose.Schema.Types.ObjectId },
         notes: String,
+        verification_status: {
+          type: String,
+          enum: ["pending", "verified_ok", "issue_recorded"],
+          default: "pending",
+        },
+        issue_category: {
+          type: String,
+          enum: ["missing", "damaged", "other", ""],
+          default: "",
+        },
         verified_at: Date,
         verified_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       },

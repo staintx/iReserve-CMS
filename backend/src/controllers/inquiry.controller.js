@@ -32,6 +32,7 @@ const {
   applyComboRequestBoundary,
 } = require("../utils/specialOffers");
 const { isBookingAwaitingDeposit } = require("../utils/bookingDeposit");
+const { sendInquiryStatusEmail, resolveCustomerEmail } = require("../utils/booking-emails");
 
 // Customer submits a new inquiry
 exports.createInquiry = asyncHandler(async (req, res) => {
@@ -296,6 +297,17 @@ exports.createInquiry = asyncHandler(async (req, res) => {
       meta: { inquiry_id: inquiry._id, reference: inquiry.reference }
     }, io);
   }
+
+  // Non-blocking email dispatch to customer
+  resolveCustomerEmail(inquiry).then((customerEmail) => {
+    if (customerEmail) {
+      sendInquiryStatusEmail({
+        inquiry,
+        newStatus: "Pending Review",
+        customerEmail,
+      }).catch((err) => console.error("[Email Error] Failed to send inquiry creation email:", err.message));
+    }
+  }).catch(() => {});
 
   if (io) io.emit("system:refresh", { type: "inquiry", action: "create" });
 
@@ -798,16 +810,29 @@ exports.updateInquiry = asyncHandler(async (req, res) => {
 
   // If status changed and customer exists, notify customer
   const inquiryCustomerId = inquiry.customer_id?._id || inquiry.customer_id;
-  if (req.body.status && req.body.status !== previousInquiry.status && inquiryCustomerId) {
-    const { createNotification } = require("../utils/notify");
-    await createNotification({
-      userId: inquiryCustomerId,
-      title: "Inquiry Status Updated",
-      body: `Your inquiry (${inquiry.reference}) status has been updated to "${inquiry.status}".`,
-      type: "info",
-      link: "/customer/inquiries",
-      meta: { inquiry_id: inquiry._id, reference: inquiry.reference }
-    }, io);
+  if (req.body.status && req.body.status !== previousInquiry.status) {
+    if (inquiryCustomerId) {
+      const { createNotification } = require("../utils/notify");
+      await createNotification({
+        userId: inquiryCustomerId,
+        title: "Inquiry Status Updated",
+        body: `Your inquiry (${inquiry.reference}) status has been updated to "${inquiry.status}".`,
+        type: "info",
+        link: "/customer/inquiries",
+        meta: { inquiry_id: inquiry._id, reference: inquiry.reference }
+      }, io);
+    }
+
+    // Non-blocking status change email
+    resolveCustomerEmail(inquiry, previousInquiry).then((customerEmail) => {
+      if (customerEmail) {
+        sendInquiryStatusEmail({
+          inquiry,
+          newStatus: req.body.status,
+          customerEmail,
+        }).catch((err) => console.error("[Email Error] Failed to send inquiry status email:", err.message));
+      }
+    }).catch(() => {});
   }
 
   if (io) io.emit("system:refresh", { type: "inquiry", action: "update" });
@@ -885,6 +910,17 @@ exports.deleteInquiry = asyncHandler(async (req, res) => {
       }, io);
     }
   }
+
+  // Non-blocking cancellation email to customer
+  resolveCustomerEmail(inquiry).then((customerEmail) => {
+    if (customerEmail) {
+      sendInquiryStatusEmail({
+        inquiry,
+        newStatus: "Cancelled",
+        customerEmail,
+      }).catch((err) => console.error("[Email Error] Failed to send inquiry cancellation email:", err.message));
+    }
+  }).catch(() => {});
 
   if (io) io.emit("system:refresh", { type: "inquiry", action: "delete" });
 

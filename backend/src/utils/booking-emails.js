@@ -1,4 +1,5 @@
 const { sendEmail, wrapHtml } = require("./email");
+const User = require("../models/User");
 
 const formatCurrency = (value) => {
 	const num = Number(value);
@@ -12,8 +13,168 @@ const formatDate = (value) => {
 	return Number.isNaN(d.getTime()) ? "TBD" : d.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" });
 };
 
+/**
+ * Resolves the customer's email address from a booking/inquiry doc or its customer_id relation.
+ */
+const resolveCustomerEmail = async (doc, fallbackDoc = null) => {
+	const directEmail = doc?.contact_email || fallbackDoc?.contact_email;
+	if (directEmail && String(directEmail).trim()) {
+		return String(directEmail).trim();
+	}
+	const populatedEmail = doc?.customer_id?.email || fallbackDoc?.customer_id?.email;
+	if (populatedEmail && String(populatedEmail).trim()) {
+		return String(populatedEmail).trim();
+	}
+	const customerId = doc?.customer_id?._id || doc?.customer_id || fallbackDoc?.customer_id?._id || fallbackDoc?.customer_id;
+	if (customerId) {
+		try {
+			const user = await User.findById(customerId).select("email").lean();
+			if (user?.email && String(user.email).trim()) {
+				return String(user.email).trim();
+			}
+		} catch { }
+	}
+	return null;
+};
+
+const sendInquiryStatusEmail = async ({ inquiry, newStatus, customerEmail, quotation = null, customMessage = null }) => {
+	const email = customerEmail || (await resolveCustomerEmail(inquiry));
+	if (!email) return;
+
+	const normalizedStatus = String(newStatus || inquiry?.status || "Pending Review").trim();
+	const statusKey = normalizedStatus.toLowerCase();
+
+	const statusInfoMap = {
+		"pending review": {
+			title: "Inquiry Received",
+			subjectStatus: "Received",
+			message: "Thank you for reaching out to Caezelle's Catering! We have received your event inquiry and our team will review the details shortly.",
+			badgeColor: "#2C4B8A"
+		},
+		"under review": {
+			title: "Inquiry Under Review",
+			subjectStatus: "Under Review",
+			message: "Our catering specialists are actively reviewing your event requirements and preparing your proposal.",
+			badgeColor: "#3B82F6"
+		},
+		"quotation sent": {
+			title: "Quotation Ready",
+			subjectStatus: "Quotation Ready",
+			message: "A quotation has been prepared for your event! Please log in to your account to review the proposal, menu items, and pricing.",
+			badgeColor: "#16A34A"
+		},
+		"revision requested": {
+			title: "Revision Request Received",
+			subjectStatus: "Revision Requested",
+			message: "We received your revision request. Our team will adjust your quotation according to your notes and provide an updated proposal soon.",
+			badgeColor: "#EAB308"
+		},
+		"quote accepted": {
+			title: "Quotation Accepted",
+			subjectStatus: "Accepted",
+			message: "You have accepted the quotation! Please submit the required deposit payment to lock in your date and finalize your booking.",
+			badgeColor: "#16A34A"
+		},
+		"awaiting final confirmation": {
+			title: "Awaiting Final Confirmation",
+			subjectStatus: "Awaiting Confirmation",
+			message: "You have accepted the quotation. Our team is finalizing your booking reservation.",
+			badgeColor: "#0D9488"
+		},
+		"quote rejected": {
+			title: "Quotation Declined",
+			subjectStatus: "Declined",
+			message: "Your quotation has been marked as declined. If you would like to explore alternative arrangements or a different package, please let us know.",
+			badgeColor: "#64748B"
+		},
+		"converted to booking": {
+			title: "Inquiry Converted to Booking",
+			subjectStatus: "Converted to Booking",
+			message: "Congratulations! Your inquiry has been confirmed and officially converted into an active booking with Caezelle's Catering.",
+			badgeColor: "#16A34A"
+		},
+		"cancelled": {
+			title: "Inquiry Cancelled",
+			subjectStatus: "Cancelled",
+			message: "Your inquiry has been cancelled. If this was done by mistake or you would like to plan an event in the future, we would be delighted to assist you.",
+			badgeColor: "#DC2626"
+		}
+	};
+
+	const info = statusInfoMap[statusKey] || {
+		title: "Inquiry Status Update",
+		subjectStatus: normalizedStatus,
+		message: customMessage || `Your inquiry status has been updated to "${normalizedStatus}".`,
+		badgeColor: "#2C4B8A"
+	};
+
+	const displayMessage = customMessage || info.message;
+	const ref = inquiry?.reference || inquiry?._id || "Inquiry";
+	const eventType = inquiry?.event_type || "Event";
+	const eventDate = formatDate(inquiry?.event_date);
+	const guestCount = inquiry?.guest_count || "TBD";
+	const venue = [inquiry?.street, inquiry?.barangay, inquiry?.municipality, inquiry?.province].filter(Boolean).join(", ") || inquiry?.venue_type || "TBD";
+	const quoteTotal = quotation?.total_cost || inquiry?.total_price;
+	const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+
+	const bodyContent = `
+    <h2>${info.title}</h2>
+    <p>${displayMessage}</p>
+
+    ${quoteTotal && ["quotation sent", "quote accepted", "awaiting final confirmation"].includes(statusKey) ? `
+    <div class="highlight">
+      <p style="margin:0 0 4px; font-size:0.85rem; color:#64748b;">Quotation Total</p>
+      <div class="amount">${formatCurrency(quoteTotal)}</div>
+      ${quotation?.deposit_amount ? `<p style="margin:6px 0 0; font-size:0.85rem; color:#64748b;">Required Deposit: <strong>${formatCurrency(quotation.deposit_amount)}</strong></p>` : ""}
+    </div>` : ""}
+
+    <div class="info-grid">
+      <div class="info-item">
+        <label>Reference</label>
+        <span>${ref}</span>
+      </div>
+      <div class="info-item">
+        <label>Status</label>
+        <span style="color:${info.badgeColor}; font-weight:700;">${normalizedStatus}</span>
+      </div>
+      <div class="info-item">
+        <label>Event Type</label>
+        <span>${eventType}</span>
+      </div>
+      <div class="info-item">
+        <label>Event Date</label>
+        <span>${eventDate}</span>
+      </div>
+      <div class="info-item">
+        <label>Guest Count</label>
+        <span>${guestCount}</span>
+      </div>
+      <div class="info-item">
+        <label>Venue / Location</label>
+        <span>${venue}</span>
+      </div>
+    </div>
+
+    <div class="btn-container">
+      <a href="${frontendUrl}/customer/inquiries" class="btn">View My Inquiry</a>
+    </div>
+  `;
+
+	try {
+		await sendEmail({
+			to: email,
+			subject: `Inquiry ${info.subjectStatus} — ${ref} | Caezelle's Catering`,
+			html: wrapHtml(info.title, bodyContent),
+			text: `${displayMessage} Reference: ${ref}. Status: ${normalizedStatus}. Event: ${eventType} on ${eventDate}.`
+		});
+	} catch (err) {
+		console.error("[Email Error] Failed to send inquiry status email:", err.message);
+	}
+};
+
 const sendBookingConfirmationEmail = async ({ booking, customerEmail }) => {
-	if (!customerEmail) return;
+	const email = customerEmail || (await resolveCustomerEmail(booking));
+	if (!email) return;
 
 	const bodyContent = `
     <h2>Booking Confirmed! 🎉</h2>
@@ -70,7 +231,7 @@ const sendBookingConfirmationEmail = async ({ booking, customerEmail }) => {
 
 	try {
 		await sendEmail({
-			to: customerEmail,
+			to: email,
 			subject: `Booking Confirmed — ${booking.reference || booking._id} | Caezelle's Catering`,
 			html: wrapHtml("Booking Confirmation", bodyContent),
 			text: `Your booking ${booking.reference || booking._id} for ${booking.event_type || "event"} on ${formatDate(booking.event_date)} has been confirmed. Total: ${formatCurrency(booking.total_price)}.`
@@ -81,7 +242,8 @@ const sendBookingConfirmationEmail = async ({ booking, customerEmail }) => {
 };
 
 const sendPaymentReceiptEmail = async ({ payment, booking, customerEmail }) => {
-	if (!customerEmail) return;
+	const email = customerEmail || (await resolveCustomerEmail(booking));
+	if (!email) return;
 
 	const bodyContent = `
     <h2>Payment Received ✅</h2>
@@ -118,7 +280,7 @@ const sendPaymentReceiptEmail = async ({ payment, booking, customerEmail }) => {
 
 	try {
 		await sendEmail({
-			to: customerEmail,
+			to: email,
 			subject: `Payment Receipt — ${formatCurrency(payment.amount)} | Caezelle's Catering`,
 			html: wrapHtml("Payment Receipt", bodyContent),
 			text: `Payment of ${formatCurrency(payment.amount)} received for booking ${booking?.reference || booking?._id || "N/A"}.`
@@ -129,7 +291,8 @@ const sendPaymentReceiptEmail = async ({ payment, booking, customerEmail }) => {
 };
 
 const sendFinalInvoiceEmail = async ({ booking, balance, checkoutUrl, customerEmail }) => {
-	if (!customerEmail) return;
+	const email = customerEmail || (await resolveCustomerEmail(booking));
+	if (!email) return;
 
 	const bodyContent = `
     <h2>Final Payment Due ⏰</h2>
@@ -169,7 +332,7 @@ const sendFinalInvoiceEmail = async ({ booking, balance, checkoutUrl, customerEm
 
 	try {
 		await sendEmail({
-			to: customerEmail,
+			to: email,
 			subject: `Remaining Balance Details — ${formatCurrency(balance)} | ${booking.reference || booking._id}`,
 			html: wrapHtml("Final Invoice", bodyContent),
 			text: `Remaining balance of ${formatCurrency(balance)} for booking ${booking.reference || booking._id} is due a day after your event date (payable online or in cash to your event manager).`
@@ -179,59 +342,85 @@ const sendFinalInvoiceEmail = async ({ booking, balance, checkoutUrl, customerEm
 	}
 };
 
-const sendBookingStatusEmail = async ({ booking, newStatus, customerEmail }) => {
-	if (!customerEmail) return;
+const sendBookingStatusEmail = async ({ booking, newStatus, customerEmail, customMessage = null }) => {
+	const email = customerEmail || (await resolveCustomerEmail(booking));
+	if (!email) return;
+
+	const normalizedStatus = String(newStatus || booking.status || "confirmed").trim();
+	const statusKey = normalizedStatus.toLowerCase();
 
 	const statusMessages = {
-		confirmed: "Your booking has been confirmed! We're excited to make your event special.",
-		preparing: "We've started preparing for your event. Everything is on track!",
-		ongoing: "Your event is happening today! We hope everything is perfect.",
-		completed: "Your event has been completed. Thank you for choosing Caezelle's Catering! We'd love to hear your feedback.",
-		cancelled: "Your booking has been cancelled. If you have questions about refunds, please contact us."
+		"deposit pending": "Your booking is awaiting deposit payment. Please submit your deposit to lock in your event date.",
+		"confirmed": "Your booking has been confirmed! We're excited to make your event special.",
+		"ocular scheduled": "An ocular visit has been scheduled to inspect the event venue layout and technical specifications.",
+		"preparing": "We've started preparing for your event. Everything is on track!",
+		"food prep": "Our culinary kitchen team is currently preparing your event dishes.",
+		"out for delivery": "Your catering order, food warmers, and setup crew are now en route to the event location!",
+		"ongoing": "Your event is happening today! Our on-site team is dedicated to providing you and your guests an exceptional experience.",
+		"completed": "Your event has been completed. Thank you for choosing Caezelle's Catering! We'd love to hear your feedback.",
+		"cancelled": "Your booking has been cancelled. If you have any questions regarding refunds or next steps, please contact us."
 	};
+
+	const displayMessage = customMessage || statusMessages[statusKey] || `Your booking status has been updated to: ${normalizedStatus}.`;
+	const ref = booking.reference || booking._id;
+	const eventType = booking.event_type || "Event";
+	const eventDate = formatDate(booking.event_date);
+	const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 
 	const bodyContent = `
     <h2>Booking Status Update</h2>
-    <p>${statusMessages[newStatus] || `Your booking status has been updated to: ${newStatus}`}</p>
+    <p>${displayMessage}</p>
     
     <div class="info-grid">
       <div class="info-item">
         <label>Reference</label>
-        <span>${booking.reference || booking._id}</span>
+        <span>${ref}</span>
       </div>
       <div class="info-item">
         <label>New Status</label>
-        <span style="text-transform:capitalize; font-weight:700;">${newStatus}</span>
+        <span style="text-transform:capitalize; font-weight:700;">${normalizedStatus}</span>
       </div>
       <div class="info-item">
         <label>Event Type</label>
-        <span>${booking.event_type || "Event"}</span>
+        <span>${eventType}</span>
       </div>
       <div class="info-item">
         <label>Event Date</label>
-        <span>${formatDate(booking.event_date)}</span>
+        <span>${eventDate}</span>
       </div>
+      ${booking.guest_count ? `
+      <div class="info-item">
+        <label>Guest Count</label>
+        <span>${booking.guest_count}</span>
+      </div>` : ""}
+      ${booking.total_price ? `
+      <div class="info-item">
+        <label>Total Price</label>
+        <span>${formatCurrency(booking.total_price)}</span>
+      </div>` : ""}
     </div>
 
     <div class="btn-container">
-      <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/customer/bookings" class="btn">View My Bookings</a>
+      <a href="${frontendUrl}/customer/bookings/${booking._id || ""}" class="btn">View Booking Details</a>
     </div>
   `;
 
 	try {
+		const formattedStatus = normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
 		await sendEmail({
-			to: customerEmail,
-			subject: `Booking ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)} — ${booking.reference || booking._id}`,
+			to: email,
+			subject: `Booking ${formattedStatus} — ${ref} | Caezelle's Catering`,
 			html: wrapHtml("Booking Update", bodyContent),
-			text: `Your booking ${booking.reference || booking._id} status has been updated to: ${newStatus}.`
+			text: `${displayMessage} Reference: ${ref}. Status: ${normalizedStatus}. Event: ${eventType} on ${eventDate}.`
 		});
 	} catch (err) {
-		console.error("Failed to send booking status email:", err.message);
+		console.error("[Email Error] Failed to send booking status email:", err.message);
 	}
 };
 
 const sendAutoCancelEmail = async ({ booking, customerEmail }) => {
-	if (!customerEmail) return;
+	const email = customerEmail || (await resolveCustomerEmail(booking));
+	if (!email) return;
 
 	const bodyContent = `
     <h2>Booking Cancelled (Auto-Cancel) ⚠️</h2>
@@ -261,7 +450,7 @@ const sendAutoCancelEmail = async ({ booking, customerEmail }) => {
 
 	try {
 		await sendEmail({
-			to: customerEmail,
+			to: email,
 			subject: `Booking Auto-Cancelled — ${booking.reference || booking._id} | Caezelle's Catering`,
 			html: wrapHtml("Booking Cancelled", bodyContent),
 			text: `Your booking ${booking.reference || booking._id} has been automatically cancelled due to non-payment within 48 hours.`
@@ -272,6 +461,8 @@ const sendAutoCancelEmail = async ({ booking, customerEmail }) => {
 };
 
 module.exports = {
+	resolveCustomerEmail,
+	sendInquiryStatusEmail,
 	sendBookingConfirmationEmail,
 	sendPaymentReceiptEmail,
 	sendFinalInvoiceEmail,

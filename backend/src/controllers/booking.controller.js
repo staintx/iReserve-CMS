@@ -72,6 +72,7 @@ const writeInventoryLog = require("../utils/writeInventoryLog");
 const {
   sendBookingConfirmationEmail,
   sendBookingStatusEmail,
+  resolveCustomerEmail,
 } = require("../utils/booking-emails");
 const { cateringRequested } = require("../utils/catering");
 const { occupiesVenue } = require("../utils/venue");
@@ -687,11 +688,15 @@ exports.create = asyncHandler(async (req, res) => {
     ip_address: req.ip,
   });
 
-  // Send booking confirmation email only if immediately confirmed (e.g., COD)
-  const customerEmail = booking.contact_email || req.user?.email;
-  if (customerEmail && booking.status === "confirmed") {
-    sendBookingConfirmationEmail({ booking, customerEmail }).catch(() => { });
-  }
+  // Send booking confirmation or status email to customer
+  resolveCustomerEmail(booking).then((custEmail) => {
+    if (!custEmail) return;
+    if (booking.status === "confirmed") {
+      sendBookingConfirmationEmail({ booking, customerEmail: custEmail }).catch(() => { });
+    } else {
+      sendBookingStatusEmail({ booking, newStatus: booking.status, customerEmail: custEmail }).catch(() => { });
+    }
+  }).catch(() => {});
 
   // Payment is NOT triggered during inquiry creation.
   // It will be triggered after the quote is accepted by the customer.
@@ -1336,14 +1341,15 @@ exports.update = asyncHandler(async (req, res) => {
 
       // Send email on status change
       if (statusChanged) {
-        const statusEmail = updated.contact_email || current.contact_email;
-        if (statusEmail) {
-          sendBookingStatusEmail({
-            booking: updated,
-            newStatus: updated.status,
-            customerEmail: statusEmail,
-          }).catch(() => { });
-        }
+        resolveCustomerEmail(updated, current).then((statusEmail) => {
+          if (statusEmail) {
+            sendBookingStatusEmail({
+              booking: updated,
+              newStatus: updated.status,
+              customerEmail: statusEmail,
+            }).catch(() => { });
+          }
+        }).catch(() => {});
       }
     }
 
@@ -1808,6 +1814,18 @@ exports.processRefund = asyncHandler(async (req, res) => {
       io,
     );
   }
+
+  // Non-blocking refund & cancellation email
+  resolveCustomerEmail(booking).then((customerEmail) => {
+    if (customerEmail) {
+      sendBookingStatusEmail({
+        booking,
+        newStatus: "cancelled",
+        customerEmail,
+        customMessage: `Your booking #${booking.reference || booking._id} has been cancelled. A refund of ₱${refundAmount.toLocaleString("en-PH")} has been processed (${deductionReason}).`,
+      }).catch((err) => console.error("[Email Error] Failed to send refund cancel email:", err.message));
+    }
+  }).catch(() => {});
 
   await notifyAdmins(
     {
@@ -2321,6 +2339,18 @@ exports.scheduleOcular = asyncHandler(async (req, res) => {
     );
   }
 
+  // Non-blocking email for ocular visit scheduled
+  resolveCustomerEmail(booking).then((customerEmail) => {
+    if (customerEmail) {
+      sendBookingStatusEmail({
+        booking,
+        newStatus: "ocular scheduled",
+        customerEmail,
+        customMessage: `Your ocular visit has been scheduled for ${new Date(scheduled_date).toLocaleDateString()}${scheduled_time ? ` at ${scheduled_time}` : ""}.${notes ? ` Notes: ${notes}` : ""}`,
+      }).catch((err) => console.error("[Email Error] Failed to send ocular scheduled email:", err.message));
+    }
+  }).catch(() => {});
+
   await logAction({
     user_id: req.user._id,
     action: "ocular_scheduled",
@@ -2397,6 +2427,20 @@ exports.completeOcular = asyncHandler(async (req, res) => {
       io,
     );
   }
+
+  // Non-blocking email for ocular outcome
+  resolveCustomerEmail(booking).then((customerEmail) => {
+    if (customerEmail) {
+      sendBookingStatusEmail({
+        booking,
+        newStatus: booking.status,
+        customerEmail,
+        customMessage: outcome === "cancel"
+          ? "Following the venue ocular visit, this booking will be cancelled and any eligible refund processed."
+          : `Your ocular inspection has been completed (${outcome.toUpperCase()}).${notes ? ` Notes: ${notes}` : ""}`,
+      }).catch((err) => console.error("[Email Error] Failed to send ocular complete email:", err.message));
+    }
+  }).catch(() => {});
 
   if (req.user) {
     await logAction({
@@ -2707,6 +2751,18 @@ exports.approveCancellation = asyncHandler(async (req, res) => {
       io,
     );
   }
+
+  // Non-blocking cancellation approval email
+  resolveCustomerEmail(booking).then((customerEmail) => {
+    if (customerEmail) {
+      sendBookingStatusEmail({
+        booking,
+        newStatus: "cancelled",
+        customerEmail,
+        customMessage: `Your cancellation request for booking #${booking.reference || booking._id} has been approved.${refundNote}`,
+      }).catch((err) => console.error("[Email Error] Failed to send cancel approval email:", err.message));
+    }
+  }).catch(() => {});
 
   // 6. Audit logging
   await logAction({
@@ -3875,6 +3931,18 @@ exports.executeInquiryConversion = async ({
     }
     const { syncBookingStatus } = require("./payment.controller");
     if (syncBookingStatus) await syncBookingStatus(preCheckBooking._id);
+
+    // Non-blocking status email for existing converted booking
+    resolveCustomerEmail(preCheckBooking, inquiry).then((customerEmail) => {
+      if (customerEmail) {
+        if (preCheckBooking.status === "confirmed") {
+          sendBookingConfirmationEmail({ booking: preCheckBooking, customerEmail }).catch(() => {});
+        } else {
+          sendBookingStatusEmail({ booking: preCheckBooking, newStatus: preCheckBooking.status, customerEmail }).catch(() => {});
+        }
+      }
+    }).catch(() => {});
+
     return preCheckBooking;
   }
 
@@ -3991,6 +4059,21 @@ exports.executeInquiryConversion = async ({
       io
     ).catch(console.error);
   }
+
+  // Non-blocking email dispatch to customer on booking conversion
+  resolveCustomerEmail(newBooking, inquiry).then((customerEmail) => {
+    if (customerEmail) {
+      if (newBooking.status === "confirmed") {
+        sendBookingConfirmationEmail({ booking: newBooking, customerEmail }).catch((err) => console.error("[Email Error] Failed to send conversion confirmation email:", err.message));
+      } else {
+        sendBookingStatusEmail({
+          booking: newBooking,
+          newStatus: newBooking.status,
+          customerEmail,
+        }).catch((err) => console.error("[Email Error] Failed to send conversion status email:", err.message));
+      }
+    }
+  }).catch(() => {});
 
   // Notify admins
   notifyAdmins(

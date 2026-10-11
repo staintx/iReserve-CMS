@@ -23,7 +23,11 @@ import {
   Lock,
   Sparkles
 } from "lucide-react";
-import { getEventTimingStatus } from "../../utils/format";
+import { 
+  getEventTimingStatus, 
+  getBookingVenueLocation, 
+  formatEventStartTime 
+} from "../../utils/format";
 
 const toDateKey = (date) => {
   const d = new Date(date);
@@ -98,13 +102,22 @@ export default function ManagerDashboard() {
     };
   }, []);
 
-  const handleSaveAvailability = async (month, dates) => {
+  const handleSaveAvailability = async (payload, dates) => {
     try {
-      await ManagerAPI.setAvailability(month, dates);
+      if (payload?.refreshOnly) {
+        const availRes = await ManagerAPI.getAvailability(monthKey);
+        setAvailabilityData(availRes.data || { month: monthKey, unavailable: [], assignments: [] });
+        return;
+      }
+      if (typeof payload === "string" && Array.isArray(dates)) {
+        await ManagerAPI.setAvailability(payload, dates);
+      } else {
+        await ManagerAPI.setAvailability(payload);
+      }
       notify("Your availability schedule has been updated.", "success");
       // Refresh availability
       const availRes = await ManagerAPI.getAvailability(monthKey);
-      setAvailabilityData(availRes.data || { month: monthKey, unavailable: dates, assignments: [] });
+      setAvailabilityData(availRes.data || { month: monthKey, unavailable: [], assignments: [] });
     } catch (err) {
       notify(err.response?.data?.message || "Failed to update availability.", "error");
       throw err;
@@ -151,7 +164,7 @@ export default function ManagerDashboard() {
   const selectedDateEvents = eventsByDate.get(selectedDateKey) || [];
   const isSelectedDateUnavailable = (availabilityData.unavailable || []).includes(selectedDateKey);
 
-  const openEvent = (id) => navigate(`/manager/bookings?booking_id=${id}&action=view`);
+  const openEvent = (id) => navigate(`/manager/events/${id}`);
 
   return (
     <ManagerLayout>
@@ -364,14 +377,14 @@ export default function ManagerDashboard() {
                             </span>
                           </div>
                           <div className="text-[11.5px] text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                            <span className="flex items-center gap-1">
+                            <span className="flex items-center gap-1 font-medium">
                               <Clock size={11} className="text-slate-400" />
-                              {booking.start_time || "Time TBA"} ({booking.duration_hours || 4} hrs)
+                              {formatEventStartTime(booking.start_time)}
                             </span>
                             <span>•</span>
-                            <span className="flex items-center gap-1 truncate max-w-[220px]">
+                            <span className="flex items-center gap-1 truncate max-w-[260px]" title={getBookingVenueLocation(booking)}>
                               <MapPin size={11} className="text-slate-400 shrink-0" />
-                              <span className="truncate">{booking.venue_type || booking.municipality || "Venue TBA"}</span>
+                              <span className="truncate">{getBookingVenueLocation(booking)}</span>
                             </span>
                           </div>
                         </div>
@@ -421,72 +434,73 @@ export default function ManagerDashboard() {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {upcomingBookings.map((booking) => {
                 const timing = getEventTimingStatus(booking);
-                const venue = booking.venue_type || [booking.street, booking.barangay, booking.municipality].filter(Boolean).join(", ") || "Venue TBA";
+                const venue = getBookingVenueLocation(booking);
 
                 return (
                   <div
                     key={booking._id}
-                    className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-2xs hover:border-[#4C81E0]/50 transition-all space-y-3.5"
+                    className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-2xs hover:border-[#4C81E0]/50 transition-all space-y-4 h-full"
                   >
-                    {/* Top Row: Type, Status */}
-                    <div className="space-y-2">
+                    {/* Top Row: Type, Title, Client, Ref (No 'Ready for Event' badge on upcoming cards) */}
+                    <div className="space-y-1.5">
                       <div className="flex items-start justify-between gap-2">
-                        <div>
+                        <div className="min-w-0">
                           <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500 block">
-                            Event Coordination
+                            Assigned Event
                           </span>
-                          <h3 className="text-base font-bold text-slate-900 leading-snug">
+                          <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug break-words">
                             {booking.event_type || "Catering Event"}
                           </h3>
                         </div>
-                        <Badge status={booking.status || "confirmed"} />
+                        {(booking.payment_status === "deposit_pending" || booking.status === "Deposit Pending") && (
+                          <Badge status="Deposit Pending" />
+                        )}
                       </div>
 
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-slate-500 break-words">
                         Client: <strong className="text-slate-800">{booking.customer_id?.full_name || "Valued Client"}</strong> · Ref <span className="font-mono text-slate-700 font-semibold">{booking.reference || booking._id?.slice(-6).toUpperCase()}</span>
                       </div>
                     </div>
 
                     {/* Operational Details Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs">
+                      {/* Left: Prominent Event Date & Start Time */}
                       <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-slate-700 font-semibold">
-                          <CalendarIcon size={13} className="text-[#4C81E0] shrink-0" />
-                          <span>
+                        <div className="flex items-center gap-2">
+                          <CalendarIcon size={16} className="text-[#4C81E0] shrink-0" />
+                          <span className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
                             {booking.event_date
                               ? new Date(booking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                               : "Date TBA"}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-slate-500 pl-5 text-[11.5px]">
-                          <Clock size={11} className="shrink-0" />
-                          <span>{booking.start_time || "Time TBA"} ({booking.duration_hours || 4} hrs)</span>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-600 pl-6 pt-0.5 font-medium">
+                          <Clock size={13} className="text-slate-400 shrink-0" />
+                          <span>{formatEventStartTime(booking.start_time)}</span>
                         </div>
                       </div>
 
+                      {/* Right: Actual Venue Location & Lead Role */}
                       <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-slate-700 font-semibold truncate">
-                          <MapPin size={13} className="text-[#4C81E0] shrink-0" />
-                          <span className="truncate">{venue}</span>
+                        <div className="flex items-start gap-2">
+                          <MapPin size={16} className="text-[#4C81E0] shrink-0 mt-0.5" />
+                          <span className="text-xs sm:text-[13px] font-semibold text-slate-800 leading-snug line-clamp-2" title={venue}>
+                            {venue}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-slate-600 pl-5 text-[11.5px]">
-                          <ShieldCheck size={11} className="text-amber-600 shrink-0" />
-                          <span>Lead: <strong>Event Coordinator</strong></span>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-600 pl-6 pt-0.5">
+                          <ShieldCheck size={13} className="text-amber-600 shrink-0" />
+                          <span>Lead: <strong className="text-slate-900">Event Coordinator</strong></span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Footer Action */}
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        {timing.isUpcoming && (
-                          <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold bg-slate-100 text-slate-700">
-                            <Lock size={10} className="text-slate-500" /> Upcoming
-                          </span>
-                        )}
+                    {/* Footer Action (No redundant 'Upcoming' badge) */}
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
+                      <div className="flex items-center gap-1.5 min-h-[22px]">
                         {timing.isStarted && !timing.isFinished && (
                           <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold bg-emerald-50 text-emerald-800">
                             <Sparkles size={10} className="text-emerald-600" /> In Progress
@@ -497,10 +511,10 @@ export default function ManagerDashboard() {
                       <button
                         type="button"
                         onClick={() => openEvent(booking._id)}
-                        className="inline-flex min-h-[38px] items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#4C81E0] text-white text-xs font-bold hover:bg-[#3b6bc4] transition-colors cursor-pointer shadow-2xs"
+                        className="inline-flex min-h-[38px] items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#4C81E0] text-white text-xs font-bold hover:bg-[#3b6bc4] transition-colors cursor-pointer shadow-2xs shrink-0"
                       >
+                        <Eye size={13} />
                         <span>View Details</span>
-                        <ArrowRight size={13} />
                       </button>
                     </div>
                   </div>

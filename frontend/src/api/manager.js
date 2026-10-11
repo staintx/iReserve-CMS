@@ -2,8 +2,14 @@ import api from "./axios";
 
 export const ManagerAPI = {
   getSummary: () => api.get("/manager/summary"),
-  getAvailability: (month) => api.get("/manager/me/availability", { params: { month } }),
-  setAvailability: (month, dates) => api.put("/manager/me/availability", { month, dates }),
+  getAvailability: (month, params = {}) => api.get("/manager/me/availability", { params: { month, ...params } }),
+  setAvailability: (payload, dates) => {
+    if (typeof payload === "string" && Array.isArray(dates)) {
+      return api.put("/manager/me/availability", { month: payload, dates });
+    }
+    return api.put("/manager/me/availability", payload);
+  },
+  removeAvailability: (id) => api.delete(`/manager/me/availability/${id}`),
   getBookings: (status) => api.get("/manager/bookings", { params: status ? { status } : {} }),
   getBooking: (id) => api.get(`/manager/bookings/${id}`),
   assignStaff: (id, data) => api.put(`/manager/bookings/${id}/assign-staff`, data),

@@ -24,7 +24,11 @@ import {
   ExternalLink,
   CheckCircle2
 } from "lucide-react";
-import { getEventTimingStatus } from "../../utils/format";
+import { 
+  getEventTimingStatus, 
+  getBookingVenueLocation, 
+  formatEventStartTime 
+} from "../../utils/format";
 
 export default function StaffEventDetails() {
   const { id } = useParams();
@@ -111,10 +115,12 @@ export default function StaffEventDetails() {
 
   const manager = booking.event_manager_id || null;
   const isCompleted = ["completed", "Completed"].includes(booking.status);
+  const venueLocation = getBookingVenueLocation(booking);
   const locationAddress =
-    [booking.street, booking.barangay, booking.municipality, booking.province].filter(Boolean).join(", ") ||
-    "Address details will be confirmed by lead.";
-  const locationQuery = [booking.street, booking.barangay, booking.municipality, booking.province].filter(Boolean).join(", ");
+    venueLocation !== "Location not specified"
+      ? venueLocation
+      : "Address details will be confirmed by lead.";
+  const locationQuery = [booking.street, booking.barangay, booking.municipality, booking.province].filter(Boolean).join(", ") || (booking.location || "");
 
   return (
     <StaffLayout>
@@ -150,24 +156,19 @@ export default function StaffEventDetails() {
               </div>
 
               <div className="flex flex-wrap items-center gap-1.5 self-start">
-                <Badge status={booking.status || "confirmed"} />
                 {isCompleted ? (
-                  <span className="inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    <CheckCircle2 size={12} className="text-emerald-600" /> Completed
-                  </span>
-                ) : (
                   <>
-                    {timing.isUpcoming && (
-                      <span className="inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                        <Lock size={12} className="text-slate-500" /> Upcoming
-                      </span>
-                    )}
-                    {timing.isStarted && !timing.isFinished && (
-                      <span className="inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        <Sparkles size={12} className="text-emerald-600" /> In Progress
-                      </span>
-                    )}
+                    <Badge status={booking.status || "Completed"} />
+                    <span className="inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <CheckCircle2 size={12} className="text-emerald-600" /> Completed
+                    </span>
                   </>
+                ) : (
+                  timing.isStarted && !timing.isFinished && (
+                    <span className="inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <Sparkles size={12} className="text-emerald-600" /> In Progress
+                    </span>
+                  )
                 )}
               </div>
             </div>
@@ -191,7 +192,7 @@ export default function StaffEventDetails() {
                 </div>
                 <div className="text-slate-600 flex items-center gap-1">
                   <Clock size={12} className="text-slate-400" />
-                  <span>{booking.start_time || "Time TBA"} ({booking.duration_hours || 4} hours duration)</span>
+                  <span>{formatEventStartTime(booking.start_time)}</span>
                 </div>
                 {booking.guest_count > 0 && (
                   <div className="text-slate-500 text-[11px] pt-1 border-t border-slate-200/60">
@@ -217,12 +218,14 @@ export default function StaffEventDetails() {
                     </a>
                   )}
                 </div>
-                <div className="text-sm font-bold text-slate-900 truncate">
-                  {booking.venue_type || "Venue TBA"}
-                </div>
-                <div className="text-slate-600 text-xs">
+                <div className="text-sm font-bold text-slate-900 leading-snug">
                   {locationAddress}
                 </div>
+                {booking.venue_type && (
+                  <div className="text-slate-500 text-xs">
+                    Venue Type: {booking.venue_type}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -301,23 +304,16 @@ export default function StaffEventDetails() {
               <h2>Important Event Instructions &amp; Briefing</h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-              <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/80 space-y-1">
-                <span className="font-bold block text-slate-900">Dress Code &amp; Arrival</span>
-                <p className="text-slate-600 leading-relaxed">
-                  Standard black catering uniform with apron. Arrive at least <strong>1 hour before</strong> event start time for station setup.
-                </p>
-              </div>
-
-              <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/80 space-y-1">
-                <span className="font-bold block text-slate-900">Dietary &amp; Special Requests</span>
-                <p className="text-slate-600 leading-relaxed">
-                  {booking.dietary_restrictions ? `Dietary: ${booking.dietary_restrictions}. ` : ""}
-                  {booking.allergies ? `Allergies: ${booking.allergies}. ` : ""}
-                  {booking.special_requests ? `Special: ${booking.special_requests}. ` : ""}
-                  {booking.notes || (!booking.dietary_restrictions && !booking.allergies && !booking.special_requests ? "Standard catering protocol applies. No special dietary restrictions noted." : "")}
-                </p>
-              </div>
+            <div className="p-3.5 sm:p-4 bg-slate-50/70 rounded-xl border border-slate-200/80 space-y-1.5 text-xs">
+              <span className="font-bold block text-slate-900 text-sm">
+                Dietary &amp; Special Requests
+              </span>
+              <p className="text-slate-700 leading-relaxed text-xs sm:text-[13px] pt-0.5">
+                {booking.dietary_restrictions ? `Dietary: ${booking.dietary_restrictions}. ` : ""}
+                {booking.allergies ? `Allergies: ${booking.allergies}. ` : ""}
+                {booking.special_requests ? `Special: ${booking.special_requests}. ` : ""}
+                {booking.notes || (!booking.dietary_restrictions && !booking.allergies && !booking.special_requests ? "Standard catering protocol applies. No special dietary restrictions noted." : "")}
+              </p>
             </div>
 
             {Number(booking.remaining_balance || 0) > 0 && booking.balance_payment_preference === "in_person" && (

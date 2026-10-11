@@ -55,9 +55,12 @@ const client = axios.create({
   },
 });
 
-// Request Interceptor: inject Bearer token
+// Request Interceptor: inject Bearer token and mobile client headers
 client.interceptors.request.use(
   async (config) => {
+    config.headers["x-client-platform"] = "mobile";
+    config.headers["x-app-client-key"] =
+      process.env.EXPO_PUBLIC_APP_CLIENT_KEY || "ireserve_mobile_v1_secure_key";
     const token = await getStoredToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

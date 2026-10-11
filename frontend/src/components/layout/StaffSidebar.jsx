@@ -5,6 +5,7 @@ import logo from "../../assets/images/logo.jpg";
 import { 
   PanelLeftClose,
   PanelLeftOpen,
+  LayoutDashboard,
   Calendar, 
   CalendarDays,
   LogOut,
@@ -122,57 +123,33 @@ export default function StaffSidebar() {
           {/* Notifications Item */}
           <NotificationBell isSidebarItem isCollapsed={isCollapsed} />
 
-          <div className={sectionLabelClass}>My Duties</div>
+          <div className={sectionLabelClass}>Operations</div>
 
           <NavLink 
             to="/staff/dashboard" 
             end
-            className={({ isActive }) => {
-              const isAvail = new URLSearchParams(location.search).get("availability") === "1";
-              return cn(
-                NAV_ROW,
-                navRowSize,
-                isActive && !isAvail
-                  ? cn("bg-powder/80 text-foreground font-semibold", !isCollapsed && ACTIVE_RAIL)
-                  : "text-muted-foreground font-medium hover:bg-muted hover:text-foreground"
-              );
-            }} 
-            title={isCollapsed ? "My Assigned Events" : undefined}
+            className={linkClass}
+            title={isCollapsed ? "Dashboard" : undefined}
           >
-            {({ isActive }) => {
-              const isAvail = new URLSearchParams(location.search).get("availability") === "1";
-              return (
-                <>
-                  <Calendar className={iconClass(isActive && !isAvail)} />
-                  {!isCollapsed && <span>Assigned Events</span>}
-                </>
-              );
-            }}
+            {({ isActive }) => (
+              <>
+                <LayoutDashboard className={iconClass(isActive)} />
+                {!isCollapsed && <span>Dashboard</span>}
+              </>
+            )}
           </NavLink>
 
           <NavLink
-            to="/staff/dashboard?availability=1"
-            className={() => {
-              const isAvail = new URLSearchParams(location.search).get("availability") === "1";
-              return cn(
-                NAV_ROW,
-                navRowSize,
-                isAvail
-                  ? cn("bg-powder/80 text-foreground font-semibold", !isCollapsed && ACTIVE_RAIL)
-                  : "text-muted-foreground font-medium hover:bg-muted hover:text-foreground"
-              );
-            }}
-            title={isCollapsed ? "Availability Schedule" : undefined}
+            to="/staff/bookings"
+            className={linkClass}
+            title={isCollapsed ? "Bookings" : undefined}
           >
-            {() => {
-              const isAvail = new URLSearchParams(location.search).get("availability") === "1";
-              return (
-                <>
-                  <CalendarDays className={iconClass(isAvail)} />
-                  {!isCollapsed && <span>Availability Schedule</span>}
-                </>
-              );
-            }}
+            {({ isActive }) => (
+              <>
+                <Calendar className={iconClass(isActive)} />
+                {!isCollapsed && <span>Bookings</span>}
+              </>
+            )}
           </NavLink>
         </nav>
 

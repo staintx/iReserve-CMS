@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import StaffSidebar from "./StaffSidebar";
+import PortalMobileDrawer from "./PortalMobileDrawer";
 import logo from "../../assets/images/logo.jpg";
-import { UserCheck, LogOut } from "lucide-react";
+import { UserCheck, Menu } from "lucide-react";
 import NotificationBell from "../common/NotificationBell";
 import ConfirmDialog from "../common/ConfirmDialog";
 import useAuth from "../../hooks/useAuth";
 import { initialsOf } from "../../utils/format";
 
 export default function StaffLayout({ children }) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const navigate = useNavigate();
   const auth = useAuth() || {};
@@ -16,74 +19,78 @@ export default function StaffLayout({ children }) {
   const initials = initialsOf(user?.full_name || user?.email, "ST");
 
   return (
-    <div className="admin-shell staff-portal min-h-screen flex flex-col bg-[#F8FAFC] text-[#1E293B] font-sans">
-      {/* Top Header */}
-      <header className="sticky top-0 z-30 flex h-14 sm:h-16 shrink-0 select-none items-center justify-between border-b border-slate-200/80 bg-white/95 px-3.5 sm:px-6 backdrop-blur">
-        {/* Left: Brand Identity */}
-        <div className="flex items-center gap-4 sm:gap-6 min-w-0">
-          <button
-            type="button"
-            onClick={() => navigate("/staff/dashboard")}
-            className="flex items-center gap-2.5 rounded-md text-left cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[#4C81E0]/40 shrink-0"
-          >
-            <img
-              src={logo}
-              alt="Caezelle's Logo"
-              className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-full border border-slate-200 object-cover"
-            />
-            <div className="min-w-0">
-              <span className="block truncate text-sm sm:text-base font-bold leading-tight text-[#1E293B]">
-                Staff Portal
-              </span>
-              <span className="flex items-center gap-1 truncate text-[10px] font-semibold uppercase tracking-wider text-[#4C81E0]">
-                <UserCheck size={11} className="shrink-0 text-[#4C81E0]" /> Operations Crew
-              </span>
-            </div>
-          </button>
-        </div>
+    <div className="admin-layout admin-shell staff-portal fixed inset-0 flex overflow-hidden bg-background text-foreground font-sans">
+      {/* Desktop Sidebar */}
+      <StaffSidebar />
 
-        {/* Right: Notifications & User Account */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <NotificationBell />
-
-          {/* User Account / Profile */}
-          <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-slate-200">
-            <div className="flex items-center gap-2">
-              <div
-                className="w-8 h-8 rounded-full bg-[#D6E4F7] text-[#4C81E0] text-xs font-bold flex items-center justify-center border border-[#4C81E0]/20 shrink-0"
-                title={user?.full_name || "Staff Member"}
-              >
-                {initials}
-              </div>
-              <div className="hidden md:block text-left min-w-0 max-w-[160px]">
-                <div className="text-xs font-semibold text-[#1E293B] truncate leading-tight">
-                  {user?.full_name || "Staff Member"}
-                </div>
-                <div className="text-[10.5px] text-[#64748B] truncate">
-                  {user?.position || "Catering Staff"}
-                </div>
-              </div>
-            </div>
-
-            {/* Simple Sign Out Button */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile Top Navigation Bar */}
+        <header className="sticky top-0 z-30 flex h-14 shrink-0 select-none items-center justify-between border-b border-border/80 bg-card/95 px-3.5 backdrop-blur md:hidden">
+          {/* Left: Hamburger menu + Brand */}
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setConfirmSignOut(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-              title="Sign Out"
-              aria-label="Sign Out"
+              onClick={() => setDrawerOpen(true)}
+              className="grid h-9 w-9 place-items-center rounded-lg border border-border text-foreground hover:bg-muted transition-colors cursor-pointer"
+              aria-label="Open menu"
             >
-              <LogOut size={15} />
-              <span className="hidden sm:inline">Sign Out</span>
+              <Menu size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/staff/dashboard")}
+              className="flex items-center gap-2 text-left cursor-pointer"
+            >
+              <img
+                src={logo}
+                alt="Logo"
+                className="h-7 w-7 rounded-full border border-border object-cover shadow-2xs"
+              />
+              <div className="min-w-0">
+                <span className="block truncate text-xs font-bold leading-none text-foreground">
+                  Staff Portal
+                </span>
+                <span className="mt-0.5 flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-wider text-[#4C81E0]">
+                  <UserCheck size={10} className="shrink-0 text-[#4C81E0]" /> Operations Crew
+                </span>
+              </div>
             </button>
           </div>
-        </div>
-      </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto px-3.5 py-4 sm:px-6 sm:py-6 pb-12 sm:pb-8">
-        <div className="mx-auto max-w-5xl">{children}</div>
-      </main>
+          {/* Right: Notifications icon with unread badge */}
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <div
+              className="w-7 h-7 rounded-full bg-[#D6E4F7] text-[#4C81E0] text-[11px] font-bold flex items-center justify-center border border-[#4C81E0]/20 shrink-0"
+              title={user?.full_name || "Staff Member"}
+            >
+              {initials}
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content Area */}
+        <main className="portal-scroll flex-1 overflow-y-auto p-3 sm:p-5">
+          <div className="mx-auto max-w-5xl space-y-4">{children}</div>
+        </main>
+
+        {/* Mobile Hamburger Drawer: Dashboard, Bookings, Sign Out only */}
+        <PortalMobileDrawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          portalTitle="Staff Portal"
+          roleLabel="Operations Crew"
+          roleIcon={UserCheck}
+          roleColor="text-[#4C81E0]"
+          logo={logo}
+          dashboardTo="/staff/dashboard"
+          bookingsTo="/staff/bookings"
+          user={user}
+          initials={initials}
+          onSignOut={() => setConfirmSignOut(true)}
+        />
+      </div>
 
       {/* Sign Out Confirmation */}
       {confirmSignOut && (
@@ -102,4 +109,3 @@ export default function StaffLayout({ children }) {
     </div>
   );
 }
-

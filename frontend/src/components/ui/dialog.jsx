@@ -24,7 +24,7 @@ const DialogOverlay = React.forwardRef(({ className, ...props }, ref) => (
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
-const DialogContent = React.forwardRef(({ className, children, hideClose = false, ...props }, ref) => (
+const DialogContent = React.forwardRef(({ className, children, hideClose = false, onClose, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -43,7 +43,11 @@ const DialogContent = React.forwardRef(({ className, children, hideClose = false
           `hideClose` is for the one dialog that draws its own close button —
           two X glyphs were already overlapping there, and enlarging this one
           made the collision impossible to miss. */}
-      {!hideClose && <DialogPrimitive.Close className="absolute right-2.5 top-3 sm:right-4 sm:top-4 z-10 grid h-10 w-10 sm:h-8 sm:w-8 place-items-center rounded-md text-muted-foreground opacity-80 ring-offset-background transition-all hover:bg-muted hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none">
+      {!hideClose && <DialogPrimitive.Close
+        type="button"
+        onClick={onClose}
+        className="absolute right-2.5 top-3 sm:right-4 sm:top-4 z-10 grid h-10 w-10 sm:h-8 sm:w-8 place-items-center rounded-md text-muted-foreground opacity-80 ring-offset-background transition-all hover:bg-muted hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none cursor-pointer"
+      >
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>}

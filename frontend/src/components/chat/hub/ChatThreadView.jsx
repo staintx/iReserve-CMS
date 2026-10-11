@@ -136,7 +136,7 @@ export default function ChatThreadView({
                 {mode === "zelle" ? "Zelle AI Assistant" : "Caezelle Support Staff"}
               </h3>
               <p className="text-[10px] text-white/80 font-normal truncate mt-0.5">
-                {mode === "zelle" ? "AI Catering & Event Planner" : "Human Event Coordinator"}
+                {mode === "zelle" ? "AI Catering & Event Planner" : "Catering Support Team"}
               </p>
             </div>
           </div>
@@ -237,7 +237,7 @@ export default function ChatThreadView({
               <div>
                 <h4 className="font-bold text-sm text-slate-900">Sign in to message our staff</h4>
                 <p className="text-xs text-slate-500 mt-1 max-w-[240px]">
-                  Sign in to chat directly with our event coordinators and track custom quotes.
+                  Sign in to chat directly with our catering support team and track custom quotes.
                 </p>
               </div>
               <div className="flex items-center gap-2 w-full max-w-xs pt-1">
@@ -337,7 +337,7 @@ export default function ChatThreadView({
             <Input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={mode === "zelle" ? "Ask Zelle about packages, dates, menu..." : "Message coordinator directly..."}
+              placeholder={mode === "zelle" ? "Ask Zelle about packages, dates, menu..." : "Message catering support directly..."}
               disabled={mode === "zelle" ? isZelleLoading : isSupportSending}
               className="text-xs h-10 rounded-xl border-slate-200 bg-slate-50 focus:bg-white text-slate-900 placeholder:text-slate-400 focus-visible:ring-1.5 focus-visible:ring-[#2C4B8A]"
             />

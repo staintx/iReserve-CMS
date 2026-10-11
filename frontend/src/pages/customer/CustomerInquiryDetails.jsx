@@ -727,7 +727,7 @@ export default function CustomerInquiryDetails() {
       className="border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 hover:text-[#4C81E0] font-semibold text-xs h-9 px-3.5 rounded-lg cursor-pointer transition-all gap-1.5"
     >
       <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
-      <span>Message Coordinator</span>
+      <span>Message Catering Support</span>
     </Button>
   ) : null;
 

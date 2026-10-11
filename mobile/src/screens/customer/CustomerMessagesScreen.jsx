@@ -591,7 +591,7 @@ export const CustomerMessagesScreen = ({ route, navigation }) => {
           <EmptyState
             icon={MessageSquare}
             title="No conversations yet"
-            description="Have questions about menus, packages, or bookings? Send a message directly to our catering event coordinators."
+            description="Have questions about menus, packages, or bookings? Send a message directly to our catering support team."
             actionLabel="Message Catering Team"
             onAction={handleStartNewChat}
           />

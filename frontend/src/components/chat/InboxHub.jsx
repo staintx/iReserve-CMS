@@ -486,6 +486,8 @@ const sendMessageWithFallback = async ({ socket, activeId, payload }) => {
   return sendMessage(activeId, payload);
 };
 
+const MAX_MESSAGE_LENGTH = 1000;
+
 export default function InboxHub({ basePath = "/admin/messages" }) {
   const { id: routeId } = useParams();
   const navigate = useNavigate();
@@ -543,29 +545,35 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
   const handlePaste = (e) => {
     const items = e.clipboardData?.items;
-    if (!items) return;
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.startsWith("image/")) {
-        const file = items[i].getAsFile();
-        if (file) {
-          e.preventDefault();
-          if (file.size > 15 * 1024 * 1024) {
-            notify("Pasted image exceeds 15MB limit.", "error");
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith("image/")) {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            if (file.size > 15 * 1024 * 1024) {
+              notify("Pasted image exceeds 15MB limit.", "error");
+              return;
+            }
+            if (pendingImage?.previewUrl) {
+              URL.revokeObjectURL(pendingImage.previewUrl);
+            }
+            const previewUrl = URL.createObjectURL(file);
+            setPendingImage({
+              file,
+              previewUrl,
+              fileName: file.name || "pasted-image.png",
+              fileSize: file.size
+            });
             return;
           }
-          if (pendingImage?.previewUrl) {
-            URL.revokeObjectURL(pendingImage.previewUrl);
-          }
-          const previewUrl = URL.createObjectURL(file);
-          setPendingImage({
-            file,
-            previewUrl,
-            fileName: file.name || "pasted-image.png",
-            fileSize: file.size
-          });
-          break;
         }
       }
+    }
+
+    const pastedText = e.clipboardData?.getData("text");
+    if (pastedText && (draft.length + pastedText.length > MAX_MESSAGE_LENGTH)) {
+      notify(`Pasted message was truncated to ${MAX_MESSAGE_LENGTH.toLocaleString()} characters.`, "info");
     }
   };
 
@@ -850,6 +858,11 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
     if ((!textToSend && !hasImage && !hasLink) || isSending || !activeId) return;
 
+    if (textToSend.length > MAX_MESSAGE_LENGTH) {
+      notify(`Message cannot exceed ${MAX_MESSAGE_LENGTH.toLocaleString()} characters.`, "error");
+      return;
+    }
+
     // 1. Prepare link attachment if present
     const linkAttachments = [];
     if (hasLink) {
@@ -1012,7 +1025,9 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
   };
 
   const handleDraftChange = (e) => {
-    setDraft(e.target.value);
+    const val = e.target.value;
+    if (val.length > MAX_MESSAGE_LENGTH) return;
+    setDraft(val);
     if (!socketRef.current || !activeId) return;
     socketRef.current.emit("typing:start", activeId);
 
@@ -1563,7 +1578,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                       size="xs"
                       className="h-6 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded-md cursor-pointer font-medium shadow-2xs"
                       onClick={() => {
-                        setDraft(aiDraft);
+                        setDraft(aiDraft.slice(0, MAX_MESSAGE_LENGTH));
                         setAiDraft(null);
                       }}
                     >
@@ -1706,6 +1721,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                   value={draft}
                   onChange={handleDraftChange}
                   onPaste={handlePaste}
+                  maxLength={MAX_MESSAGE_LENGTH}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
@@ -1760,24 +1776,42 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                     </span>
                   </div>
 
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={isSending || isUploadingAttachment || (!draft.trim() && !pendingImage && !attachmentUrl.trim())}
-                    className={cn(
-                      "h-8 px-4 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs",
-                      draft.trim() || pendingImage || attachmentUrl.trim()
-                        ? "bg-[#4C81E0] hover:bg-[#3b6ec9] text-white"
-                        : "bg-[#4C81E0]/40 text-white cursor-not-allowed hover:bg-[#4C81E0]/40 shadow-none"
+                  <div className="flex items-center gap-2.5">
+                    {draft.length > 0 && (
+                      <span
+                        className={cn(
+                          "text-[11px] font-mono tabular-nums transition-colors",
+                          draft.length >= MAX_MESSAGE_LENGTH
+                            ? "text-rose-600 font-semibold"
+                            : draft.length >= 900
+                            ? "text-amber-600 font-medium"
+                            : "text-slate-400"
+                        )}
+                        title={`${draft.length} of ${MAX_MESSAGE_LENGTH} characters`}
+                      >
+                        {draft.length}/{MAX_MESSAGE_LENGTH.toLocaleString()}
+                      </span>
                     )}
-                  >
-                    <span>{isUploadingAttachment ? "Uploading..." : isSending ? "Sending..." : "Send"}</span>
-                    {isUploadingAttachment || isSending ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Send className="w-3.5 h-3.5" />
-                    )}
-                  </Button>
+
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={isSending || isUploadingAttachment || (!draft.trim() && !pendingImage && !attachmentUrl.trim()) || draft.length > MAX_MESSAGE_LENGTH}
+                      className={cn(
+                        "h-8 px-4 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs",
+                        (draft.trim() || pendingImage || attachmentUrl.trim()) && draft.length <= MAX_MESSAGE_LENGTH
+                          ? "bg-[#4C81E0] hover:bg-[#3b6ec9] text-white"
+                          : "bg-[#4C81E0]/40 text-white cursor-not-allowed hover:bg-[#4C81E0]/40 shadow-none"
+                      )}
+                    >
+                      <span>{isUploadingAttachment ? "Uploading..." : isSending ? "Sending..." : "Send"}</span>
+                      {isUploadingAttachment || isSending ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </form>
             </div>

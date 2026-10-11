@@ -4,7 +4,7 @@ const MessageSchema = new mongoose.Schema({
   conversation_id: { type: mongoose.Schema.Types.ObjectId, ref: "Conversation", required: true },
   sender_id: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   client_message_id: { type: String, default: null },
-  body: { type: String, default: "" },
+  body: { type: String, default: "", maxlength: [1000, "Message cannot exceed 1,000 characters."] },
   attachments: [{
     url: String,
     fileName: String,

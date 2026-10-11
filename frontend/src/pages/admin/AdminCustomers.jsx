@@ -36,7 +36,7 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import DataTable from "../../components/admin/table/DataTable";
 import TableToolbar from "../../components/admin/table/TableToolbar";
-import FilterPopover from "../../components/admin/table/FilterPopover";
+import FilterPopover, { FilterField } from "../../components/admin/table/FilterPopover";
 import FilterChip from "../../components/admin/table/FilterChip";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import Pagination from "../../components/admin/table/Pagination";
@@ -466,51 +466,47 @@ export default function AdminCustomers() {
                 }}
               >
                 <div className="space-y-3 min-w-[220px]">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1">Account Status</label>
+                  <FilterField label="Account Status">
                     <select
                       value={draftStatusFilter}
                       onChange={(e) => setDraftStatusFilter(e.target.value)}
-                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full h-9 text-xs sm:text-sm bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all shadow-2xs cursor-pointer"
                     >
                       <option value="all">All Statuses</option>
                       <option value="active">Active Only</option>
                       <option value="inactive">Inactive Only</option>
                     </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1">Min Spend (₱)</label>
+                  </FilterField>
+                  <FilterField label="Min Spend (₱)">
                     <input
                       type="number"
                       min="0"
                       value={draftMinSpend}
                       onChange={(e) => setDraftMinSpend(e.target.value)}
                       placeholder="e.g. 50000"
-                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full h-9 text-xs sm:text-sm bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all shadow-2xs"
                     />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1">Max Spend (₱)</label>
+                  </FilterField>
+                  <FilterField label="Max Spend (₱)">
                     <input
                       type="number"
                       min="0"
                       value={draftMaxSpend}
                       onChange={(e) => setDraftMaxSpend(e.target.value)}
                       placeholder="e.g. 200000"
-                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full h-9 text-xs sm:text-sm bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all shadow-2xs"
                     />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1">Min Reservations</label>
+                  </FilterField>
+                  <FilterField label="Min Reservations">
                     <input
                       type="number"
                       min="0"
                       value={draftMinReservations}
                       onChange={(e) => setDraftMinReservations(e.target.value)}
                       placeholder="e.g. 2"
-                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full h-9 text-xs sm:text-sm bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all shadow-2xs"
                     />
-                  </div>
+                  </FilterField>
                 </div>
               </FilterPopover>
             }

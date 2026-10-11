@@ -7,6 +7,7 @@ import {
   Image as ImageIcon,
   Eye,
   X,
+  Folder,
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -19,6 +20,7 @@ import GalleryModal from "../../components/admin/ui/GalleryModal";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import Pagination from "../../components/admin/table/Pagination";
 import GalleryDetailDrawer from "../../components/admin/gallery/GalleryDetailDrawer";
+import FilterPill from "../../components/admin/table/FilterPill";
 
 const PAGE_SIZE = 12;
 
@@ -26,6 +28,7 @@ export default function AdminGallery() {
   const { notify } = useToast();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const [draftFilter, setDraftFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
 
   const [items, setItems] = useState([]);
@@ -198,19 +201,20 @@ export default function AdminGallery() {
               )}
             </div>
 
-            {/* Album Select */}
-            <div className="relative shrink-0 w-full sm:w-56">
-              <select
+            {/* Album Filter matching Photo 2 */}
+            <div className="flex items-center gap-2">
+              <FilterPill
+                label="Album"
+                icon={Folder}
                 value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="w-full bg-muted/60 border border-border/70 rounded-md px-3 py-1.5 text-xs sm:text-sm font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shadow-2xs capitalize h-9"
-              >
-                {categories.map((c) => (
-                  <option key={c} value={c} className="capitalize text-slate-800 bg-white">
-                    {c === "all" ? "All Albums" : c}
-                  </option>
-                ))}
-              </select>
+                defaultValue="all"
+                onSelect={(val) => setFilter(val)}
+                options={categories.map((c) => ({
+                  value: c,
+                  label: c === "all" ? "All Albums" : c,
+                  count: c === "all" ? items.length : items.filter((it) => it.category === c).length,
+                }))}
+              />
             </div>
           </div>
         </AdminCard>

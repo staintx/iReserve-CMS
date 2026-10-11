@@ -387,7 +387,7 @@ export const CustomerChatThreadScreen = ({ route, navigation }) => {
           placeholder="Ask a question about your event..."
           placeholderTextColor={colors.textDisabled}
           multiline
-          maxLength={500}
+          maxLength={1000}
         />
         <TouchableOpacity
           style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}

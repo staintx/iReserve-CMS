@@ -42,7 +42,7 @@ import { MAX_FINANCIAL_AMOUNT } from "../../lib/validationRules";
 import useToast from "../../hooks/useToast";
 import DataTable from "../../components/admin/table/DataTable";
 import TableToolbar from "../../components/admin/table/TableToolbar";
-import FilterPopover from "../../components/admin/table/FilterPopover";
+import FilterPopover, { FilterField } from "../../components/admin/table/FilterPopover";
 import FilterChip from "../../components/admin/table/FilterChip";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import Pagination from "../../components/admin/table/Pagination";
@@ -554,25 +554,23 @@ export default function AdminRefunds() {
                   setDateRange({ from: "", to: "" });
                 }}
               >
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1">From Date</label>
+                <div className="space-y-3.5">
+                  <FilterField label="From Date">
                     <input
                       type="date"
                       value={draftDateRange.from}
                       onChange={(e) => setDraftDateRange((d) => ({ ...d, from: e.target.value }))}
-                      className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full h-9 text-xs sm:text-sm bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all shadow-2xs"
                     />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1">To Date</label>
+                  </FilterField>
+                  <FilterField label="To Date">
                     <input
                       type="date"
                       value={draftDateRange.to}
                       onChange={(e) => setDraftDateRange((d) => ({ ...d, to: e.target.value }))}
-                      className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full h-9 text-xs sm:text-sm bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 transition-all shadow-2xs"
                     />
-                  </div>
+                  </FilterField>
                 </div>
               </FilterPopover>
             }

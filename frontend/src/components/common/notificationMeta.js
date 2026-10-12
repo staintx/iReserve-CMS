@@ -164,3 +164,48 @@ export const formatNotification = (item) => {
 // Backwards-compatible export
 export const formatCustomerNotification = formatNotification;
 
+/**
+ * Evaluates whether a notification is relevant to the user's role and responsibilities.
+ * Enforces established authorization boundaries and recipient rules.
+ */
+export const isNotificationRelevantForRole = (item, role) => {
+  if (!item) return false;
+  if (role !== "manager") return true;
+
+  // --- Manager Portal Role Authorization Rules ---
+  // 1. Chat / Messages are strictly admin-only:
+  if (item.meta?.conversation_id) return false;
+  if (typeof item.link === "string" && /^\/admin\/messages(\/|$)/i.test(item.link)) return false;
+
+  // 2. Payments & Billing are strictly admin-only:
+  if (item.meta?.payment_id) return false;
+  if (typeof item.link === "string" && /^\/admin\/(payments|refunds)(\/|$)/i.test(item.link)) return false;
+
+  // 3. Inventory management is strictly admin-only:
+  if (item.meta?.inventory_id) return false;
+  if (typeof item.link === "string" && /^\/admin\/inventory(\/|$)/i.test(item.link)) return false;
+
+  // 4. Staff administration, System logs, Analytics, and Inquiries are strictly admin-only:
+  if (typeof item.link === "string" && /^\/admin\/(staff|managers|analytics|logs|business-info|quotes|bookings\/inquiries|bookings\/calendar|bookings\/history)(\/|$)/i.test(item.link)) {
+    return false;
+  }
+
+  // 5. Exclude strictly admin titles / actions
+  const title = String(item.title || "").toLowerCase();
+  const body = String(item.body || "").toLowerCase();
+  if (
+    title.includes("payment") ||
+    title.includes("refund") ||
+    title.includes("low stock") ||
+    title.includes("customer message") ||
+    title.includes("new inquiry") ||
+    title.includes("quotation") ||
+    body.includes("refund of ₱")
+  ) {
+    return false;
+  }
+
+  // 6. Relevant manager notifications (direct manager assignments, assigned event operations):
+  return true;
+};
+

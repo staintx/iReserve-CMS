@@ -12,6 +12,7 @@ import {
   Truck,
 } from "lucide-react";
 import { isSpecialOffer } from "../../../lib/specialOffers";
+import { isBookingAwaitingDeposit } from "../../../utils/bookingDeposit";
 
 /**
  * Translates raw backend statuses into what a customer actually needs to know:
@@ -207,7 +208,9 @@ export const BOOKING_STATUS_GROUPS = {
     "delivered",
     "ongoing",
     "ocular scheduled",
-    "ready for event"
+    "ready for event",
+    "deposit_paid",
+    "final payment pending",
   ],
   deposit_needed: ["deposit pending", "pending deposit", "customer_accepted"],
   completed: ["completed", "event completed"],
@@ -217,7 +220,12 @@ export const BOOKING_STATUS_GROUPS = {
 export const bookingStatusGroup = (booking) => {
   const raw = (booking?.status || "").toLowerCase();
   const match = Object.entries(BOOKING_STATUS_GROUPS).find(([, values]) => values.includes(raw));
-  return match ? match[0] : "other";
+  if (match) return match[0];
+  if (["deposit_paid", "final payment pending"].includes(raw)) return "confirmed";
+  if (!isBookingAwaitingDeposit(booking) && !["cancelled", "canceled", "rejected", "refunded", "completed", "event completed"].includes(raw)) {
+    return "confirmed";
+  }
+  return "other";
 };
 
 /**
@@ -310,21 +318,23 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
     };
   }
 
-  if (raw === "completed") {
+  if (["completed", "event completed"].includes(raw)) {
     return {
       tone: "neutral",
       label: "Completed",
       icon: CheckCircle2,
-      notice: { tone: "neutral", title: "This event is complete.", text: "Thank you for celebrating with us." },
+      notice: balance > 0
+        ? { tone: "warning", title: "Balance remaining.", text: "Please settle your remaining balance." }
+        : null,
     };
   }
 
-  if (raw === "cancelled") {
+  if (["cancelled", "canceled", "rejected", "refunded"].includes(raw)) {
     return {
       tone: "danger",
-      label: "Cancelled",
+      label: raw === "refunded" ? "Refunded" : "Cancelled",
       icon: XCircle,
-      notice: { tone: "neutral", title: "This booking was cancelled.", text: "Message us if you'd like to rebook." },
+      notice: null,
     };
   }
 

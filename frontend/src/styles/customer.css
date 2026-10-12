@@ -17,9 +17,9 @@ textarea {
   --color-primary: #2C4B8A;
   --color-primary-foreground: #FFFFFF;
   --color-primary-hover: #1E3563;
-  --color-accent: #D2B67C;
-  --color-accent-foreground: #1E293B;
-  --color-accent-soft: #F8FAFC;
+  --color-accent: #EFF6FF;
+  --color-accent-foreground: #2C4B8A;
+  --color-accent-soft: #EFF6FF;
   --color-border: #E2E8F0;
   --color-border-subtle: #F1F5F9;
   --color-muted: #F8FAFC;

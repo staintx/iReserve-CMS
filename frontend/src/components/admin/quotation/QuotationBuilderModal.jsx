@@ -784,7 +784,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         const guests = Number(inquiry?.guest_count) || 1;
         if (inquiry?.is_custom_setup) {
           setPackageName(
-            inquiry.event_theme ? `Custom ${inquiry.event_theme} Event Setup` : "Bespoke Custom Event Setup"
+            inquiry.event_theme ? `Custom ${inquiry.event_theme} Event Setup` : "Custom Event Setup"
           );
           setInclusions(
             (Array.isArray(inquiry.custom_setup_scope) ? inquiry.custom_setup_scope : []).map((scope) =>

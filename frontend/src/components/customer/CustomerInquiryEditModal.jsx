@@ -1253,14 +1253,14 @@ export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClos
                       <div>
                         <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                           <Sparkles className="h-4 w-4 text-purple-600" />
-                          <span>Bespoke Custom Setup &amp; Styling Brief</span>
+                          <span>Custom Setup &amp; Styling Brief</span>
                         </h3>
                         <p className="text-xs text-slate-500 mt-0.5">
                           Configure your requested styling scope, target budget, and design moodboard.
                         </p>
                       </div>
                       <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200">
-                        Bespoke Request
+                        Custom Setup
                       </span>
                     </div>
 

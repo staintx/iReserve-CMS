@@ -1725,7 +1725,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
     const resolvedPkgName = form.is_custom_setup
       ? form.event_theme
         ? `Custom ${form.event_theme} Event Setup`
-        : "Bespoke Custom Event Setup"
+        : "Custom Event Setup"
       : packageDetails?.name || "Custom Package";
     setQuotationPackageName(resolvedPkgName);
 

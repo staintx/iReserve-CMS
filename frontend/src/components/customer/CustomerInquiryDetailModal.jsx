@@ -194,10 +194,6 @@ export default function CustomerInquiryDetailModal({
                         <span className="font-semibold text-slate-900 block mt-0.5">{data?.start_time || "To be determined"}</span>
                       </div>
                       <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Duration</span>
-                        <span className="font-semibold text-slate-900 block mt-0.5">{data?.duration_hours ? `${data.duration_hours} hours` : "Standard"}</span>
-                      </div>
-                      <div>
                         <span className="text-[11px] text-slate-400 block font-medium">Guest Headcount</span>
                         <span className="font-semibold text-slate-900 block mt-0.5">{data?.guest_count || 0} guests</span>
                       </div>

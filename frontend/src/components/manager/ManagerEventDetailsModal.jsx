@@ -647,15 +647,8 @@ export default function ManagerEventDetailsModal({
     ? `${parsedDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} (${parsedDate.toLocaleDateString("en-US", { weekday: "short" })})`
     : formatEventDate(booking.event_date, { fallback: "Date TBA" });
 
-  // Friendly time: "2:00 PM - 6:00 PM (4 hrs)"
   const startTimeStr = booking.start_time ? formatTime(booking.start_time) : "";
-  const endTimeStr = booking.end_time ? formatTime(booking.end_time) : "";
-  const durationHours = booking.duration_hours || 4;
-  const eventTimeStr = startTimeStr
-    ? endTimeStr
-      ? `${startTimeStr} - ${endTimeStr} (${durationHours} hrs)`
-      : `${startTimeStr} (${durationHours} hrs)`
-    : "Time TBA";
+  const eventTimeStr = startTimeStr || "Time TBA";
 
   const guestCount = booking.guest_count || 0;
   const remainingBalance = Number(booking.remaining_balance || 0);

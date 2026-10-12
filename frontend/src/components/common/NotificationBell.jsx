@@ -177,9 +177,9 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
         )}
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent 
+      <DropdownMenuContent
         side={menuSide}
-        align={menuSide === "right" ? "start" : "end"} 
+        align={menuSide === "right" ? "start" : "end"}
         sideOffset={menuSide === "right" ? 16 : 8}
         collisionPadding={8}
         /* 320px wide inside a 320px viewport left no room for the collision

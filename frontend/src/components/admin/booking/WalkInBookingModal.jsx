@@ -156,7 +156,7 @@ const EMPTY_FORM = {
   custom_setup_notes: "",
   event_date: "",
   start_time: "12:00 PM",
-  duration_hours: "4",
+  duration_hours: "",
   guest_count: "50",
   venue_type: "",
   venue_type_other: "",
@@ -1033,8 +1033,7 @@ function WalkInReviewAndQuotation({
             {form.celebrant_name ? ` (Honoree: ${form.celebrant_name})` : ""}
           </p>
           <p className="text-slate-500">
-            {form.event_date ? formatEventDate(form.event_date) : "—"} · {form.start_time} (
-            {form.duration_hours} hrs)
+            {form.event_date ? formatEventDate(form.event_date) : "—"} · {form.start_time}
           </p>
           <p className="font-medium text-slate-700">{guestCount} Guests</p>
           {form.event_theme && (
@@ -3344,7 +3343,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
         celebrant_name: form.celebrant_name || undefined,
         event_date: form.event_date,
         start_time: form.start_time,
-        duration_hours: Number(form.duration_hours) || 4,
+        duration_hours: Number(form.duration_hours) || undefined,
         guest_count: Number(form.guest_count),
         venue_type: resolveVenueType({
           venue_type: form.venue_type,

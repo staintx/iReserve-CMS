@@ -52,7 +52,7 @@ const BookingSchema = new mongoose.Schema(
 
     event_date: { type: Date, required: [true, "Event date is required"] },
     start_time: { type: String, required: [true, "Start time is required"] },
-    duration_hours: { type: Number, default: 4 },
+    duration_hours: { type: Number },
     guest_count: { type: Number, required: [true, "Guest count is required"] },
     include_food: { type: Boolean, default: true },
 
@@ -388,6 +388,30 @@ const BookingSchema = new mongoose.Schema(
       confirmed_at: Date,
       additional_notes: String,
     },
+    equipment_checklist: [
+      {
+        item_key: { type: String, required: true },
+        name: { type: String, required: true },
+        category: { type: String, default: "" },
+        quantity: { type: Number },
+        unit: { type: String },
+        is_inspected: { type: Boolean, default: false },
+        status: {
+          type: String,
+          enum: ["not_inspected", "inspected_ok", "issue_reported"],
+          default: "not_inspected",
+        },
+        issue_type: {
+          type: String,
+          enum: ["none", "damaged", "missing", "quantity_mismatch", "needs_repair", "other"],
+          default: "none",
+        },
+        notes: { type: String, default: "" },
+        completed_at: Date,
+        completed_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      },
+    ],
+    equipment_notes: { type: String, default: "" },
 
     ocular_visit: {
       is_required: { type: Boolean, default: false },

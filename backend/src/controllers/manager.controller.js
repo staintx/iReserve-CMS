@@ -349,6 +349,7 @@ exports.getBooking = asyncHandler(async (req, res) => {
   })
     .populate("customer_id", "full_name first_name last_name email phone address")
     .populate("package_id")
+    .populate("inquiry_id")
     .populate("staff_assignments.user_id", "full_name email phone position role")
     .populate("inventory_items.inventory_id")
     .populate("equipment_returns.inventory_id")
@@ -362,7 +363,7 @@ exports.getBooking = asyncHandler(async (req, res) => {
   const payments = await Payment.find({
     $or: [
       { booking_id: booking._id },
-      ...(booking.inquiry_id ? [{ inquiry_id: booking.inquiry_id }] : [])
+      ...(booking.inquiry_id ? [{ inquiry_id: booking.inquiry_id?._id || booking.inquiry_id }] : [])
     ]
   })
     .sort({ createdAt: -1 })
@@ -375,11 +376,25 @@ exports.getBooking = asyncHandler(async (req, res) => {
   const totalCost = Number(booking.total_price || 0);
   const remainingBalance = Math.max(0, totalCost - totalPaid);
 
+  let quotation = null;
+  const inqId = booking.inquiry_id?._id || booking.inquiry_id;
+  if (inqId) {
+    try {
+      const Quotation = require("../models/Quotation");
+      quotation = await Quotation.findOne({ inquiry_id: inqId }).sort({ version_number: -1 }).lean();
+    } catch {
+      // Gracefully handle if Quotation lookup fails
+    }
+  }
+
   const bookingObj = booking.toObject ? booking.toObject() : booking;
   bookingObj.payments = payments;
   bookingObj.approved_payments = approvedPayments;
   bookingObj.total_paid = totalPaid;
   bookingObj.remaining_balance = remainingBalance;
+  if (quotation) {
+    bookingObj.quotation = quotation;
+  }
 
   res.json(bookingObj);
 });
@@ -676,12 +691,6 @@ exports.updateStaffAttendance = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "This booking is completed and read-only. Staff attendance cannot be modified." });
   }
 
-  if (!isBookingStartedOrFinished(booking)) {
-    return res.status(400).json({
-      message: `Staff attendance check-in is locked until the event starts (${formatBookingEventSchedule(booking.event_date, booking.start_time)}).`
-    });
-  }
-
   const { attendance } = req.body;
   if (!Array.isArray(attendance)) {
     return res.status(400).json({ message: "attendance must be an array" });
@@ -732,6 +741,103 @@ exports.updateStaffAttendance = asyncHandler(async (req, res) => {
   res.json({
     message: "Staff attendance updated successfully",
     staff_assignments: populated.staff_assignments
+  });
+});
+
+exports.updateEquipmentChecklist = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({
+    _id: req.params.id,
+    ...(req.user.role === "admin" ? {} : { event_manager_id: req.user._id })
+  });
+
+  if (!booking) {
+    return res.status(404).json({ message: "Assigned event not found" });
+  }
+
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is completed and read-only. Equipment checklist cannot be modified." });
+  }
+
+  const { checklist, item, notes } = req.body;
+
+  if (Array.isArray(checklist)) {
+    booking.equipment_checklist = checklist.map((c) => ({
+      item_key: String(c.item_key || c.id || c.name),
+      name: String(c.name || "Item"),
+      category: String(c.category || ""),
+      quantity: typeof c.quantity === "number" ? c.quantity : undefined,
+      unit: c.unit || undefined,
+      is_inspected: Boolean(c.is_inspected),
+      status: ["not_inspected", "inspected_ok", "issue_reported"].includes(c.status) ? c.status : "not_inspected",
+      issue_type: ["none", "damaged", "missing", "quantity_mismatch", "needs_repair", "other"].includes(c.issue_type) ? c.issue_type : "none",
+      notes: typeof c.notes === "string" ? c.notes : "",
+      completed_at: c.completed_at || (c.status === "inspected_ok" || c.is_complete ? new Date() : null),
+      completed_by: req.user._id
+    }));
+  } else if (item && item.item_key) {
+    if (!Array.isArray(booking.equipment_checklist)) {
+      booking.equipment_checklist = [];
+    }
+    const idx = booking.equipment_checklist.findIndex((c) => c.item_key === item.item_key);
+    const updatedEntry = {
+      item_key: item.item_key,
+      name: item.name || "Item",
+      category: item.category || "",
+      quantity: item.quantity,
+      unit: item.unit || "",
+      is_inspected: item.is_inspected !== undefined ? Boolean(item.is_inspected) : true,
+      status: item.status || "inspected_ok",
+      issue_type: item.issue_type || "none",
+      notes: item.notes !== undefined ? item.notes : "",
+      completed_at: item.is_complete ? new Date() : (item.completed_at || null),
+      completed_by: req.user._id,
+    };
+    if (idx >= 0) {
+      booking.equipment_checklist[idx] = { ...booking.equipment_checklist[idx].toObject?.() || booking.equipment_checklist[idx], ...updatedEntry };
+    } else {
+      booking.equipment_checklist.push(updatedEntry);
+    }
+  }
+
+  if (typeof notes === "string") {
+    booking.equipment_notes = notes.trim();
+  }
+
+  await booking.save();
+
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("system:refresh", { type: "booking", action: "update_equipment_checklist", booking_id: booking._id });
+  }
+
+  res.json({
+    message: "Equipment checklist updated successfully",
+    equipment_checklist: booking.equipment_checklist,
+    equipment_notes: booking.equipment_notes
+  });
+});
+
+exports.updateEquipmentNotes = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({
+    _id: req.params.id,
+    ...(req.user.role === "admin" ? {} : { event_manager_id: req.user._id })
+  });
+
+  if (!booking) {
+    return res.status(404).json({ message: "Assigned event not found" });
+  }
+
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is completed and read-only. Notes cannot be modified." });
+  }
+
+  const notes = req.body.notes !== undefined ? req.body.notes : req.body.equipment_notes;
+  booking.equipment_notes = typeof notes === "string" ? notes.trim() : "";
+  await booking.save();
+
+  res.json({
+    message: "Equipment notes saved successfully",
+    equipment_notes: booking.equipment_notes
   });
 });
 

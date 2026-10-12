@@ -61,6 +61,7 @@ export default function CustomerReceiptModal({
 
   const getMilestoneLabel = (type) => {
     const t = String(type || "").toLowerCase();
+    if (t === "refund") return "Refund Disbursement";
     if (t === "deposit") return "Initial Deposit Payment";
     if (t === "balance") return "Final Balance Payment";
     if (t === "full") return "Full Payment (100%)";
@@ -189,26 +190,41 @@ export default function CustomerReceiptModal({
               )}
             </div>
 
-            {/* 2. Amount Paid (Focused Visual Emphasis without oversized card) */}
-            <div className="flex flex-col xs:flex-row sm:flex-row items-start xs:items-center sm:items-center justify-between gap-2 p-3 sm:p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/70">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block leading-tight">
-                  Amount Paid
-                </span>
-                <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-0.5 tabular-nums leading-none">
-                  {fmt(payment.amount)}
+            {/* 2. Amount Paid / Refunded (Focused Visual Emphasis without oversized card) */}
+            {(() => {
+              const isRefund = (payment.payment_type || "").toLowerCase() === "refund" || Number(payment.amount) < 0;
+              return (
+                <div className="flex flex-col xs:flex-row sm:flex-row items-start xs:items-center sm:items-center justify-between gap-2 p-3 sm:p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/70">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block leading-tight">
+                      {isRefund ? "Refund Amount" : "Amount Paid"}
+                    </span>
+                    <div className={cn(
+                      "text-2xl sm:text-3xl font-extrabold tracking-tight mt-0.5 tabular-nums leading-none",
+                      isRefund ? "text-[#4C81E0]" : "text-slate-900"
+                    )}>
+                      {isRefund ? `− ${fmt(Math.abs(payment.amount))}` : fmt(payment.amount)}
+                    </div>
+                  </div>
+                  <div className="flex xs:flex-col sm:flex-col items-center xs:items-end sm:items-end gap-1 w-full xs:w-auto sm:w-auto justify-between xs:justify-start">
+                    {isRefund ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#4C81E0] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#4C81E0]" />
+                        {paymentStatus === "approved" || paymentStatus === "paid" || paymentStatus === "refunded" ? "Refunded" : paymentStatus}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        {paymentStatus === "approved" || paymentStatus === "paid" ? "Paid & Approved" : paymentStatus}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      {formatDateTime(paidAt)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div className="flex xs:flex-col sm:flex-col items-center xs:items-end sm:items-end gap-1 w-full xs:w-auto sm:w-auto justify-between xs:justify-start">
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  {paymentStatus === "approved" || paymentStatus === "paid" ? "Paid & Approved" : paymentStatus}
-                </span>
-                <span className="text-[10px] text-slate-500 font-medium">
-                  {formatDateTime(paidAt)}
-                </span>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* ── Divider ── */}
             <div className="border-t border-dashed border-slate-200" />

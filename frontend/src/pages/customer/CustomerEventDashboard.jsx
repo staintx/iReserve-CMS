@@ -38,6 +38,7 @@ import {
   PackagePlus,
   Eye,
   ShieldAlert,
+  RefreshCcw,
 } from "lucide-react";
 import { getBookingOcularActionMeta } from "../../utils/ocularStatusHelper";
 import { isBookingAwaitingDeposit } from "../../utils/bookingDeposit";
@@ -320,9 +321,74 @@ export default function CustomerEventDashboard() {
     return payments.filter((p) => String(p.booking_id?._id || p.booking_id) === String(booking._id));
   }, [booking, payments]);
 
+  // Separate gross customer payments from refund transactions
+  const approvedCustomerPayments = useMemo(() => {
+    return bookingPayments.filter(
+      (p) =>
+        (p.payment_type || "").toLowerCase() !== "refund" &&
+        Number(p.amount) > 0 &&
+        ["approved", "paid", "successful"].includes((p.status || "").toLowerCase())
+    );
+  }, [bookingPayments]);
+
+  const totalAmountPaid = useMemo(
+    () => approvedCustomerPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
+    [approvedCustomerPayments]
+  );
+
+  const isDepositOnly = useMemo(() => {
+    return (
+      approvedCustomerPayments.length > 0 &&
+      approvedCustomerPayments.every((p) => (p.payment_type || "").toLowerCase() === "deposit")
+    );
+  }, [approvedCustomerPayments]);
+
+  const paidLabel = isDepositOnly ? "Deposit Paid" : "Amount Paid";
+
+  // Approved refunds
+  const approvedRefundPayments = useMemo(() => {
+    return bookingPayments.filter(
+      (p) =>
+        ((p.payment_type || "").toLowerCase() === "refund" || Number(p.amount) < 0) &&
+        ["approved", "paid", "successful", "refunded"].includes((p.status || "").toLowerCase())
+    );
+  }, [bookingPayments]);
+
+  const totalRefundIssued = useMemo(
+    () => approvedRefundPayments.reduce((sum, p) => sum + Math.abs(Number(p.amount) || 0), 0),
+    [approvedRefundPayments]
+  );
+
+  // Pending refunds
+  const pendingRefundPayments = useMemo(() => {
+    return bookingPayments.filter(
+      (p) =>
+        ((p.payment_type || "").toLowerCase() === "refund" || Number(p.amount) < 0) &&
+        (p.status || "").toLowerCase() === "pending"
+    );
+  }, [bookingPayments]);
+
+  const pendingRefundAmount = useMemo(
+    () => pendingRefundPayments.reduce((sum, p) => sum + Math.abs(Number(p.amount) || 0), 0),
+    [pendingRefundPayments]
+  );
+
+  const hasPendingRefund = useMemo(() => {
+    return (
+      pendingRefundPayments.length > 0 ||
+      (booking?.payment_status === "refund_requested" && totalRefundIssued === 0)
+    );
+  }, [pendingRefundPayments, booking, totalRefundIssued]);
+
+  const amountRetained = useMemo(
+    () => Math.max(0, totalAmountPaid - totalRefundIssued),
+    [totalAmountPaid, totalRefundIssued]
+  );
+
+  // Net paid (used for active contract balance calculation)
   const totalPaid = useMemo(
-    () => bookingPayments.filter((p) => p.status === "approved").reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
-    [bookingPayments]
+    () => Math.max(0, totalAmountPaid - totalRefundIssued),
+    [totalAmountPaid, totalRefundIssued]
   );
 
   const guestCount = Number(booking?.guest_count) || 0;
@@ -1710,8 +1776,29 @@ export default function CustomerEventDashboard() {
                     <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans flex items-center gap-1.5">
                       <CreditCard className="w-3.5 h-3.5 text-[#4C81E0]" /> Payment &amp; Balance
                     </h3>
-                    <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded", isCancelled ? "bg-rose-50 text-rose-800" : isFullyPaid ? "bg-emerald-50 text-emerald-800" : "bg-blue-50 text-[#4C81E0]")}>
-                      {isCancelled ? "Cancelled" : isFullyPaid ? "Paid in full" : "Balance Pending"}
+                    <span
+                      className={cn(
+                        "text-[11px] font-semibold px-2 py-0.5 rounded",
+                        isCancelled
+                          ? totalRefundIssued > 0
+                            ? "bg-blue-50 text-[#4C81E0] border border-blue-200"
+                            : hasPendingRefund
+                              ? "bg-amber-50 text-amber-800 border border-amber-200"
+                              : "bg-rose-50 text-rose-800"
+                          : isFullyPaid
+                            ? "bg-emerald-50 text-emerald-800"
+                            : "bg-blue-50 text-[#4C81E0]"
+                      )}
+                    >
+                      {isCancelled
+                        ? totalRefundIssued > 0
+                          ? "Cancelled · Refunded"
+                          : hasPendingRefund
+                            ? "Refund Pending"
+                            : "Cancelled"
+                        : isFullyPaid
+                          ? "Paid in full"
+                          : "Balance Pending"}
                     </span>
                   </div>
 
@@ -1721,31 +1808,147 @@ export default function CustomerEventDashboard() {
                       <span className="font-semibold tabular-nums text-slate-900">{formatCurrency(grandTotal)}</span>
                     </div>
 
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-slate-500">Amount paid</span>
-                      <span className="font-semibold tabular-nums text-emerald-700">
-                        {displayPaid > 0 ? `− ${formatCurrency(displayPaid)}` : formatCurrency(0)}
-                      </span>
-                    </div>
+                    {isCancelled ? (
+                      <>
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="text-slate-500">{paidLabel}</span>
+                          <span className="font-semibold tabular-nums text-emerald-700">
+                            {formatCurrency(totalAmountPaid)}
+                          </span>
+                        </div>
 
-                    <div className="pt-2 border-t border-slate-100 flex items-baseline justify-between gap-3">
-                      <span className="font-bold text-slate-900">
-                        {isFullyPaid ? "Paid in full" : isCancelled ? "Balance status" : "Remaining balance"}
-                      </span>
-                      <span className={`text-xl font-bold tabular-nums ${isFullyPaid ? "text-emerald-700" : isCancelled ? "text-slate-500" : "text-[#4C81E0]"}`}>
-                        {isCancelled ? "Closed" : formatCurrency(isFullyPaid ? grandTotal : outstandingAmount)}
-                      </span>
-                    </div>
+                        {totalRefundIssued > 0 ? (
+                          <>
+                            <div className="flex items-baseline justify-between gap-3">
+                              <span className="text-slate-500 flex items-center gap-1">
+                                <RefreshCcw className="w-3 h-3 text-[#4C81E0]" />
+                                Refund Issued
+                              </span>
+                              <span className="font-semibold tabular-nums text-[#4C81E0]">
+                                − {formatCurrency(totalRefundIssued)}
+                              </span>
+                            </div>
 
-                    {outstandingAmount > 0 && !isCancelled && (
-                      <Button
-                        onClick={handlePayRemainingBalance}
-                        disabled={payingPaymentId !== null}
-                        className="w-full bg-[#4C81E0] hover:bg-[#3b6ec6] text-white font-semibold text-xs h-9 rounded-lg cursor-pointer shadow-2xs gap-1.5 transition-all mt-1 active:scale-95"
-                      >
-                        <CreditCard className="h-3.5 w-3.5" />
-                        {payingPaymentId ? "Opening Checkout…" : `Pay Balance (${formatCurrency(outstandingAmount)})`}
-                      </Button>
+                            <div className="flex items-baseline justify-between gap-3">
+                              <span className="text-slate-500">Amount Retained</span>
+                              <span className="font-semibold tabular-nums text-slate-800">
+                                {formatCurrency(amountRetained)}
+                              </span>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-100 flex items-baseline justify-between gap-3">
+                              <span className="font-bold text-slate-900">Balance status</span>
+                              <span className="text-xl font-bold tabular-nums text-slate-500">Closed</span>
+                            </div>
+
+                            {/* Clear Calculation Breakdown Callout */}
+                            <div className="p-2.5 rounded-lg bg-blue-50/70 border border-blue-200/80 text-[11px] space-y-1">
+                              <div className="font-semibold text-slate-900 flex items-center gap-1">
+                                <RefreshCcw className="w-3 h-3 text-[#4C81E0]" />
+                                <span>Refund Breakdown</span>
+                              </div>
+                              <p className="text-slate-600 leading-relaxed">
+                                Of the {formatCurrency(totalAmountPaid)} {paidLabel.toLowerCase()}, {formatCurrency(totalRefundIssued)} was refunded to your original payment method and {formatCurrency(amountRetained)} was retained per cancellation terms.
+                              </p>
+                              <p className="text-[10px] text-slate-500 italic">
+                                * Reservation deposits are normally non-refundable; this refund reflects an approved exception.
+                              </p>
+                            </div>
+                          </>
+                        ) : hasPendingRefund ? (
+                          <>
+                            <div className="flex items-baseline justify-between gap-3">
+                              <span className="text-slate-500 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                Refund Status
+                              </span>
+                              <span className="font-semibold tabular-nums text-amber-700">
+                                {pendingRefundAmount > 0
+                                  ? `${formatCurrency(pendingRefundAmount)} (Under Review)`
+                                  : "Under Review"}
+                              </span>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-100 flex items-baseline justify-between gap-3">
+                              <span className="font-bold text-slate-900">Balance status</span>
+                              <span className="text-base font-bold tabular-nums text-amber-700">Refund Pending</span>
+                            </div>
+
+                            <div className="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200/80 text-[11px] space-y-1">
+                              <div className="font-semibold text-amber-900 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-amber-700" />
+                                <span>Refund Request Under Review</span>
+                              </div>
+                              <p className="text-amber-800 leading-relaxed">
+                                Your cancellation refund request is being evaluated by management. Any eligible refund will be disbursed to your payment method once approved.
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {totalAmountPaid > 0 && (
+                              <div className="flex items-baseline justify-between gap-3">
+                                <span className="text-slate-500">Amount Retained</span>
+                                <span className="font-semibold tabular-nums text-slate-800">
+                                  {formatCurrency(amountRetained)}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="pt-2 border-t border-slate-100 flex items-baseline justify-between gap-3">
+                              <span className="font-bold text-slate-900">Balance status</span>
+                              <span className="text-xl font-bold tabular-nums text-slate-500">Closed</span>
+                            </div>
+
+                            <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 leading-relaxed">
+                              {totalAmountPaid > 0
+                                ? `The ${paidLabel.toLowerCase()} of ${formatCurrency(totalAmountPaid)} was retained per the non-refundable reservation deposit policy.`
+                                : "This booking was cancelled. Billing is closed."}
+                            </div>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="text-slate-500">{paidLabel}</span>
+                          <span className="font-semibold tabular-nums text-emerald-700">
+                            {displayPaid > 0 ? `− ${formatCurrency(displayPaid)}` : formatCurrency(0)}
+                          </span>
+                        </div>
+
+                        {totalRefundIssued > 0 && (
+                          <div className="flex items-baseline justify-between gap-3">
+                            <span className="text-slate-500 flex items-center gap-1">
+                              <RefreshCcw className="w-3 h-3 text-[#4C81E0]" />
+                              Refund Issued
+                            </span>
+                            <span className="font-semibold tabular-nums text-[#4C81E0]">
+                              − {formatCurrency(totalRefundIssued)}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="pt-2 border-t border-slate-100 flex items-baseline justify-between gap-3">
+                          <span className="font-bold text-slate-900">
+                            {isFullyPaid ? "Paid in full" : "Remaining balance"}
+                          </span>
+                          <span className={`text-xl font-bold tabular-nums ${isFullyPaid ? "text-emerald-700" : "text-[#4C81E0]"}`}>
+                            {formatCurrency(isFullyPaid ? grandTotal : outstandingAmount)}
+                          </span>
+                        </div>
+
+                        {outstandingAmount > 0 && (
+                          <Button
+                            onClick={handlePayRemainingBalance}
+                            disabled={payingPaymentId !== null}
+                            className="w-full bg-[#4C81E0] hover:bg-[#3b6ec6] text-white font-semibold text-xs h-9 rounded-lg cursor-pointer shadow-2xs gap-1.5 transition-all mt-1 active:scale-95"
+                          >
+                            <CreditCard className="h-3.5 w-3.5" />
+                            {payingPaymentId ? "Opening Checkout…" : `Pay Balance (${formatCurrency(outstandingAmount)})`}
+                          </Button>
+                        )}
+                      </>
                     )}
 
                     <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
@@ -1966,35 +2169,152 @@ export default function CustomerEventDashboard() {
                     <span className="shrink-0 font-sans text-base font-bold tabular-nums text-slate-900">{formatCurrency(grandTotal)}</span>
                   </div>
 
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-slate-600">Amount paid</span>
-                    <span className="shrink-0 font-sans font-semibold tabular-nums text-emerald-700">− {formatCurrency(displayPaid)}</span>
-                  </div>
+                  {isCancelled ? (
+                    <>
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="text-slate-600">{paidLabel}</span>
+                        <span className="shrink-0 font-sans font-semibold tabular-nums text-emerald-700">
+                          {formatCurrency(totalAmountPaid)}
+                        </span>
+                      </div>
 
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
-                    <span className="font-bold text-slate-900">
-                      {isCancelled ? "Balance status" : outstandingAmount > 0 ? "Remaining balance" : "Paid in full"}
-                    </span>
-                    <span className={`shrink-0 font-sans text-lg font-bold tabular-nums ${isCancelled ? "text-slate-500" : outstandingAmount > 0 ? "text-[#4C81E0]" : "text-emerald-700"}`}>
-                      {isCancelled ? "Closed" : formatCurrency(outstandingAmount)}
-                    </span>
-                  </div>
+                      {totalRefundIssued > 0 ? (
+                        <>
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="text-slate-600 flex items-center gap-1">
+                              <RefreshCcw className="w-3 h-3 text-[#4C81E0]" />
+                              Refund Issued
+                            </span>
+                            <span className="shrink-0 font-sans font-semibold tabular-nums text-[#4C81E0]">
+                              − {formatCurrency(totalRefundIssued)}
+                            </span>
+                          </div>
 
-                  {outstandingAmount > 0 && !isCancelled && (
-                    <Button
-                      onClick={handlePayRemainingBalance}
-                      disabled={payingPaymentId !== null}
-                      className="mt-2 w-full h-9 text-xs font-semibold rounded-lg shadow-2xs bg-[#4C81E0] hover:bg-[#3b6ec6] text-white cursor-pointer gap-1.5 transition-all active:scale-95"
-                    >
-                      <CreditCard className="h-3.5 w-3.5" />
-                      {payingPaymentId ? "Opening checkout…" : `Pay Remaining Balance (${formatCurrency(outstandingAmount)})`}
-                    </Button>
-                  )}
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="text-slate-600">Amount Retained</span>
+                            <span className="shrink-0 font-sans font-semibold tabular-nums text-slate-800">
+                              {formatCurrency(amountRetained)}
+                            </span>
+                          </div>
 
-                  {isCancelled && (
-                    <div className="mt-2 p-2.5 rounded-lg bg-rose-50/80 border border-rose-200/80 text-[11px] text-rose-800 text-center font-medium">
-                      Booking Cancelled · Billing Closed
-                    </div>
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
+                            <span className="font-bold text-slate-900">Balance status</span>
+                            <span className="shrink-0 font-sans text-lg font-bold tabular-nums text-slate-500">
+                              Closed
+                            </span>
+                          </div>
+
+                          <div className="mt-2 p-2.5 rounded-lg bg-blue-50/70 border border-blue-200/80 text-[11px] space-y-1">
+                            <div className="font-semibold text-slate-900 flex items-center gap-1">
+                              <RefreshCcw className="w-3 h-3 text-[#4C81E0]" />
+                              <span>Refund Breakdown</span>
+                            </div>
+                            <p className="text-slate-600 leading-relaxed">
+                              Of the {formatCurrency(totalAmountPaid)} {paidLabel.toLowerCase()}, {formatCurrency(totalRefundIssued)} was refunded to your original payment method and {formatCurrency(amountRetained)} was retained per cancellation terms.
+                            </p>
+                            <p className="text-[10px] text-slate-500 italic">
+                              * Reservation deposits are normally non-refundable; this refund reflects an approved exception.
+                            </p>
+                          </div>
+                        </>
+                      ) : hasPendingRefund ? (
+                        <>
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="text-slate-600 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              Refund Status
+                            </span>
+                            <span className="shrink-0 font-sans font-semibold tabular-nums text-amber-700">
+                              {pendingRefundAmount > 0
+                                ? `${formatCurrency(pendingRefundAmount)} (Under Review)`
+                                : "Under Review"}
+                            </span>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
+                            <span className="font-bold text-slate-900">Balance status</span>
+                            <span className="shrink-0 font-sans text-lg font-bold tabular-nums text-amber-700">
+                              Refund Pending
+                            </span>
+                          </div>
+
+                          <div className="mt-2 p-2.5 rounded-lg bg-amber-50/70 border border-amber-200/80 text-[11px] space-y-1">
+                            <div className="font-semibold text-amber-900 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-amber-700" />
+                              <span>Refund Request Under Review</span>
+                            </div>
+                            <p className="text-amber-800 leading-relaxed">
+                              Your cancellation refund request is being evaluated by management. Any eligible refund will be disbursed to your payment method once approved.
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {totalAmountPaid > 0 && (
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="text-slate-600">Amount Retained</span>
+                              <span className="shrink-0 font-sans font-semibold tabular-nums text-slate-800">
+                                {formatCurrency(amountRetained)}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
+                            <span className="font-bold text-slate-900">Balance status</span>
+                            <span className="shrink-0 font-sans text-lg font-bold tabular-nums text-slate-500">
+                              Closed
+                            </span>
+                          </div>
+
+                          <div className="mt-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 leading-relaxed">
+                            {totalAmountPaid > 0
+                              ? `The ${paidLabel.toLowerCase()} of ${formatCurrency(totalAmountPaid)} was retained per the non-refundable reservation deposit policy.`
+                              : "This booking was cancelled. Billing is closed."}
+                          </div>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="text-slate-600">{paidLabel}</span>
+                        <span className="shrink-0 font-sans font-semibold tabular-nums text-emerald-700">
+                          {displayPaid > 0 ? `− ${formatCurrency(displayPaid)}` : formatCurrency(0)}
+                        </span>
+                      </div>
+
+                      {totalRefundIssued > 0 && (
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="text-slate-600 flex items-center gap-1">
+                            <RefreshCcw className="w-3 h-3 text-[#4C81E0]" />
+                            Refund Issued
+                          </span>
+                          <span className="shrink-0 font-sans font-semibold tabular-nums text-[#4C81E0]">
+                            − {formatCurrency(totalRefundIssued)}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
+                        <span className="font-bold text-slate-900">
+                          {outstandingAmount > 0 ? "Remaining balance" : "Paid in full"}
+                        </span>
+                        <span className={`shrink-0 font-sans text-lg font-bold tabular-nums ${outstandingAmount > 0 ? "text-[#4C81E0]" : "text-emerald-700"}`}>
+                          {formatCurrency(outstandingAmount)}
+                        </span>
+                      </div>
+
+                      {outstandingAmount > 0 && (
+                        <Button
+                          onClick={handlePayRemainingBalance}
+                          disabled={payingPaymentId !== null}
+                          className="mt-2 w-full h-9 text-xs font-semibold rounded-lg shadow-2xs bg-[#4C81E0] hover:bg-[#3b6ec6] text-white cursor-pointer gap-1.5 transition-all active:scale-95"
+                        >
+                          <CreditCard className="h-3.5 w-3.5" />
+                          {payingPaymentId ? "Opening checkout…" : `Pay Remaining Balance (${formatCurrency(outstandingAmount)})`}
+                        </Button>
+                      )}
+                    </>
                   )}
 
                   <div className="pt-2 border-t border-slate-100">

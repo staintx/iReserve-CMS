@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Keyboard,
+  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -35,8 +37,22 @@ export const ZelleChatScreen = ({ navigation }) => {
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId] = useState(() => `mobile_zelle_${Date.now()}`);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
   const flatListRef = useRef(null);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleSend = async (overrideText) => {
     const textToSend = typeof overrideText === "string" ? overrideText : inputText;
@@ -113,6 +129,7 @@ export const ZelleChatScreen = ({ navigation }) => {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       enabled={Platform.OS === "ios"}
     >
       {/* Header (Glovo Circular Back Button) */}
@@ -121,6 +138,9 @@ export const ZelleChatScreen = ({ navigation }) => {
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
           activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <ChevronLeft size={20} color={colors.foreground} />
         </TouchableOpacity>
@@ -134,6 +154,9 @@ export const ZelleChatScreen = ({ navigation }) => {
           onPress={() => setMessages([])}
           style={styles.clearBtn}
           activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Clear chat history"
         >
           <Trash2 size={18} color={colors.foregroundMuted} />
         </TouchableOpacity>
@@ -141,25 +164,53 @@ export const ZelleChatScreen = ({ navigation }) => {
 
       {/* Main Chat Area */}
       {messages.length === 0 ? (
-        /* Empty / Welcome State matching Screenshot 2 */
-        <View style={styles.welcomeContainer}>
-          <View style={styles.sparkleIconCircle}>
-            <Sparkles size={28} color={colors.primary} />
+        /* Empty / Welcome State */
+        <ScrollView
+          style={styles.welcomeScrollView}
+          contentContainerStyle={[
+            styles.welcomeContentContainer,
+            isKeyboardVisible && styles.welcomeContentContainerKeyboard,
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          bounces={false}
+        >
+          <View
+            style={[
+              styles.sparkleIconCircle,
+              isKeyboardVisible && styles.sparkleIconCircleKeyboard,
+            ]}
+          >
+            <Sparkles size={isKeyboardVisible ? 22 : 28} color={colors.primary} />
           </View>
 
-          <Text style={styles.welcomeTitle}>
+          <Text
+            style={[
+              styles.welcomeTitle,
+              isKeyboardVisible && styles.welcomeTitleKeyboard,
+            ]}
+          >
             How can I help you with your catering today?
           </Text>
-          <Text style={styles.welcomeDesc}>
+          <Text
+            style={[
+              styles.welcomeDesc,
+              isKeyboardVisible && styles.welcomeDescKeyboard,
+            ]}
+          >
             Ask about menus, estimate guest budgets, check event dates, or compare catering tiers.
           </Text>
 
-          {/* Quick Prompt Chips matching Screenshot 2 */}
+          {/* Quick Prompt Chips */}
           <View style={styles.promptList}>
             {SUGGESTED_PROMPTS.map((prompt, idx) => (
               <TouchableOpacity
                 key={idx}
-                style={styles.promptChip}
+                style={[
+                  styles.promptChip,
+                  isKeyboardVisible && styles.promptChipKeyboard,
+                ]}
                 onPress={() => handleSend(prompt)}
                 activeOpacity={0.7}
               >
@@ -167,7 +218,7 @@ export const ZelleChatScreen = ({ navigation }) => {
               </TouchableOpacity>
             ))}
           </View>
-        </View>
+        </ScrollView>
       ) : (
         <FlatList
           ref={flatListRef}
@@ -177,6 +228,8 @@ export const ZelleChatScreen = ({ navigation }) => {
           contentContainerStyle={styles.listContent}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         />
       )}
 
@@ -187,8 +240,17 @@ export const ZelleChatScreen = ({ navigation }) => {
         </View>
       )}
 
-      {/* Modern Chat Input Card matching Screenshot 2 */}
-      <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + spacing.sm }]}>
+      {/* Modern Chat Input Card */}
+      <View
+        style={[
+          styles.inputWrapper,
+          {
+            paddingBottom: isKeyboardVisible
+              ? spacing.xs
+              : Math.max(insets.bottom, spacing.xs) + spacing.xs,
+          },
+        ]}
+      >
         <View style={styles.inputCard}>
           <TextInput
             style={styles.textInput}
@@ -198,14 +260,28 @@ export const ZelleChatScreen = ({ navigation }) => {
             onChangeText={setInputText}
             multiline
             maxLength={1000}
+            textAlignVertical="top"
+            scrollEnabled
           />
 
           <View style={styles.inputActionsRow}>
             <View style={styles.mediaActionsLeft}>
-              <TouchableOpacity style={styles.iconActionBtn} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.iconActionBtn}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Attach file"
+              >
                 <Paperclip size={18} color={colors.foregroundMuted} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconActionBtn} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.iconActionBtn}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Assistant options"
+              >
                 <SlidersHorizontal size={18} color={colors.foregroundMuted} />
               </TouchableOpacity>
             </View>
@@ -218,11 +294,17 @@ export const ZelleChatScreen = ({ navigation }) => {
               onPress={() => handleSend()}
               disabled={!inputText.trim() || loading}
               activeOpacity={0.8}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Send message"
             >
               {loading ? (
                 <ActivityIndicator size="small" color={colors.white} />
               ) : (
-                <ArrowUp size={16} color={inputText.trim() ? colors.white : colors.foregroundMuted} />
+                <ArrowUp
+                  size={16}
+                  color={inputText.trim() ? colors.white : colors.foregroundMuted}
+                />
               )}
             </TouchableOpacity>
           </View>
@@ -250,6 +332,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
+    zIndex: 10,
+    elevation: 4,
   },
   backBtn: {
     width: 38,
@@ -284,11 +368,20 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
   },
-  welcomeContainer: {
+  welcomeScrollView: {
     flex: 1,
+  },
+  welcomeContentContainer: {
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+  },
+  welcomeContentContainerKeyboard: {
+    justifyContent: "flex-start",
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
   },
   sparkleIconCircle: {
     width: 60,
@@ -299,6 +392,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: spacing.md,
   },
+  sparkleIconCircleKeyboard: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginBottom: spacing.xs,
+  },
   welcomeTitle: {
     fontSize: 22,
     fontFamily: typography.fontFamily.extraBold,
@@ -307,6 +406,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
     letterSpacing: -0.3,
   },
+  welcomeTitleKeyboard: {
+    fontSize: 18,
+    lineHeight: 22,
+    marginBottom: 2,
+  },
   welcomeDesc: {
     fontSize: typography.sizes.sm,
     fontFamily: typography.fontFamily.regular,
@@ -314,6 +418,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     marginBottom: spacing.xl,
+  },
+  welcomeDescKeyboard: {
+    fontSize: typography.sizes.xs,
+    lineHeight: 16,
+    marginBottom: spacing.sm,
   },
   promptList: {
     width: "100%",
@@ -328,6 +437,9 @@ const styles = StyleSheet.create({
     borderColor: colors.borderLight,
     alignItems: "center",
     ...shadows.sm,
+  },
+  promptChipKeyboard: {
+    paddingVertical: 9,
   },
   promptChipText: {
     fontSize: typography.sizes.sm,
@@ -410,24 +522,30 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    padding: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
     ...shadows.sm,
   },
   textInput: {
     fontSize: typography.sizes.sm,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foreground,
-    minHeight: 40,
-    maxHeight: 100,
-    paddingHorizontal: spacing.sm,
-    paddingTop: spacing.xs,
+    minHeight: 38,
+    maxHeight: 110,
+    paddingHorizontal: spacing.xs,
+    paddingTop: Platform.OS === "ios" ? 4 : 2,
+    paddingBottom: 6,
+    textAlignVertical: "top",
   },
   inputActionsRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: spacing.xs,
-    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+    paddingTop: 6,
+    marginTop: 2,
   },
   mediaActionsLeft: {
     flexDirection: "row",
@@ -457,7 +575,8 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamilies.regular,
     color: colors.textSubtle,
     textAlign: "center",
-    marginTop: 6,
+    marginTop: 4,
+    marginBottom: 2,
   },
 });
 

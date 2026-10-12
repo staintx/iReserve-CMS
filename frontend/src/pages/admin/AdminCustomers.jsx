@@ -366,12 +366,6 @@ export default function AdminCustomers() {
               icon: Calendar, 
               onSelect: () => navigate(`/admin/bookings/reservations?search=${encodeURIComponent(c.full_name || "")}`) 
             },
-            { 
-              key: "book", 
-              label: "Create booking", 
-              icon: Plus, 
-              onSelect: () => navigate(`/admin/bookings/wizard?customer_id=${c._id}`) 
-            },
             {
               key: "email",
               label: "Email customer",
@@ -427,11 +421,10 @@ export default function AdminCustomers() {
         </div>
 
         {/* Metrics Summary Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
           <KPICard title="Total Customers" value={metrics.total} sub="Registered client accounts" icon={Users} />
           <KPICard title="Active Bookers" value={metrics.bookerCount} sub={metrics.total > 0 ? `${Math.round((metrics.bookerCount / metrics.total) * 100)}% of total clients` : "0%"} icon={CalendarCheck} />
           <KPICard title="Total Revenue" value={fmt(metrics.totalRevenue)} sub="Cumulative approved spend" icon={TrendingUp} />
-          <KPICard title="Avg Spend / Booker" value={fmt(metrics.avgSpend)} sub="Average client lifetime value" icon={Award} />
         </div>
 
         {/* Toolbar & Filters Card */}
@@ -944,20 +937,8 @@ export default function AdminCustomers() {
 
               </div>
 
-              {/* Pinned Drawer Footer: Refined Action Hierarchy */}
-              <div className="p-3.5 border-t border-border bg-card/95 backdrop-blur-xs space-y-2 shrink-0">
-                {/* Primary Action Button */}
-                <button
-                  type="button"
-                  onClick={() => navigate(`/admin/bookings/wizard?customer_id=${drawerRow._id}`)}
-                  className="w-full py-2 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
-                  title="Create a new booking for this customer"
-                >
-                  <Plus size={14} />
-                  <span>Create New Booking</span>
-                </button>
-
-                {/* Secondary Actions Row */}
+              {/* Pinned Drawer Footer */}
+              <div className="p-3.5 border-t border-border bg-card/95 backdrop-blur-xs shrink-0">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"

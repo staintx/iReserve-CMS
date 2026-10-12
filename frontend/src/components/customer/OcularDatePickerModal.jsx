@@ -64,6 +64,8 @@ export default function OcularDatePickerModal({
   isOpen,
   onClose,
   onSubmit,
+  onSelect,
+  onSkip,
   initialDate = "",
   initialTime = "10:00 AM",
   submitting = false,
@@ -75,6 +77,7 @@ export default function OcularDatePickerModal({
 }) {
   const isOpenModal = Boolean(open || isOpen);
   const isSubmittingForm = Boolean(submitting || isSubmitting);
+  const canSkip = !booking?.ocular_visit?.is_required && typeof onSkip === "function";
 
   // Detect whether this event is a Wedding
   const isWedding = useMemo(() => {
@@ -259,7 +262,10 @@ export default function OcularDatePickerModal({
     }
     const parsed = parseLocalDate(selectedDate);
     if (!isDateValid(parsed)) return;
-    onSubmit(selectedDate, selectedTime);
+    const submitCallback = onSubmit || onSelect;
+    if (typeof submitCallback === "function") {
+      submitCallback(selectedDate, selectedTime);
+    }
   };
 
   // Safe selected date that is guaranteed to be valid
@@ -492,33 +498,47 @@ export default function OcularDatePickerModal({
           </div>
 
           {/* Fixed Footer Actions */}
-          <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmittingForm}
-              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-[#7B583C] hover:bg-[#F7F4EE] transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={
-                isSubmittingForm ||
-                !hasAvailableDates ||
-                !effectiveSelectedDate ||
-                !selectedTime ||
-                !isDateValid(parseLocalDate(effectiveSelectedDate))
-              }
-              className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#4C81E0] hover:bg-[#3B6EC6] shadow-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none cursor-pointer"
-            >
-              {isSubmittingForm ? (
-                <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-              ) : (
-                <CheckCircle2 size={14} className="text-[#D2B67C]" />
+          <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2.5 shrink-0">
+            <div>
+              {canSkip && (
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  disabled={isSubmittingForm}
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-800 underline underline-offset-2 cursor-pointer transition-colors"
+                >
+                  Venue doesn't need ocular (Skip)
+                </button>
               )}
-              {isSubmittingForm ? "Submitting..." : "Confirm Schedule"}
-            </button>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmittingForm}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-[#7B583C] hover:bg-[#F7F4EE] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={
+                  isSubmittingForm ||
+                  !hasAvailableDates ||
+                  !effectiveSelectedDate ||
+                  !selectedTime ||
+                  !isDateValid(parseLocalDate(effectiveSelectedDate))
+                }
+                className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#4C81E0] hover:bg-[#3B6EC6] shadow-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none cursor-pointer"
+              >
+                {isSubmittingForm ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <CheckCircle2 size={14} className="text-[#D2B67C]" />
+                )}
+                {isSubmittingForm ? "Submitting..." : "Confirm Schedule"}
+              </button>
+            </div>
           </div>
 
         </form>

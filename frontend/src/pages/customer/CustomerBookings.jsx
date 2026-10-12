@@ -4,6 +4,7 @@ import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLa
 import OcularDatePickerModal from "../../components/customer/OcularDatePickerModal";
 import PaymentChoiceModal from "../../components/customer/PaymentChoiceModal";
 import InvoiceModal from "../../components/common/invoice/InvoiceModal";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
 import { createConversation } from "../../api/messages";
 import { isOcularEligibleBooking } from "../../utils/ocularEligibility";
@@ -88,6 +89,23 @@ export default function CustomerBookings() {
   // Ocular Modal State
   const [requestingOcularBooking, setRequestingOcularBooking] = useState(null);
   const [isSubmittingOcular, setIsSubmittingOcular] = useState(false);
+  const [skippingOcularBooking, setSkippingOcularBooking] = useState(null);
+  const [isSubmittingSkipOcular, setIsSubmittingSkipOcular] = useState(false);
+
+  const submitSkipOcular = async () => {
+    if (!skippingOcularBooking?._id) return;
+    try {
+      setIsSubmittingSkipOcular(true);
+      await CustomerAPI.skipOcular(skippingOcularBooking._id);
+      notify("Ocular inspection skipped successfully.", "success");
+      setSkippingOcularBooking(null);
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to skip ocular visit.", "error");
+    } finally {
+      setIsSubmittingSkipOcular(false);
+    }
+  };
 
   // Invoice Modal State
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
@@ -1010,34 +1028,64 @@ export default function CustomerBookings() {
                                   <span>Pay Deposit</span>
                                 </Button>
                                 {getBookingOcularActionMeta(bkg)?.state === "action_required" && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setRequestingOcularBooking(bkg);
-                                    }}
-                                    className="border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs h-8 px-2.5 rounded-lg shadow-2xs gap-1 cursor-pointer"
-                                  >
-                                    <CalendarClock className="w-3.5 h-3.5 text-amber-700" />
-                                    <span>Ocular</span>
-                                  </Button>
+                                  <div className="flex items-center gap-1.5">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setRequestingOcularBooking(bkg);
+                                      }}
+                                      className="border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs h-8 px-2.5 rounded-lg shadow-2xs gap-1 cursor-pointer"
+                                    >
+                                      <CalendarClock className="w-3.5 h-3.5 text-amber-700" />
+                                      <span>Ocular</span>
+                                    </Button>
+                                    {!bkg.ocular_visit?.is_required && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSkippingOcularBooking(bkg);
+                                        }}
+                                        className="text-slate-500 hover:text-slate-800 text-xs h-8 px-2 rounded-lg cursor-pointer"
+                                      >
+                                        Skip
+                                      </Button>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             )}
 
                             {nextAction?.actionType === "ocular" && (
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setRequestingOcularBooking(bkg);
-                                }}
-                                className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8 px-3.5 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
-                              >
-                                <CalendarClock className="w-3.5 h-3.5" />
-                                <span>Schedule Ocular</span>
-                              </Button>
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRequestingOcularBooking(bkg);
+                                  }}
+                                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8 px-3.5 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                                >
+                                  <CalendarClock className="w-3.5 h-3.5" />
+                                  <span>Schedule Ocular</span>
+                                </Button>
+                                {!bkg.ocular_visit?.is_required && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSkippingOcularBooking(bkg);
+                                    }}
+                                    className="text-slate-500 hover:text-slate-800 text-xs h-8 px-2 rounded-lg cursor-pointer"
+                                  >
+                                    Skip
+                                  </Button>
+                                )}
+                              </div>
                             )}
 
                             {nextAction?.actionType === "ocular_reschedule" && (
@@ -1298,26 +1346,50 @@ export default function CustomerBookings() {
                               <span>Pay Deposit Now ({formatCurrency(bal)})</span>
                             </Button>
                             {getBookingOcularActionMeta(selectedBooking)?.state === "action_required" && (
-                              <Button
-                                variant="outline"
-                                onClick={() => setRequestingOcularBooking(selectedBooking)}
-                                className="w-full border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer"
-                              >
-                                <CalendarClock className="w-4 h-4 text-amber-700" />
-                                <span>Schedule Ocular Visit</span>
-                              </Button>
+                              <div className="flex flex-col gap-1.5">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setRequestingOcularBooking(selectedBooking)}
+                                  className="w-full border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer"
+                                >
+                                  <CalendarClock className="w-4 h-4 text-amber-700" />
+                                  <span>Schedule Ocular Visit</span>
+                                </Button>
+                                {!selectedBooking.ocular_visit?.is_required && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setSkippingOcularBooking(selectedBooking)}
+                                    className="w-full text-slate-500 hover:text-slate-800 text-xs h-7.5 rounded-lg cursor-pointer"
+                                  >
+                                    Venue doesn't need inspection (Skip)
+                                  </Button>
+                                )}
+                              </div>
                             )}
                           </div>
                         )}
 
                         {nextAction.actionType === "ocular" && (
-                          <Button
-                            onClick={() => setRequestingOcularBooking(selectedBooking)}
-                            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
-                          >
-                            <CalendarClock className="w-4 h-4" />
-                            <span>Select Ocular Visit Date</span>
-                          </Button>
+                          <div className="flex flex-col gap-1.5">
+                            <Button
+                              onClick={() => setRequestingOcularBooking(selectedBooking)}
+                              className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                            >
+                              <CalendarClock className="w-4 h-4" />
+                              <span>Select Ocular Visit Date</span>
+                            </Button>
+                            {!selectedBooking.ocular_visit?.is_required && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setSkippingOcularBooking(selectedBooking)}
+                                className="w-full text-slate-500 hover:text-slate-800 text-xs h-7.5 rounded-lg cursor-pointer"
+                              >
+                                Venue doesn't need inspection (Skip)
+                              </Button>
+                            )}
+                          </div>
                         )}
 
                         {nextAction.actionType === "proposal" && (
@@ -1588,6 +1660,11 @@ export default function CustomerBookings() {
         <OcularDatePickerModal
           isOpen={Boolean(requestingOcularBooking)}
           onClose={() => setRequestingOcularBooking(null)}
+          onSkip={() => {
+            const target = requestingOcularBooking;
+            setRequestingOcularBooking(null);
+            setSkippingOcularBooking(target);
+          }}
           onSubmit={submitOcularRequest}
           isSubmitting={isSubmittingOcular}
           initialDate={requestingOcularBooking?.ocular_visit?.scheduled_date}
@@ -1596,6 +1673,17 @@ export default function CustomerBookings() {
           eventTitle={requestingOcularBooking?.event_type}
           eventType={requestingOcularBooking?.event_type}
           booking={requestingOcularBooking}
+        />
+      )}
+
+      {skippingOcularBooking && (
+        <ConfirmDialog
+          title="Skip Venue Ocular Inspection?"
+          message="By skipping, you confirm that your venue is standard, easily accessible, and does not require an advance on-site inspection. Our team will coordinate setup directly on event day."
+          confirmText={isSubmittingSkipOcular ? "Skipping..." : "Yes, Skip Ocular"}
+          cancelText="Keep Ocular"
+          onConfirm={submitSkipOcular}
+          onCancel={() => setSkippingOcularBooking(null)}
         />
       )}
 

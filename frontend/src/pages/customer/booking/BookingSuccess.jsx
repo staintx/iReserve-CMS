@@ -8,6 +8,7 @@ import { Card, CardContent } from "../../../components/ui/card";
 import { cn } from "@/lib/utils";
 import InlineMessage from "../../../components/feedback/InlineMessage";
 import OcularDatePickerModal from "../../../components/customer/OcularDatePickerModal";
+import ConfirmDialog from "../../../components/common/ConfirmDialog";
 import { requiresPhysicalSiteInspection } from "../../../utils/ocularEligibility";
 
 export default function BookingSuccess() {
@@ -16,7 +17,9 @@ export default function BookingSuccess() {
   const [searchParams] = useSearchParams();
   const [booking, setBooking] = useState(location.state?.booking || null);
   const [showOcular, setShowOcular] = useState(false);
+  const [showSkipConfirm, setShowSkipConfirm] = useState(false);
   const [scheduling, setScheduling] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const [schedulingError, setSchedulingError] = useState("");
   const [isLoading, setIsLoading] = useState((!!searchParams.get('booking_id') || !!searchParams.get('session_id')) && !location.state?.booking);
 
@@ -90,6 +93,26 @@ export default function BookingSuccess() {
           "We could not schedule that visit. Please try again.",
       );
       setScheduling(false);
+    }
+  };
+
+  const handleSkipOcular = async () => {
+    if (!booking?._id) return;
+    setSkipping(true);
+    setSchedulingError("");
+    try {
+      await CustomerAPI.skipOcular(booking._id);
+      setShowSkipConfirm(false);
+      navigate(`/customer/bookings/${booking._id}`, { state: { ocularSkipped: true } });
+    } catch (err) {
+      console.error(err);
+      setSchedulingError(
+        err.response?.data?.message ||
+          "We could not skip the ocular visit. Please try again.",
+      );
+      setShowSkipConfirm(false);
+    } finally {
+      setSkipping(false);
     }
   };
 
@@ -196,6 +219,16 @@ export default function BookingSuccess() {
                     <span>Schedule an Ocular Visit</span>
                   </Button>
                 )}
+                {canScheduleOcular && !booking?.ocular_visit?.is_required && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                    onClick={() => setShowSkipConfirm(true)}
+                  >
+                    Venue doesn't need inspection (Skip)
+                  </Button>
+                )}
                 <Button 
                   variant="outline" 
                   size="lg"
@@ -213,12 +246,27 @@ export default function BookingSuccess() {
           <OcularDatePickerModal
             isOpen={showOcular}
             onClose={() => setShowOcular(false)}
+            onSkip={() => {
+              setShowOcular(false);
+              setShowSkipConfirm(true);
+            }}
             onSubmit={handleScheduleOcular}
             isSubmitting={scheduling}
             eventDate={booking?.event_date}
             eventTitle={booking?.event_type || "Event Venue Inspection"}
             eventType={booking?.event_type}
             booking={booking}
+          />
+        )}
+
+        {showSkipConfirm && (
+          <ConfirmDialog
+            title="Skip Venue Ocular Inspection?"
+            message="By skipping, you confirm that your venue is standard, easily accessible, and does not require an advance on-site inspection. Our team will coordinate setup directly on event day."
+            confirmText={skipping ? "Skipping..." : "Yes, Skip Ocular"}
+            cancelText="Keep Ocular"
+            onConfirm={handleSkipOcular}
+            onCancel={() => setShowSkipConfirm(false)}
           />
         )}
       </div>

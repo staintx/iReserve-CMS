@@ -240,7 +240,7 @@ export default function StepReviewBooking({
                 <>
                   <Row
                     label="Setup Concept"
-                    value="100% Bespoke Custom Setup (Priced on quotation)"
+                    value="Custom Event Setup (Priced on quotation)"
                     wide
                   />
                   {form.event_theme && (

@@ -498,7 +498,7 @@ export function buildEstimate({
         isQuotedLater: true,
       });
       blockers.push(
-        "Your bespoke event setup proposal will be prepared and priced by our design team on your official quotation.",
+        "Your custom event setup proposal will be prepared and priced by our design team on your official quotation.",
       );
     } else if (setupAmount > 0) {
       lines.push({

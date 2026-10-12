@@ -244,14 +244,14 @@ export default function CustomerRequestStep({
             </div>
           </div>
 
-          {/* Section 2: Selected Package, Food Catering Only, or Bespoke Custom Setup Brief */}
+          {/* Section 2: Selected Package, Food Catering Only, or Custom Setup Brief */}
           {inquiry?.is_custom_setup || (!packageRecord && !inquiry?.package_id && !isFoodOnly) ? (
             <div className="bg-white rounded-lg border border-blue-200 p-4 space-y-3.5 shadow-2xs">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <div className="flex items-center gap-2">
                   <Sparkles size={14} className="text-blue-600" />
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800">
-                    Bespoke Custom Setup &amp; Styling Brief
+                    Custom Setup &amp; Styling Brief
                   </span>
                 </div>
                 <span className="px-2 py-0.5 rounded font-mono bg-blue-100 text-blue-800 text-[10px] font-bold border border-blue-200">

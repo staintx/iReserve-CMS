@@ -4,6 +4,7 @@ import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLa
 import OcularDatePickerModal from "../../components/customer/OcularDatePickerModal";
 import PaymentChoiceModal from "../../components/customer/PaymentChoiceModal";
 import CustomerPolicyModal from "../../components/policy/CustomerPolicyModal";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { CustomerAPI } from "../../api/customer";
 import { createConversation } from "../../api/messages";
 import { 
@@ -198,6 +199,8 @@ export default function CustomerEventDashboard() {
   const [_ocularDate, _setOcularDate] = useState("");
   const [_ocularTime, _setOcularTime] = useState("");
   const [isSubmittingOcular, setIsSubmittingOcular] = useState(false);
+  const [showSkipOcularDialog, setShowSkipOcularDialog] = useState(false);
+  const [isSubmittingSkipOcular, setIsSubmittingSkipOcular] = useState(false);
 
   const [isAcceptingQuote, setIsAcceptingQuote] = useState(false);
   const [showProposalModal, setShowProposalModal] = useState(false);
@@ -838,6 +841,21 @@ export default function CustomerEventDashboard() {
     }
   };
 
+  const handleSkipOcular = async () => {
+    if (!booking?._id) return;
+    try {
+      setIsSubmittingSkipOcular(true);
+      await CustomerAPI.skipOcular(booking._id);
+      notify("Ocular visit skipped successfully.", "success");
+      setShowSkipOcularDialog(false);
+      fetchBooking();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to skip ocular visit.", "error");
+    } finally {
+      setIsSubmittingSkipOcular(false);
+    }
+  };
+
   const acceptQuote = async () => {
     try {
       setIsAcceptingQuote(true);
@@ -1149,16 +1167,7 @@ export default function CustomerEventDashboard() {
             {!booking.ocular_visit?.is_required && (
               <Button
                 variant="outline"
-                onClick={() => {
-                  if (window.confirm("Are you sure you want to proceed without an ocular visit?")) {
-                    CustomerAPI.skipOcular(booking._id)
-                      .then(() => {
-                        notify("Ocular visit skipped successfully.", "success");
-                        fetchBooking();
-                      })
-                      .catch((err) => notify(err.response?.data?.message || "Failed to skip ocular visit.", "error"));
-                  }
-                }}
+                onClick={() => setShowSkipOcularDialog(true)}
                 className="border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs h-9 px-3 rounded-lg cursor-pointer"
               >
                 Skip
@@ -2553,13 +2562,25 @@ export default function CustomerEventDashboard() {
                           <p className="text-[11px] text-amber-800">
                             Inspect venue layout &amp; setup requirements before your event.
                           </p>
-                          <Button 
-                            size="sm" 
-                            onClick={() => setRequestingOcular(true)}
-                            className="w-full text-xs font-semibold bg-[#4C81E0] hover:bg-[#3B6EC9] text-white h-8 rounded-lg cursor-pointer shadow-2xs transition-all"
-                          >
-                            Schedule Ocular Visit
-                          </Button>
+                          <div className="flex flex-col gap-1.5">
+                            <Button 
+                              size="sm" 
+                              onClick={() => setRequestingOcular(true)}
+                              className="w-full text-xs font-semibold bg-[#4C81E0] hover:bg-[#3B6EC9] text-white h-8 rounded-lg cursor-pointer shadow-2xs transition-all"
+                            >
+                              Schedule Ocular Visit
+                            </Button>
+                            {!booking.ocular_visit?.is_required && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setShowSkipOcularDialog(true)}
+                                className="w-full text-slate-500 hover:text-slate-800 text-xs h-7.5 rounded-lg cursor-pointer"
+                              >
+                                Venue doesn't need inspection (Skip)
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -2844,11 +2865,28 @@ export default function CustomerEventDashboard() {
       {/* OCULAR DATE PICKER MODAL */}
       <OcularDatePickerModal
         open={requestingOcular}
+        isOpen={requestingOcular}
         onClose={() => setRequestingOcular(false)}
+        onSkip={() => {
+          setRequestingOcular(false);
+          setShowSkipOcularDialog(true);
+        }}
         booking={booking}
         onSelect={submitOcularRequest}
+        onSubmit={submitOcularRequest}
         isSubmitting={isSubmittingOcular}
       />
+
+      {showSkipOcularDialog && (
+        <ConfirmDialog
+          title="Skip Venue Ocular Inspection?"
+          message="By skipping, you confirm that your venue is standard, easily accessible, and does not require an advance on-site inspection. Our team will coordinate setup directly on event day."
+          confirmText={isSubmittingSkipOcular ? "Skipping..." : "Yes, Skip Ocular"}
+          cancelText="Keep Ocular"
+          onConfirm={handleSkipOcular}
+          onCancel={() => setShowSkipOcularDialog(false)}
+        />
+      )}
 
       {/* PAYMENT CHOICE MODAL */}
       <PaymentChoiceModal

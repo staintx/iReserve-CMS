@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Search, Calendar, MapPin, Users, Mail, Phone, Clock, Eye,
   ChevronRight, Plus, X, MoreHorizontal, LayoutList, LayoutGrid,
-  FileText, Send, Archive, ArchiveRestore, AlertCircle,
+  FileText, FileQuestion, Send, Archive, ArchiveRestore, AlertCircle,
   Palette, Sparkles, Utensils, RefreshCw, ArrowUpRight, ChevronLeft, Check, Info,
   AlertTriangle, Tag, Package, Sliders, CheckCircle2, ExternalLink,
   User, History, Ruler, Image as ImageIcon, Store, Globe
@@ -742,7 +742,7 @@ export default function AdminInquiries() {
               title="Needs Quotations"
               value={needsQuotationsCount}
               sub="Awaiting initial quotation"
-              icon={Sparkles}
+              icon={FileQuestion}
               tone="warning"
               onClick={() => {
                 setStatusFilter(statusFilter === "Needs Quotation" ? "all" : "Needs Quotation");
@@ -822,7 +822,7 @@ export default function AdminInquiries() {
               }}
               options={[
                 { value: "all", label: "All Inquiries", count: activeInquiriesCount },
-                { value: "Needs Quotation", label: "Needs Quotation", count: needsQuotationsCount, icon: Sparkles },
+                { value: "Needs Quotation", label: "Needs Quotation", count: needsQuotationsCount, icon: FileQuestion },
                 { value: "Draft", label: "Draft", count: draftQuotationsCount, icon: FileText },
                 { value: "Quotation Sent", label: "Quotation Sent", count: quotationsSentCount, icon: Send },
                 { value: "Revision Requested", label: "Revision Requested", count: revisionsRequestedCount, icon: RefreshCw },

@@ -299,7 +299,7 @@ export default function StepPackageSelection({
     <StepShell aside={<EstimateSummary estimate={estimate} />}>
       <SH
         title="Event Setup & Styling Concept"
-        sub="Choose a ready-made package or design a 100% bespoke event setup from scratch."
+        sub="Choose a ready-made package or design a custom event setup from scratch."
       />
 
       {/* Choice Tabs: Pre-made Package vs Design from Scratch */}

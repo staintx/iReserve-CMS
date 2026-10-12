@@ -310,7 +310,9 @@ export default function CustomerInquiries() {
   }, [packages, inquiries, comboPackNames]);
 
   const handleViewInquiry = (inq) => {
-    navigate(`/customer/inquiries/${inq._id}`);
+    if (!inq?._id) return;
+    sessionStorage.setItem("current_inquiry_id", inq._id);
+    navigate("/customer/inquiries/details", { state: { id: inq._id } });
   };
 
   // Open Quotation Modal

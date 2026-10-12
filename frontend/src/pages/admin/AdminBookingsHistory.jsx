@@ -154,7 +154,7 @@ export default function AdminBookingsHistory() {
         email: customerEmail,
         phone: customerPhone,
         eventType: b.event_type === "Other" && b.event_type_other ? b.event_type_other : (b.event_type || "Catering Event"),
-        pkg: b.package_id?.name || (isCustomSetup ? "Bespoke Custom Setup" : "Custom Catering"),
+        pkg: b.package_id?.name || (isCustomSetup ? "Custom Event Setup" : "Custom Catering"),
         guests: b.guest_count || 0,
         date: b.event_date ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A",
         rawDate: b.event_date ? new Date(b.event_date) : null,

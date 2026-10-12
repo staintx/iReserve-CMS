@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Printer, X, CheckCircle2, Calendar, CreditCard, Receipt, FileText, User } from "lucide-react";
+import { Printer, X, CheckCircle2, Calendar, CreditCard, Receipt, FileText, User, RefreshCcw } from "lucide-react";
 import { Button } from "../../ui/button";
 import { cn } from "@/lib/utils";
 import useBusinessInfo from "../../../hooks/useBusinessInfo";
@@ -30,6 +30,10 @@ export default function CustomerReceiptModal({
   }, [onClose]);
 
   if (!payment) return null;
+
+  const isRefund =
+    (payment.payment_type || "").toLowerCase() === "refund" ||
+    Number(payment.amount) < 0;
 
   const fmt = (val) =>
     formatCurrency ? formatCurrency(val) : `₱${Number(val || 0).toLocaleString()}`;
@@ -66,7 +70,7 @@ export default function CustomerReceiptModal({
     if (t === "deposit") return "Initial Deposit Payment";
     if (t === "balance") return "Final Balance Payment";
     if (t === "full") return "Full Payment (100%)";
-    return "Event Payment";
+    return isRefund ? "Refund Disbursement" : "Event Payment";
   };
 
   const getPaymentMethod = (p) => {
@@ -76,6 +80,7 @@ export default function CustomerReceiptModal({
     if (m.includes("card")) return "Credit / Debit Card";
     if (m.includes("cash")) return "Cash Payment";
     if (m.includes("bank")) return "Bank Transfer";
+    if (isRefund) return "Original Payment Method";
     return "Online Payment";
   };
 
@@ -125,7 +130,7 @@ export default function CustomerReceiptModal({
         }}
         role="dialog"
         aria-modal="true"
-        aria-label="Payment Receipt"
+        aria-label={isRefund ? "Refund Transaction" : "Payment Receipt"}
       >
         <div className="w-full sm:max-w-[500px] max-sm:max-h-[92vh] sm:max-h-[90vh] bg-white text-slate-900 max-sm:rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col my-0 sm:my-auto animate-in zoom-in-95 duration-200">
           
@@ -133,19 +138,19 @@ export default function CustomerReceiptModal({
           <div className="px-4 py-3 sm:px-5 sm:py-3.5 bg-slate-50/90 border-b border-slate-200/80 flex items-center justify-between gap-2.5 shrink-0 select-none print:hidden">
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-[#2C4B8A]/10 text-[#2C4B8A] flex items-center justify-center shrink-0">
-                <Receipt className="w-4 h-4" />
+                {isRefund ? <RefreshCcw className="w-4 h-4" /> : <Receipt className="w-4 h-4" />}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <h3 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
-                    Payment Receipt
+                    {isRefund ? "Refund Transaction" : "Payment Receipt"}
                   </h3>
                   <span className="text-[10px] font-mono font-semibold text-[#2C4B8A] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60 leading-none">
                     {receiptNumber}
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
-                  Official Acknowledgment
+                  {isRefund ? "Official Refund Acknowledgment" : "Official Acknowledgment"}
                 </p>
               </div>
             </div>
@@ -155,7 +160,7 @@ export default function CustomerReceiptModal({
                 size="sm"
                 onClick={handlePrint}
                 className="h-8 px-2.5 sm:px-3 text-xs font-semibold bg-[#2C4B8A] hover:bg-[#203766] text-white gap-1.5 shadow-2xs transition-colors cursor-pointer"
-                title="Print Receipt or Save as PDF"
+                title={isRefund ? "Print Refund Transaction or Save as PDF" : "Print Receipt or Save as PDF"}
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span className="hidden xs:inline sm:inline">Print</span>
@@ -191,58 +196,57 @@ export default function CustomerReceiptModal({
               )}
             </div>
 
-            {/* 2. Amount Paid / Refunded (Focused Visual Emphasis without oversized card) */}
-            {(() => {
-              const isRefund = (payment.payment_type || "").toLowerCase() === "refund" || Number(payment.amount) < 0;
-              return (
-                <div className="flex flex-col xs:flex-row sm:flex-row items-start xs:items-center sm:items-center justify-between gap-2 p-3 sm:p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/70">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block leading-tight">
-                      {isRefund ? "Refund Amount" : "Amount Paid"}
-                    </span>
-                    <div className={cn(
-                      "text-2xl sm:text-3xl font-extrabold tracking-tight mt-0.5 tabular-nums leading-none",
-                      isRefund ? "text-[#4C81E0]" : "text-slate-900"
-                    )}>
-                      {isRefund ? `− ${fmt(Math.abs(payment.amount))}` : fmt(payment.amount)}
-                    </div>
-                  </div>
-                  <div className="flex xs:flex-col sm:flex-col items-center xs:items-end sm:items-end gap-1 w-full xs:w-auto sm:w-auto justify-between xs:justify-start">
-                    {isRefund ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#4C81E0] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#4C81E0]" />
-                        {paymentStatus === "approved" || paymentStatus === "paid" || paymentStatus === "refunded" ? "Refunded" : paymentStatus}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        {paymentStatus === "approved" || paymentStatus === "paid" ? "Paid & Approved" : paymentStatus}
-                      </span>
-                    )}
-                    <span className="text-[10px] text-slate-500 font-medium">
-                      {formatDateTime(paidAt)}
-                    </span>
-                  </div>
+            {/* 2. Amount Paid / Refunded */}
+            <div className="flex flex-col xs:flex-row sm:flex-row items-start xs:items-center sm:items-center justify-between gap-2 p-3 sm:p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/70">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block leading-tight">
+                  {isRefund ? "Refund Amount" : "Amount Paid"}
+                </span>
+                <div className={cn(
+                  "text-2xl sm:text-3xl font-extrabold tracking-tight mt-0.5 tabular-nums leading-none",
+                  isRefund ? "text-[#4C81E0]" : "text-slate-900"
+                )}>
+                  {isRefund ? fmt(Math.abs(payment.amount)) : fmt(payment.amount)}
                 </div>
-              );
-            })()}
+              </div>
+              <div className="flex xs:flex-col sm:flex-col items-center xs:items-end sm:items-end gap-1 w-full xs:w-auto sm:w-auto justify-between xs:justify-start">
+                {isRefund ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#4C81E0] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#4C81E0]" />
+                    {paymentStatus === "approved" || paymentStatus === "paid" || paymentStatus === "refunded" ? "Refunded" : paymentStatus}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    {paymentStatus === "approved" || paymentStatus === "paid" ? "Paid & Approved" : paymentStatus}
+                  </span>
+                )}
+                <span className="text-[10px] text-slate-500 font-medium">
+                  {formatDateTime(paidAt)}
+                </span>
+              </div>
+            </div>
 
             {/* ── Divider ── */}
             <div className="border-t border-dashed border-slate-200" />
 
-            {/* 3. Section 1: Payment Information */}
+            {/* 3. Section 1: Transaction Information */}
             <div className="space-y-2">
               <div className="flex items-center gap-1.5 text-slate-500">
-                <CreditCard className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                {isRefund ? (
+                  <RefreshCcw className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                ) : (
+                  <CreditCard className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                )}
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                  Payment Details
+                  {isRefund ? "Refund Details" : "Payment Details"}
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs">
                 <div>
                   <span className="text-[10px] text-slate-500 font-medium block">
-                    Payment Type
+                    {isRefund ? "Transaction Type" : "Payment Type"}
                   </span>
                   <span className="font-semibold text-slate-900">
                     {getMilestoneLabel(payment.payment_type)}
@@ -251,7 +255,7 @@ export default function CustomerReceiptModal({
 
                 <div>
                   <span className="text-[10px] text-slate-500 font-medium block">
-                    Payment Method
+                    {isRefund ? "Refund Method" : "Payment Method"}
                   </span>
                   <span className="font-medium text-slate-900 inline-flex items-center gap-1">
                     {getPaymentMethod(payment)}
@@ -344,7 +348,7 @@ export default function CustomerReceiptModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs">
                 <div>
                   <span className="text-[10px] text-slate-500 font-medium block">
-                    Billed To
+                    {isRefund ? "Refunded To" : "Billed To"}
                   </span>
                   <span className="font-bold text-slate-900">
                     {payerName}
@@ -384,7 +388,9 @@ export default function CustomerReceiptModal({
                 Thank you for choosing {biz.name}!
               </p>
               <p className="text-[10px] text-slate-400">
-                Official electronic payment acknowledgment • iReserve
+                {isRefund
+                  ? "Official electronic refund acknowledgment • iReserve"
+                  : "Official electronic payment acknowledgment • iReserve"}
               </p>
             </div>
 

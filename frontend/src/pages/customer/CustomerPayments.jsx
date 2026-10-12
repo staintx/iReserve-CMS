@@ -1290,9 +1290,10 @@ export default function CustomerPayments() {
                                             size="sm"
                                             onClick={() => handleOpenReceipt(p, booking)}
                                             className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3B6EC6] hover:bg-blue-50 px-2.5 rounded-lg cursor-pointer"
+                                            title={isRefund ? "View Refund Transaction" : "View Payment Receipt"}
                                           >
-                                            <Receipt className="w-3.5 h-3.5" />
-                                            <span>Receipt</span>
+                                            {isRefund ? <RefreshCcw className="w-3.5 h-3.5" /> : <Receipt className="w-3.5 h-3.5" />}
+                                            <span>{isRefund ? "Refund" : "Receipt"}</span>
                                           </Button>
                                         </div>
                                       </div>
@@ -1426,9 +1427,10 @@ export default function CustomerPayments() {
                                 size="sm"
                                 onClick={() => handleOpenReceipt(p, b)}
                                 className="h-8 text-xs font-semibold gap-1.5 text-[#4C81E0] border-blue-200 hover:bg-blue-50 px-3 rounded-lg cursor-pointer"
+                                title={isRefund ? "View Refund Transaction" : "View Payment Receipt"}
                               >
-                                <Receipt className="w-3.5 h-3.5" />
-                                <span>Receipt</span>
+                                {isRefund ? <RefreshCcw className="w-3.5 h-3.5" /> : <Receipt className="w-3.5 h-3.5" />}
+                                <span>{isRefund ? "Refund" : "Receipt"}</span>
                               </Button>
                             </div>
                           </div>
@@ -1571,9 +1573,10 @@ export default function CustomerPayments() {
                                       size="sm"
                                       onClick={() => handleOpenReceipt(p, b)}
                                       className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3B6EC6] hover:bg-blue-50 px-2.5 rounded-lg cursor-pointer"
+                                      title={isRefund ? "View Refund Transaction" : "View Payment Receipt"}
                                     >
-                                      <Receipt className="w-3.5 h-3.5" />
-                                      <span>Receipt</span>
+                                      {isRefund ? <RefreshCcw className="w-3.5 h-3.5" /> : <Receipt className="w-3.5 h-3.5" />}
+                                      <span>{isRefund ? "Refund" : "Receipt"}</span>
                                     </Button>
                                   </td>
                                 </tr>

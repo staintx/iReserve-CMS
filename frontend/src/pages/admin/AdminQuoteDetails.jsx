@@ -10,7 +10,7 @@ import {
   DollarSign, Info, ArrowLeft, CheckCircle2,
   FileText, FilePlus, ListChecks, Utensils, Send, RefreshCw, Ruler,
   Package as PackageIcon, Users, AlertTriangle, Layers,
-  Truck, Check, ShieldAlert, ChevronDown,
+  Truck, Check, ShieldAlert, HeartPulse, ChevronDown,
   ChevronUp, Palette, Sparkles, Printer, ExternalLink, Image as ImageIcon, X
 } from "lucide-react";
 import InvoiceModal from "../../components/common/invoice/InvoiceModal";

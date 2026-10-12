@@ -1290,6 +1290,11 @@ export default function CustomerBookings() {
                               ? `This booking was cancelled: "${selectedBooking.cancellation_reason || selectedBooking.cancellation_request?.reason}". All active actions, payments, and visits are closed.`
                               : "This booking was cancelled and is no longer active. All scheduled actions, ocular visits, and pending payments are closed."}
                           </p>
+                          {(selectedBooking.refund_denied || ["denied", "rejected"].includes(selectedBooking.cancellation_request?.status)) && (selectedBooking.refund_denial_reason || selectedBooking.cancellation_request?.admin_notes) && (
+                            <p className="text-[11px] font-semibold text-rose-900 mt-1 pt-1 border-t border-rose-200">
+                              Refund Request Denied: {selectedBooking.refund_denial_reason || selectedBooking.cancellation_request?.admin_notes}
+                            </p>
+                          )}
                         </div>
                       </div>
                     ) : nextAction ? (

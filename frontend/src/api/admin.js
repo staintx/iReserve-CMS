@@ -32,6 +32,7 @@ export const AdminAPI = {
   updateBooking: (id, data) => api.put(`/bookings/${id}`, data),
   deleteBooking: (id) => api.delete(`/bookings/${id}`),
   processRefund: (id, data) => api.post(`/bookings/${id}/refund`, data),
+  denyRefund: (id, data) => api.post(`/bookings/${id}/refund/deny`, data),
   assignStaff: (id, data) => api.put(`/manager/bookings/${id}/assign-staff`, data),
   verifyEquipmentReturns: (id, data) => api.post(`/bookings/${id}/verify-returns`, data),
   assignEquipment: (id, data) => api.put(`/bookings/${id}/inventory`, data),

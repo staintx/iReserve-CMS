@@ -57,6 +57,15 @@ export default function Badge({ status, variant, icon, children, dot = false, cl
     );
   }
 
+  if (norm === "denied") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />}
+        <span>Denied</span>
+      </span>
+    );
+  }
+
   // Specific custom inquiry status & priority tones
   if (norm === "pending review") {
     return (
@@ -219,6 +228,7 @@ export default function Badge({ status, variant, icon, children, dot = false, cl
   const isDanger = [
     "cancelled",
     "rejected",
+    "denied",
     "quote rejected",
     "critical",
     "retired",

@@ -1034,14 +1034,18 @@ export default function CustomerPayments() {
                                           ? "text-[#4C81E0] bg-blue-50 border-blue-200"
                                           : hasPendingRefund
                                             ? "text-amber-800 bg-amber-50 border-amber-200"
-                                            : "text-rose-800 bg-rose-50 border-rose-200"
+                                            : (booking.refund_denied || ["denied", "rejected"].includes(booking.cancellation_request?.status))
+                                              ? "text-rose-800 bg-rose-50 border-rose-200"
+                                              : "text-rose-800 bg-rose-50 border-rose-200"
                                       )}
                                     >
                                       {refundIssued > 0
                                         ? "Cancelled · Refunded"
                                         : hasPendingRefund
                                           ? "Refund Pending"
-                                          : "Cancelled"}
+                                          : (booking.refund_denied || ["denied", "rejected"].includes(booking.cancellation_request?.status))
+                                            ? "Cancelled · Refund Denied"
+                                            : "Cancelled"}
                                     </span>
                                   ) : isFullyPaid ? (
                                     <span className="px-2 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md">
@@ -1093,6 +1097,10 @@ export default function CustomerPayments() {
                                     ) : hasPendingRefund ? (
                                       <div className="text-[11px] text-amber-700 font-semibold">
                                         Refund: Under Review
+                                      </div>
+                                    ) : (booking.refund_denied || ["denied", "rejected"].includes(booking.cancellation_request?.status)) ? (
+                                      <div className="text-[11px] text-rose-700 font-semibold">
+                                        Refund: Denied (₱0)
                                       </div>
                                     ) : null}
                                   </div>
@@ -1184,6 +1192,25 @@ export default function CustomerPayments() {
                                       <p className="text-amber-800 text-[11px] leading-relaxed">
                                         Your cancellation refund request is currently being evaluated by management. Any eligible refund will be disbursed to your payment method once approved.
                                       </p>
+                                    </div>
+                                  ) : (booking.refund_denied || ["denied", "rejected"].includes(booking.cancellation_request?.status)) ? (
+                                    <div className="p-3 rounded-lg bg-rose-50/70 border border-rose-200/80 text-xs space-y-1.5">
+                                      <div className="font-bold text-rose-900 flex items-center justify-between gap-2">
+                                        <span className="flex items-center gap-1.5">
+                                          <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                                          Refund Request Denied
+                                        </span>
+                                        <span className="text-[11px] font-semibold text-rose-700">₱0 Disbursed</span>
+                                      </div>
+                                      <p className="text-rose-800 text-[11px] leading-relaxed">
+                                        Your refund request was reviewed and denied:{" "}
+                                        <strong>{booking.refund_denial_reason || booking.cancellation_request?.admin_notes || "Non-refundable per cancellation policy terms."}</strong>
+                                      </p>
+                                      {grossPaid > 0 && (
+                                        <p className="text-[10px] text-slate-500 italic">
+                                          Per catering cancellation terms, your paid deposit of {formatCurrency(grossPaid)} was retained.
+                                        </p>
+                                      )}
                                     </div>
                                   ) : (
                                     <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 text-xs text-slate-600 leading-relaxed">

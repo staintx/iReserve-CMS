@@ -421,6 +421,47 @@ exports.assignStaff = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "staff_assignments must be an array" });
   }
 
+  // Prevent duplicate staff assignments within the same event
+  const seenUserIds = new Set();
+  for (const sa of staff_assignments) {
+    const uId = String(sa.user_id?._id || sa.user_id || "");
+    if (!uId) continue;
+    if (seenUserIds.has(uId)) {
+      const userDoc = await User.findById(uId).select("full_name");
+      const name = userDoc?.full_name || "A crew member";
+      return res.status(400).json({
+        message: `${name} cannot be assigned to multiple roles on the same event.`
+      });
+    }
+    seenUserIds.add(uId);
+  }
+
+  // Prevent event coordinator from occupying multiple roles on the same event
+  const coordinatorId = String(booking.event_manager_id?._id || booking.event_manager_id || "");
+  if (coordinatorId && seenUserIds.has(coordinatorId)) {
+    const userDoc = await User.findById(coordinatorId).select("full_name");
+    const name = userDoc?.full_name || "The Event Coordinator";
+    return res.status(400).json({
+      message: `${name} is already assigned as Event Coordinator for this event and cannot occupy multiple roles.`
+    });
+  }
+
+  // Prevent invalid role assignments: An Event Coordinator must not be assignable as Head Cook
+  const headCookAssignment = staff_assignments.find((sa) => sa.role === "Head Cook" && sa.user_id);
+  if (headCookAssignment) {
+    const cookId = headCookAssignment.user_id?._id || headCookAssignment.user_id;
+    const cookUser = await User.findById(cookId).select("role position full_name");
+    if (cookUser) {
+      const userRole = String(cookUser.role || "").toLowerCase();
+      const userPos = String(cookUser.position || "").toLowerCase();
+      if (userRole === "manager" || userPos.includes("coordinator") || userPos.includes("event manager")) {
+        return res.status(400).json({
+          message: `${cookUser.full_name} is an Event Coordinator and cannot be assigned as Head Cook.`
+        });
+      }
+    }
+  }
+
   // Validate Staff Availability on event date
   const assignedUserIds = staff_assignments
     .map((a) => a.user_id?._id || a.user_id)

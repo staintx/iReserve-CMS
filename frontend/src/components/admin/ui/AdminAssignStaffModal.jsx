@@ -25,6 +25,11 @@ import {
   DialogFooter
 } from "../../ui/dialog";
 import { formatEventDate } from "../../../utils/format";
+import {
+  getEligibleStaffForSlot,
+  isStaffEligibleForRole,
+  isEventCoordinator
+} from "../../../utils/staffRoleEligibility";
 
 const CREW_SELECT =
   "h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0] shadow-2xs font-medium";
@@ -170,20 +175,62 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
     return map;
   }, [staffList]);
 
-  // Options list for dropdowns
-  const staffOptions = useMemo(
-    () =>
-      staffList.map((person) => (
-        <option key={person._id} value={person._id}>
-          {person.full_name}
-          {person.position ? ` - ${person.position}` : ""}
-          {person.availability_status && person.availability_status !== "Available"
-            ? ` (${person.availability_status})`
-            : ""}
-        </option>
-      )),
-    [staffList]
-  );
+  // Collect staff IDs already assigned in OTHER slots for this event
+  const getOtherAssignedIds = (excludeKey, excludeIndex = null) => {
+    const ids = new Set();
+    const coordinatorId = booking?.event_manager_id?._id || booking?.event_manager_id;
+    if (coordinatorId) {
+      ids.add(String(coordinatorId));
+    }
+
+    if (excludeKey !== "headCook" && assignment.headCook) {
+      ids.add(String(assignment.headCook));
+    }
+
+    assignment.servers.forEach((id, idx) => {
+      if (id && !(excludeKey === "servers" && idx === excludeIndex)) {
+        ids.add(String(id));
+      }
+    });
+
+    assignment.setupCrew.forEach((id, idx) => {
+      if (id && !(excludeKey === "setupCrew" && idx === excludeIndex)) {
+        ids.add(String(id));
+      }
+    });
+
+    assignment.assistants.forEach((id, idx) => {
+      if (id && !(excludeKey === "assistants" && idx === excludeIndex)) {
+        ids.add(String(id));
+      }
+    });
+
+    return ids;
+  };
+
+  // Dynamically render options for a specific role slot:
+  // - Enforces role eligibility (e.g. Event Coordinator cannot be Head Cook)
+  // - Dynamically removes staff already assigned to other roles on this event
+  // - Retains the current slot's selection
+  const renderSlotOptions = (role, currentValue, excludeKey, excludeIndex = null) => {
+    const otherIds = getOtherAssignedIds(excludeKey, excludeIndex);
+    const eligibleStaff = getEligibleStaffForSlot(staffList, {
+      role,
+      currentValue,
+      otherAssignedIds: otherIds,
+      booking
+    });
+
+    return eligibleStaff.map((person) => (
+      <option key={person._id} value={person._id}>
+        {person.full_name}
+        {person.position ? ` - ${person.position}` : ""}
+        {person.availability_status && person.availability_status !== "Available"
+          ? ` (${person.availability_status})`
+          : ""}
+      </option>
+    ));
+  };
 
   const selectedCrewCount = useMemo(() => {
     const picked = [
@@ -307,6 +354,21 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
       const dupName = staffMap[duplicateId]?.full_name || "A crew member";
       notify(`${dupName} cannot be assigned to multiple roles on the same event.`, "error");
       return;
+    }
+
+    const coordinatorId = String(booking.event_manager_id?._id || booking.event_manager_id || "");
+    if (coordinatorId && chosenIds.includes(coordinatorId)) {
+      const coordName = staffMap[coordinatorId]?.full_name || "The Event Coordinator";
+      notify(`${coordName} is already assigned as Event Coordinator for this event and cannot occupy multiple roles.`, "error");
+      return;
+    }
+
+    if (assignment.headCook) {
+      const cookPerson = staffMap[assignment.headCook];
+      if (cookPerson && !isStaffEligibleForRole(cookPerson, "Head Cook", booking)) {
+        notify(`${cookPerson.full_name} cannot be assigned as Head Cook.`, "error");
+        return;
+      }
     }
 
     const unavailableStaff = chosenIds
@@ -440,7 +502,7 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
                     className={CREW_SELECT}
                   >
                     <option value="">Select head cook...</option>
-                    {staffOptions}
+                    {renderSlotOptions("Head Cook", assignment.headCook, "headCook")}
                   </select>
                 </div>
 
@@ -457,7 +519,7 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
                       key={idx}
                       value={val}
                       placeholder={`Select service staff #${idx + 1}...`}
-                      options={staffOptions}
+                      options={renderSlotOptions("Server", val, "servers", idx)}
                       onChange={(next) => updateSlot("servers", idx, next)}
                       onRemove={assignment.servers.length > 1 ? () => removeSlot("servers", idx) : null}
                       removeLabel={`Remove service staff ${idx + 1}`}
@@ -478,7 +540,7 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
                       key={idx}
                       value={val}
                       placeholder={`Select setup staff #${idx + 1}...`}
-                      options={staffOptions}
+                      options={renderSlotOptions("Setup Crew", val, "setupCrew", idx)}
                       onChange={(next) => updateSlot("setupCrew", idx, next)}
                       onRemove={assignment.setupCrew.length > 1 ? () => removeSlot("setupCrew", idx) : null}
                       removeLabel={`Remove setup staff ${idx + 1}`}
@@ -501,7 +563,7 @@ export default function AdminAssignStaffModal({ booking, open, onClose, onSave }
                       key={idx}
                       value={val}
                       placeholder={`Select support staff #${idx + 1}...`}
-                      options={staffOptions}
+                      options={renderSlotOptions("Assistant", val, "assistants", idx)}
                       onChange={(next) => updateSlot("assistants", idx, next)}
                       onRemove={() => removeSlot("assistants", idx)}
                       removeLabel={`Remove support staff ${idx + 1}`}

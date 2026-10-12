@@ -398,7 +398,7 @@ const BookingSchema = new mongoose.Schema(
         is_inspected: { type: Boolean, default: false },
         status: {
           type: String,
-          enum: ["not_inspected", "inspected_ok", "issue_reported"],
+          enum: ["not_inspected", "inspected_ok", "issue_reported", "incomplete", "complete"],
           default: "not_inspected",
         },
         issue_type: {

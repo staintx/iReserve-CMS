@@ -4,7 +4,6 @@ import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLa
 import { CustomerAPI } from "../../api/customer";
 import CustomerReceiptModal from "../../components/customer/portal/CustomerReceiptModal";
 import PaymentChoiceModal from "../../components/customer/PaymentChoiceModal";
-import CustomerPolicyModal from "../../components/policy/CustomerPolicyModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
@@ -49,7 +48,6 @@ export default function CustomerPayments() {
   const [bookings, setBookings] = useState([]);
   const [_loading, setLoading] = useState(true);
   const [payingTargetId, setPayingTargetId] = useState(null);
-  const [showPolicyModal, setShowPolicyModal] = useState(false);
   const businessInfo = useBusinessInfo();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -882,14 +880,6 @@ export default function CustomerPayments() {
               </div>
 
               <div className="flex items-center gap-3 self-start sm:self-auto flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setShowPolicyModal(true)}
-                  className="text-xs font-semibold text-[#4C81E0] hover:text-[#3B6EC6] hover:underline cursor-pointer inline-flex items-center gap-1"
-                >
-                  Policy Guidelines →
-                </button>
-
                 {/* View Mode Toggle: All Transactions (Table) vs By Event */}
                 <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/70 shrink-0">
                   <button
@@ -1690,14 +1680,6 @@ export default function CustomerPayments() {
             onSuccess={() => fetchData()}
           />
         )}
-
-        {/* ── Cancellation & Refund Policy Dialog ── */}
-        <CustomerPolicyModal
-          open={showPolicyModal}
-          onClose={() => setShowPolicyModal(false)}
-          initialPolicy="cancellation"
-          businessInfo={businessInfo}
-        />
       </div>
     </CustomerDashboardLayout>
   );

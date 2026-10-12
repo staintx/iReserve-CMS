@@ -360,46 +360,85 @@ export default function CustomerBookings() {
   };
 
   // High-Clarity Next Action Resolver for Bookings
+  // Returns actionable next step metadata, or null when no customer action is required.
   const getNextActionInfo = (bkg) => {
     if (!bkg) return null;
+    const rawStatus = (bkg.status || "").toLowerCase();
+
+    // 1. Cancelled / Refunded / Rejected: Remove Next Step section entirely
+    if (["cancelled", "canceled", "rejected", "refunded"].includes(rawStatus)) {
+      return null;
+    }
+
+    // Cancellation request under management review: No customer action required
+    const isCancelReqPending =
+      bkg.cancellation_request?.status === "pending" ||
+      (bkg.change_request?.status === "pending" &&
+        bkg.change_request?.message?.toLowerCase().includes("cancel"));
+    if (isCancelReqPending) {
+      return null;
+    }
+
     const bal = balanceOf(bkg);
     const total = Number(bkg.total_price || 0);
     const paid = Math.max(0, total - bal);
     const isOverdue = isBookingOverdue(bkg, paid);
-    const rawStatus = (bkg.status || "").toLowerCase();
     const ocularMeta = getBookingOcularActionMeta(bkg);
-    const isDepositNeeded = rawStatus.includes("deposit") || (bkg.payment_status === "deposit_pending" && bal > 0);
+    const isDepositNeeded = rawStatus.includes("deposit") || (bkg.payment_status === "deposit_pending" && bal > 0) || isBookingAwaitingDeposit(bkg);
     const isPendingRevision = bkg.pending_revision && ["pending_customer_approval"].includes(bkg.pending_revision.status);
-    const isUnderReview = bkg.change_request && bkg.change_request.status === "pending";
+    const isCompleted = ["completed", "event completed"].includes(rawStatus);
 
-    // 0. Overdue payment takes top priority
-    if (isOverdue && bal > 0 && !["cancelled", "refunded"].includes(rawStatus)) {
+    // 2. Overdue payment takes top priority for both Active and Completed events
+    if (isOverdue && bal > 0) {
       return {
         state: "overdue",
         isOverdue: true,
         badge: "Payment Overdue",
         badgeClass: "bg-rose-100 text-rose-900 border-rose-300 font-bold",
         title: `Remaining Balance Overdue: ${formatCurrency(bal)}`,
-        description: "Your remaining balance is overdue. Please settle your outstanding payment.",
+        description: isCompleted
+          ? `Your event has concluded and the remaining balance is overdue. Please settle your outstanding payment of ${formatCurrency(bal)}.`
+          : `Your remaining balance of ${formatCurrency(bal)} is overdue. Please settle your outstanding payment.`,
         actionType: "balance",
         actionLabel: `Settle Overdue Balance (${formatCurrency(bal)})`,
       };
     }
 
-    // 1. Revision proposal awaiting customer approval
+    // 3. Completed Event
+    if (isCompleted) {
+      // Completed event WITH outstanding balance
+      if (bal > 0) {
+        const isCash = bkg.balance_payment_preference === "in_person";
+        return {
+          state: "balance_due",
+          badge: isCash ? "Cash Due (Completed)" : "Balance Due",
+          badgeClass: "bg-amber-100 text-amber-900 border-amber-300 font-semibold",
+          title: `Event Concluded · Remaining Balance: ${formatCurrency(bal)}`,
+          description: isCash
+            ? `Your event has concluded. You elected cash payment—please settle your remaining balance of ${formatCurrency(bal)} with your Event Manager.`
+            : `Your event has concluded. Please settle your remaining balance of ${formatCurrency(bal)} online or with your Event Manager.`,
+          actionType: "balance",
+          actionLabel: `Settle Balance (${formatCurrency(bal)})`,
+        };
+      }
+      // Completed event with NO balance: Hide the Next Step section entirely
+      return null;
+    }
+
+    // 4. Active: Revision proposal awaiting customer approval
     if (isPendingRevision) {
       return {
         state: "action_required",
         badge: "Action Required",
         badgeClass: "bg-amber-100 text-amber-900 border-amber-300 font-bold",
         title: "Revised Booking Proposal Awaiting Your Confirmation",
-        description: "An updated proposal with revised pricing or setup details is ready for your review.",
+        description: bkg.pending_revision?.message || "An updated proposal with revised pricing or setup details is ready for your review.",
         actionType: "proposal",
         actionLabel: "Review Proposal",
       };
     }
 
-    // 2. Deposit needed
+    // 5. Active: Deposit needed
     if (isDepositNeeded) {
       return {
         state: "action_required",
@@ -412,7 +451,7 @@ export default function CustomerBookings() {
       };
     }
 
-    // 3. Ocular Inspection needed
+    // 6. Active: Venue Ocular Inspection scheduling needed
     if (ocularMeta && ocularMeta.state === "action_required") {
       return {
         state: "action_required",
@@ -425,47 +464,8 @@ export default function CustomerBookings() {
       };
     }
 
-    // 4. Ocular requested / awaiting admin confirmation
-    if (ocularMeta && ocularMeta.state === "requested") {
-      return {
-        state: "in_progress",
-        badge: "Site Visit Requested",
-        badgeClass: "bg-blue-100 text-blue-900 border-blue-200 font-semibold",
-        title: "Site Visit Requested — Pending Admin Confirmation",
-        description: `Requested schedule: ${ocularMeta.scheduled_date ? formatShortDate(ocularMeta.scheduled_date) : "Pending confirmation"}. Our team will confirm shortly.`,
-        actionType: "ocular_reschedule",
-        actionLabel: "Reschedule Ocular",
-      };
-    }
-
-    // 5. Ocular scheduled
-    if (ocularMeta && ocularMeta.state === "scheduled") {
-      return {
-        state: "in_progress",
-        badge: "Site Visit Scheduled",
-        badgeClass: "bg-blue-100 text-blue-900 border-blue-200 font-semibold",
-        title: `Site Ocular Visit Confirmed for ${ocularMeta.scheduled_date ? formatShortDate(ocularMeta.scheduled_date) : "agreed date"}`,
-        description: "Our catering and staging team will meet you at the venue on the scheduled date.",
-        actionType: "view",
-        actionLabel: "View Details",
-      };
-    }
-
-    // 6. Change request under admin review
-    if (isUnderReview) {
-      return {
-        state: "in_progress",
-        badge: "Change Under Review",
-        badgeClass: "bg-blue-50 text-blue-800 border-blue-200/80 font-semibold",
-        title: "Proposed Changes Under Review by Catering Admin",
-        description: "Our team is reviewing your requested date, guest, or venue updates.",
-        actionType: "view",
-        actionLabel: "View Details",
-      };
-    }
-
-    // 7. Balance owed before or on event day
-    if (bal > 0 && ["confirmed", "converted to booking", "preparing", "ready for event", "ongoing"].includes(rawStatus)) {
+    // 7. Active: Remaining Balance due before or on event day
+    if (bal > 0) {
       const isCash = bkg.balance_payment_preference === "in_person";
       return {
         state: "balance_due",
@@ -480,70 +480,9 @@ export default function CustomerBookings() {
       };
     }
 
-    // 8. Confirmed & fully paid
-    if (["confirmed", "converted to booking", "preparing", "ready for event", "ongoing"].includes(rawStatus) && bal <= 0) {
-      const isFood = isFoodOnly(resolveServiceType(bkg));
-      return {
-        state: "all_set",
-        badge: "Confirmed & Reserved",
-        badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold",
-        title: "All Set! Everything is Paid & Ready",
-        description: isFood
-          ? "Your order is confirmed. Dishes are scheduled for kitchen preparation and dispatch on your event date."
-          : "Your event reservation is fully secured. Our styling and culinary teams are preparing all requirements.",
-        actionType: "view",
-        actionLabel: "View Full Details",
-      };
-    }
-
-    // 9. Completed
-    if (["completed", "event completed"].includes(rawStatus)) {
-      if (bal > 0) {
-        const isCash = bkg.balance_payment_preference === "in_person";
-        return {
-          state: "balance_due",
-          badge: isCash ? "Cash Due (Completed)" : "Balance Due",
-          badgeClass: "bg-amber-100 text-amber-900 border-amber-300 font-semibold",
-          title: `Event Concluded · Remaining Balance: ${formatCurrency(bal)}`,
-          description: "The remaining balance is due a day after your event date. Please settle your remaining balance online or with your Event Manager.",
-          actionType: "balance",
-          actionLabel: `Settle Balance (${formatCurrency(bal)})`,
-        };
-      }
-      return {
-        state: "completed",
-        badge: "Event Completed",
-        badgeClass: "bg-slate-100 text-slate-700 border-slate-300 font-medium",
-        title: "Event Successfully Concluded",
-        description: "Thank you for choosing Caezelle's Catering! View your event invoice or rate your experience.",
-        actionType: "view",
-        actionLabel: "View Details",
-      };
-    }
-
-    // 10. Cancelled
-    if (["cancelled", "canceled", "rejected", "refunded"].includes(rawStatus)) {
-      return {
-        state: "cancelled",
-        badge: "Cancelled",
-        badgeClass: "bg-rose-100 text-rose-800 border-rose-200 font-semibold",
-        title: "Reservation Cancelled",
-        description: "This booking was cancelled. Message our support team if you would like to rebook.",
-        actionType: "view",
-        actionLabel: "View Details",
-      };
-    }
-
-    // Default fallback
-    return {
-      state: "neutral",
-      badge: "Reserved",
-      badgeClass: "bg-slate-100 text-slate-700 border-slate-200 font-medium",
-      title: "Booking Active",
-      description: "Your reservation is registered in our catering portal.",
-      actionType: "view",
-      actionLabel: "View Details",
-    };
+    // 8. Active: Confirmed & Fully Paid with NO outstanding customer actions
+    // Hide the Next Step section entirely (kitchen prep is an internal staff responsibility, not customer next step)
+    return null;
   };
 
   // Modern High-Contrast Status Badge
@@ -595,9 +534,10 @@ export default function CustomerBookings() {
   const activeBookingStep = useMemo(() => {
     if (!selectedBooking) return 2;
     const statusLower = (selectedBooking.status || "").toLowerCase();
+    if (["cancelled", "canceled", "rejected", "refunded"].includes(statusLower)) return -1;
     if (["completed", "event completed"].includes(statusLower)) return 3;
-    if (["preparing", "ongoing", "ready for event"].includes(statusLower)) return 2;
-    if (["confirmed", "converted to booking", "ocular scheduled"].includes(statusLower)) return 2;
+    if (["preparing", "ongoing", "ready for event", "food prep", "out for delivery", "in transit", "ready for delivery", "delivered"].includes(statusLower)) return 2;
+    if (["confirmed", "converted to booking", "ocular scheduled", "deposit_paid", "final payment pending"].includes(statusLower)) return 2;
     if (statusLower.includes("deposit")) return 1;
     return 2;
   }, [selectedBooking]);
@@ -895,6 +835,7 @@ export default function CustomerBookings() {
                   const dayStr = eventDateObj ? eventDateObj.getDate() : null;
 
                   const isOverdue = nextAction?.isOverdue;
+                  const isCancelled = ["cancelled", "canceled", "rejected", "refunded"].includes((bkg.status || "").toLowerCase());
 
                   return (
                     <div
@@ -983,7 +924,7 @@ export default function CustomerBookings() {
                                   </>
                                 )}
                               </span>
-                              {countdown && countdown.days >= 0 && (
+                              {!isCancelled && countdown && countdown.days >= 0 && (
                                 <span
                                   className={cn(
                                     "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
@@ -1013,14 +954,20 @@ export default function CustomerBookings() {
                             <span
                               className={cn(
                                 "inline-block text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-full border",
-                                isOverdue
-                                  ? "text-rose-800 bg-rose-100 border-rose-300 font-bold"
-                                  : bal > 0
-                                    ? "text-amber-800 bg-amber-50 border-amber-200/80"
-                                    : "text-emerald-800 bg-emerald-50 border-emerald-200/80"
+                                isCancelled
+                                  ? "text-slate-500 bg-slate-50 border-slate-200"
+                                  : isOverdue
+                                    ? "text-rose-800 bg-rose-100 border-rose-300 font-bold"
+                                    : bal > 0
+                                      ? "text-amber-800 bg-amber-50 border-amber-200/80"
+                                      : "text-emerald-800 bg-emerald-50 border-emerald-200/80"
                               )}
                             >
-                              {bal > 0 ? (isOverdue ? `₱${bal.toLocaleString()} Overdue` : `₱${bal.toLocaleString()} Due`) : "Paid in Full"}
+                              {isCancelled
+                                ? "Closed"
+                                : bal > 0
+                                  ? (isOverdue ? `₱${bal.toLocaleString()} Overdue` : `₱${bal.toLocaleString()} Due`)
+                                  : "Paid in Full"}
                             </span>
                           </div>
 
@@ -1115,7 +1062,7 @@ export default function CustomerBookings() {
                               </Button>
                             )}
 
-                            {nextAction?.actionType === "view" && (
+                            {(!nextAction || nextAction?.actionType === "view") && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1149,9 +1096,7 @@ export default function CustomerBookings() {
                                   ? "bg-amber-500 animate-pulse"
                                   : nextAction.state === "balance_due"
                                     ? "bg-blue-600"
-                                    : nextAction.state === "in_progress"
-                                      ? "bg-indigo-600"
-                                      : "bg-emerald-600"
+                                    : "bg-emerald-600"
                               )}
                             />
                             <span className={cn(
@@ -1164,7 +1109,7 @@ export default function CustomerBookings() {
                               "font-semibold truncate",
                               isOverdue ? "text-rose-900 font-bold" : "text-slate-800"
                             )}>
-                              {isOverdue ? "Your remaining balance is overdue. Please settle your outstanding payment." : nextAction.title}
+                              {nextAction.title}
                             </span>
                           </div>
 
@@ -1210,7 +1155,8 @@ export default function CustomerBookings() {
               const paidAmount = Math.max(0, totalCost - bal);
               const percentPaid = totalCost > 0 ? Math.min(100, Math.round((paidAmount / totalCost) * 100)) : 100;
               const nextAction = getNextActionInfo(selectedBooking);
-              const countdown = getEventCountdown(selectedBooking.event_date);
+              const isSelectedCancelled = ["cancelled", "canceled", "rejected", "refunded"].includes((selectedBooking.status || "").toLowerCase());
+              const countdown = !isSelectedCancelled ? getEventCountdown(selectedBooking.event_date) : null;
               const assignedLead = selectedBooking.event_manager_id || (selectedBooking.staff_assignments && selectedBooking.staff_assignments[0]);
               const refCode = selectedBooking.reference || `CAZ-${selectedBooking._id.substring(0, 6).toUpperCase()}`;
 
@@ -1253,7 +1199,28 @@ export default function CustomerBookings() {
                   {/* SCROLLABLE OPERATIONS CONTENT */}
                   <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5 [scrollbar-width:thin]">
                     {/* 1. NEXT ACTION / STATUS GUIDANCE HERO CARD */}
-                    {nextAction && (
+                    {isSelectedCancelled ? (
+                      <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-3.5 space-y-2 shadow-2xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border bg-rose-100 text-rose-800 border-rose-200">
+                            Cancelled
+                          </span>
+                          <span className="text-[11px] font-semibold text-rose-700">
+                            Closed
+                          </span>
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs sm:text-sm font-sans leading-snug text-rose-950">
+                            Reservation Cancelled
+                          </h4>
+                          <p className="text-xs leading-relaxed font-medium mt-1 text-rose-800">
+                            {selectedBooking.cancellation_reason || selectedBooking.cancellation_request?.reason
+                              ? `This booking was cancelled: "${selectedBooking.cancellation_reason || selectedBooking.cancellation_request?.reason}". All active actions, payments, and visits are closed.`
+                              : "This booking was cancelled and is no longer active. All scheduled actions, ocular visits, and pending payments are closed."}
+                          </p>
+                        </div>
+                      </div>
+                    ) : nextAction ? (
                       <div
                         className={cn(
                           "rounded-xl border p-3.5 space-y-2.5 shadow-2xs",
@@ -1261,11 +1228,7 @@ export default function CustomerBookings() {
                             ? "bg-rose-50 border-rose-300 ring-1 ring-rose-200"
                             : nextAction.state === "action_required"
                             ? "bg-amber-50/80 border-amber-200"
-                            : nextAction.state === "balance_due"
-                              ? "bg-blue-50/70 border-blue-200"
-                              : nextAction.state === "all_set"
-                                ? "bg-emerald-50/60 border-emerald-200"
-                                : "bg-slate-50 border-slate-200"
+                            : "bg-blue-50/70 border-blue-200"
                         )}
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -1281,7 +1244,7 @@ export default function CustomerBookings() {
                             "text-[11px] font-semibold",
                             nextAction.isOverdue ? "text-rose-700" : "text-slate-600"
                           )}>
-                            {nextAction.isOverdue ? "Payment Required" : "Current Stage"}
+                            {nextAction.isOverdue ? "Payment Required" : "Customer Next Step"}
                           </span>
                         </div>
 
@@ -1333,14 +1296,13 @@ export default function CustomerBookings() {
                           </Button>
                         )}
 
-                        {nextAction.actionType === "ocular_reschedule" && (
+                        {nextAction.actionType === "proposal" && (
                           <Button
-                            variant="outline"
-                            onClick={() => setRequestingOcularBooking(selectedBooking)}
-                            className="w-full border-blue-300 bg-white hover:bg-blue-50 text-blue-900 font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer"
+                            onClick={() => navigate(`/customer/bookings/${selectedBooking._id}`)}
+                            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
                           >
-                            <CalendarClock className="w-4 h-4 text-blue-700" />
-                            <span>Reschedule Ocular Visit</span>
+                            <Sparkles className="w-4 h-4" />
+                            <span>Review Proposal</span>
                           </Button>
                         )}
 
@@ -1363,63 +1325,65 @@ export default function CustomerBookings() {
                           </Button>
                         )}
                       </div>
-                    )}
+                    ) : null}
 
                     {/* 2. CATERING JOURNEY TIMELINE STEPPER */}
-                    <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3 space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                        <span className="flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-[#4C81E0]" />
-                          <span>Journey Progress</span>
-                        </span>
-                        <span className="text-slate-500 font-medium">Step {activeBookingStep + 1} of 4</span>
-                      </div>
+                    {!isSelectedCancelled && (
+                      <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                          <span className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-[#4C81E0]" />
+                            <span>Journey Progress</span>
+                          </span>
+                          <span className="text-slate-500 font-medium">Step {activeBookingStep + 1} of 4</span>
+                        </div>
 
-                      <div className="flex items-center justify-between text-xs font-semibold relative pt-1 pb-1">
-                        {/* Connecting Background Line */}
-                        <div className="absolute top-4 left-4 right-4 h-0.5 bg-slate-200 -z-0" />
-                        {/* Active Filled Progress Line */}
-                        <div
-                          className="absolute top-4 left-4 h-0.5 bg-[#4C81E0] transition-all duration-300 -z-0"
-                          style={{ width: `${(activeBookingStep / 3) * 100}%` }}
-                        />
+                        <div className="flex items-center justify-between text-xs font-semibold relative pt-1 pb-1">
+                          {/* Connecting Background Line */}
+                          <div className="absolute top-4 left-4 right-4 h-0.5 bg-slate-200 -z-0" />
+                          {/* Active Filled Progress Line */}
+                          <div
+                            className="absolute top-4 left-4 h-0.5 bg-[#4C81E0] transition-all duration-300 -z-0"
+                            style={{ width: `${(activeBookingStep / 3) * 100}%` }}
+                          />
 
-                        {[
-                          { label: "Inquiry", step: 0 },
-                          { label: "Quote", step: 1 },
-                          { label: "Booking", step: 2 },
-                          { label: "Event", step: 3 },
-                        ].map((s) => {
-                          const isDone = activeBookingStep > s.step;
-                          const isCurrent = activeBookingStep === s.step;
+                          {[
+                            { label: "Inquiry", step: 0 },
+                            { label: "Quote", step: 1 },
+                            { label: "Booking", step: 2 },
+                            { label: "Event", step: 3 },
+                          ].map((s) => {
+                            const isDone = activeBookingStep > s.step;
+                            const isCurrent = activeBookingStep === s.step;
 
-                          return (
-                            <div key={s.label} className="flex flex-col items-center gap-1 z-10">
-                              <div
-                                className={cn(
-                                  "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all shadow-2xs",
-                                  isDone
-                                    ? "bg-emerald-600 text-white"
-                                    : isCurrent
-                                      ? "bg-[#4C81E0] text-white ring-3 ring-[#4C81E0]/15 scale-105"
-                                      : "bg-white text-slate-500 border border-slate-300"
-                                )}
-                              >
-                                {isDone ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : s.step + 1}
+                            return (
+                              <div key={s.label} className="flex flex-col items-center gap-1 z-10">
+                                <div
+                                  className={cn(
+                                    "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all shadow-2xs",
+                                    isDone
+                                      ? "bg-emerald-600 text-white"
+                                      : isCurrent
+                                        ? "bg-[#4C81E0] text-white ring-3 ring-[#4C81E0]/15 scale-105"
+                                        : "bg-white text-slate-500 border border-slate-300"
+                                  )}
+                                >
+                                  {isDone ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : s.step + 1}
+                                </div>
+                                <span
+                                  className={cn(
+                                    "text-[10px] font-medium leading-tight",
+                                    isCurrent ? "font-bold text-[#4C81E0]" : isDone ? "text-slate-800" : "text-slate-500"
+                                  )}
+                                >
+                                  {s.label}
+                                </span>
                               </div>
-                              <span
-                                className={cn(
-                                  "text-[10px] font-medium leading-tight",
-                                  isCurrent ? "font-bold text-[#4C81E0]" : isDone ? "text-slate-800" : "text-slate-500"
-                                )}
-                              >
-                                {s.label}
-                              </span>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* 3. ASSIGNED ON-SITE COORDINATION */}
                     <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3 space-y-2">
@@ -1447,7 +1411,7 @@ export default function CustomerBookings() {
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                            <MessageSquare className="w-3 h-3 text-[#4C81E0]" />
+                            <MessageSquare className="w-3.5 h-3.5 text-[#4C81E0]" />
                             <span>Catering Support Desk</span>
                           </div>
                           <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
@@ -1474,7 +1438,9 @@ export default function CustomerBookings() {
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                           Payment Status
                         </span>
-                        <span className="font-bold text-xs text-slate-800">{percentPaid}% Settled</span>
+                        <span className="font-bold text-xs text-slate-800">
+                          {isSelectedCancelled ? "Closed" : `${percentPaid}% Settled`}
+                        </span>
                       </div>
 
                       {/* Visual Progress Bar */}
@@ -1482,9 +1448,15 @@ export default function CustomerBookings() {
                         <div
                           className={cn(
                             "h-full rounded-full transition-all duration-500",
-                            percentPaid === 100 ? "bg-emerald-600" : percentPaid > 0 ? "bg-[#4C81E0]" : "bg-amber-500"
+                            isSelectedCancelled
+                              ? "bg-slate-300"
+                              : percentPaid === 100
+                              ? "bg-emerald-600"
+                              : percentPaid > 0
+                              ? "bg-[#4C81E0]"
+                              : "bg-amber-500"
                           )}
-                          style={{ width: `${percentPaid}%` }}
+                          style={{ width: isSelectedCancelled ? "100%" : `${percentPaid}%` }}
                         />
                       </div>
 
@@ -1495,8 +1467,8 @@ export default function CustomerBookings() {
                         </div>
                         <div>
                           <div className="text-[10px] text-slate-500 font-medium">Balance Due</div>
-                          <div className={cn("font-bold text-xs font-sans", bal > 0 ? "text-amber-800" : "text-emerald-800")}>
-                            {bal > 0 ? formatCurrency(bal) : "Fully Settled"}
+                          <div className={cn("font-bold text-xs font-sans", isSelectedCancelled ? "text-slate-500" : bal > 0 ? "text-amber-800" : "text-emerald-800")}>
+                            {isSelectedCancelled ? "Closed" : bal > 0 ? formatCurrency(bal) : "Fully Settled"}
                           </div>
                         </div>
                       </div>
@@ -1527,7 +1499,7 @@ export default function CustomerBookings() {
                           <FileText className="w-3.5 h-3.5" />
                           <span>View Official Invoice</span>
                         </button>
-                        {bal > 0 && (
+                        {!isSelectedCancelled && bal > 0 && (
                           <button
                             type="button"
                             onClick={() => startCheckout(selectedBooking)}

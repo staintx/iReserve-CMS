@@ -40,6 +40,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { getBookingOcularActionMeta } from "../../utils/ocularStatusHelper";
+import { isBookingAwaitingDeposit } from "../../utils/bookingDeposit";
 import { isBookingOverdue, parseLocalDate } from "../../utils/overduePayment";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
@@ -920,22 +921,86 @@ export default function CustomerEventDashboard() {
 
   // Next Action & Guidance Evaluator
   const getActionGuideMeta = () => {
-    if (isCancelled) {
+    // 1. Cancelled / Refunded / Rejected: Remove Next Step section entirely
+    if (isCancelled || ["cancelled", "canceled", "rejected", "refunded"].includes(rawStatus)) {
+      return null;
+    }
+
+    // Cancellation request under management review: No customer action required
+    const isCancelReqPending =
+      booking.cancellation_request?.status === "pending" ||
+      (booking.change_request?.status === "pending" &&
+        booking.change_request?.message?.toLowerCase().includes("cancel"));
+    if (isCancelReqPending) {
+      return null;
+    }
+
+    // Change request under review: No customer action required
+    if (booking.change_request && booking.change_request.status === "pending") {
+      return null;
+    }
+
+    // 2. Overdue balance takes top priority for both Active and Completed events
+    const isOverdue = isBookingOverdue(booking, displayPaid);
+    if (isOverdue && outstandingAmount > 0) {
       return {
         tone: "rose",
-        badge: "Reservation Cancelled",
-        badgeClass: "bg-rose-50/80 text-rose-800 border-rose-200/80 font-semibold",
-        title: "This reservation has been cancelled",
-        description: booking.cancellation_reason || booking.cancellation_request?.reason || "This booking was cancelled and is no longer active. All scheduled actions, ocular visits, and pending payments are closed.",
-        assignedParty: "Caezelle Catering Records",
-        timeline: null,
-        action: null,
+        isOverdue: true,
+        badge: "Payment Overdue",
+        badgeClass: "bg-rose-50 text-rose-900 border-rose-300 font-bold",
+        title: `Remaining Balance Overdue: ${formatCurrency(outstandingAmount)}`,
+        description: isCompleted
+          ? `Your event has concluded and the remaining balance is overdue. Please settle your outstanding payment of ${formatCurrency(outstandingAmount)}.`
+          : `Your remaining balance of ${formatCurrency(outstandingAmount)} is overdue. Please settle your outstanding payment.`,
+        assignedParty: "Client Payment",
+        timeline: "Payment Overdue",
+        action: (
+          <Button
+            onClick={handlePayRemainingBalance}
+            disabled={payingPaymentId !== null}
+            className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs h-9 px-4 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>{payingPaymentId ? "Opening Checkout…" : `Settle Overdue Balance (${formatCurrency(outstandingAmount)})`}</span>
+          </Button>
+        ),
       };
     }
 
+    // 3. Completed Event
+    if (["completed", "event completed"].includes(rawStatus)) {
+      if (outstandingAmount > 0) {
+        return {
+          tone: "action",
+          isOverdue: false,
+          badge: "Balance Due",
+          badgeClass: "bg-amber-50 text-amber-900 border-amber-300 font-semibold",
+          title: `Event Concluded · Remaining Balance: ${formatCurrency(outstandingAmount)}`,
+          description: "Your event has concluded. Please settle your remaining balance online or with your Event Manager.",
+          assignedParty: "Client Payment",
+          timeline: "Due Today",
+          action: (
+            <Button
+              size="sm"
+              onClick={handlePayRemainingBalance}
+              disabled={payingPaymentId !== null}
+              className="bg-[#4C81E0] hover:bg-[#3B6EC9] text-white font-bold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs gap-1.5"
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>{payingPaymentId ? "Opening Checkout…" : `Settle Balance (${formatCurrency(outstandingAmount)})`}</span>
+            </Button>
+          ),
+        };
+      }
+      // Completed event with NO balance: Hide the Next Step section entirely
+      return null;
+    }
+
+    // 4. Active: Revised Proposal Awaiting Confirmation
     if (booking.pending_revision && booking.pending_revision.status === "pending_customer_approval") {
       return {
         tone: "amber",
+        isOverdue: false,
         badge: "Action Required",
         badgeClass: "bg-amber-50 text-amber-900 border-amber-300 font-bold",
         title: "Revised Booking Proposal Awaiting Your Confirmation",
@@ -954,9 +1019,16 @@ export default function CustomerEventDashboard() {
       };
     }
 
-    if (["deposit pending", "pending deposit"].includes(rawStatus) || (booking.payment_status === "pending" && !isFullyPaid)) {
+    // 5. Active: Deposit Needed
+    const isDepositStage =
+      ["deposit pending", "pending deposit"].includes(rawStatus) ||
+      (booking.payment_status === "pending" && !isFullyPaid) ||
+      isBookingAwaitingDeposit(booking);
+
+    if (isDepositStage) {
       return {
         tone: "amber",
+        isOverdue: false,
         badge: "Action Required: Deposit",
         badgeClass: "bg-amber-50 text-amber-900 border-amber-300 font-bold",
         title: "Pay Reservation Deposit to Secure Your Event Date",
@@ -988,9 +1060,11 @@ export default function CustomerEventDashboard() {
       };
     }
 
+    // 6. Active: Venue Ocular Inspection Needed
     if (needsOcular) {
       return {
         tone: "amber",
+        isOverdue: false,
         badge: "Action Required: Ocular",
         badgeClass: "bg-amber-50 text-amber-900 border-amber-300 font-bold",
         title: "Schedule Your Venue Ocular Inspection",
@@ -1029,109 +1103,14 @@ export default function CustomerEventDashboard() {
       };
     }
 
-    if (pendingOcular) {
-      return {
-        tone: "blue",
-        badge: "Ocular Requested",
-        badgeClass: "bg-blue-50 text-[#4C81E0] border-blue-200 font-semibold",
-        title: "Ocular Visit Requested — Awaiting Confirmation",
-        description: `You requested a venue visit on ${booking.ocular_visit?.scheduled_date ? formatShortDate(booking.ocular_visit.scheduled_date) : "the selected date"}. Our coordinator is confirming logistics.`,
-        assignedParty: "Caezelle Catering Coordinator",
-        timeline: null,
-        action: (
-          <Button
-            variant="outline"
-            onClick={() => setRequestingOcular(true)}
-            className="border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs gap-1.5"
-          >
-            <CalendarRange className="w-4 h-4 text-[#4C81E0]" />
-            <span>Reschedule Request</span>
-          </Button>
-        ),
-      };
-    }
-
-    if (ocularActionMeta?.state === "scheduled") {
-      return {
-        tone: "blue",
-        badge: "Ocular Confirmed",
-        badgeClass: "bg-blue-50 text-[#4C81E0] border-blue-200 font-semibold",
-        title: `Site Ocular Visit Confirmed for ${booking.ocular_visit?.scheduled_date ? formatShortDate(booking.ocular_visit.scheduled_date) : "agreed date"}`,
-        description: `Our venue team will meet you at the site${booking.ocular_visit?.scheduled_time ? ` at ${booking.ocular_visit.scheduled_time}` : ""}. We will verify table layout, kitchen staging, and power access.`,
-        assignedParty: eventManager?.full_name ? `${eventManager.full_name} (Event Lead)` : "Assigned Venue Lead",
-        timeline: null,
-        action: null,
-      };
-    }
-
-    const isCancelReqPending =
-      booking.cancellation_request?.status === "pending" ||
-      (booking.change_request?.status === "pending" &&
-        booking.change_request?.message?.toLowerCase().includes("cancel"));
-
-    if (isCancelReqPending) {
-      const reasonText =
-        booking.cancellation_request?.reason ||
-        booking.cancellation_reason ||
-        booking.change_request?.message ||
-        "Cancellation requested";
-      return {
-        tone: "rose",
-        badge: "Cancellation Under Review",
-        badgeClass: "bg-rose-50 text-rose-900 border-rose-200 font-semibold",
-        title: "Booking Cancellation Request Under Review",
-        description: `We received your cancellation request: "${reasonText}". Our management team is reviewing your booking and calculating eligible refunds per terms.`,
-        assignedParty: "Caezelle Catering Management",
-        timeline: null,
-        action: null,
-      };
-    }
-
-    if (booking.change_request && booking.change_request.status === "pending") {
-      const changeMsg = (booking.change_request.message || "").trim();
-      const cleanMsg = changeMsg && changeMsg !== "..." ? changeMsg : "Schedule, guest count, or venue adjustment requested";
-      return {
-        tone: "indigo",
-        badge: "Change Under Review",
-        badgeClass: "bg-blue-50 text-[#4C81E0] border-blue-200 font-semibold",
-        title: "Your Proposed Booking Changes are Under Review",
-        description: `We received your revision request: "${cleanMsg}". Our catering coordinator is checking calendar availability and pricing adjustments.`,
-        assignedParty: "Caezelle Catering Admin",
-        timeline: null,
-        action: null,
-      };
-    }
-
-    const isOverdue = isBookingOverdue(booking, displayPaid);
-
-    if (isOverdue && outstandingAmount > 0 && !isCancelled) {
-      return {
-        tone: "rose",
-        badge: "Payment Overdue",
-        badgeClass: "bg-rose-50 text-rose-900 border-rose-300 font-bold",
-        title: `Remaining Balance Overdue: ${formatCurrency(outstandingAmount)}`,
-        description: "Your remaining balance is overdue. Please settle your outstanding payment.",
-        assignedParty: "Client Payment",
-        timeline: "Payment Overdue",
-        action: (
-          <Button
-            onClick={handlePayRemainingBalance}
-            disabled={payingPaymentId !== null}
-            className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs h-9 px-4 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
-          >
-            <CreditCard className="w-4 h-4" />
-            <span>{payingPaymentId ? "Opening Checkout…" : `Settle Overdue Balance (${formatCurrency(outstandingAmount)})`}</span>
-          </Button>
-        ),
-      };
-    }
-
-    if (outstandingAmount > 0 && !isCancelled) {
+    // 7. Active: Remaining Balance Due
+    if (outstandingAmount > 0) {
       return {
         tone: "amber",
+        isOverdue: false,
         badge: "Balance Due",
         badgeClass: "bg-amber-50 text-amber-900 border-amber-300 font-semibold",
-        title: `Booking Confirmed! Remaining Balance: ${formatCurrency(outstandingAmount)}`,
+        title: `Remaining Balance: ${formatCurrency(outstandingAmount)}`,
         description: isFoodOnlyService
           ? `Your event date is securely reserved. Settle the final balance prior to food delivery on ${booking.event_date ? formatShortDate(booking.event_date) : "the event date"}.`
           : `Your event date is securely reserved. The remaining balance is due a day after your event date.`,
@@ -1150,55 +1129,8 @@ export default function CustomerEventDashboard() {
       };
     }
 
-    if (isFullyPaid && ["confirmed", "converted to booking", "preparing", "ready for event"].includes(rawStatus)) {
-      return {
-        tone: "emerald",
-        badge: "Confirmed & Reserved",
-        badgeClass: "bg-emerald-50 text-emerald-800 border-emerald-200 font-semibold",
-        title: "You're All Set! Everything is Paid & Confirmed",
-        description: isFoodOnlyService
-          ? `Your order is fully paid and locked with our kitchen. Dishes are scheduled for cooking and dispatch to your address on ${booking.event_date ? formatShortDate(booking.event_date) : "the event date"}.`
-          : `Your event is fully settled and locked on our schedule. Our team is staging equipment and menu ingredients for ${booking.event_date ? formatShortDate(booking.event_date) : "your event"}.`,
-        assignedParty: eventManager?.full_name ? `${eventManager.full_name} (${isFoodOnlyService ? "Dispatch Lead" : "Event Manager"})` : "Caezelle Catering Team",
-        timeline: null,
-        action: null,
-      };
-    }
-
-    if (["completed", "event completed"].includes(rawStatus)) {
-      if (outstandingAmount > 0) {
-        return {
-          tone: "action",
-          badge: "Balance Due Today",
-          badgeClass: "bg-amber-50 text-amber-900 border-amber-300 font-semibold",
-          title: `Event Concluded · Remaining Balance: ${formatCurrency(outstandingAmount)}`,
-          description: "Your event has concluded. Please settle your remaining balance online or with your Event Manager.",
-          assignedParty: "Client Payment",
-          timeline: "Due Today",
-          action: (
-            <Button
-              size="sm"
-              onClick={handlePayRemainingBalance}
-              className="bg-[#4C81E0] hover:bg-[#3B6EC9] text-white font-bold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs gap-1.5"
-            >
-              <CreditCard className="w-4 h-4" />
-              <span>Settle Balance ({formatCurrency(outstandingAmount)})</span>
-            </Button>
-          ),
-        };
-      }
-      return {
-        tone: "neutral",
-        badge: "Event Completed",
-        badgeClass: "bg-slate-100 text-slate-800 border-slate-200 font-semibold",
-        title: "Event Successfully Concluded",
-        description: "Thank you for celebrating your special occasion with Caezelle's Catering! Please take a moment to rate and review your experience below.",
-        assignedParty: "Caezelle's Catering Team",
-        timeline: null,
-        action: null,
-      };
-    }
-
+    // 8. Active: Confirmed & Fully Paid with NO outstanding customer actions
+    // Hide Next Step section entirely (kitchen prep / staging is an internal team responsibility)
     return null;
   };
 
@@ -1461,82 +1393,101 @@ export default function CustomerEventDashboard() {
           {/* TAB 1: RESERVATION OVERVIEW (FOCUSED OPERATIONAL DASHBOARD) */}
           <TabsContent value="overview" className="space-y-6">
             {/* COMPACT BOOKING STATUS STEPPER */}
-            <div className="rounded-xl border border-blue-100/70 bg-blue-50/30 p-4 sm:p-5 space-y-3.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
-                  <Clock className="w-3.5 h-3.5 text-[#4C81E0]" />
-                  <span>Booking Progress</span>
-                </div>
-                {booking.event_date && (
-                  <span className="text-xs text-slate-500 font-medium">
-                    Event Date: {formatShortDate(booking.event_date)}
-                  </span>
-                )}
-              </div>
-
-              {/* Compact horizontal stepper */}
-              <div className="relative pt-2 pb-1 px-2 sm:px-4">
-                {/* Connecting track line behind step circles */}
-                <div className="absolute top-[21px] left-6 right-6 sm:left-10 sm:right-10 h-0.5 bg-slate-200 z-0" />
-                <div className={cn(
-                  "grid gap-2 relative z-10",
-                  steps.length === 5 ? "grid-cols-5" : steps.length === 3 ? "grid-cols-3" : "grid-cols-4"
-                )}>
-                  {steps.map((step, idx) => {
-                    const isDone = step.completed;
-                    const activeIndex = isCancelled ? -1 : steps.findIndex((s) => !s.completed);
-                    const isCurrent = activeIndex === -1 ? (!isCancelled && idx === steps.length - 1) : idx === activeIndex;
-
-                    return (
-                      <div key={idx} className="flex flex-col items-center text-center">
-                        <div
-                          className={cn(
-                            "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all relative z-10",
-                            isDone
-                              ? "bg-[#4C81E0] text-white shadow-2xs"
-                              : isCurrent
-                              ? "bg-[#4C81E0] text-white ring-4 ring-blue-100 shadow-2xs"
-                              : isCancelled
-                              ? "bg-slate-50 text-slate-300 border border-slate-200"
-                              : "bg-white text-slate-400 border-2 border-slate-300"
-                          )}
-                        >
-                          {isDone ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : idx + 1}
-                        </div>
-
-                        <span
-                          className={cn(
-                            "text-xs mt-2 font-medium leading-tight",
-                            isCurrent
-                              ? "font-bold text-[#4C81E0]"
-                              : isDone
-                              ? "text-slate-800 font-semibold"
-                              : "text-slate-400"
-                          )}
-                        >
-                          {step.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Calm stage explanation */}
-              {guideMeta && (
-                <div className="pt-2.5 border-t border-blue-100/60 flex items-start gap-2.5 text-xs text-slate-600">
-                  {guideMeta.tone === "rose" ? (
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  ) : (
-                    <Info className="w-4 h-4 text-[#4C81E0] shrink-0 mt-0.5" />
+            {!isCancelled && (
+              <div className="rounded-xl border border-blue-100/70 bg-blue-50/30 p-4 sm:p-5 space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+                    <Clock className="w-3.5 h-3.5 text-[#4C81E0]" />
+                    <span>Booking Progress</span>
+                  </div>
+                  {booking.event_date && (
+                    <span className="text-xs text-slate-500 font-medium">
+                      Event Date: {formatShortDate(booking.event_date)}
+                    </span>
                   )}
-                  <div>
-                    <span className="font-semibold text-slate-900">{guideMeta.title}: </span>
-                    <span>{guideMeta.description}</span>
+                </div>
+
+                {/* Compact horizontal stepper */}
+                <div className="relative pt-2 pb-1 px-2 sm:px-4">
+                  {/* Connecting track line behind step circles */}
+                  <div className="absolute top-[21px] left-6 right-6 sm:left-10 sm:right-10 h-0.5 bg-slate-200 z-0" />
+                  <div className={cn(
+                    "grid gap-2 relative z-10",
+                    steps.length === 5 ? "grid-cols-5" : steps.length === 3 ? "grid-cols-3" : "grid-cols-4"
+                  )}>
+                    {steps.map((step, idx) => {
+                      const isDone = step.completed;
+                      const activeIndex = steps.findIndex((s) => !s.completed);
+                      const isCurrent = activeIndex === -1 ? idx === steps.length - 1 : idx === activeIndex;
+
+                      return (
+                        <div key={idx} className="flex flex-col items-center text-center">
+                          <div
+                            className={cn(
+                              "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all relative z-10",
+                              isDone
+                                ? "bg-[#4C81E0] text-white shadow-2xs"
+                                : isCurrent
+                                ? "bg-[#4C81E0] text-white ring-4 ring-blue-100 shadow-2xs"
+                                : "bg-white text-slate-400 border-2 border-slate-300"
+                            )}
+                          >
+                            {isDone ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : idx + 1}
+                          </div>
+
+                          <span
+                            className={cn(
+                              "text-xs mt-2 font-medium leading-tight",
+                              isCurrent
+                                ? "font-bold text-[#4C81E0]"
+                                : isDone
+                                ? "text-slate-800 font-semibold"
+                                : "text-slate-400"
+                            )}
+                          >
+                            {step.label}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              )}
-            </div>
+
+                {/* Customer Next Step Guidance */}
+                {guideMeta && (
+                  <div className="pt-3 border-t border-blue-100/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      {guideMeta.tone === "rose" || guideMeta.isOverdue ? (
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      ) : (
+                        <Info className="w-4 h-4 text-[#4C81E0] shrink-0 mt-0.5" />
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-slate-900">
+                            {guideMeta.isOverdue ? "Urgent: " : "Next Step: "}
+                            {guideMeta.title}
+                          </span>
+                          {guideMeta.badge && (
+                            <span className={cn("text-[10px] px-2 py-0.5 rounded font-semibold border", guideMeta.badgeClass)}>
+                              {guideMeta.badge}
+                            </span>
+                          )}
+                        </div>
+                        {guideMeta.description && (
+                          <p className="text-slate-600 mt-0.5">{guideMeta.description}</p>
+                        )}
+                      </div>
+                    </div>
+                    {guideMeta.action && (
+                      <div className="shrink-0 sm:self-center">
+                        {guideMeta.action}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* TWO-COLUMN OPERATIONAL DASHBOARD */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">

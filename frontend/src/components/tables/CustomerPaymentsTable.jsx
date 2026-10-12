@@ -19,6 +19,7 @@ import {
   ExternalLink,
   Sparkles,
   CalendarDays,
+  RefreshCcw,
 } from "lucide-react";
 
 export default function CustomerPaymentsTable({
@@ -31,8 +32,33 @@ export default function CustomerPaymentsTable({
   const fmt = (val) =>
     formatCurrency ? formatCurrency(val) : `₱${Number(val || 0).toLocaleString()}`;
 
-  const getStatusBadge = (status) => {
-    switch (String(status || "").toLowerCase()) {
+  const getStatusBadge = (status, isRefund = false) => {
+    const s = String(status || "").toLowerCase();
+    if (isRefund) {
+      if (["approved", "paid", "successful", "refunded"].includes(s)) {
+        return (
+          <span className="bg-blue-50 text-[#4C81E0] border border-blue-200 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold">
+            <CheckCircle2 className="w-3 h-3 text-[#4C81E0]" /> Refunded
+          </span>
+        );
+      }
+      if (s === "pending") {
+        return (
+          <span className="bg-amber-50 text-amber-700 border border-amber-200 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold">
+            <Clock className="w-3 h-3 text-amber-600" /> Pending Review
+          </span>
+        );
+      }
+      if (["rejected", "cancelled", "declined", "failed"].includes(s)) {
+        return (
+          <span className="bg-rose-50 text-rose-700 border border-rose-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold">
+            <XCircle className="w-3 h-3 text-rose-600" /> Rejected
+          </span>
+        );
+      }
+    }
+
+    switch (s) {
       case "approved":
       case "paid":
       case "successful":
@@ -67,6 +93,14 @@ export default function CustomerPaymentsTable({
 
   const getMilestoneBadge = (type) => {
     const t = String(type || "").toLowerCase();
+    if (t === "refund") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-[#4C81E0] border border-blue-200">
+          <RefreshCcw className="w-3 h-3 text-[#4C81E0]" />
+          Refund
+        </span>
+      );
+    }
     if (t === "deposit") {
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50/80 text-[#4C81E0] border border-blue-200/70">
@@ -96,17 +130,23 @@ export default function CustomerPaymentsTable({
   };
 
   const getPaymentMethodDisplay = (p) => {
+    const isRefund = (p.payment_type || "").toLowerCase() === "refund" || Number(p.amount) < 0;
     const m = String(p.method || p.payment_method || "PayMongo").toLowerCase();
-    let label = "PayMongo";
+    let label = isRefund ? "Refund Credit" : "PayMongo";
     if (m.includes("gcash")) label = "GCash";
     else if (m.includes("maya")) label = "Maya";
     else if (m.includes("card")) label = "Card";
     else if (m.includes("cash")) label = "Cash";
     else if (m.includes("bank")) label = "Bank Transfer";
+    else if (isRefund) label = "Original Payment Method";
 
     return (
       <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/70 px-2 py-0.5 rounded text-[11px] font-medium text-slate-700">
-        <CreditCard className="w-3 h-3 text-slate-400" />
+        {isRefund ? (
+          <RefreshCcw className="w-3 h-3 text-[#4C81E0]" />
+        ) : (
+          <CreditCard className="w-3 h-3 text-slate-400" />
+        )}
         {label}
       </span>
     );
@@ -283,23 +323,44 @@ export default function CustomerPaymentsTable({
                       </div>
                     </TableCell>
 
-                    {/* 4. Amount Paid */}
+                    {/* 4. Amount */}
                     <TableCell className="py-3 px-4">
-                      <div>
-                        <span className="font-bold text-sm text-slate-900 tabular-nums">
-                          {fmt(p.amount)}
-                        </span>
-                        {b?.total_price && (
-                          <div className="text-[10px] text-slate-400">
-                            of {fmt(b.total_price)}
+                      {(() => {
+                        const isRefund = (p.payment_type || "").toLowerCase() === "refund" || Number(p.amount) < 0;
+                        return (
+                          <div>
+                            {isRefund ? (
+                              <>
+                                <span className="font-bold text-sm text-[#4C81E0] tabular-nums">
+                                  − {fmt(Math.abs(p.amount))}
+                                </span>
+                                <div className="text-[10px] text-slate-400">
+                                  Refund credited
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <span className="font-bold text-sm text-slate-900 tabular-nums">
+                                  {fmt(p.amount)}
+                                </span>
+                                {b?.total_price && (
+                                  <div className="text-[10px] text-slate-400">
+                                    of {fmt(b.total_price)}
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()}
                     </TableCell>
 
                     {/* 5. Status */}
                     <TableCell className="py-3 px-4">
-                      {getStatusBadge(p.status)}
+                      {getStatusBadge(
+                        p.status,
+                        (p.payment_type || "").toLowerCase() === "refund" || Number(p.amount) < 0
+                      )}
                     </TableCell>
 
                     {/* 6. Receipt (Secondary) */}

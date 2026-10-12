@@ -604,7 +604,12 @@ export default function CustomerBookings() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0"
+                      className={cn(
+                        "h-9 border-slate-200 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0 transition-colors focus-visible:ring-2 focus-visible:ring-[#4C81E0]/30 focus-visible:border-[#4C81E0]",
+                        statusFilter === "all"
+                          ? "bg-white text-slate-800 hover:bg-blue-50/80 hover:text-[#4C81E0] hover:border-blue-200"
+                          : "bg-blue-50 text-[#4C81E0] border-blue-200 hover:bg-blue-100/70 hover:text-[#3B6EC9] hover:border-blue-300"
+                      )}
                     >
                       <span>
                         {statusFilter === "all"
@@ -615,7 +620,7 @@ export default function CustomerBookings() {
                               ? "Completed"
                               : "Cancelled"}
                       </span>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                      <ChevronDown className={cn("w-3.5 h-3.5 transition-colors", statusFilter !== "all" ? "text-[#4C81E0]" : "text-slate-500")} />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48 rounded-xl p-1.5 shadow-lg border-slate-200">
@@ -632,12 +637,14 @@ export default function CustomerBookings() {
                         key={item.id}
                         onClick={() => setStatusFilter(item.id)}
                         className={cn(
-                          "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          statusFilter === item.id ? "bg-[#4C81E0]/10 text-[#4C81E0] font-bold" : "text-slate-700"
+                          "text-xs px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between transition-colors",
+                          statusFilter === item.id
+                            ? "bg-blue-50 text-[#4C81E0] font-bold focus:bg-blue-100/70 focus:text-[#3B6EC9] data-[highlighted]:bg-blue-100/70 data-[highlighted]:text-[#3B6EC9]"
+                            : "text-slate-700 font-medium hover:bg-blue-50 hover:text-[#4C81E0] focus:bg-blue-50 focus:text-[#4C81E0] data-[highlighted]:bg-blue-50 data-[highlighted]:text-[#4C81E0]"
                         )}
                       >
                         <span>{item.label}</span>
-                        {statusFilter === item.id && <Check className="w-3.5 h-3.5 text-[#4C81E0]" />}
+                        {statusFilter === item.id && <Check className="w-3.5 h-3.5 text-[#4C81E0] stroke-[2.5]" />}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -649,25 +656,29 @@ export default function CustomerBookings() {
                     <Button
                       variant="outline"
                       className={cn(
-                        "h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0",
-                        serviceTypeFilter !== "all" && "bg-blue-50 text-[#4C81E0] border-blue-200"
+                        "h-9 border-slate-200 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0 transition-colors focus-visible:ring-2 focus-visible:ring-[#4C81E0]/30 focus-visible:border-[#4C81E0]",
+                        serviceTypeFilter === "all"
+                          ? "bg-white text-slate-800 hover:bg-blue-50/80 hover:text-[#4C81E0] hover:border-blue-200"
+                          : "bg-blue-50 text-[#4C81E0] border-blue-200 hover:bg-blue-100/70 hover:text-[#3B6EC9] hover:border-blue-300"
                       )}
                     >
                       <SlidersHorizontal className="w-3.5 h-3.5 text-[#4C81E0]" />
                       <span>{serviceTypeFilter === "all" ? "All Services" : serviceTypeFilter}</span>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                      <ChevronDown className={cn("w-3.5 h-3.5 transition-colors", serviceTypeFilter !== "all" ? "text-[#4C81E0]" : "text-slate-500")} />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-60 rounded-xl p-1.5 shadow-lg border-slate-200 max-h-96 overflow-y-auto [scrollbar-width:thin]">
                     <DropdownMenuItem
                       onClick={() => setServiceTypeFilter("all")}
                       className={cn(
-                        "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                        serviceTypeFilter === "all" ? "bg-[#4C81E0]/10 text-[#4C81E0] font-bold" : "text-slate-700"
+                        "text-xs px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between transition-colors",
+                        serviceTypeFilter === "all"
+                          ? "bg-blue-50 text-[#4C81E0] font-bold focus:bg-blue-100/70 focus:text-[#3B6EC9] data-[highlighted]:bg-blue-100/70 data-[highlighted]:text-[#3B6EC9]"
+                          : "text-slate-700 font-medium hover:bg-blue-50 hover:text-[#4C81E0] focus:bg-blue-50 focus:text-[#4C81E0] data-[highlighted]:bg-blue-50 data-[highlighted]:text-[#4C81E0]"
                       )}
                     >
                       <span>All Services</span>
-                      {serviceTypeFilter === "all" && <Check className="w-3.5 h-3.5 text-[#4C81E0]" />}
+                      {serviceTypeFilter === "all" && <Check className="w-3.5 h-3.5 text-[#4C81E0] stroke-[2.5]" />}
                     </DropdownMenuItem>
 
                     <DropdownMenuSeparator className="my-1 bg-slate-100" />
@@ -682,12 +693,14 @@ export default function CustomerBookings() {
                           key={opt}
                           onClick={() => setServiceTypeFilter(opt)}
                           className={cn(
-                            "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                            serviceTypeFilter === opt ? "bg-[#4C81E0]/10 text-[#4C81E0] font-bold" : "text-slate-700"
+                            "text-xs pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between transition-colors",
+                            serviceTypeFilter === opt
+                              ? "bg-blue-50 text-[#4C81E0] font-bold focus:bg-blue-100/70 focus:text-[#3B6EC9] data-[highlighted]:bg-blue-100/70 data-[highlighted]:text-[#3B6EC9]"
+                              : "text-slate-700 font-medium hover:bg-blue-50 hover:text-[#4C81E0] focus:bg-blue-50 focus:text-[#4C81E0] data-[highlighted]:bg-blue-50 data-[highlighted]:text-[#4C81E0]"
                           )}
                         >
                           <span>{opt}</span>
-                          {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#4C81E0]" />}
+                          {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#4C81E0] stroke-[2.5]" />}
                         </DropdownMenuItem>
                       ))
                     ) : (
@@ -706,12 +719,14 @@ export default function CustomerBookings() {
                           key={name}
                           onClick={() => setServiceTypeFilter(name)}
                           className={cn(
-                            "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                            serviceTypeFilter === name ? "bg-[#4C81E0]/10 text-[#4C81E0] font-bold" : "text-slate-700"
+                            "text-xs pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between transition-colors",
+                            serviceTypeFilter === name
+                              ? "bg-blue-50 text-[#4C81E0] font-bold focus:bg-blue-100/70 focus:text-[#3B6EC9] data-[highlighted]:bg-blue-100/70 data-[highlighted]:text-[#3B6EC9]"
+                              : "text-slate-700 font-medium hover:bg-blue-50 hover:text-[#4C81E0] focus:bg-blue-50 focus:text-[#4C81E0] data-[highlighted]:bg-blue-50 data-[highlighted]:text-[#4C81E0]"
                           )}
                         >
                           <span className="truncate">{name}</span>
-                          {serviceTypeFilter === name && <Check className="w-3.5 h-3.5 text-[#4C81E0] shrink-0" />}
+                          {serviceTypeFilter === name && <Check className="w-3.5 h-3.5 text-[#4C81E0] stroke-[2.5] shrink-0" />}
                         </DropdownMenuItem>
                       ))
                     ) : (
@@ -733,12 +748,14 @@ export default function CustomerBookings() {
                         key={opt}
                         onClick={() => setServiceTypeFilter(opt)}
                         className={cn(
-                          "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          serviceTypeFilter === opt ? "bg-[#4C81E0]/10 text-[#4C81E0] font-bold" : "text-slate-700"
+                          "text-xs pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between transition-colors",
+                          serviceTypeFilter === opt
+                            ? "bg-blue-50 text-[#4C81E0] font-bold focus:bg-blue-100/70 focus:text-[#3B6EC9] data-[highlighted]:bg-blue-100/70 data-[highlighted]:text-[#3B6EC9]"
+                            : "text-slate-700 font-medium hover:bg-blue-50 hover:text-[#4C81E0] focus:bg-blue-50 focus:text-[#4C81E0] data-[highlighted]:bg-blue-50 data-[highlighted]:text-[#4C81E0]"
                         )}
                       >
                         <span>{opt}</span>
-                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#4C81E0]" />}
+                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#4C81E0] stroke-[2.5]" />}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -749,7 +766,12 @@ export default function CustomerBookings() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0"
+                      className={cn(
+                        "h-9 border-slate-200 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0 transition-colors focus-visible:ring-2 focus-visible:ring-[#4C81E0]/30 focus-visible:border-[#4C81E0]",
+                        sortBy === "newest"
+                          ? "bg-white text-slate-800 hover:bg-blue-50/80 hover:text-[#4C81E0] hover:border-blue-200"
+                          : "bg-blue-50 text-[#4C81E0] border-blue-200 hover:bg-blue-100/70 hover:text-[#3B6EC9] hover:border-blue-300"
+                      )}
                     >
                       <span>
                         {sortBy === "newest"
@@ -758,7 +780,7 @@ export default function CustomerBookings() {
                             ? "Oldest first"
                             : "Event date"}
                       </span>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                      <ChevronDown className={cn("w-3.5 h-3.5 transition-colors", sortBy !== "newest" ? "text-[#4C81E0]" : "text-slate-500")} />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-44 rounded-xl p-1.5 shadow-lg border-slate-200">
@@ -774,12 +796,14 @@ export default function CustomerBookings() {
                         key={item.id}
                         onClick={() => setSortBy(item.id)}
                         className={cn(
-                          "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          sortBy === item.id ? "bg-[#4C81E0]/10 text-[#4C81E0] font-bold" : "text-slate-700"
+                          "text-xs px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between transition-colors",
+                          sortBy === item.id
+                            ? "bg-blue-50 text-[#4C81E0] font-bold focus:bg-blue-100/70 focus:text-[#3B6EC9] data-[highlighted]:bg-blue-100/70 data-[highlighted]:text-[#3B6EC9]"
+                            : "text-slate-700 font-medium hover:bg-blue-50 hover:text-[#4C81E0] focus:bg-blue-50 focus:text-[#4C81E0] data-[highlighted]:bg-blue-50 data-[highlighted]:text-[#4C81E0]"
                         )}
                       >
                         <span>{item.label}</span>
-                        {sortBy === item.id && <Check className="w-3.5 h-3.5 text-[#4C81E0]" />}
+                        {sortBy === item.id && <Check className="w-3.5 h-3.5 text-[#4C81E0] stroke-[2.5]" />}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -811,7 +835,7 @@ export default function CustomerBookings() {
                         setStatusFilter("all");
                         setServiceTypeFilter("all");
                       }}
-                      className="mt-4 text-xs font-semibold rounded-lg border-slate-200 text-slate-800"
+                      className="mt-4 text-xs font-semibold rounded-lg border-slate-200 text-slate-800 hover:bg-blue-50/80 hover:text-[#4C81E0] hover:border-blue-200 cursor-pointer"
                     >
                       Clear all filters
                     </Button>

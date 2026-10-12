@@ -47,8 +47,7 @@ const ITEMS_PER_PAGE = 10;
 export default function CustomerPayments() {
   const [payments, setPayments] = useState([]);
   const [bookings, setBookings] = useState([]);
-  const [refunds, setRefunds] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [payingTargetId, setPayingTargetId] = useState(null);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const businessInfo = useBusinessInfo();
@@ -64,8 +63,8 @@ export default function CustomerPayments() {
   const [choiceModalBooking, setChoiceModalBooking] = useState(null);
   const [choiceModalOpen, setChoiceModalOpen] = useState(false);
 
-  // View Mode: 'events' (By Event) | 'transactions' (All Transactions)
-  const [viewMode, setViewMode] = useState("events");
+  // View Mode: 'transactions' (All Transactions / Unified Table) | 'events' (By Event)
+  const [viewMode, setViewMode] = useState("transactions");
   const isMobile = useMediaQuery("(max-width: 639px)");
 
   // Accordion Expand State for By Event view: Set of booking IDs
@@ -75,7 +74,7 @@ export default function CustomerPayments() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBookingFilter, setSelectedBookingFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("newest");
+  const [sortBy] = useState("newest");
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -113,49 +112,9 @@ export default function CustomerPayments() {
 
       setPayments(data);
       setBookings(bookingsData);
-
-      // Compute refunds based on cancelled/refunded bookings
-      const cancelledBookings = bookingsData.filter(
-        (b) => b.status === "cancelled" || b.status === "refunded"
-      );
-      const computedRefunds = cancelledBookings
-        .map((b) => {
-          const bPayments = data.filter(
-            (p) => String(p.booking_id?._id || p.booking_id) === String(b._id)
-          );
-          const totalPaid = bPayments
-            .filter((p) => p.status === "approved")
-            .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-
-          return {
-            _id: b._id,
-            id: b.reference || (b._id ? b._id.substring(b._id.length - 8).toUpperCase() : "-"),
-            type: b.event_type || "Event",
-            reason:
-              b.cancellation_reason ||
-              (b.ocular_visit?.outcome === "cancel" ? "Ocular cancelled" : "Cancelled"),
-            deposit: totalPaid,
-            amount:
-              b.status === "refunded"
-                ? totalPaid
-                : totalPaid > 0
-                ? "Pending Calculation"
-                : 0,
-            status:
-              b.status === "refunded"
-                ? "refunded"
-                : totalPaid > 0
-                ? "pending"
-                : "no_refund",
-          };
-        })
-        .filter((r) => r.status === "refunded" || r.status === "pending");
-
-      setRefunds(computedRefunds);
     } catch {
       setPayments([]);
       setBookings([]);
-      setRefunds([]);
     } finally {
       setLoading(false);
     }
@@ -174,35 +133,60 @@ export default function CustomerPayments() {
 
   const paymentStatus = searchParams.get("status");
 
-  // Helper: Total approved amount paid for a specific booking
+  // Helper: Gross approved amount paid for a specific booking
   const getBookingPaidAmount = (bookingId) => {
     return payments
       .filter(
         (p) =>
           String(p.booking_id?._id || p.booking_id) === String(bookingId) &&
-          p.status === "approved"
+          (p.payment_type || "").toLowerCase() !== "refund" &&
+          Number(p.amount) > 0 &&
+          ["approved", "paid", "successful"].includes((p.status || "").toLowerCase())
       )
       .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  };
+
+  // Helper: Refund amount issued for a booking
+  const getBookingRefundAmount = (bookingId) => {
+    return payments
+      .filter(
+        (p) =>
+          String(p.booking_id?._id || p.booking_id) === String(bookingId) &&
+          ((p.payment_type || "").toLowerCase() === "refund" || Number(p.amount) < 0) &&
+          ["approved", "paid", "successful", "refunded"].includes((p.status || "").toLowerCase())
+      )
+      .reduce((sum, p) => sum + Math.abs(Number(p.amount) || 0), 0);
   };
 
   // Helper: Outstanding balance for a booking
   const getBookingRemainingBalance = (booking) => {
     if (!booking) return 0;
-    if (["cancelled", "refunded"].includes((booking.status || "").toLowerCase())) return 0;
+    if (["cancelled", "canceled", "rejected", "refunded"].includes((booking.status || "").toLowerCase())) return 0;
     const total = Number(booking.total_price || 0);
     const paid = getBookingPaidAmount(booking._id);
-    return Math.max(0, total - paid);
+    const refunded = getBookingRefundAmount(booking._id);
+    const netPaid = Math.max(0, paid - refunded);
+    return Math.max(0, total - netPaid);
   };
 
   // Customer-friendly summary metrics
   const totalSettled = useMemo(() => {
     return payments
-      .filter((p) => p.status === "approved")
+      .filter(
+        (p) =>
+          (p.payment_type || "").toLowerCase() !== "refund" &&
+          Number(p.amount) > 0 &&
+          ["approved", "paid", "successful"].includes((p.status || "").toLowerCase())
+      )
       .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   }, [payments]);
 
   const approvedCount = useMemo(() => {
-    return payments.filter((p) => p.status === "approved").length;
+    return payments.filter(
+      (p) =>
+        (p.payment_type || "").toLowerCase() !== "refund" &&
+        ["approved", "paid", "successful"].includes((p.status || "").toLowerCase())
+    ).length;
   }, [payments]);
 
   const totalContractValue = useMemo(() => {
@@ -239,12 +223,6 @@ export default function CustomerPayments() {
   const totalBalanceDue = useMemo(() => {
     return actionableBalanceBookings.reduce((sum, b) => sum + b.remainingBalance, 0);
   }, [actionableBalanceBookings]);
-
-  const settlementPercentage = useMemo(() => {
-    if (totalContractValue <= 0) return 100;
-    const pct = (totalSettled / totalContractValue) * 100;
-    return Math.min(100, Math.max(0, Math.round(pct * 10) / 10));
-  }, [totalSettled, totalContractValue]);
 
   // Handle Pay Now for a booking balance
   const startPaymentForBooking = async (booking, amount, paymentType = "balance") => {
@@ -312,23 +290,28 @@ export default function CustomerPayments() {
 
     // Initialize with all bookings
     bookings.forEach((b) => {
+      const isCancelled = ["cancelled", "canceled", "rejected", "refunded"].includes(
+        (b.status || "").toLowerCase()
+      );
       map.set(String(b._id), {
         booking: b,
         payments: [],
         totalPrice: Number(b.total_price || 0),
+        grossPaid: 0,
+        refundIssued: 0,
         paidAmount: 0,
+        amountRetained: 0,
+        isCancelled,
+        hasPendingRefund: b.payment_status === "refund_requested",
       });
     });
 
     // Bucket payments into their respective booking
     payments.forEach((p) => {
       const bId = String(p.booking_id?._id || p.booking_id || "");
+      let entry = null;
       if (bId && map.has(bId)) {
-        const entry = map.get(bId);
-        entry.payments.push(p);
-        if (p.status === "approved") {
-          entry.paidAmount += Number(p.amount || 0);
-        }
+        entry = map.get(bId);
       } else {
         const otherKey = p.inquiry_id?._id ? `inq-${p.inquiry_id._id}` : "unassigned";
         if (!map.has(otherKey)) {
@@ -336,101 +319,153 @@ export default function CustomerPayments() {
             booking: p.inquiry_id || { event_type: "Catering Request", reference: "Inquiry" },
             payments: [],
             totalPrice: 0,
+            grossPaid: 0,
+            refundIssued: 0,
             paidAmount: 0,
+            amountRetained: 0,
+            isCancelled: false,
+            hasPendingRefund: false,
           });
         }
-        const entry = map.get(otherKey);
-        entry.payments.push(p);
-        if (p.status === "approved") {
-          entry.paidAmount += Number(p.amount || 0);
-        }
+        entry = map.get(otherKey);
       }
+
+      entry.payments.push(p);
+      const isRefund = (p.payment_type || "").toLowerCase() === "refund" || Number(p.amount) < 0;
+      const isApproved = ["approved", "paid", "successful", "refunded"].includes(
+        (p.status || "").toLowerCase()
+      );
+
+      if (isRefund && isApproved) {
+        entry.refundIssued += Math.abs(Number(p.amount) || 0);
+      } else if (!isRefund && isApproved) {
+        entry.grossPaid += Number(p.amount || 0);
+      }
+      if (isRefund && (p.status || "").toLowerCase() === "pending") {
+        entry.hasPendingRefund = true;
+      }
+    });
+
+    // Finalize calculated fields for each entry
+    map.forEach((entry) => {
+      entry.paidAmount = entry.grossPaid;
+      entry.amountRetained = Math.max(0, entry.grossPaid - entry.refundIssued);
     });
 
     // Filter by search and dropdowns
-    return Array.from(map.values()).filter((group) => {
-      const b = group.booking;
-      const bId = String(b._id || "");
+    return Array.from(map.values())
+      .filter((group) => {
+        const b = group.booking;
+        const bId = String(b._id || "");
 
-      // 1. Dropdown Filter
-      if (selectedBookingFilter !== "all" && bId !== String(selectedBookingFilter)) {
-        return false;
-      }
+        // 1. Dropdown Filter
+        if (selectedBookingFilter !== "all" && bId !== String(selectedBookingFilter)) {
+          return false;
+        }
 
-      // 2. Status Filter
-      if (statusFilter !== "all") {
-        const remaining = Math.max(0, group.totalPrice - group.paidAmount);
-        if (statusFilter === "pending" && remaining <= 0) return false;
-        if (statusFilter === "approved" && remaining > 0) return false;
-      }
+        // 2. Status Filter
+        if (statusFilter !== "all") {
+          if (statusFilter === "refund") {
+            if (group.refundIssued <= 0 && !group.hasPendingRefund) return false;
+          } else {
+            const netPaid = Math.max(0, group.grossPaid - group.refundIssued);
+            const remaining = group.isCancelled ? 0 : Math.max(0, group.totalPrice - netPaid);
+            if (statusFilter === "pending" && remaining <= 0) return false;
+            if (statusFilter === "approved" && remaining > 0) return false;
+          }
+        }
 
-      // 3. Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const eventType = (b.event_type || "").toLowerCase();
-        const ref = (b.reference || "").toLowerCase();
-        const celebrant = (b.celebrant_name || "").toLowerCase();
-        const hasMatchingPayment = group.payments.some((p) => {
-          const pRef = (p.gateway_reference || p.reference_number || "").toLowerCase();
-          const pMethod = (p.method || p.payment_method || "").toLowerCase();
-          return pRef.includes(q) || pMethod.includes(q);
-        });
+        // 3. Search Query
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          const eventType = (b.event_type || "").toLowerCase();
+          const ref = (b.reference || "").toLowerCase();
+          const celebrant = (b.celebrant_name || "").toLowerCase();
+          const hasMatchingPayment = group.payments.some((p) => {
+            const pRef = (p.gateway_reference || p.reference_number || "").toLowerCase();
+            const pMethod = (p.method || p.payment_method || "").toLowerCase();
+            const isRefStr = (p.payment_type || "").toLowerCase() === "refund" ? "refund" : "";
+            return (
+              pRef.includes(q) ||
+              pMethod.includes(q) ||
+              isRefStr.includes(q)
+            );
+          });
 
-        return eventType.includes(q) || ref.includes(q) || celebrant.includes(q) || hasMatchingPayment;
-      }
+          return (
+            eventType.includes(q) ||
+            ref.includes(q) ||
+            celebrant.includes(q) ||
+            hasMatchingPayment
+          );
+        }
 
-      return true;
-    }).sort((a, b) => {
-      const dateA = new Date(a.booking?.event_date || 0);
-      const dateB = new Date(b.booking?.event_date || 0);
-      return sortBy === "newest" ? dateB - dateA : dateA - dateB;
-    });
+        return true;
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.booking?.event_date || 0);
+        const dateB = new Date(b.booking?.event_date || 0);
+        return sortBy === "newest" ? dateB - dateA : dateA - dateB;
+      });
   }, [bookings, payments, selectedBookingFilter, statusFilter, searchQuery, sortBy]);
 
   // All itemized transactions filtered
   const filteredPayments = useMemo(() => {
-    return payments.filter((p) => {
-      // 1. Status Filter
-      if (statusFilter !== "all") {
+    return payments
+      .filter((p) => {
+        const isRefund =
+          (p.payment_type || "").toLowerCase() === "refund" || Number(p.amount) < 0;
         const pStatus = String(p.status || "").toLowerCase();
-        if (statusFilter === "approved" && pStatus !== "approved" && pStatus !== "successful") return false;
-        if (statusFilter === "pending" && pStatus !== "pending") return false;
-        if (statusFilter === "failed" && !["failed", "rejected", "cancelled"].includes(pStatus)) return false;
-      }
 
-      // 2. Booking Filter
-      if (selectedBookingFilter !== "all") {
-        const bId = String(p.booking_id?._id || p.booking_id || "");
-        if (bId !== String(selectedBookingFilter)) {
-          return false;
+        // 1. Status Filter
+        if (statusFilter !== "all") {
+          if (statusFilter === "refund") {
+            if (!isRefund) return false;
+          } else if (statusFilter === "approved") {
+            if (!["approved", "successful", "paid", "refunded"].includes(pStatus)) return false;
+          } else if (statusFilter === "pending") {
+            if (pStatus !== "pending") return false;
+          } else if (statusFilter === "failed") {
+            if (!["failed", "rejected", "cancelled"].includes(pStatus)) return false;
+          }
         }
-      }
 
-      // 3. Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const b = p.booking_id;
-        const eventType = (b?.event_type || "").toLowerCase();
-        const ref = (b?.reference || "").toLowerCase();
-        const pRef = (p.gateway_reference || p.reference_number || "").toLowerCase();
-        const type = (p.payment_type || "").toLowerCase();
-        const method = (p.method || p.payment_method || "").toLowerCase();
+        // 2. Booking Filter
+        if (selectedBookingFilter !== "all") {
+          const bId = String(p.booking_id?._id || p.booking_id || "");
+          if (bId !== String(selectedBookingFilter)) {
+            return false;
+          }
+        }
 
-        return (
-          eventType.includes(q) ||
-          ref.includes(q) ||
-          pRef.includes(q) ||
-          type.includes(q) ||
-          method.includes(q)
-        );
-      }
+        // 3. Search Query
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          const b = p.booking_id;
+          const eventType = (b?.event_type || "").toLowerCase();
+          const ref = (b?.reference || "").toLowerCase();
+          const pRef = (p.gateway_reference || p.reference_number || "").toLowerCase();
+          const type = (p.payment_type || "").toLowerCase();
+          const method = (p.method || p.payment_method || "").toLowerCase();
+          const isRefStr = isRefund ? "refund" : "";
 
-      return true;
-    }).sort((a, b) => {
-      const dateA = new Date(a.createdAt || 0);
-      const dateB = new Date(b.createdAt || 0);
-      return sortBy === "newest" ? dateB - dateA : dateA - dateB;
-    });
+          return (
+            eventType.includes(q) ||
+            ref.includes(q) ||
+            pRef.includes(q) ||
+            type.includes(q) ||
+            method.includes(q) ||
+            isRefStr.includes(q)
+          );
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0);
+        const dateB = new Date(b.createdAt || 0);
+        return sortBy === "newest" ? dateB - dateA : dateA - dateB;
+      });
   }, [payments, statusFilter, selectedBookingFilter, searchQuery, sortBy]);
 
   // Paginated slices
@@ -448,8 +483,6 @@ export default function CustomerPayments() {
   }, [filteredPayments, startIndex, endIndex]);
 
   // Mobile vs Desktop responsive card lists:
-  // On mobile: display all available items in the stacked card UI directly without pagination controls.
-  // On desktop/tablet: preserve cursor/page pagination behavior.
   const displayedEvents = useMemo(() => {
     return isMobile ? paymentsByBooking : paginatedEvents;
   }, [isMobile, paymentsByBooking, paginatedEvents]);
@@ -459,8 +492,33 @@ export default function CustomerPayments() {
   }, [isMobile, filteredPayments, paginatedTransactions]);
 
   // Status badge renderer
-  const renderPaymentStatusBadge = (status) => {
+  const renderPaymentStatusBadge = (status, isRefund = false) => {
     const s = String(status || "").toLowerCase();
+    if (isRefund) {
+      if (["approved", "successful", "paid", "refunded"].includes(s)) {
+        return (
+          <span className="bg-blue-50 text-[#4C81E0] border border-blue-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold select-none">
+            <CheckCircle2 className="w-3 h-3 text-[#4C81E0]" />
+            <span>Refunded</span>
+          </span>
+        );
+      }
+      if (s === "pending") {
+        return (
+          <span className="bg-amber-50 text-amber-800 border border-amber-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold select-none">
+            <Clock className="w-3 h-3 text-amber-600" />
+            <span>Pending Review</span>
+          </span>
+        );
+      }
+      return (
+        <span className="bg-rose-50 text-rose-700 border border-rose-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold select-none">
+          <XCircle className="w-3 h-3 text-rose-600" />
+          <span>Rejected</span>
+        </span>
+      );
+    }
+
     if (s === "approved" || s === "successful" || s === "paid") {
       return (
         <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold select-none">
@@ -486,11 +544,20 @@ export default function CustomerPayments() {
   };
 
   // Payment type / milestone label
-  const renderMilestoneLabel = (type) => {
+  const renderMilestoneLabel = (type, isRefund = false) => {
     const t = String(type || "").toLowerCase();
+    if (isRefund || t === "refund") {
+      return (
+        <span className="inline-flex items-center gap-1 text-[#4C81E0] font-semibold">
+          <RefreshCcw className="w-3 h-3 text-[#4C81E0]" />
+          <span>Refund</span>
+        </span>
+      );
+    }
     if (t === "deposit") return "Deposit";
     if (t === "balance") return "Balance payment";
     if (t === "full") return "Full Payment";
+    if (t === "additional") return "Additional";
     return "Payment";
   };
 
@@ -512,17 +579,23 @@ export default function CustomerPayments() {
 
   // Payment method badge
   const renderMethodBadge = (p) => {
+    const isRefund = (p.payment_type || "").toLowerCase() === "refund" || Number(p.amount) < 0;
     const m = String(p.method || p.payment_method || "PayMongo").toLowerCase();
-    let label = "PayMongo";
+    let label = isRefund ? "Refund Credit" : "PayMongo";
     if (m.includes("gcash")) label = "GCash";
     else if (m.includes("maya")) label = "Maya";
     else if (m.includes("card")) label = "Card";
     else if (m.includes("cash")) label = "Cash";
     else if (m.includes("bank")) label = "Bank Transfer";
+    else if (isRefund) label = "Original Payment Method";
 
     return (
       <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-200/70 px-2 py-0.5 rounded text-[11px] font-medium text-slate-700 select-none">
-        <CreditCard className="w-3 h-3 text-slate-400" />
+        {isRefund ? (
+          <RefreshCcw className="w-3 h-3 text-[#4C81E0]" />
+        ) : (
+          <CreditCard className="w-3 h-3 text-slate-400" />
+        )}
         {label}
       </span>
     );
@@ -808,34 +881,44 @@ export default function CustomerPayments() {
                 </p>
               </div>
 
-              {/* View Mode Toggle: By Event vs All Transactions */}
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/70 shrink-0 self-start sm:self-auto">
+              <div className="flex items-center gap-3 self-start sm:self-auto flex-wrap">
                 <button
                   type="button"
-                  onClick={() => setViewMode("events")}
-                  className={cn(
-                    "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer",
-                    viewMode === "events"
-                      ? "bg-white text-slate-900 shadow-2xs font-bold"
-                      : "text-slate-500 hover:text-slate-800"
-                  )}
+                  onClick={() => setShowPolicyModal(true)}
+                  className="text-xs font-semibold text-[#4C81E0] hover:text-[#3B6EC6] hover:underline cursor-pointer inline-flex items-center gap-1"
                 >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>By Event</span>
+                  Policy Guidelines →
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("transactions")}
-                  className={cn(
-                    "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer",
-                    viewMode === "transactions"
-                      ? "bg-white text-slate-900 shadow-2xs font-bold"
-                      : "text-slate-500 hover:text-slate-800"
-                  )}
-                >
-                  <TableIcon className="w-3.5 h-3.5" />
-                  <span>Transactions</span>
-                </button>
+
+                {/* View Mode Toggle: All Transactions (Table) vs By Event */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/70 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("transactions")}
+                    className={cn(
+                      "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer",
+                      viewMode === "transactions"
+                        ? "bg-white text-slate-900 shadow-2xs font-bold"
+                        : "text-slate-500 hover:text-slate-800"
+                    )}
+                  >
+                    <TableIcon className="w-3.5 h-3.5" />
+                    <span>Transactions</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("events")}
+                    className={cn(
+                      "px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer",
+                      viewMode === "events"
+                        ? "bg-white text-slate-900 shadow-2xs font-bold"
+                        : "text-slate-500 hover:text-slate-800"
+                    )}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>By Event</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -888,6 +971,7 @@ export default function CustomerPayments() {
                     <option value="all">All Statuses</option>
                     <option value="approved">Successful</option>
                     <option value="pending">Pending</option>
+                    <option value="refund">Refunds</option>
                     <option value="failed">Failed / Cancelled</option>
                   </select>
                 </div>
@@ -903,14 +987,14 @@ export default function CustomerPayments() {
                       <p className="text-xs text-slate-400 mt-0.5">Try adjusting your filters or search keywords.</p>
                     </div>
                   ) : (
-                    displayedEvents.map(({ booking, payments: groupPayments, totalPrice, paidAmount }) => {
+                    displayedEvents.map(({ booking, payments: groupPayments, totalPrice, grossPaid, refundIssued, amountRetained, isCancelled, hasPendingRefund }) => {
                       const bId = String(booking._id || "");
                       const isExpanded = expandedEvents.has(bId);
                       const eventTitle = booking.event_type || "Catering Event";
                       const bookingRef = booking.reference || (bId ? `BK-${bId.slice(-6).toUpperCase()}` : "-");
-                      const remaining = Math.max(0, totalPrice - paidAmount);
-                      const progress = totalPrice > 0 ? Math.min(100, Math.round((paidAmount / totalPrice) * 100)) : 100;
-                      const isFullyPaid = remaining <= 0 && totalPrice > 0;
+                      const remaining = isCancelled ? 0 : Math.max(0, totalPrice - (grossPaid - refundIssued));
+                      const progress = isCancelled ? 100 : totalPrice > 0 ? Math.min(100, Math.round(((grossPaid - refundIssued) / totalPrice) * 100)) : 100;
+                      const isFullyPaid = !isCancelled && remaining <= 0 && totalPrice > 0;
 
                       return (
                         <div
@@ -926,12 +1010,22 @@ export default function CustomerPayments() {
                               <div
                                 className={cn(
                                   "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-colors",
-                                  isFullyPaid
-                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                    : "bg-blue-50 text-[#4C81E0] border-blue-200"
+                                  isCancelled
+                                    ? refundIssued > 0
+                                      ? "bg-blue-50 text-[#4C81E0] border-blue-200"
+                                      : "bg-rose-50 text-rose-800 border-rose-200"
+                                    : isFullyPaid
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                      : "bg-blue-50 text-[#4C81E0] border-blue-200"
                                 )}
                               >
-                                {isFullyPaid ? <Check className="w-4 h-4" /> : <Calendar className="w-4 h-4" />}
+                                {isCancelled ? (
+                                  refundIssued > 0 ? <RefreshCcw className="w-4 h-4" /> : <XCircle className="w-4 h-4" />
+                                ) : isFullyPaid ? (
+                                  <Check className="w-4 h-4" />
+                                ) : (
+                                  <Calendar className="w-4 h-4" />
+                                )}
                               </div>
 
                               <div className="min-w-0 space-y-0.5">
@@ -942,7 +1036,24 @@ export default function CustomerPayments() {
                                   <span className="font-mono text-xs font-semibold px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-slate-600">
                                     {bookingRef}
                                   </span>
-                                  {isFullyPaid ? (
+                                  {isCancelled ? (
+                                    <span
+                                      className={cn(
+                                        "px-2 py-0.5 text-[10px] font-bold rounded-md border",
+                                        refundIssued > 0
+                                          ? "text-[#4C81E0] bg-blue-50 border-blue-200"
+                                          : hasPendingRefund
+                                            ? "text-amber-800 bg-amber-50 border-amber-200"
+                                            : "text-rose-800 bg-rose-50 border-rose-200"
+                                      )}
+                                    >
+                                      {refundIssued > 0
+                                        ? "Cancelled · Refunded"
+                                        : hasPendingRefund
+                                          ? "Refund Pending"
+                                          : "Cancelled"}
+                                    </span>
+                                  ) : isFullyPaid ? (
                                     <span className="px-2 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md">
                                       Fully Paid
                                     </span>
@@ -965,7 +1076,7 @@ export default function CustomerPayments() {
                                   )}
                                   <span>•</span>
                                   <span>
-                                    {groupPayments.length} payment{groupPayments.length !== 1 ? "s" : ""}
+                                    {groupPayments.length} transaction{groupPayments.length !== 1 ? "s" : ""}
                                   </span>
                                   {booking.package_name_snapshot && (
                                     <>
@@ -977,19 +1088,38 @@ export default function CustomerPayments() {
                               </div>
                             </div>
 
-                            {/* Row Right: Progress & Toggle */}
+                            {/* Row Right: Financial Overview & Toggle */}
                             <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                               <div className="text-left sm:text-right space-y-1">
-                                <div className="text-xs text-slate-600">
-                                  Paid: <strong className="text-emerald-700 font-bold">{formatCurrency(paidAmount)}</strong>
-                                  {totalPrice > 0 && <span className="text-slate-400"> / {formatCurrency(totalPrice)}</span>}
-                                </div>
-                                <div className="w-28 bg-slate-100 rounded-full h-1.5 sm:ml-auto overflow-hidden">
-                                  <div
-                                    className="bg-emerald-600 h-full rounded-full"
-                                    style={{ width: `${progress}%` }}
-                                  />
-                                </div>
+                                {isCancelled ? (
+                                  <div className="text-xs space-y-0.5">
+                                    <div>
+                                      Paid: <strong className="text-emerald-700 font-bold">{formatCurrency(grossPaid)}</strong>
+                                    </div>
+                                    {refundIssued > 0 ? (
+                                      <div className="text-[11px] text-[#4C81E0] font-semibold">
+                                        Refund: −{formatCurrency(refundIssued)}
+                                      </div>
+                                    ) : hasPendingRefund ? (
+                                      <div className="text-[11px] text-amber-700 font-semibold">
+                                        Refund: Under Review
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="text-xs text-slate-600">
+                                      Paid: <strong className="text-emerald-700 font-bold">{formatCurrency(grossPaid)}</strong>
+                                      {totalPrice > 0 && <span className="text-slate-400"> / {formatCurrency(totalPrice)}</span>}
+                                    </div>
+                                    <div className="w-28 bg-slate-100 rounded-full h-1.5 sm:ml-auto overflow-hidden">
+                                      <div
+                                        className="bg-emerald-600 h-full rounded-full"
+                                        style={{ width: `${progress}%` }}
+                                      />
+                                    </div>
+                                  </>
+                                )}
                               </div>
 
                               <div className="flex items-center gap-1.5">
@@ -1022,17 +1152,70 @@ export default function CustomerPayments() {
                           {/* Expanded Transaction Drawer */}
                           {isExpanded && (
                             <div className="border-t border-slate-100 bg-slate-50/40 p-3 sm:p-4">
+                              {/* Cancelled Billing Breakdown Callout */}
+                              {isCancelled && (
+                                <div className="mb-3">
+                                  {refundIssued > 0 ? (
+                                    <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-200/80 text-xs space-y-1.5">
+                                      <div className="font-bold text-slate-900 flex items-center justify-between gap-2">
+                                        <span className="flex items-center gap-1.5">
+                                          <RefreshCcw className="w-3.5 h-3.5 text-[#4C81E0]" />
+                                          Refund Calculation Breakdown
+                                        </span>
+                                        <span className="text-[11px] font-semibold text-slate-500">Billing Closed</span>
+                                      </div>
+                                      <div className="grid grid-cols-1 xs:grid-cols-3 sm:grid-cols-3 gap-2 pt-1 font-sans">
+                                        <div className="bg-white p-2 rounded border border-blue-100">
+                                          <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Deposit Paid</div>
+                                          <div className="text-xs font-bold text-emerald-700 tabular-nums">{formatCurrency(grossPaid)}</div>
+                                        </div>
+                                        <div className="bg-white p-2 rounded border border-blue-100">
+                                          <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Refund Issued</div>
+                                          <div className="text-xs font-bold text-[#4C81E0] tabular-nums">− {formatCurrency(refundIssued)}</div>
+                                        </div>
+                                        <div className="bg-white p-2 rounded border border-blue-100">
+                                          <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Amount Retained</div>
+                                          <div className="text-xs font-bold text-slate-800 tabular-nums">{formatCurrency(amountRetained)}</div>
+                                        </div>
+                                      </div>
+                                      <p className="text-[11px] text-slate-600 pt-0.5 leading-relaxed">
+                                        Of the {formatCurrency(grossPaid)} paid, {formatCurrency(refundIssued)} was refunded to your original payment method and {formatCurrency(amountRetained)} was retained per cancellation terms.
+                                      </p>
+                                      <p className="text-[10px] text-slate-500 italic">
+                                        * Reservation deposits are normally non-refundable; this refund reflects an approved exception.
+                                      </p>
+                                    </div>
+                                  ) : hasPendingRefund ? (
+                                    <div className="p-3 rounded-lg bg-amber-50/70 border border-amber-200/80 text-xs space-y-1">
+                                      <div className="font-bold text-amber-900 flex items-center gap-1.5">
+                                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                        <span>Refund Request Under Review</span>
+                                      </div>
+                                      <p className="text-amber-800 text-[11px] leading-relaxed">
+                                        Your cancellation refund request is currently being evaluated by management. Any eligible refund will be disbursed to your payment method once approved.
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 text-xs text-slate-600 leading-relaxed">
+                                      {grossPaid > 0
+                                        ? `This booking was cancelled. The reservation deposit of ${formatCurrency(grossPaid)} was retained per the non-refundable deposit policy.`
+                                        : "This booking was cancelled. Billing is closed."}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
                               {groupPayments.length === 0 ? (
                                 <div className="p-4 text-center text-xs text-slate-500 bg-white rounded-lg border border-slate-200/80">
                                   <p>No payments recorded yet for this event.</p>
-                                  {remaining > 0 && (
+                                  {remaining > 0 && !isCancelled && (
                                     <Button
                                       size="sm"
                                       onClick={() =>
                                         startPaymentForBooking(
                                           booking,
                                           remaining,
-                                          paidAmount === 0 ? "deposit" : "balance"
+                                          grossPaid === 0 ? "deposit" : "balance"
                                         )
                                       }
                                       className="mt-2.5 h-8 text-xs font-semibold bg-[#4C81E0] hover:bg-[#3B6EC6] text-white rounded-lg shadow-2xs"
@@ -1043,62 +1226,88 @@ export default function CustomerPayments() {
                                 </div>
                               ) : (
                                 <div className="bg-white rounded-lg border border-slate-200/80 divide-y divide-slate-100 overflow-hidden">
-                                  {groupPayments.map((p) => (
-                                    <div
-                                      key={p._id}
-                                      className="p-3 sm:px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 transition-colors"
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
-                                          <Receipt className="w-3.5 h-3.5" />
-                                        </div>
-                                        <div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-bold text-xs text-slate-900">
-                                              {renderMilestoneLabel(p.payment_type)}
-                                            </span>
-                                            {renderPaymentStatusBadge(p.status)}
-                                          </div>
-                                          <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap">
-                                            <span>
-                                              {p.createdAt
-                                                ? new Date(p.createdAt).toLocaleDateString("en-US", {
-                                                    month: "short",
-                                                    day: "numeric",
-                                                    year: "numeric",
-                                                  })
-                                                : "-"}
-                                            </span>
-                                            <span>•</span>
-                                            {renderMethodBadge(p)}
-                                            {(p.gateway_reference || p.reference_number) && (
-                                              <>
-                                                <span>•</span>
-                                                <span className="font-mono text-[10px] text-slate-400">
-                                                  Ref: {p.gateway_reference || p.reference_number}
-                                                </span>
-                                              </>
+                                  {groupPayments.map((p) => {
+                                    const isRefund =
+                                      (p.payment_type || "").toLowerCase() === "refund" ||
+                                      Number(p.amount) < 0;
+
+                                    return (
+                                      <div
+                                        key={p._id}
+                                        className="p-3 sm:px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 transition-colors"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <div
+                                            className={cn(
+                                              "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
+                                              isRefund
+                                                ? "bg-blue-50 text-[#4C81E0]"
+                                                : "bg-slate-100 text-slate-500"
+                                            )}
+                                          >
+                                            {isRefund ? (
+                                              <RefreshCcw className="w-3.5 h-3.5" />
+                                            ) : (
+                                              <Receipt className="w-3.5 h-3.5" />
                                             )}
                                           </div>
+                                          <div>
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-bold text-xs text-slate-900">
+                                                {renderMilestoneLabel(p.payment_type, isRefund)}
+                                              </span>
+                                              {renderPaymentStatusBadge(p.status, isRefund)}
+                                            </div>
+                                            <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap">
+                                              <span>
+                                                {p.createdAt
+                                                  ? new Date(p.createdAt).toLocaleDateString("en-US", {
+                                                      month: "short",
+                                                      day: "numeric",
+                                                      year: "numeric",
+                                                    })
+                                                  : "-"}
+                                              </span>
+                                              <span>•</span>
+                                              {renderMethodBadge(p)}
+                                              {(p.gateway_reference || p.reference_number) && (
+                                                <>
+                                                  <span>•</span>
+                                                  <span className="font-mono text-[10px] text-slate-400">
+                                                    Ref: {p.gateway_reference || p.reference_number}
+                                                  </span>
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between sm:justify-end gap-3 pl-10 sm:pl-0">
+                                          {isRefund ? (
+                                            <div className="text-right">
+                                              <span className="font-bold text-sm text-[#4C81E0] tabular-nums">
+                                                − {formatCurrency(Math.abs(p.amount))}
+                                              </span>
+                                              <div className="text-[10px] text-slate-400">Refund credited</div>
+                                            </div>
+                                          ) : (
+                                            <span className="font-bold text-sm text-slate-900 tabular-nums">
+                                              {formatCurrency(p.amount)}
+                                            </span>
+                                          )}
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleOpenReceipt(p, booking)}
+                                            className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3B6EC6] hover:bg-blue-50 px-2.5 rounded-lg cursor-pointer"
+                                          >
+                                            <Receipt className="w-3.5 h-3.5" />
+                                            <span>Receipt</span>
+                                          </Button>
                                         </div>
                                       </div>
-
-                                      <div className="flex items-center justify-between sm:justify-end gap-3 pl-10 sm:pl-0">
-                                        <span className="font-bold text-sm text-slate-900 tabular-nums">
-                                          {formatCurrency(p.amount)}
-                                        </span>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => handleOpenReceipt(p, booking)}
-                                          className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3B6EC6] hover:bg-blue-50 px-2.5 rounded-lg cursor-pointer"
-                                        >
-                                          <Receipt className="w-3.5 h-3.5" />
-                                          <span>Receipt</span>
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
@@ -1125,28 +1334,38 @@ export default function CustomerPayments() {
                       displayedTransactions.map((p) => {
                         const b = bookings.find(
                           (item) => String(item._id) === String(p.booking_id?._id || p.booking_id)
+                        ) || p.booking_id;
+                        const isRefund =
+                          (p.payment_type || "").toLowerCase() === "refund" ||
+                          Number(p.amount) < 0;
+                        const isBookingCancelled = ["cancelled", "canceled", "rejected", "refunded"].includes(
+                          (b?.status || "").toLowerCase()
                         );
                         const eventTitle = b?.event_type || p.inquiry_id?.event_type || "Catering Event";
                         const refCode = b?.reference || p.inquiry_id?.reference || "-";
-                        const dateStr = p.createdAt
-                          ? new Date(p.createdAt).toLocaleDateString("en-US", {
+                        const dateStr = p.createdAt || p.paid_at
+                          ? new Date(p.createdAt || p.paid_at).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
                               year: "numeric",
                             })
                           : "-";
-                        const timeStr = p.createdAt
-                          ? new Date(p.createdAt).toLocaleTimeString("en-US", {
+                        const timeStr = p.createdAt || p.paid_at
+                          ? new Date(p.createdAt || p.paid_at).toLocaleTimeString("en-US", {
                               hour: "numeric",
                               minute: "2-digit",
                               hour12: true,
                             })
                           : "";
+                        const reasonText = p.metadata?.reason || b?.cancellation_reason || b?.cancellation_request?.reason || "";
 
                         return (
                           <div
                             key={p._id}
-                            className="rounded-xl border border-slate-200/90 bg-white p-3.5 space-y-2.5 shadow-2xs"
+                            className={cn(
+                              "rounded-xl border p-3.5 space-y-2.5 shadow-2xs bg-white transition-colors",
+                              isRefund ? "border-blue-200/90 bg-blue-50/20" : "border-slate-200/90"
+                            )}
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
@@ -1157,6 +1376,11 @@ export default function CustomerPayments() {
                                   <span className="font-mono text-[11px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
                                     {refCode}
                                   </span>
+                                  {isBookingCancelled && (
+                                    <span className="text-[10px] font-medium text-slate-500 bg-slate-100 border border-slate-200/80 px-1.5 py-0.5 rounded">
+                                      Booking Cancelled
+                                    </span>
+                                  )}
                                   <span>•</span>
                                   <span className="flex items-center gap-1">
                                     <Calendar className="w-3 h-3 text-slate-400" />
@@ -1164,16 +1388,21 @@ export default function CustomerPayments() {
                                     {timeStr && <span className="text-slate-400">{timeStr}</span>}
                                   </span>
                                 </div>
+                                {isRefund && reasonText && (
+                                  <div className="text-[11px] text-slate-500 mt-1">
+                                    Reason: {reasonText}
+                                  </div>
+                                )}
                               </div>
                               <div className="shrink-0">
-                                {renderPaymentStatusBadge(p.status)}
+                                {renderPaymentStatusBadge(p.status, isRefund)}
                               </div>
                             </div>
 
                             <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-semibold text-slate-800">
-                                  {renderMilestoneLabel(p.payment_type)}
+                                  {renderMilestoneLabel(p.payment_type, isRefund)}
                                 </span>
                                 <span>•</span>
                                 {renderMethodBadge(p)}
@@ -1183,11 +1412,23 @@ export default function CustomerPayments() {
                             <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
                               <div>
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                                  Amount
+                                  {isRefund ? "Refund Amount" : "Amount"}
                                 </span>
-                                <span className="font-extrabold text-base text-slate-900 tabular-nums font-sans">
-                                  {formatCurrency(p.amount)}
+                                <span
+                                  className={cn(
+                                    "font-extrabold text-base tabular-nums font-sans",
+                                    isRefund ? "text-[#4C81E0]" : "text-slate-900"
+                                  )}
+                                >
+                                  {isRefund
+                                    ? `− ${formatCurrency(Math.abs(p.amount))}`
+                                    : formatCurrency(p.amount)}
                                 </span>
+                                {isRefund && (
+                                  <span className="text-[10px] text-slate-400 block">
+                                    Refund credited
+                                  </span>
+                                )}
                               </div>
 
                               <Button
@@ -1234,26 +1475,39 @@ export default function CustomerPayments() {
                             displayedTransactions.map((p) => {
                               const b = bookings.find(
                                 (item) => String(item._id) === String(p.booking_id?._id || p.booking_id)
+                              ) || p.booking_id;
+                              const isRefund =
+                                (p.payment_type || "").toLowerCase() === "refund" ||
+                                Number(p.amount) < 0;
+                              const isBookingCancelled = ["cancelled", "canceled", "rejected", "refunded"].includes(
+                                (b?.status || "").toLowerCase()
                               );
                               const eventTitle = b?.event_type || p.inquiry_id?.event_type || "Catering Event";
                               const refCode = b?.reference || p.inquiry_id?.reference || "-";
-                              const dateStr = p.createdAt
-                                ? new Date(p.createdAt).toLocaleDateString("en-US", {
+                              const dateStr = p.createdAt || p.paid_at
+                                ? new Date(p.createdAt || p.paid_at).toLocaleDateString("en-US", {
                                     month: "short",
                                     day: "numeric",
                                     year: "numeric",
                                   })
                                 : "-";
-                              const timeStr = p.createdAt
-                                ? new Date(p.createdAt).toLocaleTimeString("en-US", {
+                              const timeStr = p.createdAt || p.paid_at
+                                ? new Date(p.createdAt || p.paid_at).toLocaleTimeString("en-US", {
                                     hour: "numeric",
                                     minute: "2-digit",
                                     hour12: true,
                                   })
                                 : "";
+                              const reasonText = p.metadata?.reason || b?.cancellation_reason || b?.cancellation_request?.reason || "";
 
                               return (
-                                <tr key={p._id} className="hover:bg-slate-50/60 transition-colors">
+                                <tr
+                                  key={p._id}
+                                  className={cn(
+                                    "transition-colors",
+                                    isRefund ? "bg-blue-50/20 hover:bg-blue-50/40" : "hover:bg-slate-50/60"
+                                  )}
+                                >
                                   <td className="py-3.5 px-4 text-xs text-slate-600">
                                     <div className="font-semibold text-slate-900 flex items-center gap-1.5">
                                       <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -1264,7 +1518,7 @@ export default function CustomerPayments() {
 
                                   <td className="py-3.5 px-4 text-xs">
                                     <div className="font-bold text-slate-900">{eventTitle}</div>
-                                    <div className="flex items-center gap-1 text-[11px] text-slate-500 font-mono mt-0.5">
+                                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-mono mt-0.5 flex-wrap">
                                       {b?._id ? (
                                         <Link
                                           to={`/customer/bookings/${b._id}`}
@@ -1276,12 +1530,25 @@ export default function CustomerPayments() {
                                       ) : (
                                         <span>{refCode}</span>
                                       )}
+                                      {isBookingCancelled && (
+                                        <span className="text-[10px] font-medium text-slate-500 bg-slate-100 border border-slate-200/80 px-1.5 py-0.5 rounded font-sans">
+                                          Booking Cancelled
+                                        </span>
+                                      )}
                                     </div>
+                                    {isRefund && reasonText && (
+                                      <div
+                                        className="text-[10px] text-slate-400 truncate max-w-[220px] mt-0.5"
+                                        title={reasonText}
+                                      >
+                                        Reason: {reasonText}
+                                      </div>
+                                    )}
                                   </td>
 
                                   <td className="py-3.5 px-4 text-xs">
                                     <span className="font-semibold text-slate-800">
-                                      {renderMilestoneLabel(p.payment_type)}
+                                      {renderMilestoneLabel(p.payment_type, isRefund)}
                                     </span>
                                   </td>
 
@@ -1290,13 +1557,22 @@ export default function CustomerPayments() {
                                   </td>
 
                                   <td className="py-3.5 px-4 text-xs">
-                                    <span className="font-bold text-slate-900 tabular-nums text-sm">
-                                      {formatCurrency(p.amount)}
-                                    </span>
+                                    {isRefund ? (
+                                      <div>
+                                        <span className="font-bold text-[#4C81E0] tabular-nums text-sm">
+                                          − {formatCurrency(Math.abs(p.amount))}
+                                        </span>
+                                        <div className="text-[10px] text-slate-400">Refund credited</div>
+                                      </div>
+                                    ) : (
+                                      <span className="font-bold text-slate-900 tabular-nums text-sm">
+                                        {formatCurrency(p.amount)}
+                                      </span>
+                                    )}
                                   </td>
 
                                   <td className="py-3.5 px-4 text-xs">
-                                    {renderPaymentStatusBadge(p.status)}
+                                    {renderPaymentStatusBadge(p.status, isRefund)}
                                   </td>
 
                                   <td className="py-3.5 px-4 text-xs text-right">
@@ -1385,61 +1661,6 @@ export default function CustomerPayments() {
               )}
             </div>
           </div>
-
-          {/* ── 3. Refunds & Cancellations Section (if applicable) ── */}
-          {refunds.length > 0 && (
-            <div className="rounded-2xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
-              <div className="py-3.5 px-5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2 font-sans">
-                  <RefreshCcw className="w-3.5 h-3.5 text-[#4C81E0]" />
-                  Refunds &amp; Cancellations
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setShowPolicyModal(true)}
-                  className="text-xs font-semibold text-[#4C81E0] hover:text-[#3B6EC6] hover:underline cursor-pointer"
-                >
-                  Policy Guidelines →
-                </button>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {refunds.map((r) => (
-                  <div
-                    key={r.id}
-                    className="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white"
-                  >
-                    <div>
-                      <h4 className="font-bold text-sm text-slate-900">{r.type}</h4>
-                      <div className="text-xs text-slate-400 mt-0.5 font-mono">Ref: {r.id}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">Reason: {r.reason}</div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="text-[11px] text-slate-400">
-                          Paid: {formatCurrency(r.deposit)}
-                        </div>
-                        {r.status === "refunded" ? (
-                          <div className="text-base font-bold text-emerald-700">
-                            Refunded: {formatCurrency(r.amount)}
-                          </div>
-                        ) : (
-                          <div className="text-base font-bold text-amber-700">
-                            Refund Pending
-                          </div>
-                        )}
-                      </div>
-                      <Badge
-                        variant={r.status === "refunded" ? "default" : "secondary"}
-                        className={r.status === "refunded" ? "bg-emerald-600" : ""}
-                      >
-                        {r.status === "refunded" ? "Refunded" : "Processing"}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* ── Official Printable Receipt Modal ── */}

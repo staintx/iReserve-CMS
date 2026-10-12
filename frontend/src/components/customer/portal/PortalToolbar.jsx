@@ -86,7 +86,7 @@ export default function PortalToolbar({
                   "inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C4B8A]",
                   isActive
                     ? cn("font-bold border-[#2C4B8A] bg-[#2C4B8A] text-white", FILTER_ACTIVE_BRAND)
-                    : "border-slate-200 font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    : "border-slate-200 font-medium text-slate-600 hover:bg-blue-50/80 hover:text-[#4C81E0] hover:border-blue-200 cursor-pointer"
                 )}
               >
                 {isActive && <Check className="h-3 w-3" aria-hidden="true" />}

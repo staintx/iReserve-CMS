@@ -9,6 +9,10 @@ export default function CustomerPrintReceipt({
 }) {
   if (!payment) return null;
 
+  const isRefund =
+    (payment.payment_type || "").toLowerCase() === "refund" ||
+    Number(payment.amount) < 0;
+
   const fmt = (val) =>
     formatCurrency ? formatCurrency(val) : `₱${Number(val || 0).toLocaleString()}`;
 
@@ -40,10 +44,11 @@ export default function CustomerPrintReceipt({
 
   const getMilestoneLabel = (type) => {
     const t = String(type || "").toLowerCase();
+    if (t === "refund") return "Refund Disbursement";
     if (t === "deposit") return "Initial Deposit Payment";
     if (t === "balance") return "Final Balance Payment";
     if (t === "full") return "Full Payment (100%)";
-    return "Event Payment";
+    return isRefund ? "Refund Disbursement" : "Event Payment";
   };
 
   const getPaymentMethod = (p) => {
@@ -53,6 +58,7 @@ export default function CustomerPrintReceipt({
     if (m.includes("card")) return "Credit / Debit Card";
     if (m.includes("cash")) return "Cash Payment";
     if (m.includes("bank")) return "Bank Transfer";
+    if (isRefund) return "Original Payment Method";
     return "Online Payment";
   };
 
@@ -111,7 +117,7 @@ export default function CustomerPrintReceipt({
 
         {/* ── Receipt Title ── */}
         <div className="caz-receipt-divider" />
-        <div className="caz-receipt-title">PAYMENT RECEIPT</div>
+        <div className="caz-receipt-title">{isRefund ? "REFUND TRANSACTION" : "PAYMENT RECEIPT"}</div>
         <div className="caz-receipt-divider" />
 
         {/* ── Receipt Metadata ── */}
@@ -126,7 +132,7 @@ export default function CustomerPrintReceipt({
 
         {/* ── Customer / Billed To ── */}
         <div className="caz-receipt-divider" />
-        <div className="caz-receipt-section-label">BILLED TO:</div>
+        <div className="caz-receipt-section-label">{isRefund ? "REFUND RECIPIENT:" : "BILLED TO:"}</div>
         <div className="caz-receipt-row">
           <span className="caz-receipt-label">CUSTOMER:</span>
           <span className="caz-receipt-val caz-bold">{payerName}</span>
@@ -170,7 +176,7 @@ export default function CustomerPrintReceipt({
 
         {/* ── Line-Item / Payment Breakdown ── */}
         <div className="caz-receipt-divider" />
-        <div className="caz-receipt-section-label">PAYMENT BREAKDOWN:</div>
+        <div className="caz-receipt-section-label">{isRefund ? "REFUND BREAKDOWN:" : "PAYMENT BREAKDOWN:"}</div>
         <div className="caz-receipt-row">
           <span className="caz-receipt-label">DESCRIPTION:</span>
           <span className="caz-receipt-val caz-bold">{getMilestoneLabel(payment.payment_type)}</span>
@@ -186,19 +192,23 @@ export default function CustomerPrintReceipt({
           </div>
         )}
 
-        {/* ── Amount Paid Emphasized ── */}
+        {/* ── Amount Paid / Refunded Emphasized ── */}
         <div className="caz-receipt-double-divider" />
         <div className="caz-receipt-total-row">
-          <span>AMOUNT PAID:</span>
-          <span className="caz-total-amount">{fmt(payment.amount)}</span>
+          <span>{isRefund ? "REFUND AMOUNT:" : "AMOUNT PAID:"}</span>
+          <span className="caz-total-amount">{fmt(Math.abs(payment.amount))}</span>
         </div>
         <div className="caz-receipt-double-divider" />
         <div className="caz-receipt-row caz-status-line">
-          <span className="caz-receipt-label">PAYMENT STATUS:</span>
+          <span className="caz-receipt-label">{isRefund ? "REFUND STATUS:" : "PAYMENT STATUS:"}</span>
           <span className="caz-receipt-val caz-bold">
-            {paymentStatus === "approved" || paymentStatus === "paid"
-              ? "APPROVED / PAID"
-              : paymentStatus.toUpperCase()}
+            {isRefund
+              ? (["approved", "paid", "refunded", "successful"].includes(String(paymentStatus).toLowerCase())
+                  ? "REFUNDED"
+                  : String(paymentStatus).toUpperCase())
+              : (paymentStatus === "approved" || paymentStatus === "paid"
+                  ? "APPROVED / PAID"
+                  : paymentStatus.toUpperCase())}
           </span>
         </div>
 
@@ -206,8 +216,16 @@ export default function CustomerPrintReceipt({
         <div className="caz-receipt-divider" />
         <div className="caz-receipt-footer">
           <div className="caz-footer-main">Thank you for choosing {biz.name}!</div>
-          <div className="caz-footer-note">This serves as an official electronic payment acknowledgment.</div>
-          <div className="caz-footer-end">*** KEEP THIS RECEIPT FOR YOUR RECORDS ***</div>
+          <div className="caz-footer-note">
+            {isRefund
+              ? "This serves as an official electronic refund acknowledgment."
+              : "This serves as an official electronic payment acknowledgment."}
+          </div>
+          <div className="caz-footer-end">
+            {isRefund
+              ? "*** KEEP THIS REFUND ACKNOWLEDGMENT FOR YOUR RECORDS ***"
+              : "*** KEEP THIS RECEIPT FOR YOUR RECORDS ***"}
+          </div>
         </div>
       </div>
     </div>,

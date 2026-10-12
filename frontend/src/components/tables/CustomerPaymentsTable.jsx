@@ -366,16 +366,21 @@ export default function CustomerPaymentsTable({
                     {/* 6. Receipt (Secondary) */}
                     {onViewReceipt && (
                       <TableCell className="text-right py-3 px-4">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onViewReceipt(p, b)}
-                          className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3b6ec6] hover:bg-blue-50 px-2 cursor-pointer"
-                          title="View Official Receipt"
-                        >
-                          <Receipt className="w-3.5 h-3.5" />
-                          <span>Receipt</span>
-                        </Button>
+                        {(() => {
+                          const isRefund = (p.payment_type || "").toLowerCase() === "refund" || Number(p.amount) < 0;
+                          return (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onViewReceipt(p, b)}
+                              className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3b6ec6] hover:bg-blue-50 px-2 cursor-pointer"
+                              title={isRefund ? "View Refund Transaction" : "View Official Receipt"}
+                            >
+                              {isRefund ? <RefreshCcw className="w-3.5 h-3.5" /> : <Receipt className="w-3.5 h-3.5" />}
+                              <span>{isRefund ? "Refund" : "Receipt"}</span>
+                            </Button>
+                          );
+                        })()}
                       </TableCell>
                     )}
                   </TableRow>

@@ -42,6 +42,12 @@ export default function CustomerDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { checkOverdueAndProceed } = useOverduePayment();
+
+  const navigateToInquiry = (inqId) => {
+    if (!inqId) return;
+    sessionStorage.setItem("current_inquiry_id", inqId);
+    navigate("/customer/inquiries/details", { state: { id: inqId } });
+  };
   const [inquiries, setInquiries] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -169,7 +175,7 @@ export default function CustomerDashboard() {
           description: "Review and approve your custom quote",
           actionText: "Review quote",
           isQuote: true,
-          onAction: () => navigate(`/customer/inquiries/${i._id}`)
+          onAction: () => navigateToInquiry(i._id)
         });
       } else if (i.status === "Revision Requested") {
         items.push({
@@ -183,7 +189,7 @@ export default function CustomerDashboard() {
           description: "Our catering team is updating your quote",
           actionText: "View request",
           isQuote: true,
-          onAction: () => navigate(`/customer/inquiries/${i._id}`)
+          onAction: () => navigateToInquiry(i._id)
         });
       }
     });
@@ -251,7 +257,7 @@ export default function CustomerDashboard() {
         reference: inq.reference,
         statusPill: statusMeta ? { tone: statusMeta.tone, label: statusMeta.label, icon: statusMeta.icon } : null,
         actionText: "View Inquiry",
-        onAction: () => navigate(`/customer/inquiries/${inq._id}`),
+        onAction: () => navigateToInquiry(inq._id),
       });
     });
 

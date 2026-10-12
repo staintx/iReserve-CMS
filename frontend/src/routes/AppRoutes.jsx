@@ -153,6 +153,7 @@ export default function AppRoutes() {
 
           <Route path="/customer/bookings" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerBookings /></ProtectedRoute>} />
           <Route path="/customer/inquiries" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
+          <Route path="/customer/inquiries/details" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiryDetails /></ProtectedRoute>} />
           <Route path="/customer/inquiries/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiryDetails /></ProtectedRoute>} />
           <Route path="/customer/inquiries/:id/edit" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
           <Route path="/customer/inquiries/edit/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />

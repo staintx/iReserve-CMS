@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
 import { createConversation } from "../../api/messages";
@@ -156,9 +156,22 @@ const categorizeOfferFood = (items = []) => {
 };
 
 export default function CustomerInquiryDetails() {
-  const { id } = useParams();
+  const params = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { notify } = useToast();
+
+  const id = location.state?.id || sessionStorage.getItem("current_inquiry_id") || params.id;
+
+  // Mask the URL: if reached via /customer/inquiries/:id, rewrite to /customer/inquiries/details
+  useEffect(() => {
+    if (params.id) {
+      sessionStorage.setItem("current_inquiry_id", params.id);
+      navigate("/customer/inquiries/details", { replace: true, state: { id: params.id } });
+    } else if (location.state?.id) {
+      sessionStorage.setItem("current_inquiry_id", location.state.id);
+    }
+  }, [params.id, location.state?.id, navigate]);
 
   const [inquiry, setInquiry] = useState(null);
   const [menuCatalog, setMenuCatalog] = useState([]);
@@ -185,7 +198,10 @@ export default function CustomerInquiryDetails() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const fetchInquiryDetails = async () => {
-    if (!id) return;
+    if (!id) {
+      navigate("/customer/inquiries", { replace: true });
+      return;
+    }
     try {
       setLoading(true);
       const [inqRes, menuRes, pkgRes] = await Promise.all([

@@ -264,7 +264,8 @@ export default function AccountInfoTicker() {
           badgeTone: "indigo",
           icon: FileText,
           text: "Your quotation is ready for review.",
-          link: `/customer/inquiries/${i._id}`,
+          link: "/customer/inquiries/details",
+          inquiryId: i._id,
         });
       } else if (
         ["Quote Accepted", "Awaiting Final Confirmation"].includes(i.status)
@@ -276,7 +277,8 @@ export default function AccountInfoTicker() {
           badgeTone: "emerald",
           icon: CalendarCheck,
           text: `Your quotation for ${title} is accepted and pending final confirmation.`,
-          link: `/customer/inquiries/${i._id}`,
+          link: "/customer/inquiries/details",
+          inquiryId: i._id,
         });
       } else if (i.status === "Revision Requested") {
         items.push({
@@ -286,7 +288,8 @@ export default function AccountInfoTicker() {
           badgeTone: "amber",
           icon: Clock,
           text: `Revision in progress for your ${title} quotation.`,
-          link: `/customer/inquiries/${i._id}`,
+          link: "/customer/inquiries/details",
+          inquiryId: i._id,
         });
       } else {
         // Pending Review / Under Review
@@ -299,7 +302,8 @@ export default function AccountInfoTicker() {
           text: dateStr
             ? `Your ${title} inquiry is scheduled for ${dateStr}.`
             : `Your ${title} inquiry is currently under review by our catering team.`,
-          link: `/customer/inquiries/${i._id}`,
+          link: "/customer/inquiries/details",
+          inquiryId: i._id,
         });
       }
     });
@@ -365,6 +369,9 @@ export default function AccountInfoTicker() {
         if (!item.link) return;
         if (item.link.startsWith("/customer/book")) {
           checkOverdueAndProceed(() => navigate(item.link));
+        } else if (item.inquiryId) {
+          sessionStorage.setItem("current_inquiry_id", item.inquiryId);
+          navigate(item.link, { state: { id: item.inquiryId } });
         } else {
           navigate(item.link);
         }

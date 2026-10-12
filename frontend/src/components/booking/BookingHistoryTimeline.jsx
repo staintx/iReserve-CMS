@@ -105,19 +105,20 @@ export default function BookingHistoryTimeline({ booking, payments = [] }) {
       });
     });
 
-    if (booking.cancellation_request?.requested_at || booking.cancellation_request?.status) {
-      const cr = booking.cancellation_request;
+    if (booking.cancellation_request?.requested_at || booking.cancellation_request?.status || booking.refund_denied) {
+      const cr = booking.cancellation_request || {};
+      const isDeclined = ["rejected", "denied"].includes(cr.status) || booking.refund_denied;
       list.push({
-        at: cr.requested_at || cr.updatedAt || booking.updatedAt,
+        at: cr.requested_at || booking.refund_denied_at || cr.updatedAt || booking.updatedAt,
         icon: AlertCircle,
-        tone: cr.status === "approved" ? "danger" : cr.status === "rejected" ? "neutral" : "warning",
+        tone: cr.status === "approved" ? "danger" : isDeclined ? "neutral" : "warning",
         title:
           cr.status === "approved"
             ? "Cancellation request approved"
-            : cr.status === "rejected"
-              ? "Cancellation request declined"
+            : isDeclined
+              ? "Refund / cancellation request declined"
               : "Cancellation request submitted",
-        detail: cr.reason || cr.admin_notes || null,
+        detail: isDeclined ? (booking.refund_denial_reason || cr.admin_notes || cr.reason || null) : (cr.reason || null),
       });
     }
 

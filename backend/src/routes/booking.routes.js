@@ -37,6 +37,7 @@ router.get("/me/overdue", protect, ctrl.getOverdueMine);
 router.get("/:id", protect, ctrl.getById);
 router.put("/:id", protect, authorize("admin", "manager", "staff"), ctrl.update);
 router.post("/:id/refund", protect, authorize("admin"), ctrl.processRefund);
+router.post("/:id/refund/deny", protect, authorize("admin"), ctrl.denyRefund);
 router.delete("/:id", protect, authorize("admin"), ctrl.remove);
 
 module.exports = router;

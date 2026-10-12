@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Bell } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
+import ManagerLayout from "../../components/layout/ManagerLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
 import { NotificationAPI } from "../../api/notifications";
@@ -8,7 +9,7 @@ import { getSocket } from "../../api/socket";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import useAuth from "../../hooks/useAuth";
-import { getNotificationMeta, groupNotificationsByDay } from "../../components/common/notificationMeta";
+import { getNotificationMeta, groupNotificationsByDay, isNotificationRelevantForRole } from "../../components/common/notificationMeta";
 
 const PAGE_SIZE = 20;
 const FILTERS = [
@@ -33,10 +34,16 @@ export default function AdminNotifications() {
       const params = { page, limit: PAGE_SIZE };
       if (filter === "unread") params.unread = "true";
       const { data } = await NotificationAPI.getMine(params);
-      setItems(data.items || []);
-      setTotal(data.total || 0);
+      let list = data.items || [];
+      let countTotal = data.total || 0;
+      let unread = data.unreadCount || 0;
+      if (user?.role === "manager") {
+        list = list.filter((item) => isNotificationRelevantForRole(item, user.role));
+      }
+      setItems(list);
+      setTotal(countTotal);
       setPages(data.pages || 1);
-      setUnreadCount(data.unreadCount || 0);
+      setUnreadCount(unread);
     } catch {
       setItems([]);
       setTotal(0);
@@ -44,7 +51,7 @@ export default function AdminNotifications() {
     } finally {
       setLoading(false);
     }
-  }, [page, filter]);
+  }, [page, filter, user?.role]);
 
   useEffect(() => {
     load();
@@ -122,8 +129,10 @@ export default function AdminNotifications() {
   const endEntry = Math.min(page * PAGE_SIZE, total);
   const groups = groupNotificationsByDay(items);
 
+  const Layout = user?.role === "manager" ? ManagerLayout : AdminLayout;
+
   return (
-    <AdminLayout>
+    <Layout>
       <div className="space-y-4 bg-background min-h-screen">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
@@ -233,6 +242,6 @@ export default function AdminNotifications() {
           )}
         </AdminCard>
       </div>
-    </AdminLayout>
+    </Layout>
   );
 }

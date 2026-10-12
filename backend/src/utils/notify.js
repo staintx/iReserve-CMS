@@ -70,7 +70,7 @@ const getCachedAdmins = async () => {
   if (_adminCache && now - _adminCacheTime < ADMIN_CACHE_TTL) {
     return _adminCache;
   }
-  _adminCache = await User.find({ role: { $in: ["admin", "manager"] } }).lean();
+  _adminCache = await User.find({ role: "admin" }).lean();
   _adminCacheTime = now;
   return _adminCache;
 };

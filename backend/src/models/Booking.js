@@ -226,7 +226,7 @@ const BookingSchema = new mongoose.Schema(
     cancellation_request: {
       status: {
         type: String,
-        enum: ["none", "pending", "approved", "rejected"],
+        enum: ["none", "pending", "approved", "rejected", "denied"],
         default: "none",
       },
       reason: { type: String, default: "" },
@@ -235,6 +235,9 @@ const BookingSchema = new mongoose.Schema(
       admin_notes: { type: String, default: "" },
     },
     cancellation_reason: { type: String, default: "" },
+    refund_denied: { type: Boolean, default: false },
+    refund_denial_reason: { type: String, default: "" },
+    refund_denied_at: Date,
 
     is_revised: { type: Boolean, default: false },
     revision_count: { type: Number, default: 0 },

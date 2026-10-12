@@ -1249,13 +1249,13 @@ export default function AdminBookingDetails() {
             </div>
           )}
 
-          {/* Previous Cancellation Request Declined Banner */}
-          {booking.cancellation_request?.status === "rejected" && !["cancelled", "completed"].includes(rawStatus) && (
+          {/* Previous Cancellation / Refund Request Declined Banner */}
+          {(booking.refund_denied || ["rejected", "denied"].includes(booking.cancellation_request?.status)) && (
             <div className="bg-amber-50/90 border border-amber-200 rounded-lg p-2.5 sm:p-3 flex items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span className="text-amber-900">
-                  Previous customer cancellation request was <strong>declined</strong>: {booking.cancellation_request.admin_notes}
+                  Customer refund / cancellation request was <strong>denied</strong>: {booking.refund_denial_reason || booking.cancellation_request?.admin_notes || "Denied"}
                 </span>
               </div>
             </div>

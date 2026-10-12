@@ -8,9 +8,9 @@ import ConvertBookingModal from "../../components/admin/quotation/ConvertBooking
 import {
   User, Mail, Phone, Calendar, Clock, MapPin,
   DollarSign, Info, ArrowLeft, CheckCircle2,
-  FileText, Activity, Utensils, Send, RefreshCw, Ruler,
+  FileText, FilePlus, ListChecks, Utensils, Send, RefreshCw, Ruler,
   Package as PackageIcon, Users, AlertTriangle, Layers,
-  Truck, Check, ShieldAlert, HeartPulse, ChevronDown,
+  Truck, Check, ShieldAlert, ChevronDown,
   ChevronUp, Palette, Sparkles, Printer, ExternalLink, Image as ImageIcon, X
 } from "lucide-react";
 import InvoiceModal from "../../components/common/invoice/InvoiceModal";
@@ -455,6 +455,12 @@ export default function AdminQuoteDetails() {
           ? "Confirm & Convert"
           : "Prepare Quotation";
 
+  const PrimaryActionIcon = isAccepted
+    ? CheckCircle2
+    : isRevisionRequested
+      ? RefreshCw
+      : FilePlus;
+
   // Customer details with robust fallback to customer_id
   const customerName = (quote.contact_first_name || quote.contact_last_name)
     ? `${quote.contact_first_name || ""} ${quote.contact_last_name || ""}`.trim()
@@ -534,7 +540,7 @@ export default function AdminQuoteDetails() {
                 }}
                 className="px-3.5 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-md shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               >
-                <Activity size={13} />
+                <PrimaryActionIcon size={13} />
                 <span>{primaryActionLabel}</span>
               </button>
             )}
@@ -584,7 +590,7 @@ export default function AdminQuoteDetails() {
                     }
                   }}
                 >
-                  <Activity size={14} className="text-primary-400" />
+                  <PrimaryActionIcon size={14} className="text-primary-400" />
                   <span>{primaryActionLabel}</span>
                 </button>
               )}
@@ -1691,7 +1697,7 @@ export default function AdminQuoteDetails() {
               <div className="bg-slate-900 rounded-lg p-5 text-white shadow-sm border border-slate-800 space-y-4">
                 <div>
                   <h3 className="font-bold text-xs uppercase tracking-wider text-slate-300 mb-1 flex items-center gap-1.5">
-                    <Activity size={13} className="text-primary-400" /> Next Steps
+                    <ListChecks size={14} className="text-primary-400" /> Next Steps
                   </h3>
                   <p className="text-[11.5px] text-slate-400 leading-normal">
                     Review request and prepare quotation.
@@ -1759,7 +1765,7 @@ export default function AdminQuoteDetails() {
                     }}
                     className="w-full mt-2 py-2 px-3 bg-primary hover:bg-primary-hover active:scale-[0.99] text-white text-xs font-semibold rounded-md shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <Activity size={13} />
+                    <PrimaryActionIcon size={13} />
                     <span>{primaryActionLabel}</span>
                   </button>
                 )}

@@ -201,16 +201,13 @@ export const getEventTimingStatus = (booking) => {
     0
   );
 
-  const durationHours = Number(booking.duration_hours) || 4;
-  const endDateTime = new Date(startDateTime.getTime() + durationHours * 60 * 60 * 1000);
   const now = new Date();
-
   const isStarted = now >= startDateTime;
-  const isFinished = now >= endDateTime;
-  const isUpcoming = !isStarted;
+  const isFinished = isCompleted;
+  const isUpcoming = !isStarted && !isCompleted;
 
   let label = "Upcoming Shift";
-  if (isFinished) {
+  if (isCompleted) {
     label = "Event Concluded";
   } else if (isStarted) {
     label = "Event In Progress";
@@ -222,7 +219,6 @@ export const getEventTimingStatus = (booking) => {
     isCompleted,
     isUpcoming,
     startDateTime,
-    endDateTime,
     label
   };
 };

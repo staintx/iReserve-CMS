@@ -228,7 +228,7 @@ export default function BookingWizard() {
       custom_setup_notes: "",
       event_date: normalizeDate(prefill.event_date) || "",
       start_time: normalizeStartTime(prefill.start_time) || "",
-      duration_hours: "4",
+      duration_hours: "",
       guest_count: prefill.guest_count ? String(prefill.guest_count) : (initialGuestMin ? String(initialGuestMin) : "50"),
       service_type: matchedServiceType || SERVICE_TYPES.FULL_SERVICE,
       include_food: matchedServiceType !== SERVICE_TYPES.SETUP_ONLY,
@@ -880,7 +880,6 @@ export default function BookingWizard() {
     const params = {
       event_date: form.event_date,
       start_time: form.start_time,
-      duration_hours: form.duration_hours,
       // The venue the customer named, never the "Other" sentinel — the server
       // matches this against real venues when it checks the slot.
       venue_type: resolveVenueType({
@@ -931,7 +930,6 @@ export default function BookingWizard() {
   }, [
     form.event_date,
     form.start_time,
-    form.duration_hours,
     form.venue_type,
     form.venue_type_other,
     form.province,
@@ -1617,7 +1615,7 @@ export default function BookingWizard() {
       // the customer's own words collapse back into the words themselves.
       venue_type: resolveVenueType(form),
       guest_count: parseNumber(form.guest_count) || 1,
-      duration_hours: parseNumber(form.duration_hours) || 4,
+      duration_hours: parseNumber(form.duration_hours) || undefined,
       // What the customer was shown. The quotation the admin issues stays the
       // authoritative figure — this only records what was on screen.
       estimated_total: estimate.total,

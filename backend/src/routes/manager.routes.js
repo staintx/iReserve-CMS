@@ -15,6 +15,8 @@ router.put("/bookings/:id/assign-staff", protect, authorize("admin"), ctrl.assig
 router.put("/bookings/:id/report", protect, authorize("manager", "admin"), ctrl.submitReport);
 router.put("/bookings/:id/staff-attendance", protect, authorize("manager", "admin"), ctrl.updateStaffAttendance);
 router.put("/bookings/:id/equipment-returns", protect, authorize("manager", "admin"), ctrl.submitEquipmentReturns);
+router.put("/bookings/:id/equipment-checklist", protect, authorize("manager", "admin"), ctrl.updateEquipmentChecklist);
+router.put("/bookings/:id/equipment-notes", protect, authorize("manager", "admin"), ctrl.updateEquipmentNotes);
 router.put("/bookings/:id/notes", protect, authorize("manager", "admin"), ctrl.addNote);
 router.put("/bookings/:id/equipment", protect, authorize("manager", "admin"), ctrl.updateEquipment);
 router.put("/bookings/:id/verify-equipment", protect, authorize("manager", "admin"), ctrl.verifyEquipment);

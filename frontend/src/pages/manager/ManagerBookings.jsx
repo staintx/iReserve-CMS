@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useLocation, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ManagerAPI } from "../../api/manager";
 import ManagerLayout from "../../components/layout/ManagerLayout";
 import PageHeader from "../../components/admin/ui/PageHeader";
 import Badge from "../../components/admin/ui/Badge";
-import ManagerEventDetailsModal from "../../components/manager/ManagerEventDetailsModal";
 import useToast from "../../hooks/useToast";
 import {
   Calendar as CalendarIcon,
@@ -16,14 +15,15 @@ import {
   Eye,
   ShieldCheck
 } from "lucide-react";
-import { 
-  getEventTimingStatus, 
-  getBookingVenueLocation, 
-  formatEventStartTime 
+import {
+  getEventTimingStatus,
+  getBookingVenueLocation,
+  formatEventStartTime
 } from "../../utils/format";
 
 export default function ManagerBookings() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { notify } = useToast();
 
@@ -34,9 +34,6 @@ export default function ManagerBookings() {
   const [upcomingBookings, setUpcomingBookings] = useState([]);
   const [completedBookings, setCompletedBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Active detail modal
-  const [selectedBooking, setSelectedBooking] = useState(null);
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -65,30 +62,15 @@ export default function ManagerBookings() {
     loadBookings();
   }, []);
 
-  // Handle URL query params (e.g. ?booking_id=123 to open modal)
+  // Handle URL query params (e.g. ?booking_id=123 to open details page)
   useEffect(() => {
     const bookingId = searchParams.get("booking_id") || location.state?.booking_id;
     if (bookingId) {
-      openDetail(bookingId);
+      navigate(`/manager/events/${bookingId}`, {
+        state: { fromTab: activeTab, fromSearch: searchQuery }
+      });
     }
   }, [searchParams, location.state]);
-
-  const openDetail = async (id) => {
-    try {
-      const res = await ManagerAPI.getBooking(id);
-      setSelectedBooking(res.data);
-    } catch {
-      notify("Failed to load booking details.", "error");
-    }
-  };
-
-  const closeDetail = () => {
-    setSelectedBooking(null);
-    const params = new URLSearchParams(searchParams);
-    params.delete("booking_id");
-    params.delete("action");
-    setSearchParams(params, { replace: true });
-  };
 
   const currentList = activeTab === "completed" ? completedBookings : upcomingBookings;
 
@@ -118,17 +100,15 @@ export default function ManagerBookings() {
             <button
               type="button"
               onClick={() => handleTabChange("upcoming")}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === "upcoming"
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === "upcoming"
                   ? "bg-white text-slate-900 shadow-2xs"
                   : "text-slate-600 hover:text-slate-900"
-              }`}
+                }`}
             >
               <CalendarIcon size={14} className={activeTab === "upcoming" ? "text-[#4C81E0]" : "text-slate-400"} />
               <span>Upcoming Events</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[10.5px] font-bold ${
-                activeTab === "upcoming" ? "bg-blue-100 text-[#4C81E0]" : "bg-slate-200 text-slate-600"
-              }`}>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10.5px] font-bold ${activeTab === "upcoming" ? "bg-blue-100 text-[#4C81E0]" : "bg-slate-200 text-slate-600"
+                }`}>
                 {upcomingBookings.length}
               </span>
             </button>
@@ -136,17 +116,15 @@ export default function ManagerBookings() {
             <button
               type="button"
               onClick={() => handleTabChange("completed")}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === "completed"
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === "completed"
                   ? "bg-white text-slate-900 shadow-2xs"
                   : "text-slate-600 hover:text-slate-900"
-              }`}
+                }`}
             >
               <CheckCircle2 size={14} className={activeTab === "completed" ? "text-emerald-600" : "text-slate-400"} />
               <span>Completed</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[10.5px] font-bold ${
-                activeTab === "completed" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"
-              }`}>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10.5px] font-bold ${activeTab === "completed" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"
+                }`}>
                 {completedBookings.length}
               </span>
             </button>
@@ -181,8 +159,8 @@ export default function ManagerBookings() {
                 {searchQuery
                   ? "No assignments matched your search filter."
                   : activeTab === "completed"
-                  ? "You have not completed any event assignments yet."
-                  : "You have no upcoming catering assignments scheduled."}
+                    ? "You have not completed any event assignments yet."
+                    : "You have no upcoming catering assignments scheduled."}
               </p>
             </div>
           </div>
@@ -274,7 +252,11 @@ export default function ManagerBookings() {
 
                     <button
                       type="button"
-                      onClick={() => openDetail(booking._id)}
+                      onClick={() =>
+                        navigate(`/manager/events/${booking._id}`, {
+                          state: { fromTab: activeTab, fromSearch: searchQuery }
+                        })
+                      }
                       className="inline-flex min-h-[38px] items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#4C81E0] text-white text-xs font-bold hover:bg-[#3b6bc4] transition-colors cursor-pointer shadow-2xs shrink-0"
                     >
                       <Eye size={13} />
@@ -285,20 +267,6 @@ export default function ManagerBookings() {
               );
             })}
           </div>
-        )}
-
-        {/* Manager Event Details Modal (Equipment Verification, Attendance, Scope, & Shift Closeout) */}
-        {selectedBooking && (
-          <ManagerEventDetailsModal
-            booking={selectedBooking}
-            open={Boolean(selectedBooking)}
-            onClose={closeDetail}
-            onRefresh={() => openDetail(selectedBooking._id)}
-            onCompleteEvent={() => {
-              closeDetail();
-              loadBookings();
-            }}
-          />
         )}
       </div>
     </ManagerLayout>

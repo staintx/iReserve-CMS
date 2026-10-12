@@ -49,7 +49,6 @@ export const CustomerProfileScreen = ({ navigation }) => {
   const [firstName, setFirstName] = useState(user?.first_name || "");
   const [lastName, setLastName] = useState(user?.last_name || "");
   const [phone, setPhone] = useState(user?.phone || "");
-  const [address, setAddress] = useState(user?.address || "");
   const [saving, setSaving] = useState(false);
 
   // Change Password State
@@ -91,7 +90,6 @@ export const CustomerProfileScreen = ({ navigation }) => {
     setFirstName(user?.first_name || "");
     setLastName(user?.last_name || "");
     setPhone(user?.phone || "");
-    setAddress(user?.address || "");
     setShowEditModal(true);
   };
 
@@ -103,12 +101,15 @@ export const CustomerProfileScreen = ({ navigation }) => {
 
     setSaving(true);
     try {
-      const updated = await authApi.updateProfile({
+      const payload = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         phone: phone.trim(),
-        address: address.trim(),
-      });
+      };
+      if (user?.address) {
+        payload.address = user.address;
+      }
+      const updated = await authApi.updateProfile(payload);
       updateUser(updated);
       setShowEditModal(false);
       Alert.alert("Success", "Your profile details have been updated.");
@@ -367,13 +368,6 @@ export const CustomerProfileScreen = ({ navigation }) => {
                 onChangeText={setPhone}
                 placeholder="e.g. 0917 123 4567"
                 keyboardType="phone-pad"
-              />
-              <AppInput
-                label="Event / Billing Address"
-                value={address}
-                onChangeText={setAddress}
-                placeholder="Enter street, city, province"
-                multiline
               />
 
               <AppButton

@@ -38,8 +38,10 @@ import {
   Wrench,
   XCircle,
   Eye,
-  Plus
+  Plus,
+  RotateCcw
 } from "lucide-react";
+import { parseInclusion } from "../../lib/packageDisplay";
 import {
   formatCurrency,
   formatShortDate,
@@ -50,7 +52,7 @@ import {
   initialsOf
 } from "../../utils/format";
 
-// Dynamic checklist generator combining package setup inclusions, inventory equipment, add-ons and services
+// Dynamic checklist generator combining package setup inclusions and inventory equipment
 function buildDynamicChecklist(booking) {
   if (!booking) return [];
 
@@ -64,39 +66,57 @@ function buildDynamicChecklist(booking) {
 
   const items = [];
 
-  // 1. Package Inclusions (Setup items, reusable furniture/gear)
+  // 1. Package Inclusions (Event Setup inclusions and Package Equipment)
   const inclusions = Array.isArray(booking.package_inclusions) ? booking.package_inclusions : [];
   inclusions.forEach((inc, idx) => {
     const raw = String(inc).trim();
     if (!raw) return;
 
-    let category = "Package Inclusion";
-    let cleanName = raw;
+    const parsed = parseInclusion(raw);
+    if (!parsed) return;
+
+    const nameLower = parsed.name.toLowerCase();
+    const catLower = (parsed.category || "").toLowerCase();
+
+    // Skip crew/staff inclusions
+    if (nameLower === "crew" || catLower === "crew" || catLower === "staff") {
+      return;
+    }
+
+    const isSetup = catLower.includes("setup");
+    const itemCategory = isSetup ? "Event Setup Inclusion" : "Package Equipment";
+
     let qty = undefined;
     let unit = "";
-
-    const tagMatch = raw.match(/^\[(.*?)\]\s*(.*)$/);
-    if (tagMatch) {
-      category = tagMatch[1];
-      cleanName = tagMatch[2];
+    if (!isSetup) {
+      if (parsed.qty) {
+        const numMatch = parsed.qty.match(/\d+/);
+        qty = numMatch ? parseInt(numMatch[0], 10) : 1;
+        const unitMatch = parsed.qty.match(/[a-zA-Z]+/);
+        unit = unitMatch ? unitMatch[0] : "pcs";
+      } else {
+        qty = 1;
+        unit = "pcs";
+      }
     }
 
-    const qtyMatch = cleanName.match(/\((\d+)(?:\s*([a-zA-Z]+))?\)$/);
-    if (qtyMatch) {
-      qty = parseInt(qtyMatch[1], 10);
-      unit = qtyMatch[2] || "pcs";
-      cleanName = cleanName.replace(/\((\d+)(?:\s*([a-zA-Z]+))?\)$/, "").trim();
-    }
-
-    const itemKey = `inclusion_${idx}_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+    const itemKey = `inclusion_${idx}_${parsed.name.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
     const saved = savedMap.get(itemKey);
+
+    // Event Setup items must NEVER display a quantity or dispatched count
+    const finalQuantity = isSetup
+      ? null
+      : (saved?.quantity !== undefined && saved?.quantity !== null ? saved.quantity : qty);
+    const finalUnit = isSetup
+      ? ""
+      : (saved?.unit || unit || "pcs");
 
     items.push({
       item_key: itemKey,
-      name: cleanName,
-      category: category.toLowerCase().includes("setup") ? "Event Setup Inclusion" : "Package Equipment",
-      quantity: saved?.quantity !== undefined ? saved.quantity : (qty !== undefined ? qty : 1),
-      unit: saved?.unit || unit || "pcs",
+      name: parsed.name,
+      category: itemCategory,
+      quantity: finalQuantity,
+      unit: finalUnit,
       is_inspected: saved ? Boolean(saved.is_inspected) : false,
       status: saved?.status || "not_inspected",
       issue_type: saved?.issue_type || "none",
@@ -105,7 +125,7 @@ function buildDynamicChecklist(booking) {
     });
   });
 
-  // 2. Direct Inventory Items
+  // 2. Direct Inventory Items (Package physical equipment)
   const inventoryItems = Array.isArray(booking.inventory_items) ? booking.inventory_items : [];
   inventoryItems.forEach((inv, idx) => {
     const name = inv.name || inv.inventory_id?.name || inv.inventory_id?.item_name || `Equipment Item #${idx + 1}`;
@@ -118,8 +138,8 @@ function buildDynamicChecklist(booking) {
       item_key: itemKey,
       name,
       category: "Inventory Equipment",
-      quantity: saved?.quantity !== undefined ? saved.quantity : (Number(inv.quantity) || 1),
-      unit: saved?.unit || "units",
+      quantity: saved?.quantity !== undefined && saved?.quantity !== null ? saved.quantity : (Number(inv.quantity) || 1),
+      unit: saved?.unit || inv.unit || "units",
       is_inspected: saved ? Boolean(saved.is_inspected) : false,
       status: saved?.status || "not_inspected",
       issue_type: saved?.issue_type || "none",
@@ -128,47 +148,7 @@ function buildDynamicChecklist(booking) {
     });
   });
 
-  // 3. Add-ons & Extra Services
-  const serviceItems = Array.isArray(booking.service_items) ? booking.service_items : [];
-  serviceItems.forEach((srv, idx) => {
-    const name = srv.name || `Add-on #${idx + 1}`;
-    const itemKey = `srv_${srv._id || idx}_${name.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
-    const saved = savedMap.get(itemKey);
-    items.push({
-      item_key: itemKey,
-      name,
-      category: "Add-on / Service",
-      quantity: saved?.quantity !== undefined ? saved.quantity : (srv.quantity !== undefined ? Number(srv.quantity) : undefined),
-      unit: saved?.unit || (srv.quantity !== undefined ? "qty" : undefined),
-      is_inspected: saved ? Boolean(saved.is_inspected) : false,
-      status: saved?.status || "not_inspected",
-      issue_type: saved?.issue_type || "none",
-      notes: saved?.notes || "",
-      completed_at: saved?.completed_at || null,
-    });
-  });
-
-  // 4. Additional Charges / Services
-  const additionalCharges = Array.isArray(booking.additional_charges) ? booking.additional_charges : [];
-  additionalCharges.forEach((chg, idx) => {
-    const name = chg.name || `Additional Charge #${idx + 1}`;
-    const itemKey = `chg_${chg._id || idx}_${name.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
-    if (items.some((it) => it.name.toLowerCase() === name.toLowerCase())) return;
-    const saved = savedMap.get(itemKey);
-    items.push({
-      item_key: itemKey,
-      name,
-      category: "Additional Service",
-      quantity: undefined,
-      unit: undefined,
-      is_inspected: saved ? Boolean(saved.is_inspected) : false,
-      status: saved?.status || "not_inspected",
-      issue_type: saved?.issue_type || "none",
-      notes: saved?.notes || "",
-      completed_at: saved?.completed_at || null,
-    });
-  });
-
+  // Add-ons & Extra Services are excluded from Equipment Check per requirements
   return items;
 }
 
@@ -199,13 +179,13 @@ export default function ManagerEventDetails() {
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [savingAdditionalNotes, setSavingAdditionalNotes] = useState(false);
 
-  // Modal / Inline Editor for Item Notes
-  const [activeItemNoteModal, setActiveItemNoteModal] = useState(null);
-  const [itemNoteForm, setItemNoteForm] = useState({ issue_type: "none", notes: "" });
+  // Inline Issue Reporting State per Item
+  const [openInlineNotes, setOpenInlineNotes] = useState({});
+  const [inlineDrafts, setInlineDrafts] = useState({});
+  const [savingItemKey, setSavingItemKey] = useState(null);
+  const [pendingAction, setPendingAction] = useState({});
 
-  // Shift Incident / Operational Report State
-  const [reportNote, setReportNote] = useState("");
-  const [submittingReport, setSubmittingReport] = useState(false);
+  // Complete Event State
   const [completingEvent, setCompletingEvent] = useState(false);
 
   const loadEvent = async () => {
@@ -307,35 +287,116 @@ export default function ManagerEventDetails() {
   };
 
   // Equipment Checklist Handlers
-  const inspectedItemsCount = checklist.filter((item) => item.is_inspected).length;
+  const inspectedItemsCount = checklist.filter((item) => item.is_inspected && item.status !== "not_inspected").length;
   const totalChecklistCount = checklist.length;
 
-  const handleToggleItemInspected = async (itemKey) => {
+  const handleToggleInlineNote = (itemKey) => {
+    if (isCompleted) return;
+    const targetItem = checklist.find((item) => item.item_key === itemKey);
+    const isOpen = Boolean(openInlineNotes[itemKey]);
+    if (!isOpen && targetItem) {
+      setInlineDrafts((prev) => ({
+        ...prev,
+        [itemKey]: prev[itemKey] !== undefined ? prev[itemKey] : (targetItem.notes || "")
+      }));
+    }
+    setOpenInlineNotes((prev) => ({ ...prev, [itemKey]: !isOpen }));
+  };
+
+  const handleCancelInlineNote = (itemKey) => {
+    const targetItem = checklist.find((item) => item.item_key === itemKey);
+    setInlineDrafts((prev) => ({
+      ...prev,
+      [itemKey]: targetItem?.notes || ""
+    }));
+    setPendingAction((prev) => ({
+      ...prev,
+      [itemKey]: null
+    }));
+    setOpenInlineNotes((prev) => ({
+      ...prev,
+      [itemKey]: false
+    }));
+  };
+
+  const handleOpenIncomplete = (itemKey) => {
     if (isCompleted) {
       notify("Completed bookings are read-only.", "info");
       return;
     }
-
     const targetItem = checklist.find((item) => item.item_key === itemKey);
     if (!targetItem) return;
 
-    const nextInspected = !targetItem.is_inspected;
-    const nextStatus = nextInspected
-      ? (targetItem.notes ? "issue_reported" : "inspected_ok")
-      : "not_inspected";
+    // Set pending action to incomplete and open inline note field
+    setPendingAction((prev) => ({
+      ...prev,
+      [itemKey]: "incomplete"
+    }));
+    setOpenInlineNotes((prev) => ({
+      ...prev,
+      [itemKey]: true
+    }));
+    setInlineDrafts((prev) => ({
+      ...prev,
+      [itemKey]: prev[itemKey] !== undefined ? prev[itemKey] : (targetItem.notes || "")
+    }));
+    notify("Please enter an issue description in the notes field and click Save to confirm Incomplete status.", "info");
+  };
 
+  const handleSaveInlineNotes = async (itemKey) => {
+    if (isCompleted) {
+      notify("Completed bookings are read-only.", "info");
+      return;
+    }
+    const targetItem = checklist.find((item) => item.item_key === itemKey);
+    if (!targetItem) return;
+
+    const currentDraft = inlineDrafts[itemKey] !== undefined ? inlineDrafts[itemKey] : (targetItem.notes || "");
+    const noteText = currentDraft.trim();
+
+    const isMarkingIncomplete = pendingAction[itemKey] === "incomplete" || targetItem.status === "incomplete";
+
+    if (isMarkingIncomplete && !noteText) {
+      notify("Please enter a description in the Issue Reported field before confirming Incomplete status.", "warning");
+      setOpenInlineNotes((prev) => ({ ...prev, [itemKey]: true }));
+      return;
+    }
+
+    // Determine target status
+    let nextStatus = targetItem.status;
+    let nextIsInspected = targetItem.is_inspected;
+    let nextIssueType = targetItem.issue_type || "none";
+
+    if (isMarkingIncomplete) {
+      nextStatus = "incomplete";
+      nextIsInspected = true;
+      nextIssueType = "damaged";
+    } else if (targetItem.status === "inspected_ok") {
+      // Completed item saving optional notes: status stays inspected_ok
+      nextStatus = "inspected_ok";
+      nextIsInspected = true;
+      nextIssueType = "none";
+    } else {
+      // Item not inspected yet: saving notes without changing inspection status
+      nextStatus = "not_inspected";
+      nextIsInspected = false;
+      nextIssueType = "none";
+    }
+
+    setSavingItemKey(itemKey);
     const updatedChecklist = checklist.map((item) => {
       if (item.item_key === itemKey) {
         return {
           ...item,
-          is_inspected: nextInspected,
+          is_inspected: nextIsInspected,
           status: nextStatus,
-          completed_at: nextInspected ? (item.completed_at || new Date()) : null
+          issue_type: nextIssueType,
+          notes: noteText,
+          completed_at: nextIsInspected ? (item.completed_at || new Date()) : null
         };
       }
       return item;
     });
-
     setChecklist(updatedChecklist);
 
     try {
@@ -346,16 +407,31 @@ export default function ManagerEventDetails() {
           category: targetItem.category,
           quantity: targetItem.quantity,
           unit: targetItem.unit,
-          is_inspected: nextInspected,
+          is_inspected: nextIsInspected,
           status: nextStatus,
-          issue_type: targetItem.issue_type,
-          notes: targetItem.notes,
-          is_complete: nextInspected
+          issue_type: nextIssueType,
+          notes: noteText,
+          is_complete: true
         }
       });
+
+      // Clear pending action and close inline editor
+      setPendingAction((prev) => ({ ...prev, [itemKey]: null }));
+      setOpenInlineNotes((prev) => ({ ...prev, [itemKey]: false }));
+
+      if (nextStatus === "incomplete") {
+        notify(`Issue report saved for "${targetItem.name}". Marked as Incomplete.`, "success");
+      } else if (nextStatus === "inspected_ok") {
+        notify(`Notes saved for "${targetItem.name}". Item remains Complete.`, "success");
+      } else {
+        notify(`Notes saved for "${targetItem.name}".`, "success");
+      }
     } catch (err) {
       console.error("Checklist update error:", err);
-      notify("Failed to save inspection state.", "error");
+      notify(err.response?.data?.message || "Failed to save equipment notes.", "error");
+      loadEvent();
+    } finally {
+      setSavingItemKey(null);
     }
   };
 
@@ -364,24 +440,26 @@ export default function ManagerEventDetails() {
       notify("Completed bookings are read-only.", "info");
       return;
     }
-
     const targetItem = checklist.find((item) => item.item_key === itemKey);
     if (!targetItem) return;
 
-    const nextStatus = targetItem.notes ? "issue_reported" : "inspected_ok";
+    setSavingItemKey(itemKey);
     const updatedChecklist = checklist.map((item) => {
       if (item.item_key === itemKey) {
         return {
           ...item,
           is_inspected: true,
-          status: nextStatus,
+          status: "inspected_ok",
+          issue_type: "none",
+          notes: targetItem.notes || "",
           completed_at: new Date()
         };
       }
       return item;
     });
-
     setChecklist(updatedChecklist);
+    setPendingAction((prev) => ({ ...prev, [itemKey]: null }));
+    setOpenInlineNotes((prev) => ({ ...prev, [itemKey]: false }));
 
     try {
       await ManagerAPI.updateEquipmentChecklist(booking._id, {
@@ -392,70 +470,84 @@ export default function ManagerEventDetails() {
           quantity: targetItem.quantity,
           unit: targetItem.unit,
           is_inspected: true,
-          status: nextStatus,
-          issue_type: targetItem.issue_type,
-          notes: targetItem.notes,
+          status: "inspected_ok",
+          issue_type: "none",
+          notes: targetItem.notes || "",
           is_complete: true
         }
       });
-      notify(`Inspection completed for "${targetItem.name}".`, "success");
+      notify(`Marked "${targetItem.name}" as Complete.`, "success");
     } catch (err) {
       console.error("Error completing item inspection:", err);
-      notify("Failed to mark inspection as completed.", "error");
+      notify(err.response?.data?.message || "Failed to mark inspection as completed.", "error");
+      loadEvent();
+    } finally {
+      setSavingItemKey(null);
     }
   };
 
-  const openItemNotesModal = (item) => {
-    setActiveItemNoteModal(item);
-    setItemNoteForm({
-      issue_type: item.issue_type && item.issue_type !== "none" ? item.issue_type : "damaged",
-      notes: item.notes || ""
+  const handleChangeStatus = async (itemKey) => {
+    if (isCompleted) {
+      notify("Completed bookings are read-only.", "info");
+      return;
+    }
+    const targetItem = checklist.find((item) => item.item_key === itemKey);
+    if (!targetItem) return;
+
+    const currentStatusLabel = targetItem.status === "incomplete" ? "Incomplete" : "Complete";
+    const ok = await confirm({
+      title: "Change Inspection Status?",
+      message: `Reset "${targetItem.name}" from ${currentStatusLabel} back to Not Inspected? You will be able to re-inspect this item as Complete or Incomplete. Any existing notes will be preserved.`,
+      confirmText: "Yes, Change Status",
+      tone: "warning"
     });
-  };
+    if (!ok) return;
 
-  const handleSaveItemNotes = async () => {
-    if (!activeItemNoteModal) return;
-
-    const itemKey = activeItemNoteModal.item_key;
-    const hasNotes = Boolean(itemNoteForm.notes.trim());
-    const issueType = hasNotes ? (itemNoteForm.issue_type || "damaged") : "none";
-    const nextStatus = hasNotes ? "issue_reported" : (activeItemNoteModal.is_inspected ? "inspected_ok" : "not_inspected");
-
-    const updatedChecklist = checklist.map((item) => {
-      if (item.item_key === itemKey) {
-        return {
-          ...item,
-          is_inspected: true,
-          status: nextStatus,
-          issue_type: issueType,
-          notes: itemNoteForm.notes.trim()
-        };
-      }
-      return item;
-    });
-
-    setChecklist(updatedChecklist);
-    setActiveItemNoteModal(null);
-
+    setSavingItemKey(itemKey);
     try {
       await ManagerAPI.updateEquipmentChecklist(booking._id, {
         item: {
           item_key: itemKey,
-          name: activeItemNoteModal.name,
-          category: activeItemNoteModal.category,
-          quantity: activeItemNoteModal.quantity,
-          unit: activeItemNoteModal.unit,
-          is_inspected: true,
-          status: nextStatus,
-          issue_type: issueType,
-          notes: itemNoteForm.notes.trim(),
+          name: targetItem.name,
+          category: targetItem.category,
+          quantity: targetItem.quantity,
+          unit: targetItem.unit,
+          is_inspected: false,
+          status: "not_inspected",
+          issue_type: "none",
+          notes: targetItem.notes || "",
           is_complete: true
         }
       });
-      notify("Item observations saved successfully.", "success");
+
+      const updatedChecklist = checklist.map((item) => {
+        if (item.item_key === itemKey) {
+          return {
+            ...item,
+            is_inspected: false,
+            status: "not_inspected",
+            issue_type: "none",
+            completed_at: null
+            // targetItem.notes is preserved!
+          };
+        }
+        return item;
+      });
+      setChecklist(updatedChecklist);
+      // Preserve notes in drafts so when Incomplete is clicked, notes are still there
+      setInlineDrafts((prev) => ({
+        ...prev,
+        [itemKey]: targetItem.notes || ""
+      }));
+      setPendingAction((prev) => ({ ...prev, [itemKey]: null }));
+      setOpenInlineNotes((prev) => ({ ...prev, [itemKey]: false }));
+      notify(`Reset "${targetItem.name}" to Not Inspected.`, "success");
     } catch (err) {
-      console.error("Error saving item observations:", err);
-      notify("Failed to save item notes.", "error");
+      console.error("Error resetting inspection status:", err);
+      notify(err.response?.data?.message || "Failed to reset inspection status.", "error");
+      loadEvent();
+    } finally {
+      setSavingItemKey(null);
     }
   };
 
@@ -476,31 +568,38 @@ export default function ManagerEventDetails() {
     }
   };
 
-  // Operational Closeout / Shift Incident Report
-  const handleSubmitShiftReport = async (e) => {
-    e.preventDefault();
-    if (!reportNote.trim()) {
-      notify("Please enter an incident note or operational report.", "warning");
+  const handleCompleteEvent = async () => {
+    // 1. Validation: check for uninspected items
+    const uninspected = checklist.filter((item) => !item.is_inspected || item.status === "not_inspected");
+    if (uninspected.length > 0) {
+      notify(`Please inspect all equipment items before completing this event. (${uninspected.length} items remaining)`, "warning");
+      setIsEquipmentOpen(true);
       return;
     }
-    setSubmittingReport(true);
-    try {
-      await ManagerAPI.submitReport(booking._id, {
-        note: reportNote.trim(),
-        role: "Lead Event Coordinator"
-      });
-      setReportNote("");
-      notify("Operational report submitted successfully.", "success");
-      loadEvent();
-    } catch (err) {
-      console.error("Shift report error:", err);
-      notify("Failed to submit shift report.", "error");
-    } finally {
-      setSubmittingReport(false);
-    }
-  };
 
-  const handleCompleteEvent = async () => {
+    // 2. Validation: check for incomplete items with empty notes
+    const invalidIncomplete = checklist.filter(
+      (item) => (item.status === "incomplete" || item.status === "issue_reported") && (!item.notes || !item.notes.trim())
+    );
+    if (invalidIncomplete.length > 0) {
+      const names = invalidIncomplete.map((i) => i.name).join(", ");
+      notify(`Incomplete equipment items must have a saved issue report note before completing this event (${names}).`, "warning");
+      setIsEquipmentOpen(true);
+      return;
+    }
+
+    // 3. Validation: check for unsaved drafts in open inline fields
+    const unsavedItem = checklist.find((item) => {
+      const draft = (inlineDrafts[item.item_key] || "").trim();
+      const saved = (item.notes || "").trim();
+      return openInlineNotes[item.item_key] && draft && draft !== saved;
+    });
+    if (unsavedItem) {
+      notify(`You have unsaved issue notes for "${unsavedItem.name}". Please save or cancel the notes before completing the event.`, "warning");
+      setIsEquipmentOpen(true);
+      return;
+    }
+
     const ok = await confirm({
       title: "Complete Event Operations?",
       message: "This will finalize all operational shift reports and mark the booking completed. Completed bookings become read-only.",
@@ -1182,7 +1281,7 @@ export default function ManagerEventDetails() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500">
-                    Inspect event inclusions, equipment, and add-ons. Report missing or damaged gear for admin review.
+                    Inspect event inclusions and package equipment. Report missing or damaged gear for admin review.
                   </p>
                 </div>
               </div>
@@ -1201,19 +1300,19 @@ export default function ManagerEventDetails() {
               <div className="pt-2 space-y-4">
                 {checklist.length === 0 ? (
                   <div className="p-6 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-500 bg-slate-50/50 space-y-1">
-                    <p className="font-semibold text-slate-700">No equipment items or services to inspect</p>
-                    <p className="text-slate-400">This event does not contain physical equipment, setup inclusions, or add-ons.</p>
+                    <p className="font-semibold text-slate-700">No equipment items to inspect</p>
+                    <p className="text-slate-400">This event does not contain physical equipment or setup inclusions.</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
                     {checklist.map((item) => {
-                      const isInspected = item.is_inspected;
-                      const hasIssue = item.status === "issue_reported" || Boolean(item.notes);
+                      const isInspected = item.is_inspected && item.status !== "not_inspected";
+                      const hasIssue = item.status === "incomplete" || item.status === "issue_reported";
 
                       return (
                         <div
                           key={item.item_key}
-                          className={`p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+                          className={`p-3.5 transition-colors ${
                             hasIssue
                               ? "bg-rose-50/30"
                               : isInspected
@@ -1221,103 +1320,228 @@ export default function ManagerEventDetails() {
                               : "hover:bg-slate-50/60"
                           }`}
                         >
-                          <div className="flex items-start gap-3 min-w-0">
-                            {/* Individual Inspection Checkbox */}
-                            <label className="flex items-center cursor-pointer pt-0.5">
-                              <input
-                                type="checkbox"
-                                checked={isInspected}
-                                disabled={isCompleted}
-                                onChange={() => handleToggleItemInspected(item.item_key)}
-                                className="w-4 h-4 rounded text-[#4C81E0] focus:ring-[#4C81E0] border-slate-300 cursor-pointer disabled:opacity-50"
-                              />
-                            </label>
-
-                            <div className="space-y-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-xs sm:text-sm text-slate-900 leading-snug">
-                                  {item.name}
-                                </span>
-                                {item.category && (
-                                  <span className="px-2 py-0.5 rounded text-[10.5px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-                                    {item.category}
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
-                                {item.quantity !== undefined ? (
-                                  <span>
-                                    Dispatched: <strong className="text-slate-800">{item.quantity} {item.unit || "units"}</strong>
-                                  </span>
-                                ) : (
-                                  <span className="italic text-slate-400">Included Service</span>
-                                )}
-
-                                {/* Status Badge */}
-                                {hasIssue ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                                    <AlertTriangle size={11} /> Issue Reported: {item.issue_type || "Observation"}
-                                  </span>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-start gap-3 min-w-0">
+                              {/* Non-Interactive Inspection Check Icon Indicator */}
+                              <div className="shrink-0 pt-0.5">
+                                {isInspected && hasIssue ? (
+                                  <div
+                                    className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-2xs"
+                                    title="Inspected – Issue Reported"
+                                    aria-label="Inspected with issue"
+                                  >
+                                    <Check size={12} strokeWidth={3} />
+                                  </div>
                                 ) : isInspected ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                    <Check size={11} /> Inspected (Good Condition)
-                                  </span>
+                                  <div
+                                    className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-2xs"
+                                    title="Inspected (Good Condition)"
+                                    aria-label="Inspected in good condition"
+                                  >
+                                    <Check size={12} strokeWidth={3} />
+                                  </div>
                                 ) : (
-                                  <span className="px-2 py-0.5 rounded text-[10.5px] font-medium bg-slate-100 text-slate-500">
-                                    Not Inspected
-                                  </span>
+                                  <div
+                                    className="w-5 h-5 rounded-full border-2 border-slate-300 bg-slate-50"
+                                    title="Not Inspected"
+                                    aria-label="Not inspected"
+                                  />
                                 )}
                               </div>
 
-                              {/* Item Note Snippet if present */}
-                              {item.notes && (
-                                <div className="text-[11px] text-slate-700 bg-white p-2 rounded-lg border border-slate-200/80 mt-1 flex items-start gap-1.5">
-                                  <MessageSquare size={12} className="text-rose-600 shrink-0 mt-0.5" />
-                                  <span><strong className="text-rose-800 font-semibold">Note:</strong> {item.notes}</span>
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-xs sm:text-sm text-slate-900 leading-snug">
+                                    {item.name}
+                                  </span>
+                                  {item.category && (
+                                    <span className="px-2 py-0.5 rounded text-[10.5px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                      {item.category}
+                                    </span>
+                                  )}
                                 </div>
+
+                                <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                                  {/* Physical equipment displays quantity; Event Setup inclusions do NOT */}
+                                  {item.quantity !== null && item.quantity !== undefined && (
+                                    <span>
+                                      Dispatched: <strong className="text-slate-800">{item.quantity} {item.unit || "pcs"}</strong>
+                                    </span>
+                                  )}
+
+                                  {/* Status Badge */}
+                                  {hasIssue ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                      <AlertTriangle size={11} /> Incomplete – Issue Reported
+                                    </span>
+                                  ) : isInspected ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                      <Check size={11} /> Inspected (Good Condition)
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded text-[10.5px] font-medium bg-slate-100 text-slate-500">
+                                      Not Inspected
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Display saved notes snippet when inline editor is collapsed */}
+                                {item.notes && !openInlineNotes[item.item_key] && (
+                                  hasIssue ? (
+                                    <div className="text-[11px] text-slate-700 bg-rose-50/70 p-2 rounded-lg border border-rose-200/70 mt-1 flex items-start gap-1.5">
+                                      <AlertTriangle size={12} className="text-rose-600 shrink-0 mt-0.5" />
+                                      <div>
+                                        <strong className="text-rose-800 font-semibold">Issue Reported: </strong>
+                                        <span>{item.notes}</span>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="text-[11px] text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-200 mt-1 flex items-start gap-1.5">
+                                      <FileText size={12} className="text-slate-500 shrink-0 mt-0.5" />
+                                      <div>
+                                        <strong className="text-slate-700 font-semibold">Note: </strong>
+                                        <span>{item.notes}</span>
+                                      </div>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Action Buttons: Mutually Exclusive */}
+                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                              {/* Add / Edit Notes */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleInlineNote(item.item_key)}
+                                disabled={isCompleted}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                <MessageSquare size={12} />
+                                <span>{item.notes ? "Edit Notes" : "Add Notes"}</span>
+                              </button>
+
+                              {isInspected ? (
+                                /* When item is Inspected (Complete or Incomplete): Hide Incomplete & Complete, show Change Status */
+                                <button
+                                  type="button"
+                                  onClick={() => handleChangeStatus(item.item_key)}
+                                  disabled={isCompleted || savingItemKey === item.item_key}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-300 hover:bg-amber-50 text-amber-800 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+                                  title="Change or undo inspection status"
+                                >
+                                  <RotateCcw size={12} />
+                                  <span>Change Status</span>
+                                </button>
+                              ) : (
+                                /* When item is Not Inspected: Show both Incomplete and Complete */
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenIncomplete(item.item_key)}
+                                    disabled={isCompleted || savingItemKey === item.item_key}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border border-rose-200 hover:bg-rose-50 text-rose-700 transition-colors cursor-pointer disabled:opacity-50"
+                                  >
+                                    <AlertTriangle size={12} />
+                                    <span>Incomplete</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCompleteItem(item.item_key)}
+                                    disabled={isCompleted || savingItemKey === item.item_key}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#4C81E0] hover:bg-[#3b6bc4] text-white shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+                                  >
+                                    <Check size={12} />
+                                    <span>Complete</span>
+                                  </button>
+                                </>
                               )}
                             </div>
                           </div>
 
-                          {/* Action Buttons for this item */}
-                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                            <button
-                              type="button"
-                              onClick={() => openItemNotesModal(item)}
-                              disabled={isCompleted}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition-colors cursor-pointer disabled:opacity-50"
-                            >
-                              <MessageSquare size={12} />
-                              <span>{item.notes ? "Edit Notes" : "Add Notes"}</span>
-                            </button>
+                          {/* Inline Notes Field */}
+                          {openInlineNotes[item.item_key] && (
+                            <div className="mt-3 pt-3 border-t border-slate-200/80 space-y-2 animate-in fade-in duration-150">
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                  {(pendingAction[item.item_key] === "incomplete" || item.status === "incomplete") ? (
+                                    <>
+                                      <AlertTriangle size={13} className="text-amber-600" />
+                                      <span>Issue Reported</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FileText size={13} className="text-blue-600" />
+                                      <span>Inspection Notes</span>
+                                    </>
+                                  )}
+                                </label>
+                                <span className="text-[11px] text-slate-500 font-medium">
+                                  {(pendingAction[item.item_key] === "incomplete" || item.status === "incomplete")
+                                    ? "Required to mark item Incomplete"
+                                    : "Optional notes for this item"}
+                                </span>
+                              </div>
 
-                            <button
-                              type="button"
-                              onClick={() => handleCompleteItem(item.item_key)}
-                              disabled={isCompleted || (isInspected && !hasIssue)}
-                              className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 ${
-                                isInspected && !hasIssue
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
-                                  : "bg-[#4C81E0] hover:bg-[#3b6bc4] text-white shadow-2xs"
-                              }`}
-                            >
-                              <Check size={12} />
-                              <span>{isInspected ? "Completed" : "Complete"}</span>
-                            </button>
-                          </div>
+                              <textarea
+                                rows={2}
+                                value={inlineDrafts[item.item_key] !== undefined ? inlineDrafts[item.item_key] : (item.notes || "")}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setInlineDrafts((prev) => ({ ...prev, [item.item_key]: val }));
+                                }}
+                                disabled={isCompleted}
+                                placeholder={
+                                  (pendingAction[item.item_key] === "incomplete" || item.status === "incomplete")
+                                    ? "Describe damage, missing gear, quantity discrepancy, or equipment issues..."
+                                    : "Add any optional notes, remarks, or serial numbers for this item..."
+                                }
+                                className="w-full text-xs p-2.5 rounded-lg border border-slate-300 focus:border-[#4C81E0] focus:ring-1 focus:ring-[#4C81E0] outline-none bg-white text-slate-800 disabled:bg-slate-50"
+                              />
+
+                              <div className="flex items-center justify-between gap-2 pt-0.5">
+                                <div className="text-[11px] text-slate-500">
+                                  {(pendingAction[item.item_key] === "incomplete" || item.status === "incomplete") && (
+                                    <span className="text-rose-700 font-semibold">Will be saved as Incomplete</span>
+                                  )}
+                                  {item.status === "inspected_ok" && (
+                                    <span className="text-emerald-700 font-semibold">Item is marked Complete</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelInlineNote(item.item_key)}
+                                    disabled={savingItemKey === item.item_key}
+                                    className="px-2.5 py-1 text-xs text-slate-600 hover:text-slate-800 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveInlineNotes(item.item_key)}
+                                    disabled={savingItemKey === item.item_key || isCompleted}
+                                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[#4C81E0] hover:bg-[#3b6bc4] text-white text-xs font-bold transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                                  >
+                                    <span>{savingItemKey === item.item_key ? "Saving..." : "Save"}</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
                 )}
 
-                {/* Additional Notes (General Observations) at the bottom */}
+                {/* ADDITIONAL NOTES */}
                 <div className="pt-3 border-t border-slate-200 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                        Additional Notes (General Observation)
+                        ADDITIONAL NOTES
                       </h3>
                       <p className="text-[11px] text-slate-500">
                         Overall feedback or venue observations for admin review.
@@ -1342,159 +1566,48 @@ export default function ManagerEventDetails() {
                     className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:border-[#4C81E0] focus:ring-1 focus:ring-[#4C81E0] outline-none disabled:bg-slate-50"
                   />
                 </div>
-              </div>
-            )}
-          </div>
 
-          {/* ========================================================= */}
-          {/* SECTION 5: SHIFT REPORT & OPERATIONAL CLOSEOUT             */}
-          {/* ========================================================= */}
-          <div className="p-4 sm:p-6 space-y-4 bg-slate-50/40">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
-                  <ShieldCheck size={18} className="text-amber-600" />
-                  <span>Shift Incident &amp; Operational Reports</span>
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Submit shift incident notes or finalize catering operations when ready.
-                </p>
-              </div>
-
-              {!isCompleted && (
-                <button
-                  type="button"
-                  onClick={handleCompleteEvent}
-                  disabled={completingEvent}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer shadow-2xs"
-                >
-                  <CheckCircle2 size={14} />
-                  <span>{completingEvent ? "Completing..." : "Complete Event"}</span>
-                </button>
-              )}
-            </div>
-
-            {/* Existing Reports Feed */}
-            {Array.isArray(booking.staff_reports) && booking.staff_reports.length > 0 && (
-              <div className="space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-                  Logged Reports ({booking.staff_reports.length})
-                </span>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {booking.staff_reports.map((rep, idx) => (
-                    <div key={idx} className="p-3 bg-white rounded-xl border border-slate-200 text-xs space-y-1">
-                      <div className="flex items-center justify-between text-slate-500 text-[11px]">
-                        <span className="font-semibold text-slate-800">{rep.role || "Coordinator"}</span>
-                        <span>{formatDateTime(rep.created_at)}</span>
-                      </div>
-                      <p className="text-slate-700 whitespace-pre-wrap">{rep.note}</p>
+                {/* Complete Event Action moved into Equipment Check Footer */}
+                {!isCompleted && (
+                  <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                    <div className="text-xs">
+                      {inspectedItemsCount < totalChecklistCount ? (
+                        <div className="flex items-center gap-1.5 text-amber-800 font-medium">
+                          <AlertCircle size={15} className="text-amber-600 shrink-0" />
+                          <span>
+                            {totalChecklistCount - inspectedItemsCount} item{totalChecklistCount - inspectedItemsCount > 1 ? "s" : ""} remaining to inspect before this event can be completed.
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-emerald-800 font-semibold">
+                          <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                          <span>
+                            All {totalChecklistCount} checklist items inspected. Event operations ready to finalize.
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
-            {/* Submit New Shift Report */}
-            {!isCompleted && (
-              <form onSubmit={handleSubmitShiftReport} className="space-y-2.5 pt-2">
-                <textarea
-                  rows={2}
-                  value={reportNote}
-                  onChange={(e) => setReportNote(e.target.value)}
-                  placeholder="Record an operational incident, delayed start, or shift note..."
-                  className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:border-[#4C81E0] focus:ring-1 focus:ring-[#4C81E0] outline-none bg-white"
-                />
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={submittingReport || !reportNote.trim()}
-                    className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-40 shadow-2xs"
-                  >
-                    <Plus size={13} />
-                    <span>{submittingReport ? "Submitting..." : "Submit Report Note"}</span>
-                  </button>
-                </div>
-              </form>
+                    <button
+                      type="button"
+                      onClick={handleCompleteEvent}
+                      disabled={completingEvent}
+                      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-2xs ${
+                        inspectedItemsCount === totalChecklistCount
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          : "bg-slate-200 hover:bg-slate-300 text-slate-700"
+                      }`}
+                    >
+                      <CheckCircle2 size={14} />
+                      <span>{completingEvent ? "Completing Event..." : "Complete Event"}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
         </div>
-
-        {/* MODAL: Add/Edit Item Observation Notes */}
-        {activeItemNoteModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
-            <div className="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 shadow-xl border border-slate-200">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Observation for: {activeItemNoteModal.name}
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Report damage, missing items, or inspection feedback for admin review.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveItemNoteModal(null)}
-                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-                >
-                  <XCircle size={18} />
-                </button>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                    Observation Type
-                  </label>
-                  <select
-                    value={itemNoteForm.issue_type}
-                    onChange={(e) => setItemNoteForm((prev) => ({ ...prev, issue_type: e.target.value }))}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-white focus:ring-1 focus:ring-[#4C81E0] outline-none"
-                  >
-                    <option value="none">No Issue (Good Condition)</option>
-                    <option value="damaged">Equipment Damaged</option>
-                    <option value="missing">Item Missing / Not Returned</option>
-                    <option value="quantity_mismatch">Quantity Mismatch</option>
-                    <option value="needs_repair">Needs Repair / Maintenance</option>
-                    <option value="other">Other Observation</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                    Detailed Notes
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={itemNoteForm.notes}
-                    onChange={(e) => setItemNoteForm((prev) => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Describe the condition, missing quantity, or observed issue..."
-                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-white focus:ring-1 focus:ring-[#4C81E0] outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setActiveItemNoteModal(null)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveItemNotes}
-                  className="px-4 py-1.5 rounded-lg bg-[#4C81E0] hover:bg-[#3b6bc4] text-white text-xs font-bold cursor-pointer shadow-2xs"
-                >
-                  Save Observation
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
       </div>
     </ManagerLayout>
   );

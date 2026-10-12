@@ -768,29 +768,41 @@ exports.updateEquipmentChecklist = asyncHandler(async (req, res) => {
       quantity: typeof c.quantity === "number" ? c.quantity : undefined,
       unit: c.unit || undefined,
       is_inspected: Boolean(c.is_inspected),
-      status: ["not_inspected", "inspected_ok", "issue_reported"].includes(c.status) ? c.status : "not_inspected",
+      status: ["not_inspected", "inspected_ok", "issue_reported", "incomplete", "complete"].includes(c.status) ? c.status : "not_inspected",
       issue_type: ["none", "damaged", "missing", "quantity_mismatch", "needs_repair", "other"].includes(c.issue_type) ? c.issue_type : "none",
       notes: typeof c.notes === "string" ? c.notes : "",
-      completed_at: c.completed_at || (c.status === "inspected_ok" || c.is_complete ? new Date() : null),
+      completed_at: c.completed_at || (c.status === "inspected_ok" || c.status === "complete" || c.status === "incomplete" || c.is_complete ? new Date() : null),
       completed_by: req.user._id
     }));
   } else if (item && item.item_key) {
+    if (item.status === "incomplete" && (!item.notes || !String(item.notes).trim())) {
+      return res.status(400).json({ message: "An issue description is required before marking an item as Incomplete." });
+    }
+
     if (!Array.isArray(booking.equipment_checklist)) {
       booking.equipment_checklist = [];
     }
     const idx = booking.equipment_checklist.findIndex((c) => c.item_key === item.item_key);
+    const isInspected = item.is_inspected !== undefined
+      ? Boolean(item.is_inspected)
+      : (item.status && item.status !== "not_inspected");
+    const status = item.status || (isInspected ? "inspected_ok" : "not_inspected");
+    const completedAt = isInspected
+      ? (item.completed_at || new Date())
+      : null;
+
     const updatedEntry = {
       item_key: item.item_key,
       name: item.name || "Item",
       category: item.category || "",
-      quantity: item.quantity,
+      quantity: typeof item.quantity === "number" ? item.quantity : undefined,
       unit: item.unit || "",
-      is_inspected: item.is_inspected !== undefined ? Boolean(item.is_inspected) : true,
-      status: item.status || "inspected_ok",
+      is_inspected: isInspected,
+      status: status,
       issue_type: item.issue_type || "none",
-      notes: item.notes !== undefined ? item.notes : "",
-      completed_at: item.is_complete ? new Date() : (item.completed_at || null),
-      completed_by: req.user._id,
+      notes: item.notes !== undefined ? String(item.notes) : "",
+      completed_at: completedAt,
+      completed_by: isInspected ? req.user._id : null,
     };
     if (idx >= 0) {
       booking.equipment_checklist[idx] = { ...booking.equipment_checklist[idx].toObject?.() || booking.equipment_checklist[idx], ...updatedEntry };
@@ -923,6 +935,67 @@ exports.markCompleted = asyncHandler(async (req, res) => {
 
   if (["completed", "Completed"].includes(booking.status)) {
     return res.status(400).json({ message: "This booking is already completed and read-only." });
+  }
+
+  // Validate Equipment Checklist: all applicable items must be inspected before completion
+  const applicableKeys = new Set();
+  const inclusions = Array.isArray(booking.package_inclusions) ? booking.package_inclusions : [];
+  inclusions.forEach((inc, idx) => {
+    const raw = String(inc || "").trim();
+    if (!raw) return;
+    let category = "";
+    let cleanName = raw;
+    const tagMatch = raw.match(/^\s*\[([^\]]+)\]\s*(.*)$/);
+    if (tagMatch) {
+      category = tagMatch[1];
+      cleanName = tagMatch[2];
+    }
+    const cleanLower = cleanName.toLowerCase();
+    const catLower = category.toLowerCase();
+    if (cleanLower === "crew" || catLower === "crew" || catLower === "staff") return;
+
+    cleanName = cleanName.replace(/\((\d+)(?:\s*([a-zA-Z]+))?\)$/, "").trim();
+    const itemKey = `inclusion_${idx}_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+    applicableKeys.add(itemKey);
+  });
+
+  const inventoryItems = Array.isArray(booking.inventory_items) ? booking.inventory_items : [];
+  inventoryItems.forEach((inv, idx) => {
+    const name = inv.name || inv.inventory_id?.name || inv.inventory_id?.item_name || `Equipment Item #${idx + 1}`;
+    const itemKey = `inv_${inv.inventory_id?._id || inv.inventory_id || idx}_${name.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+    applicableKeys.add(itemKey);
+  });
+
+  if (applicableKeys.size > 0) {
+    const checklistMap = new Map();
+    (booking.equipment_checklist || []).forEach((c) => {
+      if (c.item_key) checklistMap.set(c.item_key, c);
+    });
+
+    let uninspectedCount = 0;
+    for (const key of applicableKeys) {
+      const item = checklistMap.get(key);
+      if (!item || !item.is_inspected || item.status === "not_inspected") {
+        uninspectedCount++;
+      }
+    }
+
+    if (uninspectedCount > 0) {
+      return res.status(400).json({
+        message: `Please inspect all equipment items before completing this event. (${uninspectedCount} item${uninspectedCount > 1 ? "s" : ""} remaining)`
+      });
+    }
+
+    const invalidIncomplete = (booking.equipment_checklist || []).filter(
+      (item) => applicableKeys.has(item.item_key) &&
+        (item.status === "incomplete" || item.status === "issue_reported") &&
+        (!item.notes || !item.notes.trim())
+    );
+    if (invalidIncomplete.length > 0) {
+      return res.status(400).json({
+        message: "Incomplete equipment items must have a saved issue report note before completing this event."
+      });
+    }
   }
 
   if (!isBookingStartedOrFinished(booking)) {

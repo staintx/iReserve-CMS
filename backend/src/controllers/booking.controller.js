@@ -303,7 +303,7 @@ const filterAvailableStaff = async (
   const bookedStaff = new Set(unavailabilities.map((u) => u.user_id.toString()));
 
   if (conflictingBookings.length > 0) {
-    const newRange = getTimeRange(startTime, durationHours);
+    const reqStart = parseTimeToMinutes(startTime);
 
     conflictingBookings.forEach((b) => {
       const addAllAssigned = () => {
@@ -316,24 +316,13 @@ const filterAvailableStaff = async (
         }
       };
 
-      if (!newRange) {
+      if (reqStart === null) {
         addAllAssigned();
         return;
       }
 
-      const existingRange = getTimeRange(b.start_time, b.duration_hours);
-      if (!existingRange) {
-        addAllAssigned();
-        return;
-      }
-
-      const existingStart = existingRange.startMinutes - buffer;
-      const existingEnd = existingRange.endMinutes + buffer;
-      const isOverlap =
-        newRange.startMinutes < existingEnd &&
-        newRange.endMinutes > existingStart;
-
-      if (isOverlap) {
+      const existingStart = parseTimeToMinutes(b.start_time);
+      if (existingStart === null || existingStart === reqStart) {
         addAllAssigned();
       }
     });
@@ -354,8 +343,6 @@ const findBookingConflict = async ({
   if (!eventDate) return null;
   const date = new Date(eventDate);
   if (Number.isNaN(date.getTime())) return null;
-  const buffer =
-    Number(bufferMinutes) || Number(process.env.BOOKING_BUFFER_MINUTES) || 0;
 
   const dayStart = new Date(date);
   dayStart.setHours(0, 0, 0, 0);
@@ -363,7 +350,7 @@ const findBookingConflict = async ({
   dayEnd.setHours(23, 59, 59, 999);
 
   const query = {
-    status: { $in: ["pending deposit", "confirmed", "preparing", "ongoing"] },
+    status: { $in: ["pending deposit", "confirmed", "Confirmed", "preparing", "ongoing", "Ready for Event"] },
     event_date: { $gte: dayStart, $lte: dayEnd },
   };
   if (excludeId) query._id = { $ne: excludeId };
@@ -371,8 +358,8 @@ const findBookingConflict = async ({
   const existingBookings = await Booking.find(query);
   if (existingBookings.length === 0) return null;
 
-  const newRange = getTimeRange(startTime, durationHours);
-  if (!newRange) {
+  const reqStart = parseTimeToMinutes(startTime);
+  if (reqStart === null) {
     return (
       existingBookings.find((booking) => ignoreLocation || sameLocation(location, booking)) ||
       null
@@ -384,17 +371,9 @@ const findBookingConflict = async ({
       if (!ignoreLocation && location?.municipality && !sameLocation(location, booking)) {
         return false;
       }
-      const existingRange = getTimeRange(
-        booking.start_time,
-        booking.duration_hours,
-      );
-      if (!existingRange) return true;
-      const existingStart = existingRange.startMinutes - buffer;
-      const existingEnd = existingRange.endMinutes + buffer;
-      return (
-        newRange.startMinutes < existingEnd &&
-        newRange.endMinutes > existingStart
-      );
+      const existingStart = parseTimeToMinutes(booking.start_time);
+      if (existingStart === null) return true;
+      return reqStart === existingStart;
     }) || null
   );
 };
@@ -2242,7 +2221,7 @@ exports.suggestDates = asyncHandler(async (req, res) => {
   ]);
   const blockedTimestamps = new Set(blockedDates.map(b => new Date(b.date).setHours(0, 0, 0, 0)));
 
-  const newRange = getTimeRange(start_time, duration_hours);
+  const reqStart = parseTimeToMinutes(start_time);
 
   const suggestions = [];
 
@@ -2274,14 +2253,14 @@ exports.suggestDates = asyncHandler(async (req, res) => {
 
       let conflict = null;
       if (dayBookings.length > 0) {
-        if (!newRange) {
+        if (reqStart === null) {
           conflict = dayBookings.find(booking => sameLocation(location, booking)) || null;
         } else {
           conflict = dayBookings.find(booking => {
             if (location?.municipality && !sameLocation(location, booking)) return false;
-            const existingRange = getTimeRange(booking.start_time, booking.duration_hours);
-            if (!existingRange) return true;
-            return newRange.startMinutes < existingRange.endMinutes && newRange.endMinutes > existingRange.startMinutes;
+            const existingStart = parseTimeToMinutes(booking.start_time);
+            if (existingStart === null) return true;
+            return reqStart === existingStart;
           }) || null;
         }
       }
@@ -2952,25 +2931,21 @@ exports.getAvailableTimes = asyncHandler(async (req, res) => {
   const buffer = Number(req.query.buffer_minutes) || 0;
 
   const existingBookings = await Booking.find({
-    status: { $in: ["pending deposit", "confirmed", "preparing", "ongoing"] },
+    status: { $in: ["pending deposit", "confirmed", "Confirmed", "preparing", "ongoing", "Ready for Event"] },
     event_date: { $gte: dayStart, $lte: dayEnd },
   }).lean();
 
-  const results = timeSlots.map(time => {
-    const newRange = getTimeRange(time, duration_hours || 4);
-    if (!newRange) {
-      // Can't parse time — check if any booking exists at all (same as ignoreLocation=true path)
+  const results = timeSlots.map((time) => {
+    const slotMinutes = parseTimeToMinutes(time);
+    if (slotMinutes === null) {
       const conflict = existingBookings.length > 0 ? existingBookings[0] : null;
       return { time, status: conflict ? "full" : "available" };
     }
 
-    // In-memory conflict check (ignoreLocation=true means skip location check)
-    const conflict = existingBookings.find(booking => {
-      const existingRange = getTimeRange(booking.start_time, booking.duration_hours);
-      if (!existingRange) return true; // Can't parse existing → treat as conflict
-      const existingStart = existingRange.startMinutes - buffer;
-      const existingEnd = existingRange.endMinutes + buffer;
-      return newRange.startMinutes < existingEnd && newRange.endMinutes > existingStart;
+    const conflict = existingBookings.find((booking) => {
+      const existingStart = parseTimeToMinutes(booking.start_time);
+      if (existingStart === null) return false;
+      return slotMinutes === existingStart;
     });
 
     return { time, status: conflict ? "full" : "available" };

@@ -351,7 +351,6 @@ export default function AdminBookingEditModal({
     event_type_other: "",
     event_date: "",
     start_time: "12:00",
-    duration_hours: 4,
     guest_count: 1,
     service_type: SERVICE_TYPES.FULL_SERVICE,
     delivery_method: "setup",
@@ -486,7 +485,7 @@ export default function AdminBookingEditModal({
       event_type_other: eventTypeIsOther ? rawEventType : "",
       event_date: toDateInput(booking.event_date),
       start_time: booking.start_time || "12:00",
-      duration_hours: Number(booking.duration_hours) || 4,
+      duration_hours: booking.duration_hours ? Number(booking.duration_hours) : undefined,
       guest_count: Number(booking.guest_count) || 1,
       service_type: booking.service_type || SERVICE_TYPES.FULL_SERVICE,
       delivery_method: booking.delivery_method || "setup",
@@ -1243,7 +1242,7 @@ export default function AdminBookingEditModal({
         celebrant_name: details.celebrant_name || "",
         event_date: details.event_date,
         start_time: details.start_time,
-        duration_hours: Number(details.duration_hours) || 4,
+        duration_hours: details.duration_hours ? Number(details.duration_hours) : undefined,
         guest_count: Number(details.guest_count),
         service_type: details.service_type,
         delivery_method: details.delivery_method,
@@ -1562,9 +1561,6 @@ export default function AdminBookingEditModal({
                           onChange={(e) => setDetail("start_time", e.target.value)}
                           className={`${inputClass(errors.start_time)} py-1.5 text-xs`}
                         />
-                        <span className="text-[10px] text-slate-400 mt-1 block">
-                          Duration: {details.duration_hours || 4}h
-                        </span>
                       </Field>
                     </div>
 

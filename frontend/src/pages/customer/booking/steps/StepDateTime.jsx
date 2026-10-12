@@ -174,7 +174,6 @@ export default function StepDateTime({
       try {
         const res = await CustomerAPI.getAvailableTimes({
           event_date: form.event_date,
-          duration_hours: form.duration_hours,
           venue_type: form.venue_type,
           province: form.province,
           municipality: form.municipality,
@@ -222,7 +221,6 @@ export default function StepDateTime({
     };
   }, [
     form.event_date,
-    form.duration_hours,
     form.venue_type,
     form.province,
     form.municipality,

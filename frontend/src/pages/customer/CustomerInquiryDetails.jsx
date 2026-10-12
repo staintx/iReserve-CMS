@@ -979,15 +979,10 @@ export default function CustomerInquiryDetails() {
                   </div>
 
                   <div>
-                    <span className="text-slate-500 font-medium block">Schedule &amp; Duration</span>
+                    <span className="text-slate-500 font-medium block">Scheduled Time</span>
                     <div className="font-bold text-slate-900 text-sm mt-0.5 flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5 text-slate-400" />
                       <span>{inquiry.start_time ? formatTime(inquiry.start_time) : "Time TBD"}</span>
-                      {inquiry.duration_hours && (
-                        <span className="text-slate-500 font-normal">
-                          ({inquiry.duration_hours} {inquiry.duration_hours === 1 ? "hour" : "hours"})
-                        </span>
-                      )}
                     </div>
                   </div>
 

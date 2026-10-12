@@ -629,7 +629,6 @@ export default function AdminStaffSchedule() {
                           {event.start_time && (
                             <span className="inline-flex items-center gap-1">
                               <Clock size={12} /> {event.start_time}
-                              {event.duration_hours ? ` (${event.duration_hours} hrs)` : ""}
                             </span>
                           )}
                           <span className="font-mono text-[10.5px]">REF: #{event.reference}</span>

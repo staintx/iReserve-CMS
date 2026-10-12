@@ -866,8 +866,8 @@ export default function AdminQuoteDetails() {
 
                     <DataField
                       icon={Clock}
-                      label="Time & Duration"
-                      value={quote.start_time ? `${formatTime(quote.start_time)}${quote.duration_hours ? ` (${quote.duration_hours} hrs)` : ""}` : null}
+                      label="Scheduled Time"
+                      value={quote.start_time ? formatTime(quote.start_time) : null}
                     />
 
                     <DataField

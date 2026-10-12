@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Printer, X, CheckCircle2, Calendar, CreditCard, Receipt, FileText, User } from "lucide-react";
 import { Button } from "../../ui/button";
+import { cn } from "@/lib/utils";
 import useBusinessInfo from "../../../hooks/useBusinessInfo";
 import { getReceiptBusinessInfo } from "../../../utils/receiptHelpers";
 import CustomerPrintReceipt from "./CustomerPrintReceipt";

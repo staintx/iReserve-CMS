@@ -389,6 +389,77 @@ exports.create = asyncHandler(async (req, res) => {
 	
 	res.status(201).json(payment);
 });
+/**
+ * Sanitize payment objects for customer-facing responses.
+ * Enforces privacy restrictions by stripping gateway channel metadata,
+ * internal system session IDs, administrative notes, and private staff information.
+ */
+function sanitizeCustomerPayment(paymentDoc) {
+	if (!paymentDoc) return null;
+	const p = typeof paymentDoc.toObject === "function" ? paymentDoc.toObject() : { ...paymentDoc };
+
+	// 1. Strip internal gateway metadata and session/intent IDs
+	delete p.gateway_checkout_id;
+	delete p.gateway_payment_intent_id;
+	delete p.checkout_url;
+	delete p.gateway;
+
+	// 2. Filter metadata: keep only safe client-facing fields (reference_number, reason, preference)
+	if (p.metadata && typeof p.metadata === "object") {
+		const safeMeta = {};
+		if (p.metadata.reference_number) safeMeta.reference_number = p.metadata.reference_number;
+		if (p.metadata.reason) safeMeta.reason = p.metadata.reason;
+		if (p.metadata.preference) safeMeta.preference = p.metadata.preference;
+		p.metadata = safeMeta;
+	} else {
+		p.metadata = {};
+	}
+
+	// 3. Sanitize customer profile: exclude internal system/staff fields and redundant address
+	if (p.customer_id && typeof p.customer_id === "object") {
+		p.customer_id = {
+			_id: p.customer_id._id,
+			first_name: p.customer_id.first_name,
+			last_name: p.customer_id.last_name,
+			full_name: p.customer_id.full_name,
+			email: p.customer_id.email,
+			phone: p.customer_id.phone,
+			alt_phone: p.customer_id.alt_phone,
+		};
+	}
+
+	// 4. Sanitize booking: strip administrative notes, staff notes, and private operational records
+	if (p.booking_id && typeof p.booking_id === "object") {
+		const b = { ...p.booking_id };
+		delete b.admin_notes;
+		delete b.event_manager_notes;
+		delete b.attendance_notes;
+		delete b.equipment_notes;
+		delete b.internal_notes;
+		delete b.crew_assignments;
+		delete b.timeline_activity;
+		delete b.assigned_event_manager;
+		if (b.cancellation_request) {
+			b.cancellation_request = {
+				status: b.cancellation_request.status,
+				reason: b.cancellation_request.reason,
+				requested_at: b.cancellation_request.requested_at,
+			};
+		}
+		p.booking_id = b;
+	}
+
+	// 5. Sanitize inquiry: strip administrative and internal notes
+	if (p.inquiry_id && typeof p.inquiry_id === "object") {
+		const inq = { ...p.inquiry_id };
+		delete inq.admin_notes;
+		delete inq.internal_notes;
+		p.inquiry_id = inq;
+	}
+
+	return p;
+}
+
 exports.getAll = asyncHandler(async (req, res) => {
 	res.json(await Payment.find().sort({ createdAt: -1 }).populate("booking_id customer_id inquiry_id").lean());
 });
@@ -400,9 +471,49 @@ exports.getMine = asyncHandler(async (req, res) => {
 		await exports.cleanupStalePendingPayments(b._id);
 	}
 
-	res.json(
-		await Payment.find({ customer_id: req.user._id })
-			.sort({ createdAt: -1 })
+	const customerInquiries = await Inquiry.find({ customer_id: req.user._id }).select("_id").lean();
+	const bIds = customerBookings.map((b) => b._id);
+	const iIds = customerInquiries.map((i) => i._id);
+
+	// Retrieve only payments belonging to the authenticated customer or their bookings/inquiries
+	const rawPayments = await Payment.find({
+		$or: [
+			{ customer_id: req.user._id },
+			{ booking_id: { $in: bIds } },
+			{ inquiry_id: { $in: iIds } }
+		]
+	})
+		.sort({ createdAt: -1 })
+		.populate({
+			path: "booking_id",
+			populate: { path: "package_id", select: "name title price" }
+		})
+		.populate({
+			path: "inquiry_id",
+			populate: { path: "package_id", select: "name title" }
+		})
+		.populate("customer_id", "first_name last_name full_name email phone alt_phone")
+		.lean();
+
+	res.json(rawPayments.map(sanitizeCustomerPayment));
+});
+
+exports.getById = asyncHandler(async (req, res) => {
+	if (req.user?.role === "customer") {
+		const customerBookings = await Booking.find({ customer_id: req.user._id }).select("_id").lean();
+		const customerInquiries = await Inquiry.find({ customer_id: req.user._id }).select("_id").lean();
+		const bIds = customerBookings.map((b) => b._id);
+		const iIds = customerInquiries.map((i) => i._id);
+
+		// Customers can strictly only access payments belonging to themselves
+		const payment = await Payment.findOne({
+			_id: req.params.id,
+			$or: [
+				{ customer_id: req.user._id },
+				{ booking_id: { $in: bIds } },
+				{ inquiry_id: { $in: iIds } }
+			]
+		})
 			.populate({
 				path: "booking_id",
 				populate: { path: "package_id", select: "name title price" }
@@ -411,19 +522,15 @@ exports.getMine = asyncHandler(async (req, res) => {
 				path: "inquiry_id",
 				populate: { path: "package_id", select: "name title" }
 			})
-			.populate("customer_id")
-			.lean(),
-	);
-});
-exports.getById = asyncHandler(async (req, res) => {
-	if (req.user?.role === "customer") {
-		const payment = await Payment.findOne({ _id: req.params.id, customer_id: req.user._id })
-			.populate("booking_id customer_id").lean();
+			.populate("customer_id", "first_name last_name full_name email phone alt_phone")
+			.lean();
+
 		if (!payment) return res.status(404).json({ message: "Payment not found" });
-		return res.json(payment);
+		return res.json(sanitizeCustomerPayment(payment));
 	}
 
-	res.json(await Payment.findById(req.params.id).populate("booking_id customer_id").lean());
+	// Administrators retain full operational records including gateway and audit identifiers
+	res.json(await Payment.findById(req.params.id).populate("booking_id customer_id inquiry_id").lean());
 });
 
 exports.update = asyncHandler(async (req, res) => {
@@ -1098,7 +1205,8 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
 			await exports.syncBookingStatus(payment.booking_id);
 		}
 	}
-	res.json({ payment });
+	const sanitizedPayment = req.user?.role === "customer" ? sanitizeCustomerPayment(payment) : payment;
+	res.json({ payment: sanitizedPayment });
 });
 
 exports.handleWebhook = asyncHandler(async (req, res) => {

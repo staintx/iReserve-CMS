@@ -46,8 +46,7 @@ import FilterPopover, { FilterField } from "../../components/admin/table/FilterP
 import FilterChip from "../../components/admin/table/FilterChip";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import Pagination from "../../components/admin/table/Pagination";
-import usePagination from "../../hooks/usePagination";
-import CustomerReceiptModal from "../../components/customer/portal/CustomerReceiptModal";
+import AdminReceiptModal from "../../components/admin/payment/AdminReceiptModal";
 
 export default function AdminRefunds() {
   const navigate = useNavigate();
@@ -1254,9 +1253,10 @@ export default function AdminRefunds() {
           </div>
         )}
 
-        {/* Customer-Aligned Printable Refund Voucher Modal */}
+        {/* Official Printable Refund Voucher Modal */}
         {voucherModalRow && (
-          <CustomerReceiptModal
+          <AdminReceiptModal
+            isOpen={Boolean(voucherModalRow)}
             payment={
               voucherModalRow.refundRecord || {
                 _id: voucherModalRow._id,

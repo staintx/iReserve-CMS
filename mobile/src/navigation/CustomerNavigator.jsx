@@ -31,6 +31,7 @@ import GalleryScreen from "../screens/customer/GalleryScreen";
 import CustomerChatThreadScreen from "../screens/customer/CustomerChatThreadScreen";
 import ZelleChatScreen from "../screens/customer/ZelleChatScreen";
 import NotificationsScreen from "../screens/customer/NotificationsScreen";
+import CustomerPaymentsScreen from "../screens/customer/CustomerPaymentsScreen";
 
 import { useSocket } from "../context/SocketContext";
 import FloatingTabBar from "../components/common/FloatingTabBar";
@@ -145,6 +146,7 @@ export const CustomerNavigator = () => {
         component={ZelleChatScreen}
         options={{ presentation: "modal" }}
       />
+      <Stack.Screen name="CustomerPayments" component={CustomerPaymentsScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
     </Stack.Navigator>
   );

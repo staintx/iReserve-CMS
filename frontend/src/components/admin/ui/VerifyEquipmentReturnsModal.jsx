@@ -16,6 +16,7 @@ import useToast from "../../../hooks/useToast";
 import Btn from "./Btn";
 import Badge from "./Badge";
 import { MAX_FINANCIAL_AMOUNT } from "../../../lib/validationRules";
+import { parseInclusion } from "../../../lib/packageDisplay";
 
 export default function VerifyEquipmentReturnsModal({
   booking,
@@ -38,15 +39,18 @@ export default function VerifyEquipmentReturnsModal({
 
     const inventoryItems = Array.isArray(booking.inventory_items) ? booking.inventory_items : [];
     const returns = Array.isArray(booking.equipment_returns) ? booking.equipment_returns : [];
+    const checklist = Array.isArray(booking.equipment_checklist) ? booking.equipment_checklist : [];
+    const inclusions = Array.isArray(booking.package_inclusions) ? booking.package_inclusions : [];
 
     const itemMap = new Map();
 
     inventoryItems.forEach((item) => {
       const invId = item.inventory_id?._id || item.inventory_id;
-      if (!invId) return;
-      const key = String(invId);
+      const key = invId ? String(invId) : (item.name ? item.name.toLowerCase() : String(item._id));
+      if (!key) return;
       itemMap.set(key, {
-        inventory_id: invId,
+        _id: item._id,
+        inventory_id: invId || undefined,
         name: item.name || item.inventory_id?.item_name || "Equipment Item",
         category: item.inventory_id?.category || item.category || "Equipment",
         quantity_booked: Number(item.quantity || 1),
@@ -56,10 +60,76 @@ export default function VerifyEquipmentReturnsModal({
       });
     });
 
+    checklist.forEach((item) => {
+      const key = item.item_key || (item.name ? item.name.toLowerCase() : String(item._id));
+      if (!key) return;
+      if (!itemMap.has(key)) {
+        const booked = Number(item.quantity || 1);
+        const isDamaged = item.issue_type === "damaged";
+        const isMissing = item.issue_type === "missing";
+        const isIssue = item.status === "incomplete" || item.status === "issue_reported" || (item.issue_type && item.issue_type !== "none");
+        itemMap.set(key, {
+          _id: item._id,
+          item_key: item.item_key,
+          name: item.name || "Equipment Item",
+          category: item.category || "Equipment",
+          quantity_booked: booked,
+          quantity_returned: isIssue ? 0 : booked,
+          quantity_damaged: isDamaged ? booked : (isIssue && !isMissing ? booked : 0),
+          notes: item.notes || "",
+        });
+      }
+    });
+
+    // Fallback: Inclusions from package if checklist has not been generated yet
+    inclusions.forEach((inc, idx) => {
+      const parsed = parseInclusion(inc);
+      if (!parsed || !parsed.name) return;
+      const cleanLower = parsed.name.toLowerCase();
+      const catLower = (parsed.category || "").toLowerCase();
+      if (cleanLower === "crew" || catLower === "crew" || catLower === "staff") return;
+
+      const key = `inclusion_${idx}_${cleanLower.replace(/[^a-z0-9]/g, "_")}`;
+      let alreadyExists = false;
+      for (const [, v] of itemMap.entries()) {
+        if (v.name && v.name.toLowerCase() === cleanLower) {
+          alreadyExists = true;
+          break;
+        }
+      }
+      if (!alreadyExists && !itemMap.has(key)) {
+        let qty = 1;
+        if (parsed.qty) {
+          const numMatch = parsed.qty.match(/\d+/);
+          qty = numMatch ? parseInt(numMatch[0], 10) : 1;
+        }
+        itemMap.set(key, {
+          item_key: key,
+          name: parsed.name,
+          category: parsed.category || "Package Inclusion",
+          quantity_booked: qty,
+          quantity_returned: qty,
+          quantity_damaged: 0,
+          notes: "",
+        });
+      }
+    });
+
     returns.forEach((ret) => {
       const invId = ret.inventory_id?._id || ret.inventory_id;
-      if (!invId) return;
-      const key = String(invId);
+      let key = invId ? String(invId) : null;
+      if (!key && ret.name) {
+        for (const [k, v] of itemMap.entries()) {
+          if (v.name && v.name.toLowerCase() === ret.name.toLowerCase()) {
+            key = k;
+            break;
+          }
+        }
+      }
+      if (!key) {
+        key = ret._id ? String(ret._id) : (ret.name ? ret.name.toLowerCase() : `ret_${Math.random()}`);
+      }
+
       const existing = itemMap.get(key);
       const booked = Number(ret.quantity_booked || existing?.quantity_booked || 1);
       const returned = Number(ret.quantity_returned !== undefined ? ret.quantity_returned : (existing?.quantity_returned ?? booked));
@@ -67,7 +137,8 @@ export default function VerifyEquipmentReturnsModal({
       const notes = ret.notes !== undefined ? ret.notes : (existing?.notes || "");
 
       itemMap.set(key, {
-        inventory_id: invId,
+        _id: ret._id || existing?._id,
+        inventory_id: invId || existing?.inventory_id,
         name: ret.name || existing?.name || ret.inventory_id?.item_name || "Equipment Item",
         category: ret.inventory_id?.category || existing?.category || "Equipment",
         quantity_booked: booked,
@@ -78,7 +149,7 @@ export default function VerifyEquipmentReturnsModal({
     });
 
     setItems(Array.from(itemMap.values()));
-    setInspectionNotes(booking.equipment_manager_verified?.additional_notes || "");
+    setInspectionNotes(booking.equipment_notes || booking.equipment_manager_verified?.additional_notes || "");
     setChargeCustomer(false);
     setDamageFee(0);
     setDamageReason("");
@@ -171,6 +242,7 @@ export default function VerifyEquipmentReturnsModal({
         const mis = Math.max(0, booked - (ret + dam));
         return {
           _id: i._id,
+          name: i.name,
           inventory_id: i.inventory_id,
           quantity_booked: booked,
           quantity_returned: ret,

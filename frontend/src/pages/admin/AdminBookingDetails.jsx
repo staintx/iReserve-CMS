@@ -68,6 +68,7 @@ import { createConversation } from "../../api/messages";
 import { menuAmountLabel, menuLineTotal } from "../../utils/quotationPricing";
 import { isFoodOnly, isSetupOnly, resolveServiceType } from "../../components/customer/portal/statusMeta";
 import { MAX_FINANCIAL_AMOUNT } from "../../lib/validationRules";
+import { parseInclusion } from "../../lib/packageDisplay";
 
 const safeDateToIsoString = (val) => {
   if (!val) return "";
@@ -143,6 +144,7 @@ export default function AdminBookingDetails() {
     if (!booking) return [];
     const returns = Array.isArray(booking.equipment_returns) ? booking.equipment_returns : [];
     const assigned = Array.isArray(booking.inventory_items) ? booking.inventory_items : [];
+    const checklist = Array.isArray(booking.equipment_checklist) ? booking.equipment_checklist : [];
 
     const itemMap = new Map();
 
@@ -151,6 +153,7 @@ export default function AdminBookingDetails() {
       if (!invId) return;
       const key = String(invId);
       itemMap.set(key, {
+        _id: item._id,
         inventory_id: invId,
         name: item.name || item.inventory_id?.item_name || "Equipment Item",
         category: item.inventory_id?.category || item.category || "Equipment",
@@ -164,10 +167,81 @@ export default function AdminBookingDetails() {
       });
     });
 
+    checklist.forEach((item) => {
+      const key = item.item_key || (item.name ? item.name.toLowerCase() : String(item._id));
+      if (!key) return;
+      if (!itemMap.has(key)) {
+        const booked = Number(item.quantity || 1);
+        const isDamaged = item.issue_type === "damaged";
+        const isMissing = item.issue_type === "missing";
+        const isIssue = item.status === "incomplete" || item.status === "issue_reported" || (item.issue_type && item.issue_type !== "none");
+        itemMap.set(key, {
+          _id: item._id,
+          name: item.name || "Equipment Item",
+          category: item.category || "Equipment",
+          quantity_assigned: booked,
+          quantity_returned: isIssue ? 0 : (item.is_inspected ? booked : 0),
+          quantity_damaged: isDamaged ? booked : (isIssue && !isMissing ? booked : 0),
+          quantity_missing: isMissing ? booked : 0,
+          notes: item.notes || "",
+          verified_at: item.completed_at || null,
+          verified_by: item.completed_by || null,
+        });
+      }
+    });
+
+    // Fallback: Inclusions from package if checklist has not been saved yet
+    const inclusions = Array.isArray(booking.package_inclusions) ? booking.package_inclusions : [];
+    inclusions.forEach((inc, idx) => {
+      const parsed = parseInclusion(inc);
+      if (!parsed || !parsed.name) return;
+      const cleanLower = parsed.name.toLowerCase();
+      const catLower = (parsed.category || "").toLowerCase();
+      if (cleanLower === "crew" || catLower === "crew" || catLower === "staff") return;
+
+      const key = `inclusion_${idx}_${cleanLower.replace(/[^a-z0-9]/g, "_")}`;
+      let alreadyExists = false;
+      for (const [, v] of itemMap.entries()) {
+        if (v.name && v.name.toLowerCase() === cleanLower) {
+          alreadyExists = true;
+          break;
+        }
+      }
+      if (!alreadyExists && !itemMap.has(key)) {
+        let qty = 1;
+        if (parsed.qty) {
+          const numMatch = parsed.qty.match(/\d+/);
+          qty = numMatch ? parseInt(numMatch[0], 10) : 1;
+        }
+        itemMap.set(key, {
+          name: parsed.name,
+          category: parsed.category || "Package Inclusion",
+          quantity_assigned: qty,
+          quantity_returned: 0,
+          quantity_damaged: 0,
+          quantity_missing: 0,
+          notes: "",
+          verified_at: null,
+          verified_by: null,
+        });
+      }
+    });
+
     returns.forEach((ret) => {
       const invId = ret.inventory_id?._id || ret.inventory_id;
-      if (!invId) return;
-      const key = String(invId);
+      let key = invId ? String(invId) : null;
+      if (!key && ret.name) {
+        for (const [k, v] of itemMap.entries()) {
+          if (v.name && v.name.toLowerCase() === ret.name.toLowerCase()) {
+            key = k;
+            break;
+          }
+        }
+      }
+      if (!key) {
+        key = ret._id ? String(ret._id) : (ret.name ? ret.name.toLowerCase() : `ret_${Math.random()}`);
+      }
+
       const existing = itemMap.get(key);
       const booked = Number(ret.quantity_booked || existing?.quantity_assigned || 1);
       const returned = Number(ret.quantity_returned !== undefined ? ret.quantity_returned : (existing?.quantity_returned ?? 0));
@@ -178,7 +252,8 @@ export default function AdminBookingDetails() {
       const notes = ret.notes !== undefined ? ret.notes : (existing?.notes || "");
 
       itemMap.set(key, {
-        inventory_id: invId,
+        _id: ret._id || existing?._id,
+        inventory_id: invId || existing?.inventory_id,
         name: ret.name || existing?.name || ret.inventory_id?.item_name || "Equipment Item",
         category: ret.inventory_id?.category || existing?.category || "Equipment",
         quantity_assigned: booked,
@@ -207,13 +282,16 @@ export default function AdminBookingDetails() {
       totalMissing += it.quantity_missing;
     });
 
-    const hasIssues = totalDamaged > 0 || totalMissing > 0;
+    const checklistHasIssues = Array.isArray(booking?.equipment_checklist) &&
+      booking.equipment_checklist.some(it => it.status === "incomplete" || it.status === "issue_reported" || (it.issue_type && it.issue_type !== "none"));
+
+    const hasIssues = totalDamaged > 0 || totalMissing > 0 || checklistHasIssues;
     const hasReturnsLogged = equipmentItems.some(
       (it) => it.verified_at || it.notes || it.quantity_returned > 0 || it.quantity_damaged > 0 || it.quantity_missing > 0
-    );
+    ) || Boolean(booking?.equipment_checklist_done) || Boolean(booking?.equipment_manager_verified?.confirmed);
 
     return { totalAssigned, totalReturned, totalDamaged, totalMissing, hasIssues, hasReturnsLogged };
-  }, [equipmentItems]);
+  }, [equipmentItems, booking]);
 
   const resolvedThemeAndPalette = useMemo(() => {
     if (!booking) return "Standard Styling";
@@ -2554,16 +2632,27 @@ export default function AdminBookingDetails() {
                             )}
                           </div>
 
-                          {/* Navigation directly to payment */}
-                          <Btn
-                            size="xs"
-                            variant="primary"
-                            onClick={handleGoToPayment}
-                            className="font-bold gap-1 text-xs shrink-0 cursor-pointer shadow-2xs"
-                            title="Go to Financials & History to review payments and balance"
-                          >
-                            <CreditCard size={13} /> Go to Payment
-                          </Btn>
+                          {/* Actions: Verify Returns & Navigation directly to payment */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Btn
+                              size="xs"
+                              variant="secondary"
+                              onClick={() => setShowVerifyReturnsModal(true)}
+                              className="font-bold gap-1 text-xs shrink-0 cursor-pointer shadow-2xs"
+                              title="Verify and record equipment turnover return counts"
+                            >
+                              <ShieldCheck size={13} /> Verify Equipment Returns
+                            </Btn>
+                            <Btn
+                              size="xs"
+                              variant="primary"
+                              onClick={handleGoToPayment}
+                              className="font-bold gap-1 text-xs shrink-0 cursor-pointer shadow-2xs"
+                              title="Go to Financials & History to review payments and balance"
+                            >
+                              <CreditCard size={13} /> Go to Payment
+                            </Btn>
+                          </div>
                         </div>
 
                         {/* Inspection Status Banner */}
@@ -2632,12 +2721,19 @@ export default function AdminBookingDetails() {
                                     </p>
                                   </div>
 
-                                  {item.completed_at && (
-                                    <div className="text-[10.5px] text-muted-foreground pt-1 border-t border-rose-200/60 flex items-center justify-between">
-                                      <span>Inspected</span>
-                                      <span className="font-mono">{formatDateTime(item.completed_at)}</span>
-                                    </div>
-                                  )}
+                                  <div className="pt-2 border-t border-rose-200/60 flex items-center justify-between gap-2">
+                                    <span className="text-[10.5px] text-muted-foreground font-mono">
+                                      {item.completed_at ? formatDateTime(item.completed_at) : "Reported by Manager"}
+                                    </span>
+                                    <Btn
+                                      size="xs"
+                                      variant="secondary"
+                                      onClick={() => handleOpenDamageModal(item)}
+                                      className="text-[11px] font-bold border-rose-300 text-rose-800 hover:bg-rose-100 cursor-pointer py-1 px-2.5"
+                                    >
+                                      <DollarSign size={12} /> Assess Damage Fee
+                                    </Btn>
+                                  </div>
                                 </div>
                               ))}
                             </div>

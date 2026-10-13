@@ -54,17 +54,45 @@ async function reconcileEquipmentTurnover({
     }
   });
 
+  // Ensure checklist items (package inclusions) also have a record in currentReturns
+  const checklistItems = Array.isArray(booking.equipment_checklist) ? booking.equipment_checklist : [];
+  checklistItems.forEach((item) => {
+    if (!item.name) return;
+    const cleanName = item.name.trim().toLowerCase();
+    const existing = currentReturns.find(
+      (r) => (r.name && r.name.trim().toLowerCase() === cleanName) ||
+             (r._id && item._id && String(r._id) === String(item._id))
+    );
+    if (!existing) {
+      const bookedQty = Number(item.quantity || 1);
+      currentReturns.push({
+        name: item.name,
+        quantity_booked: bookedQty,
+        quantity_returned: item.status === "inspected_ok" || item.status === "complete" ? bookedQty : 0,
+        quantity_damaged: item.issue_type === "damaged" ? bookedQty : 0,
+        quantity_missing: item.issue_type === "missing" ? bookedQty : 0,
+        reconciled_returned: 0,
+        reconciled_damaged: 0,
+        reconciled_missing: 0,
+        notes: item.notes || "",
+        verification_status: item.status === "inspected_ok" || item.status === "complete" ? "verified_ok" : ((item.status === "incomplete" || item.status === "issue_reported") ? "issue_recorded" : "pending"),
+        issue_category: item.issue_type === "damaged" ? "damaged" : (item.issue_type === "missing" ? "missing" : ""),
+        verified_at: item.completed_at || null,
+        verified_by: item.completed_by || null,
+      });
+    }
+  });
+
   const summary = [];
 
   for (let i = 0; i < currentReturns.length; i++) {
     const record = currentReturns[i];
     const invId = record.inventory_id?._id || record.inventory_id;
-    if (!invId) continue;
-    const invIdStr = String(invId);
+    const invIdStr = invId ? String(invId) : null;
 
-    const bookedItem = inventoryItems.find(
+    const bookedItem = invIdStr ? inventoryItems.find(
       (it) => String(it.inventory_id?._id || it.inventory_id) === invIdStr
-    );
+    ) : null;
     const bookedQty = Number(record.quantity_booked || bookedItem?.quantity || 1);
 
     let newReturned, newDamaged, newMissing, itemNotes;
@@ -77,8 +105,9 @@ async function reconcileEquipmentTurnover({
     } else if (Array.isArray(returns)) {
       const match = returns.find(
         (r) =>
-          String(r.inventory_id?._id || r.inventory_id) === invIdStr ||
-          (r._id && String(r._id) === String(record._id))
+          (invIdStr && String(r.inventory_id?._id || r.inventory_id) === invIdStr) ||
+          (r._id && record._id && String(r._id) === String(record._id)) ||
+          (r.name && record.name && r.name.trim().toLowerCase() === record.name.trim().toLowerCase())
       );
       if (match) {
         var itemStatus = match.verification_status || (match.notes ? "issue_recorded" : (match.verified_at ? "verified_ok" : "pending"));
@@ -158,8 +187,8 @@ async function reconcileEquipmentTurnover({
     const newAccounted = newReturned + newDamaged + newMissing;
     const deltaReservationRelease = newAccounted - prevAccounted;
 
-    // 1. Reconcile InventoryReservation
-    if (deltaReservationRelease !== 0) {
+    // 1. Reconcile InventoryReservation (Only if linked to warehouse inventory)
+    if (invId && deltaReservationRelease !== 0) {
       const reservations = await InventoryReservation.find({
         booking_id: booking._id,
         inventory_id: invId,
@@ -210,8 +239,8 @@ async function reconcileEquipmentTurnover({
       }
     }
 
-    // 2. Reconcile Inventory physical counts (Damaged and Missing)
-    if (deltaDamaged !== 0 || deltaMissing !== 0) {
+    // 2. Reconcile Inventory physical counts (Only if linked to warehouse inventory)
+    if (invId && (deltaDamaged !== 0 || deltaMissing !== 0)) {
       const invItem = await Inventory.findById(invId);
       if (invItem) {
         if (deltaDamaged !== 0) {
@@ -282,7 +311,7 @@ async function reconcileEquipmentTurnover({
     record.verified_by = itemStatus === "pending" ? null : actorId;
 
     summary.push({
-      inventory_id: invIdStr,
+      inventory_id: invIdStr || (record._id ? String(record._id) : `eq_${i}`),
       name: record.name,
       booked: bookedQty,
       newReturned,

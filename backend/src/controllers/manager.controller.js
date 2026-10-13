@@ -666,7 +666,7 @@ exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
   const noteText = (req.body.note || req.body.notes || req.body.equipment_notes || "").trim();
 
   if (!Array.isArray(booking.equipment_returns) || booking.equipment_returns.length === 0) {
-    booking.equipment_returns = (booking.inventory_items || []).map((item) => ({
+    const fromInventory = (booking.inventory_items || []).map((item) => ({
       inventory_id: item.inventory_id,
       name: item.name,
       quantity_booked: item.quantity || 1,
@@ -674,6 +674,14 @@ exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
       verified_at: new Date(),
       verified_by: req.user._id
     }));
+    const fromChecklist = (booking.equipment_checklist || []).map((c) => ({
+      name: c.name,
+      quantity_booked: typeof c.quantity === "number" ? c.quantity : 1,
+      quantity_returned: typeof c.quantity === "number" ? c.quantity : 1,
+      verified_at: new Date(),
+      verified_by: req.user._id
+    }));
+    booking.equipment_returns = fromInventory.length > 0 ? fromInventory : fromChecklist;
   }
 
   if (Array.isArray(returns)) {
@@ -786,6 +794,105 @@ exports.updateStaffAttendance = asyncHandler(async (req, res) => {
   });
 });
 
+const syncChecklistToReturns = (booking, actorId) => {
+  if (!Array.isArray(booking.equipment_checklist) || booking.equipment_checklist.length === 0) return;
+  if (!Array.isArray(booking.equipment_returns)) booking.equipment_returns = [];
+
+  const inventoryItems = Array.isArray(booking.inventory_items) ? booking.inventory_items : [];
+
+  booking.equipment_checklist.forEach((c) => {
+    const cName = String(c.name || "").trim().toLowerCase();
+    if (!cName) return;
+
+    let ret = booking.equipment_returns.find(
+      (r) => (r.name && r.name.trim().toLowerCase() === cName) ||
+             (r._id && c._id && String(r._id) === String(c._id))
+    );
+
+    const bookedQty = typeof c.quantity === "number" && c.quantity > 0 ? c.quantity : 1;
+
+    const matchedInv = inventoryItems.find(
+      (inv) => inv.name && inv.name.trim().toLowerCase() === cName
+    );
+    const invId = matchedInv?.inventory_id?._id || matchedInv?.inventory_id || null;
+
+    if (!ret) {
+      ret = {
+        name: c.name,
+        inventory_id: invId,
+        quantity_booked: bookedQty,
+        quantity_returned: 0,
+        quantity_damaged: 0,
+        quantity_missing: 0,
+        reconciled_returned: 0,
+        reconciled_damaged: 0,
+        reconciled_missing: 0,
+        notes: "",
+        verification_status: "pending",
+        issue_category: "",
+      };
+      booking.equipment_returns.push(ret);
+    } else if (!ret.inventory_id && invId) {
+      ret.inventory_id = invId;
+    }
+
+    ret.quantity_booked = bookedQty;
+
+    const isInspected = Boolean(c.is_inspected || (c.status && c.status !== "not_inspected"));
+
+    if (!isInspected) {
+      ret.verification_status = "pending";
+      ret.quantity_returned = 0;
+      ret.quantity_damaged = 0;
+      ret.quantity_missing = 0;
+      ret.notes = c.notes || "";
+      ret.issue_category = "";
+      ret.verified_at = null;
+      ret.verified_by = null;
+    } else if (c.status === "inspected_ok" || c.status === "complete") {
+      ret.verification_status = "verified_ok";
+      ret.quantity_returned = bookedQty;
+      ret.quantity_damaged = 0;
+      ret.quantity_missing = 0;
+      ret.notes = c.notes || "Inspected in good condition";
+      ret.issue_category = "";
+      ret.verified_at = c.completed_at || new Date();
+      ret.verified_by = c.completed_by || actorId;
+    } else if (c.status === "incomplete" || c.status === "issue_reported") {
+      ret.verification_status = "issue_recorded";
+      ret.notes = c.notes || "Issue reported during inspection";
+      ret.verified_at = c.completed_at || new Date();
+      ret.verified_by = c.completed_by || actorId;
+
+      if (c.issue_type === "missing") {
+        ret.issue_category = "missing";
+        ret.quantity_missing = bookedQty;
+        ret.quantity_damaged = 0;
+        ret.quantity_returned = 0;
+      } else if (c.issue_type === "damaged") {
+        ret.issue_category = "damaged";
+        ret.quantity_damaged = bookedQty;
+        ret.quantity_missing = 0;
+        ret.quantity_returned = 0;
+      } else {
+        ret.issue_category = "other";
+        ret.quantity_damaged = bookedQty;
+        ret.quantity_missing = 0;
+        ret.quantity_returned = 0;
+      }
+    }
+  });
+
+  if (booking.equipment_checklist_done) {
+    booking.equipment_manager_verified = {
+      confirmed: true,
+      confirmed_by: actorId || booking.equipment_checklist_done_by,
+      confirmed_at: booking.equipment_checklist_done_at || new Date(),
+      additional_notes: booking.equipment_notes || "Equipment inspection completed by manager.",
+    };
+  }
+};
+
 exports.updateEquipmentChecklist = asyncHandler(async (req, res) => {
   const booking = await Booking.findOne({
     _id: req.params.id,
@@ -860,6 +967,8 @@ exports.updateEquipmentChecklist = asyncHandler(async (req, res) => {
     booking.equipment_notes = notes.trim();
   }
 
+  syncChecklistToReturns(booking, req.user._id);
+
   await booking.save();
 
   const io = req.app.get("io");
@@ -890,6 +999,9 @@ exports.updateEquipmentNotes = asyncHandler(async (req, res) => {
 
   const notes = req.body.notes !== undefined ? req.body.notes : req.body.equipment_notes;
   booking.equipment_notes = typeof notes === "string" ? notes.trim() : "";
+  if (booking.equipment_manager_verified?.confirmed) {
+    booking.equipment_manager_verified.additional_notes = booking.equipment_notes;
+  }
   await booking.save();
 
   res.json({
@@ -1046,6 +1158,8 @@ exports.markEquipmentChecklistDone = asyncHandler(async (req, res) => {
   booking.equipment_checklist_done = true;
   booking.equipment_checklist_done_at = new Date();
   booking.equipment_checklist_done_by = req.user._id;
+
+  syncChecklistToReturns(booking, req.user._id);
 
   await booking.save();
 

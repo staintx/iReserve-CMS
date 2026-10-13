@@ -801,7 +801,7 @@ exports.setPaymentPreference = asyncHandler(async (req, res) => {
 			title: "In-Person Payment Selected",
 			body: `Customer selected Cash on Event Day for Booking ${booking.reference || booking._id} (₱${remainingBalance.toLocaleString()}).`,
 			type: "info",
-			link: `/admin/bookings/${booking._id}`,
+			link: `/admin/bookings/${booking._id}/details`,
 			meta: { booking_id: booking._id, payment_id: pendingPayment._id }
 		}, io);
 	} else {

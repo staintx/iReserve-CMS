@@ -12,6 +12,7 @@ const {
 const { isSpecialOffer, offerPricePerPax } = require("../utils/specialOffers");
 const { MAX_FINANCIAL_AMOUNT } = require("../validations/rules.common");
 const { checkDateBlocked, BLOCKED_DATE_MESSAGE } = require("../utils/blockedDates");
+const { checkMaxBookingsLimit } = require("../utils/bookingCapacity");
 const { sendInquiryStatusEmail, resolveCustomerEmail } = require("../utils/booking-emails");
 
 // Helper to check customer ownership of inquiry/quotation
@@ -543,6 +544,11 @@ exports.createQuotation = asyncHandler(async (req, res) => {
     const blocked = await checkDateBlocked(inquiry.event_date);
     if (blocked) {
       errors.event_date = BLOCKED_DATE_MESSAGE;
+    } else {
+      const maxLimitReached = await checkMaxBookingsLimit(inquiry.event_date, inquiry.converted_booking_id);
+      if (maxLimitReached) {
+        errors.event_date = "This date has reached the maximum number of bookings allowed.";
+      }
     }
   }
 
@@ -773,6 +779,10 @@ exports.acceptQuotation = asyncHandler(async (req, res) => {
     const blocked = await checkDateBlocked(eventDateValue);
     if (blocked) {
       return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
+    }
+    const maxLimitReached = await checkMaxBookingsLimit(eventDateValue, quotation.inquiry_id?.converted_booking_id);
+    if (maxLimitReached) {
+      return res.status(400).json({ message: "This date has reached the maximum number of bookings allowed." });
     }
     const eventDate = new Date(eventDateValue);
     if (!Number.isNaN(eventDate.getTime())) {

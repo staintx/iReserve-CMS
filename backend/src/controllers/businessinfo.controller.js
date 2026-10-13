@@ -4,6 +4,7 @@ const asyncHandler = require("../utils/asyncHandler");
 const logAction = require("../utils/logAction");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
 const DEFAULT_POLICIES = require("../utils/defaultPolicies");
+const { clearBusinessInfoCache } = require("../utils/bookingCapacity");
 
 const readBusinessInfo = async () => {
   const info = await BusinessInfo.findOne();
@@ -119,6 +120,8 @@ exports.update = asyncHandler(async (req, res) => {
     data,
     { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
   );
+
+  clearBusinessInfoCache();
 
   const trackFields = [
     "business_name",

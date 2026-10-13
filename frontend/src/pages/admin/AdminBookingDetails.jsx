@@ -43,6 +43,7 @@ import {
   Boxes,
   PackageCheck,
   ClipboardList,
+  RotateCcw,
   Image as ImageIcon
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
@@ -1352,26 +1353,26 @@ export default function AdminBookingDetails() {
 
           {/* Dedicated Cancellation Request Alert Banner */}
           {isCancellationPending && (
-            <div className="bg-rose-50 border border-rose-200 rounded-lg p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-rose-100 border border-rose-200 flex items-center justify-center shrink-0 text-rose-600 mt-0.5">
+            <div className="bg-rose-50/80 border border-rose-200/90 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-rose-100 border border-rose-200 flex items-center justify-center shrink-0 text-rose-600 mt-0.5">
                   <AlertTriangle className="w-4 h-4" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h4 className="font-bold text-rose-950 text-xs sm:text-sm">
                       Customer Requested Booking Cancellation
                     </h4>
-                    <span className="text-[10px] bg-rose-100 text-rose-800 border border-rose-300 font-bold px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] bg-rose-100 text-rose-700 border border-rose-200 font-bold px-2 py-0.5 rounded-full">
                       Action Required
                     </span>
                   </div>
-                  <p className="text-rose-900 text-xs mt-1 font-medium">
+                  <p className="text-rose-900 text-xs font-medium">
                     Reason: <span className="italic font-normal">"{cancellationReason}"</span>
                   </p>
-                  <p className="text-rose-700 text-[11px] mt-0.5">
-                    Amount Paid: <span className="font-semibold font-mono">₱{totalPaid.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-                    {totalPaid > 0 ? " — cancellation requires refund resolution." : " — no payment made."}
+                  <p className="text-slate-600 text-[11px]">
+                    Amount Paid: <span className="font-semibold font-mono text-emerald-700">₱{totalPaid.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                    {totalPaid > 0 ? " — cancellation requires refund or policy resolution." : " — no payment made."}
                   </p>
                 </div>
               </div>
@@ -1380,7 +1381,7 @@ export default function AdminBookingDetails() {
                 <Btn
                   size="sm"
                   variant="secondary"
-                  className="font-bold text-slate-700 border-slate-300 hover:bg-slate-100"
+                  className="font-semibold text-slate-700 border-slate-300 hover:bg-slate-100"
                   onClick={() => {
                     setAdminCancelNote("");
                     setShowRejectCancelModal(true);
@@ -1388,10 +1389,9 @@ export default function AdminBookingDetails() {
                 >
                   <X className="w-3.5 h-3.5 mr-1 text-slate-500" /> Decline Request
                 </Btn>
-                <Btn
-                  size="sm"
-                  variant="destructive"
-                  className="font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-2xs"
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs h-8 font-semibold rounded-md bg-[#4C81E0] hover:bg-[#3b6bc4] active:scale-[0.98] text-white transition-all shadow-xs cursor-pointer select-none"
                   onClick={() => {
                     setAdminCancelNote("");
                     setCancellationReasonInput(cancellationReason || "");
@@ -1402,14 +1402,14 @@ export default function AdminBookingDetails() {
                   }}
                 >
                   <Check className="w-3.5 h-3.5 mr-1" /> Review &amp; Approve
-                </Btn>
+                </button>
               </div>
             </div>
           )}
 
           {/* Active Cancelled Status & Penalty Banner */}
           {rawStatus === "cancelled" && (
-            <div className="bg-rose-50/95 border border-rose-200 rounded-lg p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+            <div className="bg-rose-50/90 border border-rose-200 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
               <div className="flex items-start gap-2.5 min-w-0">
                 <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                 <div className="space-y-1 min-w-0">
@@ -1441,12 +1441,18 @@ export default function AdminBookingDetails() {
 
           {/* Previous Cancellation / Refund Request Declined Banner */}
           {(booking.refund_denied || ["rejected", "denied"].includes(booking.cancellation_request?.status)) && (
-            <div className="bg-amber-50/90 border border-amber-200 rounded-lg p-2.5 sm:p-3 flex items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span className="text-amber-900">
-                  Customer refund / cancellation request was <strong>denied</strong>: {booking.refund_denial_reason || booking.cancellation_request?.admin_notes || "Denied"}
-                </span>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-start gap-2.5 text-xs shadow-2xs">
+              <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-800">Cancellation Request Declined</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                    Booking Active
+                  </span>
+                </div>
+                <p className="text-slate-600 text-xs">
+                  <strong>Reason provided to customer:</strong> {booking.refund_denial_reason || booking.cancellation_request?.admin_notes || "Declined by management"}
+                </p>
               </div>
             </div>
           )}
@@ -3294,43 +3300,53 @@ export default function AdminBookingDetails() {
 
         {/* Approve / Process Booking Cancellation & Penalty Modal */}
         <Dialog open={showApproveCancelModal} onOpenChange={setShowApproveCancelModal}>
-          <DialogContent className="max-w-md sm:max-w-lg">
-            <DialogHeader>
-              <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center mb-1 text-rose-600">
-                <AlertTriangle className="w-5 h-5" />
+          <DialogContent className="font-sans text-slate-900 bg-white border border-slate-200 w-[calc(100vw-1.5rem)] sm:w-full max-w-xl shadow-2xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-2xl flex flex-col gap-0">
+            <DialogHeader className="space-y-2 pb-3 border-b border-slate-100 text-left">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#4C81E0]/10 border border-[#4C81E0]/20 flex items-center justify-center text-[#4C81E0] shadow-2xs shrink-0">
+                  <ShieldAlert className="w-5 h-5 text-[#4C81E0]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-snug">
+                    Review &amp; Approve Booking Cancellation
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500 mt-0.5 break-words">
+                    Cancel booking <strong className="font-semibold font-mono text-slate-800">#{booking.reference || booking._id}</strong>, release reserved inventory, and apply policy terms.
+                  </DialogDescription>
+                </div>
               </div>
-              <DialogTitle className="text-base font-bold text-foreground">
-                Process Booking Cancellation &amp; Policy Terms
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground">
-                This will officially cancel booking <strong>#{booking.reference || booking._id}</strong>, release any reserved inventory items, and apply policy terms.
-              </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 py-1 text-xs">
-              {/* Context overview box */}
-              <div className="p-3 bg-muted/40 rounded-lg border border-border/70 text-xs space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Client:</span>
-                  <span className="font-semibold text-foreground">{customerName}</span>
+            <div className="space-y-4 py-3 text-xs flex-1">
+              {/* Scannable Booking Context Box - Matches Decline Modal */}
+              <div className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-3.5 sm:p-4 space-y-2.5">
+                <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-200/70">
+                  <span className="text-slate-500 font-medium">Customer</span>
+                  <span className="font-bold text-slate-800 truncate ml-2">{customerName}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Event Date:</span>
-                  <span className="font-semibold text-foreground">
+                <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-200/70">
+                  <span className="text-slate-500 font-medium">Event Date</span>
+                  <span className="font-semibold text-slate-800">
                     {booking.event_date ? new Date(booking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBD"}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Amount Collected / Paid:</span>
-                  <span className="font-bold text-emerald-700 font-mono">{fmt(totalPaid)}</span>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-medium">Amount Paid to Date</span>
+                  <span className="font-bold font-mono text-emerald-600">{fmt(totalPaid)}</span>
                 </div>
+
                 {isCancellationPending ? (
-                  <div className="pt-1 border-t border-border/50 text-[11px] text-muted-foreground">
-                    <strong>Customer Stated Reason:</strong> "{cancellationReason}"
+                  <div className="pt-2.5 border-t border-slate-200/70 space-y-1">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
+                      Customer's Stated Reason
+                    </span>
+                    <div className="p-2.5 sm:p-3 rounded-lg bg-white border border-slate-200/80 text-xs italic text-slate-700 leading-relaxed break-words">
+                      "{cancellationReason}"
+                    </div>
                   </div>
                 ) : (
-                  <div className="pt-1.5 border-t border-border/50 space-y-1">
-                    <label className="text-[11px] font-semibold text-foreground block">
+                  <div className="pt-2.5 border-t border-slate-200/70 space-y-1">
+                    <label className="text-[11px] font-bold text-slate-700 block">
                       Cancellation Circumstance / Reason:
                     </label>
                     <Input
@@ -3338,87 +3354,145 @@ export default function AdminBookingDetails() {
                       value={cancellationReasonInput}
                       onChange={(e) => setCancellationReasonInput(e.target.value)}
                       placeholder="e.g., Client No-Show, late cancellation, emergency..."
-                      className="text-xs h-7.5"
+                      className="text-xs h-9 bg-white border-slate-200 focus:border-[#4C81E0] focus:ring-2 focus:ring-[#4C81E0]/20"
                     />
                   </div>
                 )}
               </div>
 
-              {/* Resolution options when payments were made */}
+              {/* Resolution options when payments were made - Compact Vertical Radio Rows */}
               {totalPaid > 0 && (
-                <div className="space-y-2 pt-1 border-t border-border/60">
-                  <label className="text-xs font-bold text-foreground block">
+                <div className="space-y-2.5 pt-1 border-t border-slate-100">
+                  <label className="text-xs font-bold text-slate-800 block">
                     Cancellation &amp; Policy Resolution Method
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+
+                  <div className="space-y-2" role="radiogroup" aria-label="Cancellation Resolution Method">
+                    {/* Method 1: Forfeiture / No Refund */}
                     <button
                       type="button"
+                      role="radio"
+                      aria-checked={refundMode === "forfeit"}
                       onClick={() => setRefundMode("forfeit")}
-                      className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "forfeit"
-                          ? "border-rose-500 bg-rose-50/50 text-foreground font-semibold ring-1 ring-rose-500"
-                          : "border-border bg-background text-muted-foreground hover:border-border/80"
-                        }`}
+                      className={`w-full p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 select-none ${
+                        refundMode === "forfeit"
+                          ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0]/30 shadow-2xs"
+                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60"
+                      }`}
                     >
-                      <div className="font-bold text-xs text-rose-900 mb-0.5 flex items-center gap-1">
-                        <ShieldAlert className="w-3 h-3 text-rose-600 shrink-0" />
-                        Forfeit Deposit
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all ${
+                        refundMode === "forfeit"
+                          ? "border-[#4C81E0] bg-[#4C81E0]"
+                          : "border-slate-300 bg-white"
+                      }`}>
+                        {refundMode === "forfeit" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                       </div>
-                      <p className="text-[10px] text-muted-foreground leading-tight">
-                        Non-refundable penalty per policy. ₱0 refund issued.
-                      </p>
+                      <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2">
+                        <span className={`text-xs font-bold ${refundMode === "forfeit" ? "text-slate-900" : "text-slate-800"}`}>
+                          Forfeiture / No Refund
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-normal">
+                          Non-refundable penalty per policy. ₱0 refund issued.
+                        </span>
+                      </div>
                     </button>
 
+                    {/* Method 2: Customer Refund */}
                     <button
                       type="button"
+                      role="radio"
+                      aria-checked={refundMode === "custom"}
                       onClick={() => setRefundMode("custom")}
-                      className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "custom"
-                          ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary"
-                          : "border-border bg-background text-muted-foreground hover:border-border/80"
-                        }`}
+                      className={`w-full p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 select-none ${
+                        refundMode === "custom"
+                          ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0]/30 shadow-2xs"
+                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60"
+                      }`}
                     >
-                      <div className="font-bold text-xs text-foreground mb-0.5">Custom Refund</div>
-                      <p className="text-[10px] text-muted-foreground leading-tight">
-                        Specify partial refund amount and penalty deduction.
-                      </p>
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all ${
+                        refundMode === "custom"
+                          ? "border-[#4C81E0] bg-[#4C81E0]"
+                          : "border-slate-300 bg-white"
+                      }`}>
+                        {refundMode === "custom" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                      <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2">
+                        <span className={`text-xs font-bold ${refundMode === "custom" ? "text-slate-900" : "text-slate-800"}`}>
+                          Customer Refund
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-normal">
+                          Specify partial refund amount and penalty deduction.
+                        </span>
+                      </div>
                     </button>
 
+                    {/* Method 3: Refund Queue */}
                     <button
                       type="button"
+                      role="radio"
+                      aria-checked={refundMode === "queue"}
                       onClick={() => setRefundMode("queue")}
-                      className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "queue"
-                          ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary"
-                          : "border-border bg-background text-muted-foreground hover:border-border/80"
-                        }`}
+                      className={`w-full p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 select-none ${
+                        refundMode === "queue"
+                          ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0]/30 shadow-2xs"
+                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60"
+                      }`}
                     >
-                      <div className="font-bold text-xs text-foreground mb-0.5">Refund Queue</div>
-                      <p className="text-[10px] text-muted-foreground leading-tight">
-                        Send to Refund Management for finance review.
-                      </p>
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all ${
+                        refundMode === "queue"
+                          ? "border-[#4C81E0] bg-[#4C81E0]"
+                          : "border-slate-300 bg-white"
+                      }`}>
+                        {refundMode === "queue" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                      <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-2">
+                        <span className={`text-xs font-bold ${refundMode === "queue" ? "text-slate-900" : "text-slate-800"}`}>
+                          Refund Queue
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-normal">
+                          Send to Refund Management for finance review.
+                        </span>
+                      </div>
                     </button>
                   </div>
 
                   {/* Mode = Forfeit details */}
                   {refundMode === "forfeit" && (
-                    <div className="p-3 bg-rose-50/40 rounded-lg border border-rose-200/80 space-y-2 mt-2">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="font-semibold text-rose-950">Penalty Amount Forfeited:</span>
-                        <span className="font-mono font-bold text-rose-700 text-sm">{fmt(totalPaid)}</span>
+                    <div className="p-3.5 sm:p-4 bg-slate-50/90 rounded-xl border border-slate-200 space-y-3 mt-2 text-xs">
+                      {/* Financial Breakdown Cards */}
+                      <div className="grid grid-cols-3 gap-2 p-2.5 sm:p-3 rounded-lg bg-white border border-slate-200/90 text-center">
+                        <div className="min-w-0">
+                          <span className="text-[10px] text-slate-500 block font-medium truncate">Collected</span>
+                          <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm block truncate">{fmt(totalPaid)}</span>
+                        </div>
+                        <div className="border-x border-slate-100 px-1 min-w-0">
+                          <span className="text-[10px] text-rose-600 block font-bold truncate">Forfeited Penalty</span>
+                          <span className="font-mono font-bold text-rose-600 text-xs sm:text-sm block truncate">{fmt(totalPaid)}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[10px] text-slate-500 block font-medium truncate">Refund Issued</span>
+                          <span className="font-mono font-bold text-slate-500 text-xs sm:text-sm block truncate">₱0.00</span>
+                        </div>
                       </div>
-                      <p className="text-[11px] text-rose-800 leading-tight">
-                        Enforces <strong>Section 1 &amp; 2 of Cancellation Policy</strong>: deposits are non-refundable to cover ingredient procurement, kitchen capacity, and administrative costs.
-                      </p>
 
-                      <div className="space-y-1.5 pt-1">
-                        <label className="text-[11px] font-semibold text-foreground block">
+                      <div className="p-3 rounded-lg bg-[#4C81E0]/5 border border-[#4C81E0]/20 text-[11px] text-slate-700 leading-relaxed flex items-start gap-2.5">
+                        <Info className="w-4 h-4 text-[#4C81E0] shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="text-slate-800">Catering Cancellation Policy (Section 1 &amp; 2):</strong> Deposits are non-refundable upon cancellation to cover ingredient procurement, kitchen prep allocation, and schedule booking costs.
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 pt-1">
+                        <label className="text-[11px] font-bold text-slate-700 block">
                           Penalty Assessment Reason:
                         </label>
                         <select
                           value={penaltyReasonPreset}
                           onChange={(e) => setPenaltyReasonPreset(e.target.value)}
-                          className="w-full text-xs rounded border border-border p-1.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-full text-xs rounded-lg border border-slate-200 p-2.5 bg-white text-slate-800 focus:outline-none focus:border-[#4C81E0] focus:ring-2 focus:ring-[#4C81E0]/20"
                         >
-                          <option value="no_show">Customer failed to show up on event date (No-Show)</option>
                           <option value="late_cancel">Late cancellation (&lt; 14 days prior to event)</option>
+                          <option value="no_show">Customer failed to show up on event date (No-Show)</option>
                           <option value="uncooperative">Customer non-cooperation / breach of agreement</option>
                           <option value="standard">Standard non-refundable deposit terms</option>
                           <option value="custom">Other / Custom penalty explanation...</option>
@@ -3432,7 +3506,7 @@ export default function AdminBookingDetails() {
                             value={customPenaltyReason}
                             onChange={(e) => setCustomPenaltyReason(e.target.value)}
                             placeholder="Specify exact penalty reason..."
-                            className="text-xs h-7.5"
+                            className="text-xs h-9 bg-white border-slate-200 focus:border-[#4C81E0] focus:ring-2 focus:ring-[#4C81E0]/20"
                           />
                         </div>
                       )}
@@ -3441,11 +3515,14 @@ export default function AdminBookingDetails() {
 
                   {/* Mode = Custom details */}
                   {refundMode === "custom" && (
-                    <div className="p-3 bg-muted/30 rounded-lg border border-border/80 space-y-2 mt-2">
+                    <div className="p-3.5 sm:p-4 bg-slate-50/90 rounded-xl border border-slate-200 space-y-3 mt-2 text-xs">
                       <div>
-                        <label className="text-[11px] font-semibold text-foreground block mb-1">
-                          Refund Amount (₱)
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[11px] font-bold text-slate-700 block">
+                            Refund Amount (₱)
+                          </label>
+                          <span className="text-[10px] text-slate-500 font-mono">Max refundable: {fmt(totalPaid)}</span>
+                        </div>
                         <Input
                           type="number"
                           max={totalPaid}
@@ -3454,19 +3531,26 @@ export default function AdminBookingDetails() {
                           value={customRefundAmount}
                           onChange={(e) => setCustomRefundAmount(e.target.value)}
                           placeholder="0.00"
-                          className="text-xs font-mono h-8"
+                          className="text-xs font-mono h-9 bg-white border-slate-200 focus:border-[#4C81E0] focus:ring-2 focus:ring-[#4C81E0]/20"
                         />
-                        <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
-                          <span>Max refundable: {fmt(totalPaid)}</span>
-                          {Number(customRefundAmount) > 0 && totalPaid > Number(customRefundAmount) && (
-                            <span className="text-rose-700 font-semibold">
-                              Retained penalty: {fmt(totalPaid - Number(customRefundAmount))}
+                        {/* Live Financial Breakdown */}
+                        <div className="grid grid-cols-2 gap-2 mt-2 p-2.5 rounded-lg bg-white border border-slate-200 text-xs">
+                          <div>
+                            <span className="text-slate-500 block text-[11px]">Customer Refund:</span>
+                            <span className="font-mono font-bold text-emerald-600 text-xs sm:text-sm">
+                              {fmt(Number(customRefundAmount) || 0)}
                             </span>
-                          )}
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[11px]">Retained Penalty:</span>
+                            <span className="font-mono font-bold text-rose-600 text-xs sm:text-sm">
+                              {fmt(Math.max(0, totalPaid - (Number(customRefundAmount) || 0)))}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       <div>
-                        <label className="text-[11px] font-semibold text-foreground block mb-1">
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">
                           Refund / Deduction Reason
                         </label>
                         <Input
@@ -3474,106 +3558,170 @@ export default function AdminBookingDetails() {
                           value={customRefundReason}
                           onChange={(e) => setCustomRefundReason(e.target.value)}
                           placeholder="e.g., 50% deposit deduction per cancellation terms"
-                          className="text-xs h-8"
+                          className="text-xs h-9 bg-white border-slate-200 focus:border-[#4C81E0] focus:ring-2 focus:ring-[#4C81E0]/20"
                         />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mode = Queue details */}
+                  {refundMode === "queue" && (
+                    <div className="p-3.5 sm:p-4 bg-slate-50/90 rounded-xl border border-slate-200 space-y-2 mt-2 text-xs">
+                      <div className="flex items-start gap-2.5 text-slate-600">
+                        <Info className="w-4 h-4 text-[#4C81E0] shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold text-slate-800 text-xs">Forward to Refund Management</p>
+                          <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                            The booking will be officially cancelled and reserved dates/items freed immediately. The refund request for <strong className="font-mono text-slate-700">{fmt(totalPaid)}</strong> will appear in the Admin Refund Management dashboard for finance review and disbursement.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
                 </div>
               )}
 
-              <div>
-                <label className="text-xs font-semibold text-foreground block mb-1">
-                  Admin Internal Notes (Optional)
-                </label>
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 block">
+                    Admin Internal Notes (Optional)
+                  </label>
+                  <span className="text-[10px] text-slate-400">Internal only</span>
+                </div>
                 <textarea
                   rows={2}
                   value={adminCancelNote}
                   onChange={(e) => setAdminCancelNote(e.target.value)}
                   placeholder="Additional context or notes regarding this cancellation approval..."
-                  className="w-full text-xs rounded-lg border border-border p-2 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full text-xs rounded-lg border border-slate-200 p-2.5 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#4C81E0] focus:ring-2 focus:ring-[#4C81E0]/20 transition-all resize-none min-h-[60px]"
                 />
               </div>
             </div>
 
-            <DialogFooter className="gap-2 sm:gap-0">
+            <DialogFooter className="gap-2 sm:gap-2.5 pt-3 border-t border-slate-100 flex-col-reverse sm:flex-row sm:justify-end">
               <Btn
                 type="button"
                 variant="secondary"
+                className="w-full sm:w-auto font-semibold text-slate-700 border-slate-200 hover:bg-slate-50"
                 onClick={() => setShowApproveCancelModal(false)}
                 disabled={cancelActionLoading}
               >
                 Cancel
               </Btn>
-              <Btn
+              <button
                 type="button"
-                variant="destructive"
-                className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+                className={`w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs sm:text-sm h-9 font-semibold rounded-md text-white transition-all shadow-xs cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                  refundMode === "forfeit"
+                    ? "bg-rose-600 hover:bg-rose-700 active:scale-[0.98]"
+                    : "bg-[#4C81E0] hover:bg-[#3b6bc4] active:scale-[0.98]"
+                }`}
                 onClick={handleApproveCancellation}
                 disabled={cancelActionLoading}
               >
-                {cancelActionLoading ? "Processing..." : refundMode === "forfeit" ? "Confirm Forfeiture & Cancel" : "Confirm Cancellation"}
-              </Btn>
+                {cancelActionLoading
+                  ? "Processing..."
+                  : refundMode === "forfeit"
+                  ? "Confirm Forfeiture & Cancel"
+                  : refundMode === "custom"
+                  ? "Confirm Cancellation & Refund"
+                  : refundMode === "queue"
+                  ? "Confirm Cancellation & Queue"
+                  : "Confirm Cancellation"}
+              </button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
         {/* Decline Booking Cancellation Modal */}
         <Dialog open={showRejectCancelModal} onOpenChange={setShowRejectCancelModal}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <div className="w-10 h-10 rounded-full bg-amber-50 border border-amber-100 flex items-center justify-center mb-1 text-amber-600">
-                <AlertCircle className="w-5 h-5" />
+          <DialogContent className="font-sans text-slate-900 bg-white border border-slate-200 w-[calc(100vw-1.5rem)] sm:w-full max-w-lg shadow-2xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-2xl flex flex-col gap-0">
+            <DialogHeader className="space-y-2 pb-3 border-b border-slate-100 text-left">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#4C81E0]/10 border border-[#4C81E0]/20 flex items-center justify-center text-[#4C81E0] shadow-2xs shrink-0">
+                  <RotateCcw className="w-5 h-5 text-[#4C81E0]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-snug">
+                    Decline Cancellation Request
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500 mt-0.5 break-words">
+                    Keep booking <span className="font-bold font-mono text-slate-800">#{booking.reference || booking._id}</span> confirmed and active on the catering schedule.
+                  </DialogDescription>
+                </div>
               </div>
-              <DialogTitle className="text-base font-bold text-foreground">
-                Decline Cancellation Request
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground">
-                This will decline the customer's cancellation request and keep booking <strong>#{booking.reference || booking._id}</strong> active.
-              </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 py-1">
-              <div className="p-3 bg-muted/40 rounded-lg border border-border/70 text-xs">
-                <p className="text-muted-foreground mb-1">Customer's Requested Reason:</p>
-                <p className="font-medium text-foreground italic">"{cancellationReason}"</p>
+            <div className="space-y-4 py-3 text-xs flex-1">
+              {/* Scannable Booking Context Box */}
+              <div className="bg-slate-50/80 rounded-xl border border-slate-200/90 p-3.5 sm:p-4 space-y-2.5">
+                <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-200/70">
+                  <span className="text-slate-500 font-medium">Customer</span>
+                  <span className="font-bold text-slate-800 truncate ml-2">{customerName}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-200/70">
+                  <span className="text-slate-500 font-medium">Event Date</span>
+                  <span className="font-semibold text-slate-800">
+                    {booking.event_date ? new Date(booking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBD"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-medium">Amount Paid to Date</span>
+                  <span className="font-bold font-mono text-emerald-600">{fmt(totalPaid)}</span>
+                </div>
+
+                <div className="pt-2.5 border-t border-slate-200/70 space-y-1">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
+                    Customer's Stated Reason
+                  </span>
+                  <div className="p-2.5 sm:p-3 rounded-lg bg-white border border-slate-200/80 text-xs italic text-slate-700 leading-relaxed break-words">
+                    "{cancellationReason}"
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-foreground block mb-1">
-                  Reason for Declining <span className="text-rose-500">*</span>
-                </label>
+              {/* Decline Reason Input Field */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800">
+                    Reason for Declining <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-medium">Required</span>
+                </div>
                 <textarea
-                  rows={3}
+                  rows={4}
                   value={adminCancelNote}
                   onChange={(e) => setAdminCancelNote(e.target.value)}
-                  placeholder="Explain why the cancellation cannot be approved (this will be sent to the customer)..."
-                  className="w-full text-xs rounded-lg border border-border p-2.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Explain clearly why the cancellation request cannot be approved (this will be sent to the customer)..."
+                  className="w-full text-xs rounded-lg border border-slate-200 p-3 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#4C81E0] focus:ring-2 focus:ring-[#4C81E0]/20 transition-all resize-none min-h-[90px]"
                 />
-                <span className="text-[11px] text-muted-foreground mt-1 block">
-                  The client will be notified via their dashboard and in-app notifications.
-                </span>
+
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#4C81E0]/5 border border-[#4C81E0]/20 text-[11px] text-slate-700 mt-2">
+                  <Info className="w-4 h-4 text-[#4C81E0] shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">
+                    The customer will receive this message in their portal and the booking will remain confirmed on your calendar.
+                  </span>
+                </div>
               </div>
             </div>
 
-            <DialogFooter className="gap-2 sm:gap-0">
+            <DialogFooter className="gap-2 sm:gap-2.5 pt-3 border-t border-slate-100 flex-col-reverse sm:flex-row sm:justify-end">
               <Btn
                 type="button"
                 variant="secondary"
+                className="w-full sm:w-auto font-semibold text-slate-700 border-slate-200 hover:bg-slate-50"
                 onClick={() => setShowRejectCancelModal(false)}
                 disabled={cancelActionLoading}
               >
                 Cancel
               </Btn>
-              <Btn
+              <button
                 type="button"
-                variant="primary"
-                className="font-bold"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs sm:text-sm h-9 font-semibold rounded-md bg-[#4C81E0] hover:bg-[#3b6bc4] active:scale-[0.98] text-white transition-all shadow-xs cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleRejectCancellation}
                 disabled={cancelActionLoading}
               >
                 {cancelActionLoading ? "Submitting..." : "Send Decline Notice"}
-              </Btn>
+              </button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

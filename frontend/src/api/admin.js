@@ -45,7 +45,7 @@ export const AdminAPI = {
   proposeRevision: (id, data) => api.post(`/bookings/${id}/propose-revision`, data),
   acceptRevision: (id) => api.post(`/bookings/${id}/accept-revision`),
   rejectRevision: (id, data) => api.post(`/bookings/${id}/reject-revision`, data),
-  markBookingCompleted: (id) => api.put(`/manager/bookings/${id}/complete`),
+  markBookingCompleted: (id, data) => api.put(`/manager/bookings/${id}/complete`, data),
 
   // Payments
   getPayments: () => api.get("/payments"),

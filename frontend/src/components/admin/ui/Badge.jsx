@@ -76,6 +76,15 @@ export default function Badge({ status, variant, icon, children, dot = false, cl
     );
   }
 
+  if (norm === "pending completion") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-300 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
+        <span>Pending Completion</span>
+      </span>
+    );
+  }
+
   if (norm === "under review") {
     return (
       <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 ${className} whitespace-nowrap`}>

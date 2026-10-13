@@ -304,6 +304,8 @@ const BookingSchema = new mongoose.Schema(
         "delivered",
         "Delivered",
         "ongoing", // Legacy
+        "Pending Completion",
+        "pending completion",
         "Completed",
         "completed", // Legacy
         "Cancelled",

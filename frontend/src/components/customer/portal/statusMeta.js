@@ -302,7 +302,36 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
   }
 
   if (raw === "ongoing") {
+    const isPast = (() => {
+      if (!record?.event_date) return false;
+      const d = new Date(record.event_date);
+      if (Number.isNaN(d.getTime())) return false;
+      const endOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+      return new Date() > endOfDay;
+    })();
+
+    if (isPast) {
+      return {
+        tone: "neutral",
+        label: "Concluded",
+        icon: CheckCircle2,
+        notice: balance > 0
+          ? { tone: "warning", title: "Balance remaining.", text: "Your event has concluded. Please settle your remaining balance." }
+          : null,
+      };
+    }
     return { tone: "info", label: "Happening Now", icon: ChefHat, notice: null };
+  }
+
+  if (raw === "pending completion") {
+    return {
+      tone: balance > 0 ? "warning" : "neutral",
+      label: "Pending Completion",
+      icon: CheckCircle2,
+      notice: balance > 0
+        ? { tone: "warning", title: "Event concluded. Remaining balance due.", text: "Your event has concluded. Please settle your remaining balance to complete your booking." }
+        : { tone: "neutral", title: "Event concluded.", text: "Your event has concluded. Our team is finalizing equipment and billing wrap-up." },
+    };
   }
 
   if (["ready for event", "delivered"].includes(raw)) {

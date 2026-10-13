@@ -800,7 +800,7 @@ export default function AdminBookingDetails() {
   } else {
     if (rawStatus === "completed") {
       completedIdx = 7;
-    } else if (["ready for event", "ongoing", "preparing"].includes(rawStatus)) {
+    } else if (["ready for event", "ongoing", "preparing", "pending completion"].includes(rawStatus)) {
       completedIdx = 6;
     } else if (hasOcularScheduledOrDone || rawStatus === "ocular scheduled") {
       completedIdx = 5;
@@ -1052,7 +1052,18 @@ export default function AdminBookingDetails() {
     setUpdatingStatus(true);
     try {
       if (newStatus === "completed" || newStatus === "delivered") {
-        await AdminAPI.markBookingCompleted(booking._id);
+        let collectedCash = false;
+        if (remainingBalance > 0) {
+          const confirmCash = window.confirm(
+            `This booking has an outstanding balance of ₱${remainingBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}.\n\nDid you collect this remaining balance in cash on-site? Click OK to record cash collection and complete the event, or Cancel to abort.`
+          );
+          if (!confirmCash) {
+            setUpdatingStatus(false);
+            return;
+          }
+          collectedCash = true;
+        }
+        await AdminAPI.markBookingCompleted(booking._id, collectedCash ? { collected_cash_balance: true } : {});
       } else {
         await AdminAPI.updateBooking(booking._id, { status: newStatus });
       }
@@ -1240,20 +1251,38 @@ export default function AdminBookingDetails() {
                     </Btn>
                   )}
 
-                  {["confirmed", "Confirmed", "preparing", "Ready for Event", "ready for event", "ongoing"].includes(booking.status) && remainingBalance <= 0 && (
+                  {["confirmed", "Confirmed", "preparing", "Ready for Event", "ready for event", "ongoing", "Pending Completion", "pending completion"].includes(booking.status) && (
                     <Btn
                       size="sm"
                       variant="primary"
+                      disabled={updatingStatus}
                       onClick={() => setStatusConfirmTarget({
                         status: "completed",
                         title: "Mark Event as Completed?",
-                        message: "Are you sure you want to mark this event as Completed? This will finalize the event and allow the customer to leave a review.",
+                        message: remainingBalance > 0
+                          ? `Are you sure you want to mark this event as Completed? There is an outstanding balance of ₱${remainingBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })} which will be recorded as collected in cash on-site.`
+                          : "Are you sure you want to mark this event as Completed? This will finalize the event and allow the customer to leave a review.",
                         confirmText: "Yes, Mark Completed",
                         successMsg: "Event marked as Completed successfully!"
                       })}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-2xs"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
                     >
                       <CheckCircle2 size={13} /> Mark Completed
+                    </Btn>
+                  )}
+
+                  {!["cancelled", "completed"].includes(rawStatus) && (
+                    <Btn
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setSelectedNewStatus(booking.status);
+                        setShowStatusSelectModal(true);
+                      }}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                      title="Manually adjust booking status"
+                    >
+                      Change Status...
                     </Btn>
                   )}
                 </>
@@ -3706,17 +3735,16 @@ export default function AdminBookingDetails() {
                   {[
                     { id: "confirmed", label: "Confirmed / Reserved", desc: "Deposit received, date locked in schedule", disabled: false, tone: "border-emerald-200 bg-emerald-50/40 text-emerald-950 hover:border-emerald-400" },
                     { id: "preparing", label: isFoodOnlyService ? "Food Prep (Kitchen In-Progress)" : "Preparing / Ready for Setup", desc: isFoodOnlyService ? "Culinary team cooking and packaging food trays" : "Event preparations in progress", disabled: false, tone: "border-amber-200 bg-amber-50/40 text-amber-950 hover:border-amber-400" },
+                    { id: "pending completion", label: "Pending Completion", desc: "Event concluded; awaiting post-event inspection, wrap-up, and final balance settlement", disabled: false, tone: "border-purple-200 bg-purple-50/40 text-purple-950 hover:border-purple-400" },
                     ...(isFoodOnlyService ? [{ id: "out for delivery", label: "Out for Delivery (Dispatched)", desc: "Delivery courier en route to destination venue", disabled: false, tone: "border-blue-200 bg-blue-50/40 text-blue-950 hover:border-blue-400" }] : []),
                     {
                       id: "completed",
                       label: isFoodOnlyService ? "Delivered & Completed" : "Completed / Event Concluded",
                       desc: remainingBalance > 0
-                        ? `Disabled: Outstanding balance of ₱${remainingBalance.toLocaleString()} must be settled first`
+                        ? `Outstanding balance of ₱${remainingBalance.toLocaleString()} will be settled via on-site cash collection`
                         : "Service delivered and concluded successfully",
-                      disabled: remainingBalance > 0,
-                      tone: remainingBalance > 0
-                        ? "opacity-50 cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                        : "border-emerald-200 bg-emerald-50/40 text-emerald-950 hover:border-emerald-400"
+                      disabled: false,
+                      tone: "border-emerald-200 bg-emerald-50/40 text-emerald-950 hover:border-emerald-400"
                     },
                     { id: "cancelled", label: "Cancelled", desc: "Reservation cancelled", disabled: false, tone: "border-rose-200 bg-rose-50/40 text-rose-950 hover:border-rose-400" },
                   ].map((opt) => (

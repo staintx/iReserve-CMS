@@ -73,7 +73,13 @@ exports.getSummary = asyncHandler(async (req, res) => {
       });
     }
 
-    if (isCompleted) {
+    const eventDate = b.event_date ? new Date(b.event_date) : null;
+    const isPast = eventDate && !Number.isNaN(eventDate.getTime()) && (() => {
+      const endOfDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), 23, 59, 59, 999);
+      return new Date() > endOfDay;
+    })();
+
+    if (isCompleted || isPast) {
       completedCount += 1;
     } else if (!isCancelled) {
       assignedCount += 1;
@@ -84,7 +90,7 @@ exports.getSummary = asyncHandler(async (req, res) => {
   res.json({
     counts: {
       assigned: assignedCount,
-      upcoming: assignedCount,
+      upcoming: upcomingList.length,
       completed: completedCount,
       pending: 0
     },
@@ -293,10 +299,17 @@ exports.getBookings = asyncHandler(async (req, res) => {
 
   const query = { event_manager_id: managerId };
 
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
   if (statusTab === "completed") {
-    query.status = { $in: ["Completed", "completed"] };
+    query.$or = [
+      { status: { $in: ["Completed", "completed", "Pending Completion", "pending completion"] } },
+      { event_date: { $lt: todayStart } }
+    ];
   } else if (statusTab === "upcoming" || statusTab === "active" || !statusTab) {
-    query.status = { $nin: ["Completed", "completed", "Cancelled", "cancelled", "refunded"] };
+    query.status = { $nin: ["Completed", "completed", "Pending Completion", "pending completion", "Cancelled", "cancelled", "refunded"] };
+    query.event_date = { $gte: todayStart };
   }
 
   const bookings = await Booking.find(query)
@@ -606,7 +619,7 @@ exports.submitReport = asyncHandler(async (req, res) => {
 const isBookingStartedOrFinished = (booking) => {
   if (!booking) return false;
   const status = String(booking.status || "").toLowerCase();
-  if (["completed", "ongoing"].includes(status)) {
+  if (["completed", "ongoing", "pending completion"].includes(status)) {
     return true;
   }
 
@@ -652,8 +665,8 @@ exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Assigned event not found" });
   }
 
-  if (["completed", "Completed"].includes(booking.status)) {
-    return res.status(400).json({ message: "This booking is completed and read-only. Equipment check cannot be modified." });
+  if (booking.equipment_admin_verified?.confirmed) {
+    return res.status(400).json({ message: "This equipment inspection has already been finalized and verified by the administrator and is read-only." });
   }
 
   if (!isBookingStartedOrFinished(booking)) {
@@ -903,8 +916,8 @@ exports.updateEquipmentChecklist = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Assigned event not found" });
   }
 
-  if (["completed", "Completed"].includes(booking.status)) {
-    return res.status(400).json({ message: "This booking is completed and read-only. Equipment checklist cannot be modified." });
+  if (booking.equipment_admin_verified?.confirmed) {
+    return res.status(400).json({ message: "This equipment checklist has already been finalized and verified by the administrator and is read-only." });
   }
 
   const { checklist, item, notes } = req.body;

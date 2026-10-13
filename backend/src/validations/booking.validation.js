@@ -82,5 +82,5 @@ exports.bookingSchema = Joi.object({
   payment_status: Joi.string().valid("pending", "deposit_paid", "fully_paid", "refund_requested", "refunded").allow("").optional(),
   paymongo_checkout_session_id: Joi.string().allow("").optional(),
   paymongo_payment_intent_id: Joi.string().allow("").optional(),
-  status: Joi.string().valid("pending deposit", "confirmed", "preparing", "ongoing", "completed", "cancelled").allow("").optional()
+  status: Joi.string().valid("pending deposit", "confirmed", "preparing", "ongoing", "pending completion", "Pending Completion", "completed", "cancelled").allow("").optional()
 }).unknown(true);

@@ -55,7 +55,9 @@ export const formatReceiptEventDate = (dateStr, { long = false } = {}) => {
  */
 export const getReceiptNumber = (payment) => {
   if (!payment?._id) return "REC-00000000";
-  const isRefund = String(payment.payment_type || "").toLowerCase() === "refund";
+  const isRefund =
+    String(payment.payment_type || "").toLowerCase() === "refund" ||
+    Number(payment.amount) < 0;
   const prefix = isRefund ? "VCH-" : "REC-";
   return `${prefix}${String(payment._id).slice(-8).toUpperCase()}`;
 };
@@ -66,7 +68,7 @@ export const getReceiptNumber = (payment) => {
 export const getReceiptMilestoneLabel = (type) => {
   const t = String(type || "").toLowerCase().trim();
   if (t === "deposit") return "Initial Deposit Payment";
-  if (t === "balance") return "Final Balance Payment";
+  if (t === "balance" || t === "final") return "Final Balance Payment";
   if (t === "full") return "Full Payment (100%)";
   if (t === "additional") return "Additional Charge";
   if (t === "refund") return "Official Refund Voucher";
@@ -82,7 +84,7 @@ export const getReceiptPaymentMethod = (payment) => {
   if (m.includes("maya") || m.includes("paymaya")) return "Maya";
   if (m.includes("card") || m.includes("credit") || m.includes("debit")) return "Credit / Debit Card";
   if (m.includes("bank")) return "Bank Transfer";
-  if (m.includes("cash")) return "Cash Onsite";
+  if (m.includes("cash")) return "Cash Payment";
   if (m === "paymongo" || m === "online") return "Online (PayMongo)";
   if (m === "manual") return "Manual / Cash";
   if (!m) return "Online Payment";
@@ -93,7 +95,7 @@ export const getReceiptPaymentMethod = (payment) => {
  * Extract payer details safely from payment, booking, or inquiry objects.
  */
 export const getReceiptCustomerDetails = (payment, booking = null) => {
-  if (!payment) return { name: "Customer", email: null, phone: null };
+  if (!payment) return { name: "Customer", email: null, phone: null, address: null };
 
   const custObj = payment.customer_id && typeof payment.customer_id === "object" ? payment.customer_id : {};
   const bookObj = booking || (payment.booking_id && typeof payment.booking_id === "object" ? payment.booking_id : {});
@@ -104,7 +106,7 @@ export const getReceiptCustomerDetails = (payment, booking = null) => {
     [custObj.first_name, custObj.last_name].filter(Boolean).join(" ") ||
     [bookObj.contact_first_name, bookObj.contact_last_name].filter(Boolean).join(" ") ||
     [inqObj.contact_first_name, inqObj.contact_last_name].filter(Boolean).join(" ") ||
-    "Customer";
+    "Valued Customer";
 
   const email =
     custObj.email ||
@@ -121,14 +123,35 @@ export const getReceiptCustomerDetails = (payment, booking = null) => {
     inqObj.contact_alt_phone ||
     null;
 
-  return { name, email, phone };
+  const addressParts = [
+    custObj.address,
+    custObj.street || bookObj.street || inqObj.street,
+    custObj.barangay || bookObj.barangay || inqObj.barangay,
+    custObj.municipality || bookObj.municipality || inqObj.municipality,
+    custObj.province || bookObj.province || inqObj.province,
+  ].filter(Boolean);
+
+  const address = addressParts.length > 0 ? addressParts.join(", ") : null;
+
+  return { name, email, phone, address };
 };
 
 /**
  * Extract booking and event details safely from payment, booking, or inquiry.
  */
 export const getReceiptBookingDetails = (payment, booking = null) => {
-  if (!payment) return { bookingRef: "N/A", eventType: null, packageName: null, eventDate: null };
+  if (!payment) {
+    return {
+      bookingRef: "N/A",
+      eventType: null,
+      packageName: null,
+      eventDate: null,
+      guestCount: null,
+      venue: null,
+      startTime: null,
+      serviceType: null,
+    };
+  }
 
   const b = booking || (payment.booking_id && typeof payment.booking_id === "object" ? payment.booking_id : {});
   const inq = payment.inquiry_id && typeof payment.inquiry_id === "object" ? payment.inquiry_id : {};
@@ -140,10 +163,31 @@ export const getReceiptBookingDetails = (payment, booking = null) => {
     "N/A";
 
   const eventType = b.event_type || inq.event_type || null;
-  const packageName = b.package_name_snapshot || b.package_id?.name || inq.package_name_snapshot || null;
+  const packageName = b.package_name_snapshot || b.package_id?.name || inq.package_name_snapshot || inq.package_id?.name || null;
   const eventDate = b.event_date || inq.event_date || null;
+  const guestCount = b.guest_count || inq.guest_count || null;
+  const startTime = b.start_time || inq.start_time || null;
+  const serviceType = b.service_type || inq.service_type || null;
 
-  return { bookingRef, eventType, packageName, eventDate };
+  const venueParts = [b.street, b.barangay, b.municipality, b.province].filter(Boolean);
+  const venue =
+    venueParts.length > 0
+      ? venueParts.join(", ")
+      : b.venue_type ||
+        [inq.street, inq.barangay, inq.municipality, inq.province].filter(Boolean).join(", ") ||
+        inq.venue_type ||
+        null;
+
+  return {
+    bookingRef,
+    eventType,
+    packageName,
+    eventDate,
+    guestCount,
+    venue,
+    startTime,
+    serviceType,
+  };
 };
 
 /**
@@ -158,18 +202,87 @@ export const getReceiptBusinessInfo = (businessInfo = {}) => {
   const b = businessInfo || {};
   return {
     name: OFFICIAL_BUSINESS_NAME,
-    subline: null,
-    address: b.address?.trim() || null,
-    phone: b.contact_number?.trim() || null,
-    email: b.email?.trim() || null,
+    tagline: "",
+    address: b.address?.trim() || "Purok 4, Pangao, Ibaan, Batangas, Philippines",
+    phone: b.contact_number?.trim() || "+63 987 676 2322",
+    email: b.email?.trim() || "info@caezellescatering.com",
+    facebook: b.facebook?.trim() || "facebook.com/caezellescatering",
+  };
+};
+
+/**
+ * Calculate financial totals and remaining balance safely from payment and booking context.
+ */
+export const getReceiptFinancials = (payment, booking = null) => {
+  if (!payment) {
+    return {
+      amountPaid: 0,
+      isRefund: false,
+      totalBookingAmount: null,
+      totalContract: null,
+      remainingBalance: null,
+      isFullyPaid: false,
+      status: "approved",
+    };
+  }
+
+  const isRefund =
+    String(payment.payment_type || "").toLowerCase() === "refund" ||
+    Number(payment.amount) < 0;
+
+  const amountPaid = Math.abs(Number(payment.amount) || 0);
+  const pType = String(payment.payment_type || "").toLowerCase().trim();
+  const status = String(payment.status || "approved").toLowerCase();
+  const isApproved = ["approved", "paid", "completed", "succeeded"].includes(status);
+
+  const b = booking || (payment.booking_id && typeof payment.booking_id === "object" ? payment.booking_id : null);
+  const inq = payment.inquiry_id && typeof payment.inquiry_id === "object" ? payment.inquiry_id : null;
+
+  const totalBookingAmount =
+    Number(b?.total_price ?? b?.total_cost ?? inq?.total_price ?? inq?.total_cost) || null;
+
+  let remainingBalance = null;
+
+  if (isRefund) {
+    remainingBalance = null;
+  } else if (payment.remaining_balance !== undefined && payment.remaining_balance !== null) {
+    remainingBalance = Math.max(0, Number(payment.remaining_balance));
+  } else if (payment.metadata?.remaining_balance !== undefined && payment.metadata?.remaining_balance !== null) {
+    remainingBalance = Math.max(0, Number(payment.metadata.remaining_balance));
+  } else if (b?.remaining_balance !== undefined && b?.remaining_balance !== null) {
+    remainingBalance = Math.max(0, Number(b.remaining_balance));
+  } else if (b?.quotation_id?.remaining_balance !== undefined && b?.quotation_id?.remaining_balance !== null) {
+    remainingBalance = Math.max(0, Number(b.quotation_id.remaining_balance));
+  } else if (isApproved && (pType === "full" || pType === "balance" || pType === "final")) {
+    remainingBalance = 0;
+  } else if (totalBookingAmount !== null) {
+    if (pType === "deposit") {
+      const depositVal = Number(b?.deposit_amount) || amountPaid;
+      remainingBalance = Math.max(0, totalBookingAmount - depositVal);
+    } else {
+      remainingBalance = Math.max(0, totalBookingAmount - amountPaid);
+    }
+  }
+
+  const isFullyPaid = remainingBalance !== null && remainingBalance <= 0;
+
+  return {
+    amountPaid,
+    isRefund,
+    paymentType: pType,
+    status,
+    isApproved,
+    totalBookingAmount,
+    totalContract: totalBookingAmount, // Alias for backward compatibility
+    remainingBalance,
+    isFullyPaid,
   };
 };
 
 /**
  * Resolve authorized signatory data from existing authorized signatory sources.
  * If no authorized signatory source exists on the record, returns name: null
- * so the signature area is rendered as an unsigned signature line / place for manual signing,
- * rather than displaying the logged-in user's name.
+ * so the signature area is rendered as an unsigned signature line / place for manual signing.
  */
 export const getReceiptSignatory = (payment, booking = null) => {
   // 1. Check payment metadata if recorded_by, processed_by, approved_by, or signatory_name was saved
@@ -200,3 +313,4 @@ export const getReceiptSignatory = (payment, booking = null) => {
   // 3. If no authorized signatory source exists on the record, return null for an unsigned signature line
   return { name: null, role: "Authorized Signature" };
 };
+

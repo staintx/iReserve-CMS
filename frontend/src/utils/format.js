@@ -163,21 +163,33 @@ export const getEventTimingStatus = (booking) => {
 
   const status = String(booking.status || "").toLowerCase();
   const isCompleted = ["completed"].includes(status);
+  const isPendingCompletion = ["pending completion"].includes(status);
   const isOngoing = ["ongoing"].includes(status);
+
+  let isPastDate = false;
+  let dateObj = null;
+  if (booking.event_date) {
+    dateObj = new Date(booking.event_date);
+    if (!Number.isNaN(dateObj.getTime())) {
+      const endOfDay = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 23, 59, 59, 999);
+      isPastDate = new Date() > endOfDay;
+    }
+  }
 
   if (isCompleted) {
     return { isStarted: true, isFinished: true, isCompleted: true, isUpcoming: false, label: "Completed" };
   }
+  if (isPendingCompletion) {
+    return { isStarted: true, isFinished: true, isCompleted: false, isUpcoming: false, label: "Pending Completion" };
+  }
   if (isOngoing) {
+    if (isPastDate) {
+      return { isStarted: true, isFinished: true, isCompleted: false, isUpcoming: false, label: "Concluded" };
+    }
     return { isStarted: true, isFinished: false, isCompleted: false, isUpcoming: false, label: "In Progress" };
   }
 
-  if (!booking.event_date) {
-    return { isStarted: true, isFinished: false, isCompleted: false, isUpcoming: false, label: "Ready" };
-  }
-
-  const dateObj = new Date(booking.event_date);
-  if (Number.isNaN(dateObj.getTime())) {
+  if (!booking.event_date || !dateObj || Number.isNaN(dateObj.getTime())) {
     return { isStarted: true, isFinished: false, isCompleted: false, isUpcoming: false, label: "Ready" };
   }
 
@@ -203,12 +215,14 @@ export const getEventTimingStatus = (booking) => {
 
   const now = new Date();
   const isStarted = now >= startDateTime;
-  const isFinished = isCompleted;
-  const isUpcoming = !isStarted && !isCompleted;
+  const isFinished = isCompleted || isPastDate;
+  const isUpcoming = !isStarted && !isCompleted && !isPastDate;
 
   let label = "Upcoming Shift";
   if (isCompleted) {
     label = "Event Concluded";
+  } else if (isPastDate) {
+    label = "Concluded";
   } else if (isStarted) {
     label = "Event In Progress";
   }

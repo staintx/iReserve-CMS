@@ -284,30 +284,25 @@ const runAutoStatusTransitions = async (io) => {
             console.log(`Transitioned ${todayResult.modifiedCount} bookings to 'ongoing'.`);
         }
 
-        // Events concluded before today (< todayStart) → Completed (guarded against unverified equipment returns and unstaffed manager events)
+        // Events concluded before today (< todayStart) → Pending Completion
         const pastCandidates = await Booking.find({
             event_date: { $lt: todayStart },
             status: { $in: ["ongoing", "Ready for Event", "ready for event", "confirmed", "Confirmed", "preparing"] }
         });
 
-        let completedCount = 0;
+        let transitionedCount = 0;
         for (const b of pastCandidates) {
             const isUnstaffedManagerEvent = b.event_manager_id &&
                 (!Array.isArray(b.staff_assignments) || b.staff_assignments.length === 0);
 
             if (isUnstaffedManagerEvent) {
-                if (b.status !== "ongoing") {
-                    b.status = "ongoing";
-                    await b.save();
-                }
                 await notifyAdminsOnly({
-                    title: "Event Completion Blocked",
-                    body: `Booking ${b.reference || b._id} concluded but staff was never assigned. Held in ongoing state for administrative review.`,
+                    title: "Event Concluded Unstaffed",
+                    body: `Booking ${b.reference || b._id} concluded with zero staff assigned by the manager. Status updated to Pending Completion.`,
                     type: "warning",
                     link: `/admin/bookings/${b._id}/details`,
                     meta: { booking_id: b._id }
                 }, io);
-                continue;
             }
 
             const hasPendingEquipment = (Array.isArray(b.inventory_items) && b.inventory_items.length > 0) &&
@@ -315,16 +310,23 @@ const runAutoStatusTransitions = async (io) => {
                  Array.isArray(b.equipment_returns) &&
                  b.equipment_returns.some(eq => !eq.verified_at));
 
-            if (!hasPendingEquipment) {
-                b.status = "Completed";
-                if (!b.completed_at) b.completed_at = new Date();
-                await b.save();
-                completedCount++;
+            if (hasPendingEquipment) {
+                await notifyAdminsOnly({
+                    title: "Equipment Return Pending",
+                    body: `Booking ${b.reference || b._id} concluded with equipment returns pending inspection. Status updated to Pending Completion.`,
+                    type: "warning",
+                    link: `/admin/bookings/${b._id}/details`,
+                    meta: { booking_id: b._id }
+                }, io);
             }
+
+            b.status = "Pending Completion";
+            await b.save();
+            transitionedCount++;
         }
 
-        if (completedCount > 0) {
-            console.log(`Transitioned ${completedCount} bookings to 'Completed'.`);
+        if (transitionedCount > 0) {
+            console.log(`Transitioned ${transitionedCount} bookings to 'Pending Completion'.`);
             if (io) io.emit("system:refresh", { type: "booking", action: "update" });
         }
 

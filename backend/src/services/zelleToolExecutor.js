@@ -4,6 +4,12 @@ const MenuItem = require("../models/MenuItem");
 const Addon = require("../models/Addon");
 const BlockedDate = require("../models/BlockedDate");
 const { checkDateBlocked } = require("../utils/blockedDates");
+const {
+  checkMaxBookingsLimit,
+  getDailyBookingLimit,
+  getCachedBusinessInfo,
+  INACTIVE_BOOKING_STATUSES,
+} = require("../utils/bookingCapacity");
 const BusinessInfo = require("../models/BusinessInfo");
 const Inquiry = require("../models/Inquiry");
 const Quotation = require("../models/Quotation");
@@ -235,11 +241,11 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
         // 2. Check existing bookings
         const activeBookingsCount = await Booking.countDocuments({
           event_date: { $gte: startOfDay, $lte: endOfDay },
-          status: { $nin: ["Cancelled", "cancelled", "refunded"] },
+          status: { $nin: INACTIVE_BOOKING_STATUSES },
         });
 
-        const bizInfo = await BusinessInfo.findOne().lean();
-        const maxPerDay = bizInfo?.max_bookings_per_day || 2;
+        const bizInfo = await getCachedBusinessInfo();
+        const maxPerDay = getDailyBookingLimit(bizInfo);
 
         const isFull = activeBookingsCount >= maxPerDay;
 

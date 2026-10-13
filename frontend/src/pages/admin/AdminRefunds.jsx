@@ -128,6 +128,8 @@ export default function AdminRefunds() {
           let status = "pending";
           if (b.refund_denied || b.cancellation_request?.status === "denied" || b.cancellation_request?.status === "rejected") {
             status = "denied";
+          } else if (Number(b.cancellation_penalty_amount || 0) > 0 && b.status === "cancelled" && totalRefunded === 0) {
+            status = "forfeited";
           } else if (totalRefunded > 0 || b.payment_status === "refunded" || b.status === "refunded") {
             status = "approved";
           } else if (positivePaid === 0 && b.status === "cancelled") {
@@ -195,6 +197,7 @@ export default function AdminRefunds() {
     if (s === "approved" || s === "refunded") return "Approved & Refunded";
     if (s === "pending") return "Pending Approval";
     if (s === "denied") return "Denied";
+    if (s === "forfeited") return "Deposit Forfeited (Penalty)";
     if (s === "no_refund_needed") return "No Refund Needed";
     return s;
   };
@@ -203,6 +206,7 @@ export default function AdminRefunds() {
     if (s === "approved" || s === "refunded") return "Paid";
     if (s === "pending") return "Pending";
     if (s === "denied") return "Denied";
+    if (s === "forfeited") return "Cancelled";
     return "off";
   };
 
@@ -312,7 +316,11 @@ export default function AdminRefunds() {
         reason: refundReason,
       });
 
-      notify(`Refund of ${fmt(refundAmount)} processed successfully!`, "success");
+      if (refundAmount > 0) {
+        notify(`Refund of ${fmt(refundAmount)} processed successfully!`, "success");
+      } else {
+        notify(`Cancellation recorded as non-refundable penalty (${fmt(activeRefund.totalPaid)} forfeited per policy).`, "info");
+      }
       setShowCalcModal(false);
       setActiveRefund(null);
       if (drawerRow?._id === activeRefund._id) setDrawerRow(null);
@@ -1119,23 +1127,28 @@ export default function AdminRefunds() {
                 <div className="bg-accent/10 p-4 rounded-xl border border-accent/30 space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-xs text-gray-700 uppercase tracking-wider">Refund Disbursed to Customer</span>
-                    <span className="text-2xl font-bold text-red-600">
+                    <span className={`text-2xl font-bold ${calcPct === 0 ? "text-slate-500" : "text-red-600"}`}>
                       {fmt((activeRefund.totalPaid * calcPct) / 100)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-xs text-gray-600 pt-1 border-t border-accent/30">
-                    <span>Retained Cancellation Fee:</span>
-                    <span className="font-semibold text-gray-800">
+                    <span>Retained Cancellation Fee / Penalty:</span>
+                    <span className="font-semibold text-rose-700 font-mono">
                       {fmt((activeRefund.totalPaid * (100 - calcPct)) / 100)}
                     </span>
                   </div>
 
-                  {calcPct < 100 && (
+                  {calcPct === 0 ? (
+                    <p className="text-[11px] text-rose-800 flex items-center gap-1 pt-1 font-medium">
+                      <AlertTriangle size={12} className="text-rose-600 shrink-0" />
+                      100% of collected payment forfeited as non-refundable penalty per policy terms.
+                    </p>
+                  ) : calcPct < 100 ? (
                     <p className="text-[11px] text-amber-800 flex items-center gap-1 pt-1 font-medium">
                       <AlertTriangle size={12} className="text-amber-600 shrink-0" />
-                      {100 - calcPct}% retained as non-refundable administrative & prep fee.
+                      {100 - calcPct}% retained as non-refundable administrative &amp; prep fee.
                     </p>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* Notes / Reason text input */}

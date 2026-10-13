@@ -230,6 +230,14 @@ export default function StepDateTime({
     form.service_type,
   ]);
 
+  useEffect(() => {
+    if (form.event_date && (bookedDates.includes(form.event_date) || allBlockedDates.includes(form.event_date))) {
+      if (form.start_time) {
+        setForm((prev) => ({ ...prev, start_time: "" }));
+      }
+    }
+  }, [form.event_date, bookedDates, allBlockedDates, form.start_time, setForm]);
+
   const handleTimeSelect = (slotTime) => {
     let [time, modifier] = slotTime.split(" ");
     let [hours, minutes] = time.split(":");
@@ -406,7 +414,9 @@ export default function StepDateTime({
                   title={
                     isBlocked
                       ? "This date is currently unavailable because it has been blocked by the administrator."
-                      : undefined
+                      : isBooked
+                        ? "This date has reached the maximum number of bookings allowed."
+                        : undefined
                   }
                   onClick={() => setForm({ ...form, event_date: dateStr })}
                   className={cn(
@@ -444,13 +454,15 @@ export default function StepDateTime({
             </span>
           </div>
 
-          {(errors.event_date || (form.event_date && allBlockedDates.includes(form.event_date))) && (
+          {(errors.event_date || (form.event_date && allBlockedDates.includes(form.event_date)) || (form.event_date && bookedDates.includes(form.event_date))) && (
             <div className="mt-2.5 flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-600">
               <AlertCircle size={14} className="shrink-0 text-red-500" />
               <span>
                 {allBlockedDates.includes(form.event_date)
                   ? "This date is currently unavailable because it has been blocked by the administrator. Please select another date."
-                  : errors.event_date}
+                  : bookedDates.includes(form.event_date)
+                    ? "This date has reached the maximum number of bookings allowed. Please select another date."
+                    : errors.event_date}
               </span>
             </div>
           )}
@@ -480,6 +492,24 @@ export default function StepDateTime({
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-slate-700">Choose an event date first</p>
                 <p className="text-[11px] text-slate-400">Select an available date on the calendar to view start times.</p>
+              </div>
+            </div>
+          ) : bookedDates.includes(form.event_date) || allBlockedDates.includes(form.event_date) ? (
+            <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50/70 p-3 text-red-700 my-1">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600">
+                <AlertCircle size={16} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-red-800">
+                  {allBlockedDates.includes(form.event_date)
+                    ? "Date Blocked by Admin"
+                    : "Date Fully Booked"}
+                </p>
+                <p className="text-[11px] text-red-600">
+                  {allBlockedDates.includes(form.event_date)
+                    ? "This date is currently unavailable because it has been blocked by the administrator. Please select another date."
+                    : "This date has reached the maximum number of bookings allowed. Please select another date."}
+                </p>
               </div>
             </div>
           ) : isLoadingTimes ? (

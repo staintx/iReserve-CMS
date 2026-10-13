@@ -10,6 +10,14 @@ const BlockedDate = require("../models/BlockedDate");
 const User = require("../models/User");
 const StaffAvailability = require("../models/StaffAvailability");
 const { checkDateBlocked, BLOCKED_DATE_MESSAGE } = require("../utils/blockedDates");
+const {
+  INACTIVE_BOOKING_STATUSES,
+  clearBusinessInfoCache,
+  getCachedBusinessInfo,
+  getDailyBookingLimit,
+  checkMaxBookingsLimit,
+  getBookedDatesForMonth,
+} = require("../utils/bookingCapacity");
 const { MAX_FINANCIAL_AMOUNT } = require("../validations/rules.common");
 const {
   isBookingAwaitingDeposit,
@@ -331,122 +339,9 @@ const filterAvailableStaff = async (
   return staffIds.filter((id) => !bookedStaff.has(id.toString()));
 };
 
-const findBookingConflict = async ({
-  eventDate,
-  startTime,
-  durationHours,
-  excludeId,
-  location,
-  bufferMinutes,
-  ignoreLocation = false,
-}) => {
-  if (!eventDate) return null;
-  const date = new Date(eventDate);
-  if (Number.isNaN(date.getTime())) return null;
-
-  const dayStart = new Date(date);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(date);
-  dayEnd.setHours(23, 59, 59, 999);
-
-  const query = {
-    status: { $in: ["pending deposit", "confirmed", "Confirmed", "preparing", "ongoing", "Ready for Event"] },
-    event_date: { $gte: dayStart, $lte: dayEnd },
-  };
-  if (excludeId) query._id = { $ne: excludeId };
-
-  const existingBookings = await Booking.find(query);
-  if (existingBookings.length === 0) return null;
-
-  const reqStart = parseTimeToMinutes(startTime);
-  if (reqStart === null) {
-    return (
-      existingBookings.find((booking) => ignoreLocation || sameLocation(location, booking)) ||
-      null
-    );
-  }
-
-  return (
-    existingBookings.find((booking) => {
-      if (!ignoreLocation && location?.municipality && !sameLocation(location, booking)) {
-        return false;
-      }
-      const existingStart = parseTimeToMinutes(booking.start_time);
-      if (existingStart === null) return true;
-      return reqStart === existingStart;
-    }) || null
-  );
-};
-
-// --- Perf: cache BusinessInfo (60s TTL) for rarely-changing settings ---
-let _businessInfoCache = null;
-let _businessInfoCacheTime = 0;
-const BUSINESS_INFO_TTL = 60000;
-const getCachedBusinessInfo = async () => {
-  const now = Date.now();
-  if (_businessInfoCache && now - _businessInfoCacheTime < BUSINESS_INFO_TTL) {
-    return _businessInfoCache;
-  }
-  _businessInfoCache = await BusinessInfo.findOne().lean();
-  _businessInfoCacheTime = now;
-  return _businessInfoCache;
-};
-
-const ACTIVE_BOOKING_STATUSES = [
-  "pending deposit",
-  "Deposit Pending",
-  "deposit pending",
-  "deposit_paid",
-  "Confirmed",
-  "confirmed",
-  "Ocular Scheduled",
-  "ocular scheduled",
-  "Final Payment Pending",
-  "final payment pending",
-  "Ready for Event",
-  "ready for event",
-  "preparing",
-  "ongoing",
-  "customer_accepted",
-  "converted to booking",
-];
-
-const checkMaxBookingsLimit = async (eventDate, excludeId = null) => {
-  if (!eventDate) return false;
-  let year, month, day;
-  if (typeof eventDate === "string") {
-    const match = eventDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-      year = parseInt(match[1], 10);
-      month = parseInt(match[2], 10) - 1;
-      day = parseInt(match[3], 10);
-    }
-  }
-  if (year === undefined) {
-    const date = new Date(eventDate);
-    if (Number.isNaN(date.getTime())) return false;
-    year = date.getUTCFullYear();
-    month = date.getUTCMonth();
-    day = date.getUTCDate();
-  }
-
-  const dayStart = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
-  const dayEnd = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
-
-  const query = {
-    status: { $in: ACTIVE_BOOKING_STATUSES },
-    event_date: { $gte: dayStart, $lte: dayEnd },
-  };
-  if (excludeId) query._id = { $ne: excludeId };
-
-  const [count, businessInfo] = await Promise.all([
-    Booking.countDocuments(query),
-    getCachedBusinessInfo(),
-  ]);
-  const limit = businessInfo?.max_bookings_per_day || 2;
-
-  return count >= limit;
-};
+// Caezelle's Catering allows multiple events to take place on the same date,
+// including events with the same start time. Individual start times do not conflict.
+const findBookingConflict = async () => null;
 
 exports.create = asyncHandler(async (req, res) => {
   if (req.body.package_id === "") {
@@ -603,6 +498,14 @@ exports.create = asyncHandler(async (req, res) => {
   const blocked = await checkDateBlocked(req.body.event_date);
   if (blocked) {
     return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
+  }
+
+  // Check Max Bookings Limit
+  const maxLimitReached = await checkMaxBookingsLimit(req.body.event_date);
+  if (maxLimitReached) {
+    return res.status(400).json({
+      message: "This date has reached the maximum number of bookings allowed. Please select another date."
+    });
   }
 
   // Conflict checks (max bookings, schedule conflicts, inventory) are bypassed during inquiry creation
@@ -2006,22 +1909,7 @@ exports.checkAvailability = asyncHandler(async (req, res) => {
     });
   }
 
-  const conflict = await findBookingConflict({
-    eventDate: req.query.event_date,
-    startTime: req.query.start_time,
-    durationHours: req.query.duration_hours,
-    location: {
-      venue_type: req.query.venue_type,
-      province: req.query.province,
-      municipality: req.query.municipality,
-      barangay: req.query.barangay,
-      street: req.query.street,
-      delivery_method: req.query.delivery_method,
-      service_type: req.query.service_type,
-    },
-    bufferMinutes: req.query.buffer_minutes,
-  });
-
+  // Individual start times do not conflict for Caezelle's Catering
   let inventoryAvailable = true;
   let itemName = null;
   if (req.query.inventory_items) {
@@ -2041,8 +1929,8 @@ exports.checkAvailability = asyncHandler(async (req, res) => {
   }
 
   res.json({
-    available: !conflict && inventoryAvailable,
-    conflict_id: conflict?._id || null,
+    available: inventoryAvailable,
+    conflict_id: null,
     inventory_issue: !inventoryAvailable ? itemName : null,
   });
 });
@@ -2317,16 +2205,16 @@ exports.suggestDates = asyncHandler(async (req, res) => {
   rangeEnd.setDate(rangeEnd.getDate() + range);
   rangeEnd.setHours(23, 59, 59, 999);
 
-  const [blockedDates, rangeBookings] = await Promise.all([
+  const [blockedDates, rangeBookings, businessInfo] = await Promise.all([
     BlockedDate.find({ date: { $gte: rangeStart, $lte: rangeEnd } }).lean(),
     Booking.find({
-      status: { $in: ["pending deposit", "confirmed", "preparing", "ongoing"] },
+      status: { $nin: INACTIVE_BOOKING_STATUSES },
       event_date: { $gte: rangeStart, $lte: rangeEnd },
     }).lean(),
+    getCachedBusinessInfo(),
   ]);
-  const blockedTimestamps = new Set(blockedDates.map(b => new Date(b.date).setHours(0, 0, 0, 0)));
-
-  const reqStart = parseTimeToMinutes(start_time);
+  const limit = getDailyBookingLimit(businessInfo);
+  const blockedTimestamps = new Set(blockedDates.map((b) => new Date(b.date).setHours(0, 0, 0, 0)));
 
   const suggestions = [];
 
@@ -2345,32 +2233,18 @@ exports.suggestDates = asyncHandler(async (req, res) => {
         continue;
       }
 
-      // --- In-memory conflict check against pre-fetched bookings ---
+      // Check daily limit for candidate date
       const candStart = new Date(candidate);
       candStart.setHours(0, 0, 0, 0);
       const candEnd = new Date(candidate);
       candEnd.setHours(23, 59, 59, 999);
 
-      const dayBookings = rangeBookings.filter(b => {
+      const dayBookingsCount = rangeBookings.filter((b) => {
         const bd = new Date(b.event_date);
         return bd >= candStart && bd <= candEnd;
-      });
+      }).length;
 
-      let conflict = null;
-      if (dayBookings.length > 0) {
-        if (reqStart === null) {
-          conflict = dayBookings.find(booking => sameLocation(location, booking)) || null;
-        } else {
-          conflict = dayBookings.find(booking => {
-            if (location?.municipality && !sameLocation(location, booking)) return false;
-            const existingStart = parseTimeToMinutes(booking.start_time);
-            if (existingStart === null) return true;
-            return reqStart === existingStart;
-          }) || null;
-        }
-      }
-
-      if (!conflict) {
+      if (dayBookingsCount < limit) {
         suggestions.push(candidate.toISOString().split("T")[0]);
       }
     }
@@ -2998,48 +2872,14 @@ exports.getBookedDates = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Month and year are required" });
   }
 
-  const m = parseInt(month, 10);
-  const y = parseInt(year, 10);
-  const startOfMonth = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
-  const endOfMonth = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
-
-  const formatDateKey = (d) => {
-    if (!d) return null;
-    if (typeof d === "string") {
-      const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (match) return match[0];
-    }
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return null;
-    return dt.toISOString().slice(0, 10);
-  };
-
-  // Get bookings to check against max limit
-  const businessInfo = await getCachedBusinessInfo();
-  const limit = businessInfo?.max_bookings_per_day || 2;
-
-  const bookings = await Booking.find({
-    status: { $in: ACTIVE_BOOKING_STATUSES },
-    event_date: { $gte: startOfMonth, $lte: endOfMonth }
-  });
-
-  const dateCounts = {};
-  bookings.forEach(booking => {
-    if (booking.event_date) {
-      const d = formatDateKey(booking.event_date);
-      if (d) dateCounts[d] = (dateCounts[d] || 0) + 1;
-    }
-  });
-
-  const fullyBookedDates = Object.keys(dateCounts).filter(dateStr => dateCounts[dateStr] >= limit);
-
+  const fullyBookedDates = await getBookedDatesForMonth(month, year);
   // Return fully booked dates. (Blocked dates are served separately via /api/blocked-dates)
   res.json(fullyBookedDates);
 });
 
-// --- Perf: 1 query instead of 11 (one per time slot) ---
+// --- Perf: available time slots for selected date ---
 exports.getAvailableTimes = asyncHandler(async (req, res) => {
-  const { event_date, duration_hours, venue_type, province, municipality, barangay, street, delivery_method, service_type } = req.query;
+  const { event_date } = req.query;
 
   if (!event_date) {
     return res.status(400).json({ message: "Event date is required" });
@@ -3060,35 +2900,9 @@ exports.getAvailableTimes = asyncHandler(async (req, res) => {
     return res.json(timeSlots.map((time) => ({ time, status: "full" })));
   }
 
-  // Fetch all day's bookings ONCE instead of per-slot
-  const dayStart = new Date(event_date);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(event_date);
-  dayEnd.setHours(23, 59, 59, 999);
-  const buffer = Number(req.query.buffer_minutes) || 0;
-
-  const existingBookings = await Booking.find({
-    status: { $in: ["pending deposit", "confirmed", "Confirmed", "preparing", "ongoing", "Ready for Event"] },
-    event_date: { $gte: dayStart, $lte: dayEnd },
-  }).lean();
-
-  const results = timeSlots.map((time) => {
-    const slotMinutes = parseTimeToMinutes(time);
-    if (slotMinutes === null) {
-      const conflict = existingBookings.length > 0 ? existingBookings[0] : null;
-      return { time, status: conflict ? "full" : "available" };
-    }
-
-    const conflict = existingBookings.find((booking) => {
-      const existingStart = parseTimeToMinutes(booking.start_time);
-      if (existingStart === null) return false;
-      return slotMinutes === existingStart;
-    });
-
-    return { time, status: conflict ? "full" : "available" };
-  });
-
-  res.json(results);
+  // When date is available, all time slots are selectable.
+  // Caezelle's Catering allows multiple events on the same date, including events with the same start time.
+  return res.json(timeSlots.map((time) => ({ time, status: "available" })));
 });
 
 exports.skipOcular = asyncHandler(async (req, res) => {
@@ -3563,23 +3377,11 @@ exports.acceptQuote = asyncHandler(async (req, res) => {
   }
 
   // Double check inventory and conflicts before accepting
-  const { checkMaxBookingsLimit, findBookingConflict, checkInventoryAvailability } = module.exports;
+  const { checkInventoryAvailability } = module.exports;
 
   const maxLimitReached = await checkMaxBookingsLimit(booking.event_date, booking._id);
   if (maxLimitReached) {
     return res.status(409).json({ message: "This date has reached the maximum number of bookings allowed." });
-  }
-
-  const conflict = await findBookingConflict({
-    eventDate: booking.event_date,
-    startTime: booking.start_time,
-    durationHours: booking.duration_hours,
-    location: booking,
-    bufferMinutes: 60, // Default buffer
-    excludeId: booking._id
-  });
-  if (conflict) {
-    return res.status(409).json({ message: "Booking conflict detected for this date/time. Please contact admin." });
   }
 
   const invCheck = await checkInventoryAvailability(

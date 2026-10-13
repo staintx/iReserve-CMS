@@ -6,6 +6,7 @@ const Payment = require("../models/Payment");
 const Booking = require("../models/Booking");
 const asyncHandler = require("../utils/asyncHandler");
 const { checkDateBlocked, BLOCKED_DATE_MESSAGE } = require("../utils/blockedDates");
+const { checkMaxBookingsLimit } = require("../utils/bookingCapacity");
 const { checkInventoryAvailability } = require("./booking.controller");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
 const {
@@ -228,6 +229,12 @@ exports.createInquiry = asyncHandler(async (req, res) => {
     const blocked = await checkDateBlocked(payload.event_date);
     if (blocked) {
       return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
+    }
+    const maxLimitReached = await checkMaxBookingsLimit(payload.event_date);
+    if (maxLimitReached) {
+      return res.status(400).json({
+        message: "This date has reached the maximum number of bookings allowed. Please select another date."
+      });
     }
   }
 
@@ -795,6 +802,12 @@ exports.updateInquiryByCustomer = asyncHandler(async (req, res) => {
     if (blocked) {
       return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
     }
+    const maxLimitReached = await checkMaxBookingsLimit(updates.event_date, inquiry.converted_booking_id);
+    if (maxLimitReached) {
+      return res.status(400).json({
+        message: "This date has reached the maximum number of bookings allowed. Please select another date."
+      });
+    }
   }
 
   updates.revision_count = (inquiry.revision_count || 0) + 1;
@@ -831,6 +844,12 @@ exports.updateInquiry = asyncHandler(async (req, res) => {
       const blocked = await checkDateBlocked(req.body.event_date);
       if (blocked) {
         return res.status(400).json({ message: BLOCKED_DATE_MESSAGE });
+      }
+      const maxLimitReached = await checkMaxBookingsLimit(req.body.event_date, previousInquiry.converted_booking_id);
+      if (maxLimitReached) {
+        return res.status(400).json({
+          message: "This date has reached the maximum number of bookings allowed. Please select another date."
+        });
       }
     }
   }

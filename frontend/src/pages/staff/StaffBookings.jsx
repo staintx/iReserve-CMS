@@ -6,6 +6,7 @@ import PageHeader from "../../components/admin/ui/PageHeader";
 import Badge from "../../components/admin/ui/Badge";
 import useAuth from "../../hooks/useAuth";
 import useToast from "../../hooks/useToast";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { 
   Calendar as CalendarIcon, 
   MapPin, 
@@ -63,6 +64,8 @@ export default function StaffBookings() {
   useEffect(() => {
     loadBookings();
   }, []);
+
+  useRealTimeRefresh(loadBookings, ["booking"]);
 
   const getMyAssignedRole = (booking) => {
     const assignments = booking?.staff_assignments || [];

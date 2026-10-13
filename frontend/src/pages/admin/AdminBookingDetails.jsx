@@ -59,6 +59,7 @@ import useBusinessInfo from "../../hooks/useBusinessInfo";
 import AdminOcularDateTimePicker from "../../components/admin/ui/AdminOcularDateTimePicker";
 import AdminBookingEditModal from "../../components/admin/booking/AdminBookingEditModal";
 import { AdminAPI } from "../../api/admin";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import useToast from "../../hooks/useToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
@@ -615,6 +616,20 @@ export default function AdminBookingDetails() {
       loadData();
     }
   }, [id]);
+
+  useRealTimeRefresh(loadData, ["booking"]);
+
+  const handleGoToPayment = () => {
+    setActiveTab("financials_history");
+    setTimeout(() => {
+      const el = document.getElementById("financials-payment-breakdown");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }, 80);
+  };
 
   if (loading) {
     return (
@@ -2494,328 +2509,215 @@ export default function AdminBookingDetails() {
                     </div>
                   )}
 
-                  {/* Equipment Turnover & Return Verification */}
-                  <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3.5">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-border/50 pb-2.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                          <Boxes size={13} className="text-primary" /> Assigned Equipment &amp; Turnover Status
-                        </h3>
-                        <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                          {equipmentItems.length} Dispatched Items
-                        </span>
-                        {booking.equipment_manager_verified?.confirmed ? (
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
-                            <ShieldCheck size={11} /> Manager Verified
-                          </span>
-                        ) : equipmentSummary.hasReturnsLogged ? (
-                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1">
-                            <AlertTriangle size={11} /> Staff Reported · Pending Verification
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded flex items-center gap-1">
-                            <Clock size={11} /> Pending Turnover
-                          </span>
-                        )}
-                      </div>
+                  {/* Equipment Notes from Manager (Read-Only Summary of Manager-Reported Issues) */}
+                  {(() => {
+                    const checklist = Array.isArray(booking.equipment_checklist) ? booking.equipment_checklist : [];
 
-                      <Btn
-                        size="xs"
-                        variant="primary"
-                        onClick={() => setShowVerifyReturnsModal(true)}
-                        className="font-bold gap-1 text-xs shrink-0 cursor-pointer"
-                      >
-                        <PackageCheck size={13} />
-                        {booking.equipment_manager_verified?.confirmed ? "Re-verify / Adjust Returns" : "Verify Equipment Returns"}
-                      </Btn>
-                    </div>
+                    // Filter items where an issue was reported during manager inspection
+                    const issueItems = checklist.filter((item) =>
+                      item.status === "incomplete" ||
+                      item.status === "issue_reported" ||
+                      (item.issue_type && item.issue_type !== "none") ||
+                      (item.notes && item.status !== "inspected_ok" && item.status !== "not_inspected")
+                    );
 
-                    {/* Verification & Staff Report Banner */}
-                    {booking.equipment_manager_verified?.confirmed ? (
-                      <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-lg text-xs space-y-1">
-                        <div className="flex items-center justify-between flex-wrap gap-2 text-emerald-950 font-semibold">
-                          <span className="flex items-center gap-1.5">
-                            <ShieldCheck size={14} className="text-emerald-600" />
-                            Manager Verification Confirmed by <strong>{booking.equipment_manager_verified.confirmed_by?.full_name || "Manager / Admin"}</strong>
-                          </span>
-                          {booking.equipment_manager_verified.confirmed_at && (
-                            <span className="text-emerald-800 text-[11px] font-normal">
-                              {formatDateTime(booking.equipment_manager_verified.confirmed_at)}
-                            </span>
-                          )}
+                    // Inspected items with no issues reported
+                    const cleanItems = checklist.filter((item) =>
+                      (item.status === "inspected_ok" || item.status === "complete") &&
+                      (!item.issue_type || item.issue_type === "none") &&
+                      item.status !== "incomplete" &&
+                      item.status !== "issue_reported"
+                    );
+
+                    const isChecklistDone = Boolean(booking.equipment_checklist_done);
+
+                    return (
+                      <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-border/50 pb-2.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                              <Boxes size={13} className="text-primary" /> Equipment Notes from Manager
+                            </h3>
+                            {isChecklistDone ? (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
+                                <CheckCircle2 size={11} /> Inspection Done
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1">
+                                <Clock size={11} /> Inspection in Progress
+                              </span>
+                            )}
+                            {issueItems.length > 0 && (
+                              <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded flex items-center gap-1">
+                                <AlertTriangle size={11} /> {issueItems.length} Issue{issueItems.length > 1 ? "s" : ""} Reported
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Navigation directly to payment */}
+                          <Btn
+                            size="xs"
+                            variant="primary"
+                            onClick={handleGoToPayment}
+                            className="font-bold gap-1 text-xs shrink-0 cursor-pointer shadow-2xs"
+                            title="Go to Financials & History to review payments and balance"
+                          >
+                            <CreditCard size={13} /> Go to Payment
+                          </Btn>
                         </div>
-                        {booking.equipment_manager_verified.additional_notes && (
-                          <p className="text-emerald-900 text-[11px] pl-5 italic">
-                            Inspection Notes: "{booking.equipment_manager_verified.additional_notes}"
-                          </p>
-                        )}
-                      </div>
-                    ) : equipmentSummary.hasReturnsLogged && (
-                      <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-lg text-xs space-y-1">
-                        <div className="flex items-center justify-between flex-wrap gap-2 text-amber-950 font-semibold">
-                          <span className="flex items-center gap-1.5">
-                            <AlertTriangle size={14} className="text-amber-600" />
-                            Turnover Report Submitted by Staff
-                          </span>
-                          {equipmentItems.some((it) => it.verified_at) && (
-                            <span className="text-amber-800 text-[11px] font-normal">
-                              {formatDateTime(equipmentItems.find((it) => it.verified_at)?.verified_at)}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-amber-900 text-[11px] pl-5">
-                          Staff has submitted the equipment turnover report. Please review the counts and notes below and confirm verification.
-                        </p>
-                      </div>
-                    )}
 
-                    {/* Equipment Summary KPI Strip */}
-                    {equipmentItems.length > 0 && (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                        <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
-                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Total Assigned</span>
-                          <span className="font-mono font-bold text-sm text-foreground">{equipmentSummary.totalAssigned}</span>
-                        </div>
-                        <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
-                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Returned (Good)</span>
-                          <span className="font-mono font-bold text-emerald-600">{equipmentSummary.totalReturned}</span>
-                        </div>
-                        <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
-                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Damaged / Broken</span>
-                          <span className={`font-mono font-bold text-sm ${equipmentSummary.totalDamaged > 0 ? "text-rose-600 font-bold" : "text-muted-foreground"}`}>
-                            {equipmentSummary.totalDamaged}
-                          </span>
-                        </div>
-                        <div className="p-2.5 bg-card border border-border/60 rounded-lg text-center shadow-2xs">
-                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">Missing / Lost</span>
-                          <span className={`font-mono font-bold text-sm ${equipmentSummary.totalMissing > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}`}>
-                            {equipmentSummary.totalMissing}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Itemized Equipment Cards */}
-                    {equipmentItems.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {equipmentItems.map((item, idx) => {
-                          const reporterName = resolveStaffReporter(item);
-                          const isDamaged = item.quantity_damaged > 0;
-                          const isMissing = item.quantity_missing > 0;
-                          const isClean = !isDamaged && !isMissing && item.quantity_returned > 0;
-                          const isPending = item.quantity_returned === 0 && !isDamaged && !isMissing;
-
-                          return (
-                            <div
-                              key={idx}
-                              className={`p-3.5 bg-card border rounded-lg space-y-2.5 shadow-2xs transition-all ${isDamaged ? "border-rose-300/80 bg-rose-50/15" :
-                                  isMissing ? "border-amber-300/80 bg-amber-50/15" :
-                                    "border-border/60 hover:border-border"
-                                }`}
-                            >
-                              {/* Item Header & Condition Badge */}
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <h4 className="font-bold text-sm text-foreground truncate flex items-center gap-1.5">
-                                    <Boxes size={14} className="text-primary/70 shrink-0" />
-                                    <span>{item.name}</span>
-                                  </h4>
-                                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
-                                    {item.category}
-                                  </span>
-                                </div>
-
-                                <div className="shrink-0">
-                                  {isDamaged ? (
-                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
-                                      <AlertTriangle size={10} /> Damaged
-                                    </span>
-                                  ) : isMissing ? (
-                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
-                                      <AlertCircle size={10} /> Missing
-                                    </span>
-                                  ) : isClean ? (
-                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                                      <CheckCircle2 size={10} /> Returned Good
-                                    </span>
-                                  ) : (
-                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground border border-border flex items-center gap-1">
-                                      <Clock size={10} /> Pending
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Quantities Grid */}
-                              <div className="grid grid-cols-4 gap-1.5 py-1.5 px-2 bg-muted/40 rounded-md border border-border/40 text-center text-xs">
-                                <div>
-                                  <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Assigned</span>
-                                  <span className="font-mono font-bold text-foreground text-xs">{item.quantity_assigned}</span>
-                                </div>
-                                <div>
-                                  <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Returned</span>
-                                  <span className="font-mono font-bold text-emerald-600 text-xs">{item.quantity_returned}</span>
-                                </div>
-                                <div>
-                                  <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Damaged</span>
-                                  <span className={`font-mono font-bold text-xs ${item.quantity_damaged > 0 ? "text-rose-600 font-bold" : "text-muted-foreground"}`}>
-                                    {item.quantity_damaged}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Missing</span>
-                                  <span className={`font-mono font-bold text-xs ${item.quantity_missing > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}`}>
-                                    {item.quantity_missing}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Item-Specific Staff Note */}
-                              {item.notes ? (
-                                <div className="p-2 bg-amber-50/70 border border-amber-200/80 rounded-md text-xs">
-                                  <div className="flex items-start gap-1.5">
-                                    <FileText size={12} className="text-amber-700 shrink-0 mt-0.5" />
-                                    <div className="min-w-0 flex-1">
-                                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                                        Item Note:
-                                      </span>
-                                      <p className="text-foreground text-xs italic font-semibold mt-0.5">
-                                        "{item.notes}"
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="text-[11px] text-muted-foreground italic px-1">
-                                  No specific damage notes reported.
-                                </div>
+                        {/* Inspection Status Banner */}
+                        {isChecklistDone && (
+                          <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-lg text-xs space-y-1">
+                            <div className="flex items-center justify-between flex-wrap gap-2 text-emerald-950 font-semibold">
+                              <span className="flex items-center gap-1.5">
+                                <ShieldCheck size={14} className="text-emerald-600" />
+                                Manager Equipment Inspection Finalized{booking.equipment_checklist_done_by?.full_name ? ` by ${booking.equipment_checklist_done_by.full_name}` : ""}
+                              </span>
+                              {booking.equipment_checklist_done_at && (
+                                <span className="text-emerald-800 text-[11px] font-normal font-mono">
+                                  {formatDateTime(booking.equipment_checklist_done_at)}
+                                </span>
                               )}
+                            </div>
+                            <p className="text-emerald-900 text-[11px]">
+                              The event manager has completed the equipment inspection checklist. Review any reported issues below before determining customer balance adjustments.
+                            </p>
+                          </div>
+                        )}
 
-                              {/* Footer Details: Reporter, Timestamp, Verification */}
-                              <div className="pt-2 border-t border-border/50 space-y-1 text-[11px] text-muted-foreground">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="truncate">
-                                    Reported by: <strong className="text-foreground font-semibold">{reporterName}</strong>
-                                  </span>
-                                  {item.verified_at && (
-                                    <span className="text-[10px] text-muted-foreground font-mono shrink-0">
-                                      {formatDateTime(item.verified_at)}
+                        {/* A. Equipment Issues Reported by Manager */}
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                              <AlertCircle size={12} className="text-primary" /> Equipment Issues Reported by Manager
+                            </span>
+                            {checklist.length > 0 && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {issueItems.length} of {checklist.length} items with issues
+                              </span>
+                            )}
+                          </div>
+
+                          {issueItems.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {issueItems.map((item, idx) => (
+                                <div
+                                  key={idx}
+                                  className="p-3.5 bg-rose-50/20 border border-rose-300/80 rounded-lg space-y-2.5 shadow-2xs"
+                                >
+                                  {/* Item Header */}
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <h4 className="font-bold text-sm text-foreground truncate flex items-center gap-1.5">
+                                        <Boxes size={14} className="text-rose-600 shrink-0" />
+                                        <span>{item.name}</span>
+                                      </h4>
+                                      <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                                        {item.quantity ? `${item.quantity} ${item.unit || "pcs"} • ` : ""}{item.category || "Equipment"}
+                                      </span>
+                                    </div>
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1 shrink-0">
+                                      <AlertTriangle size={10} /> Incomplete – Issue Reported
                                     </span>
+                                  </div>
+
+                                  {/* Manager Issue Note */}
+                                  <div className="p-2.5 bg-rose-50/80 border border-rose-200 rounded-md text-xs space-y-1">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 block">
+                                      Issue Reported:
+                                    </span>
+                                    <p className="text-rose-950 text-xs font-semibold whitespace-pre-wrap leading-relaxed">
+                                      {item.notes || "Issue reported during inspection (no extra note entered)."}
+                                    </p>
+                                  </div>
+
+                                  {item.completed_at && (
+                                    <div className="text-[10.5px] text-muted-foreground pt-1 border-t border-rose-200/60 flex items-center justify-between">
+                                      <span>Inspected</span>
+                                      <span className="font-mono">{formatDateTime(item.completed_at)}</span>
+                                    </div>
                                   )}
                                 </div>
-
-                                <div className="flex items-center justify-between gap-2 pt-0.5">
-                                  <span className="flex items-center gap-1">
-                                    <ShieldCheck size={11} className={booking.equipment_manager_verified?.confirmed ? "text-emerald-600" : "text-muted-foreground/60"} />
-                                    <span className={booking.equipment_manager_verified?.confirmed ? "text-emerald-700 font-semibold" : "text-muted-foreground"}>
-                                      {booking.equipment_manager_verified?.confirmed
-                                        ? `Verified by ${booking.equipment_manager_verified.confirmed_by?.full_name || "Manager"}`
-                                        : "Pending Manager Verification"}
-                                    </span>
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Admin-only damage/loss charge action */}
-                              {isAdmin && (isDamaged || isMissing) && (() => {
-                                const existing = findExistingDamageCharge(item);
-                                const hasExisting = Boolean(existing && Number(existing.amount) > 0);
-                                const existingAmount = hasExisting ? Number(existing.amount) : 0;
-                                const isDamagePaid = hasExisting && (remainingBalance === 0 || totalPaid >= (booking.total_price || 0)) && totalPaid > 0;
-
-                                if (isDamagePaid) {
-                                  return (
-                                    <div className="pt-2 border-t border-border/50 space-y-1.5">
-                                      {/* Damage Fee Paid Non-Editable Indicator */}
-                                      <div className="p-2 bg-emerald-50/90 border border-emerald-200/90 rounded text-[11px] space-y-1 text-emerald-950">
-                                        <div className="flex items-center justify-between">
-                                          <span className="font-semibold flex items-center gap-1 text-emerald-800">
-                                            <DollarSign size={11} className="text-emerald-600" /> Damage Fee
-                                          </span>
-                                          <span className="font-mono font-bold text-emerald-900">
-                                            ₱{existingAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                                          </span>
-                                        </div>
-                                        <div className="flex items-center justify-between pt-1 border-t border-emerald-200/70 text-[10px]">
-                                          <span className="text-emerald-700 font-medium">Status:</span>
-                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold uppercase tracking-wider text-[9px]">
-                                            <CheckCircle2 size={10} /> Paid
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      <Btn
-                                        size="xs"
-                                        variant="outline"
-                                        disabled
-                                        className="w-full font-semibold text-xs flex items-center justify-center gap-1.5 opacity-80 bg-slate-100 text-slate-600 border-slate-200 cursor-not-allowed shadow-none"
-                                        data-testid="damage-charge-btn"
-                                        id={`damage-charge-btn-${idx}`}
-                                        title={`Damage fee for ${item.name} has already been paid in full and cannot be adjusted.`}
-                                      >
-                                        <CheckCircle2 size={12} className="text-emerald-600" />
-                                        Damage Fee Paid
-                                      </Btn>
-                                    </div>
-                                  );
-                                }
-
-                                return (
-                                  <div className="pt-2 border-t border-border/50 space-y-1.5">
-                                    {/* Damage Fee Charged indicator if already assessed on booking */}
-                                    {hasExisting && (
-                                      <div className="p-1.5 bg-amber-50/80 border border-amber-200/90 rounded text-[11px] flex items-center justify-between text-amber-950">
-                                        <span className="font-semibold flex items-center gap-1">
-                                          <DollarSign size={11} className="text-amber-700" /> Current Damage Fee:
-                                        </span>
-                                        <span className="font-mono font-bold text-amber-900">
-                                          ₱{existingAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                                        </span>
-                                      </div>
-                                    )}
-
-                                    <Btn
-                                      size="xs"
-                                      variant="primary"
-                                      onClick={() => handleOpenDamageModal(item)}
-                                      className={`w-full font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs ${hasExisting
-                                          ? "bg-amber-600 hover:bg-amber-700 text-white"
-                                          : "bg-rose-600 hover:bg-rose-700 text-white"
-                                        }`}
-                                      data-testid="damage-charge-btn"
-                                      id={`damage-charge-btn-${idx}`}
-                                      title={hasExisting ? `Adjust Damage / Loss Fee for ${item.name}` : `Assess Damage / Loss Fee for ${item.name}`}
-                                    >
-                                      {hasExisting ? (
-                                        <>
-                                          <Edit size={12} />
-                                          Adjust Damage / Loss Fee
-                                        </>
-                                      ) : (
-                                        <>
-                                          <DollarSign size={13} />
-                                          Damage / Loss Fee
-                                        </>
-                                      )}
-                                    </Btn>
-                                  </div>
-                                );
-                              })()}
+                              ))}
                             </div>
-                          );
-                        })}
+                          ) : (
+                            /* Clear Empty State for No Issues */
+                            <div className="p-5 bg-card border border-border/60 rounded-lg text-center space-y-1.5 shadow-2xs">
+                              <CheckCircle2 size={22} className="mx-auto text-emerald-600" />
+                              <p className="text-xs font-bold text-foreground">No equipment issues reported by the manager.</p>
+                              <p className="text-[11px] text-muted-foreground max-w-md mx-auto">
+                                {cleanItems.length > 0
+                                  ? `All ${cleanItems.length} inspected items were recorded in good condition with no issues reported.`
+                                  : "The manager has not recorded any equipment issues for this reservation."}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* List Clean Items (No Issue Reported) if any exist */}
+                          {cleanItems.length > 0 && (
+                            <div className="pt-2 border-t border-border/40 space-y-2">
+                              <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground block">
+                                Items Inspected in Good Condition ({cleanItems.length})
+                              </span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                {cleanItems.map((item, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="p-2.5 bg-card border border-border/60 rounded-lg text-xs flex items-center justify-between gap-2 shadow-2xs"
+                                  >
+                                    <div className="min-w-0">
+                                      <span className="font-semibold text-foreground truncate block">{item.name}</span>
+                                      <span className="text-[10px] text-muted-foreground truncate block">
+                                        {item.quantity ? `${item.quantity} ${item.unit || "pcs"} • ` : ""}{item.category || "Equipment"}
+                                      </span>
+                                    </div>
+                                    <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shrink-0">
+                                      <CheckCircle2 size={10} /> No issue reported
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* B. Additional Notes from Manager */}
+                        <div className="space-y-1.5 pt-3 border-t border-border/50">
+                          <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <FileText size={12} className="text-primary" /> Additional Notes from Manager
+                          </h4>
+                          {booking.equipment_notes && booking.equipment_notes.trim() ? (
+                            <div className="p-3 bg-card border border-border/70 rounded-lg text-xs space-y-1 shadow-2xs">
+                              <p className="text-foreground whitespace-pre-wrap leading-relaxed italic">
+                                "{booking.equipment_notes.trim()}"
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-muted/20 border border-dashed border-border/60 rounded-lg text-xs text-muted-foreground flex items-center gap-2">
+                              <Info size={13} className="text-muted-foreground shrink-0" />
+                              <span>No additional notes provided by the manager.</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Prompt Footer to Navigate to Payment */}
+                        <div className="pt-2 border-t border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-card/60 p-3 rounded-lg border border-border/50 text-xs">
+                          <span className="text-muted-foreground">
+                            Done reviewing manager notes? Proceed to review customer payment status and remaining balance.
+                          </span>
+                          <Btn
+                            size="xs"
+                            variant="primary"
+                            onClick={handleGoToPayment}
+                            className="font-bold gap-1 text-xs shrink-0 cursor-pointer shadow-2xs"
+                          >
+                            <CreditCard size={13} /> Go to Payment
+                          </Btn>
+                        </div>
                       </div>
-                    ) : (
-                      <div
-                        onClick={() => setShowVerifyReturnsModal(true)}
-                        className="p-6 border border-dashed border-border rounded-lg text-center cursor-pointer hover:border-primary/60 hover:bg-card transition-colors group space-y-1"
-                      >
-                        <Boxes size={20} className="mx-auto text-muted-foreground group-hover:text-primary transition-colors" />
-                        <p className="text-xs font-semibold text-foreground">No Equipment Assigned Yet</p>
-                        <p className="text-[11px] text-muted-foreground">Click here to review and assign equipment items for this booking.</p>
-                      </div>
-                    )}
-                  </div>
+                    );
+                  })()}
                 </>
               )}
 
@@ -2829,7 +2731,7 @@ export default function AdminBookingDetails() {
             <div className="p-4 sm:p-5 space-y-4">
 
               {/* Unified Single Financial Breakdown (No double cards!) */}
-              <div className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
+              <div id="financials-payment-breakdown" className="bg-muted/20 border border-border/60 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between border-b border-border/50 pb-2">
                   <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
                     <CreditCard size={13} className="text-primary" /> Unified Financial Breakdown

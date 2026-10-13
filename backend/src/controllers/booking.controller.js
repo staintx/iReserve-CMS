@@ -754,7 +754,7 @@ exports.getById = asyncHandler(async (req, res) => {
 
   res.json(
     await Booking.findById(req.params.id).populate(
-      "customer_id package_id event_manager_id staff_assignments.user_id inquiry_id quotation_id equipment_returns.verified_by equipment_manager_verified.confirmed_by staff_reports.staff_id",
+      "customer_id package_id event_manager_id staff_assignments.user_id inquiry_id quotation_id equipment_returns.verified_by equipment_manager_verified.confirmed_by staff_reports.staff_id equipment_checklist_done_by",
     ).lean(),
   );
 });

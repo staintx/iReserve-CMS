@@ -6,6 +6,7 @@ import Badge from "../../components/admin/ui/Badge";
 import { useConfirm } from "../../components/feedback/confirmContext";
 import useToast from "../../hooks/useToast";
 import useAuth from "../../hooks/useAuth";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -185,8 +186,8 @@ export default function ManagerEventDetails() {
   const [savingItemKey, setSavingItemKey] = useState(null);
   const [pendingAction, setPendingAction] = useState({});
 
-  // Complete Event State
-  const [completingEvent, setCompletingEvent] = useState(false);
+  // Complete / Done State
+  const [submittingDone, setSubmittingDone] = useState(false);
 
   const loadEvent = async () => {
     setLoading(true);
@@ -207,6 +208,8 @@ export default function ManagerEventDetails() {
   useEffect(() => {
     loadEvent();
   }, [id]);
+
+  useRealTimeRefresh(loadEvent, ["booking"]);
 
   const timing = useMemo(() => {
     return booking ? getEventTimingStatus(booking) : { isUpcoming: true, isStarted: false, isFinished: false };
@@ -287,8 +290,56 @@ export default function ManagerEventDetails() {
   };
 
   // Equipment Checklist Handlers
-  const inspectedItemsCount = checklist.filter((item) => item.is_inspected && item.status !== "not_inspected").length;
+  const isChecklistDone = Boolean(booking?.equipment_checklist_done);
   const totalChecklistCount = checklist.length;
+
+  const validlyInspectedItems = useMemo(() => {
+    return checklist.filter((item) => {
+      const isInspected = Boolean(item.is_inspected && item.status !== "not_inspected");
+      if (!isInspected) return false;
+      if (item.status === "incomplete" || item.status === "issue_reported") {
+        return Boolean(item.notes && item.notes.trim());
+      }
+      return true;
+    });
+  }, [checklist]);
+
+  const inspectedItemsCount = validlyInspectedItems.length;
+
+  const uninspectedItems = useMemo(() => {
+    return checklist.filter((item) => !item.is_inspected || item.status === "not_inspected");
+  }, [checklist]);
+
+  const incompleteMissingNotes = useMemo(() => {
+    return checklist.filter(
+      (item) =>
+        (item.status === "incomplete" || item.status === "issue_reported") &&
+        (!item.notes || !item.notes.trim())
+    );
+  }, [checklist]);
+
+  const hasUnsavedDrafts = useMemo(() => {
+    return checklist.some((item) => {
+      const draft = (inlineDrafts[item.item_key] || "").trim();
+      const saved = (item.notes || "").trim();
+      return openInlineNotes[item.item_key] && draft && draft !== saved;
+    });
+  }, [checklist, inlineDrafts, openInlineNotes]);
+
+  const hasPendingIncomplete = useMemo(() => {
+    return Object.values(pendingAction).some((action) => action === "incomplete");
+  }, [pendingAction]);
+
+  const isDoneEnabled = useMemo(() => {
+    if (checklist.length === 0) return false;
+    if (isChecklistDone) return false;
+    if (isCompleted) return false;
+    if (uninspectedItems.length > 0) return false;
+    if (incompleteMissingNotes.length > 0) return false;
+    if (hasUnsavedDrafts) return false;
+    if (hasPendingIncomplete) return false;
+    return true;
+  }, [checklist.length, isChecklistDone, isCompleted, uninspectedItems.length, incompleteMissingNotes.length, hasUnsavedDrafts, hasPendingIncomplete]);
 
   const handleToggleInlineNote = (itemKey) => {
     if (isCompleted) return;
@@ -568,11 +619,16 @@ export default function ManagerEventDetails() {
     }
   };
 
-  const handleCompleteEvent = async () => {
+  const handleMarkDone = async () => {
+    if (isCompleted) {
+      notify("Completed bookings are read-only.", "info");
+      return;
+    }
+
     // 1. Validation: check for uninspected items
     const uninspected = checklist.filter((item) => !item.is_inspected || item.status === "not_inspected");
     if (uninspected.length > 0) {
-      notify(`Please inspect all equipment items before completing this event. (${uninspected.length} items remaining)`, "warning");
+      notify(`Please inspect all equipment items before marking as Done. (${uninspected.length} items remaining)`, "warning");
       setIsEquipmentOpen(true);
       return;
     }
@@ -583,7 +639,7 @@ export default function ManagerEventDetails() {
     );
     if (invalidIncomplete.length > 0) {
       const names = invalidIncomplete.map((i) => i.name).join(", ");
-      notify(`Incomplete equipment items must have a saved issue report note before completing this event (${names}).`, "warning");
+      notify(`Incomplete equipment items must have a saved issue report note before marking as Done (${names}).`, "warning");
       setIsEquipmentOpen(true);
       return;
     }
@@ -595,29 +651,29 @@ export default function ManagerEventDetails() {
       return openInlineNotes[item.item_key] && draft && draft !== saved;
     });
     if (unsavedItem) {
-      notify(`You have unsaved issue notes for "${unsavedItem.name}". Please save or cancel the notes before completing the event.`, "warning");
+      notify(`You have unsaved issue notes for "${unsavedItem.name}". Please save or cancel the notes before marking as Done.`, "warning");
       setIsEquipmentOpen(true);
       return;
     }
 
     const ok = await confirm({
-      title: "Complete Event Operations?",
-      message: "This will finalize all operational shift reports and mark the booking completed. Completed bookings become read-only.",
-      confirmText: "Yes, Mark Completed",
+      title: "Mark Equipment Checklist as Done?",
+      message: "This will record that you have completed the equipment inspection for this event. The admin will review any reported notes and finalize the reservation.",
+      confirmText: "Yes, Mark as Done",
       tone: "primary"
     });
     if (!ok) return;
 
-    setCompletingEvent(true);
+    setSubmittingDone(true);
     try {
-      await ManagerAPI.markCompleted(booking._id);
-      notify("Event marked as completed successfully.", "success");
-      navigate("/manager/bookings?tab=completed");
+      await ManagerAPI.markEquipmentChecklistDone(booking._id);
+      notify("Equipment inspection checklist marked as Done successfully.", "success");
+      await loadEvent();
     } catch (err) {
-      console.error("Complete event error:", err);
-      notify(err.response?.data?.message || "Failed to mark event as completed.", "error");
+      console.error("Mark checklist done error:", err);
+      notify(err.response?.data?.message || "Failed to mark checklist as done.", "error");
     } finally {
-      setCompletingEvent(false);
+      setSubmittingDone(false);
     }
   };
 
@@ -1276,9 +1332,15 @@ export default function ManagerEventDetails() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-sm sm:text-base font-bold text-slate-900">Equipment Check</h2>
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                      {inspectedItemsCount} of {totalChecklistCount} items inspected
-                    </span>
+                    {isChecklistDone ? (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                        <CheckCircle2 size={11} /> Inspection Done
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        {inspectedItemsCount} of {totalChecklistCount} items inspected
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500">
                     Inspect event inclusions and package equipment. Report missing or damaged gear for admin review.
@@ -1567,22 +1629,43 @@ export default function ManagerEventDetails() {
                   />
                 </div>
 
-                {/* Complete Event Action moved into Equipment Check Footer */}
+                {/* Equipment Inspection Done Footer */}
                 {!isCompleted && (
                   <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
                     <div className="text-xs">
-                      {inspectedItemsCount < totalChecklistCount ? (
+                      {isChecklistDone ? (
+                        <div className="flex items-center gap-1.5 text-emerald-800 font-semibold">
+                          <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                          <span>
+                            Equipment checklist completed{booking.equipment_checklist_done_at ? ` on ${new Date(booking.equipment_checklist_done_at).toLocaleDateString()}` : ""}. Awaiting admin review.
+                          </span>
+                        </div>
+                      ) : uninspectedItems.length > 0 ? (
                         <div className="flex items-center gap-1.5 text-amber-800 font-medium">
                           <AlertCircle size={15} className="text-amber-600 shrink-0" />
                           <span>
-                            {totalChecklistCount - inspectedItemsCount} item{totalChecklistCount - inspectedItemsCount > 1 ? "s" : ""} remaining to inspect before this event can be completed.
+                            {uninspectedItems.length} checklist item{uninspectedItems.length > 1 ? "s" : ""} remaining to inspect before marking checklist as Done.
+                          </span>
+                        </div>
+                      ) : incompleteMissingNotes.length > 0 ? (
+                        <div className="flex items-center gap-1.5 text-rose-800 font-medium">
+                          <AlertCircle size={15} className="text-rose-600 shrink-0" />
+                          <span>
+                            {incompleteMissingNotes.length} incomplete item{incompleteMissingNotes.length > 1 ? "s" : ""} require an issue report note before marking as Done.
+                          </span>
+                        </div>
+                      ) : hasUnsavedDrafts || hasPendingIncomplete ? (
+                        <div className="flex items-center gap-1.5 text-amber-800 font-medium">
+                          <AlertCircle size={15} className="text-amber-600 shrink-0" />
+                          <span>
+                            Please save your pending issue report notes before marking checklist as Done.
                           </span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-1.5 text-emerald-800 font-semibold">
                           <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
                           <span>
-                            All {totalChecklistCount} checklist items inspected. Event operations ready to finalize.
+                            All {totalChecklistCount} checklist items inspected. Equipment inspection ready to mark as Done.
                           </span>
                         </div>
                       )}
@@ -1590,16 +1673,24 @@ export default function ManagerEventDetails() {
 
                     <button
                       type="button"
-                      onClick={handleCompleteEvent}
-                      disabled={completingEvent}
-                      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-2xs ${
-                        inspectedItemsCount === totalChecklistCount
-                          ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                          : "bg-slate-200 hover:bg-slate-300 text-slate-700"
+                      onClick={handleMarkDone}
+                      disabled={!isDoneEnabled || submittingDone || isChecklistDone}
+                      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs ${
+                        isChecklistDone
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300 cursor-not-allowed opacity-90"
+                          : isDoneEnabled
+                            ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                            : "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300/60"
                       }`}
                     >
                       <CheckCircle2 size={14} />
-                      <span>{completingEvent ? "Completing Event..." : "Complete Event"}</span>
+                      <span>
+                        {submittingDone
+                          ? "Saving..."
+                          : isChecklistDone
+                            ? "Checklist Done"
+                            : "Done"}
+                      </span>
                     </button>
                   </div>
                 )}

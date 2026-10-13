@@ -303,8 +303,8 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
 
   if (raw === "ongoing") {
     const isPast = (() => {
-      if (!record?.event_date) return false;
-      const d = new Date(record.event_date);
+      if (!booking?.event_date) return false;
+      const d = new Date(booking.event_date);
       if (Number.isNaN(d.getTime())) return false;
       const endOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
       return new Date() > endOfDay;
@@ -359,9 +359,9 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
   }
 
   if (["cancelled", "canceled", "rejected", "refunded"].includes(raw)) {
-    const penaltyAmt = Number(record?.cancellation_penalty_amount || 0);
-    const penaltyReason = record?.cancellation_penalty_reason || record?.cancellation_reason || record?.cancellation_request?.admin_notes || "";
-    const isRefunded = raw === "refunded" || record?.payment_status === "refunded";
+    const penaltyAmt = Number(booking?.cancellation_penalty_amount || 0);
+    const penaltyReason = booking?.cancellation_penalty_reason || booking?.cancellation_reason || booking?.cancellation_request?.admin_notes || "";
+    const isRefunded = raw === "refunded" || booking?.payment_status === "refunded";
 
     let notice = null;
     if (penaltyAmt > 0) {

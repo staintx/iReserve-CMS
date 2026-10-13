@@ -1374,14 +1374,12 @@ export default function AdminBookingEditModal({
           ------------------------------------------------------------------ */}
           <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
             {/* Fixed Jump Navigation Toolbar (Never overlaps scrolling content) */}
-            <div className="shrink-0 mb-3 bg-slate-100/80 border border-slate-200/90 rounded-xl p-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar shadow-2xs">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider shrink-0 ml-1.5 mr-0.5 hidden sm:inline">
-                Jump to:
-              </span>
+            <div className="shrink-0 mb-3 bg-slate-100/80 border border-slate-200/90 rounded-xl p-1.5 flex flex-wrap items-center gap-1 sm:gap-1.5 shadow-2xs">
               <button
                 type="button"
                 onClick={() => scrollToSection("qb-section-details")}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                title="1. Event Specifications & Customer Details"
+                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <User size={12} className="text-slate-500" />
                 <span>1. Specs</span>
@@ -1389,7 +1387,8 @@ export default function AdminBookingEditModal({
               <button
                 type="button"
                 onClick={() => scrollToSection("qb-section-package")}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                title="2. Package Baseline & Starting Price"
+                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Package size={12} className="text-slate-500" />
                 <span>2. Package</span>
@@ -1397,7 +1396,8 @@ export default function AdminBookingEditModal({
               <button
                 type="button"
                 onClick={() => scrollToSection("qb-section-inclusions")}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                title="3. Package Inclusions"
+                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Check size={12} className="text-slate-500" />
                 <span>3. Inclusions ({keptInclusions.length})</span>
@@ -1406,7 +1406,8 @@ export default function AdminBookingEditModal({
                 <button
                   type="button"
                   onClick={() => scrollToSection("qb-section-menu")}
-                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  title="4. Menu Pricing & Selections"
+                  className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
                 >
                   <Utensils size={12} className="text-slate-500" />
                   <span>4. Menu ({activeMenuItems.length})</span>
@@ -1415,7 +1416,8 @@ export default function AdminBookingEditModal({
               <button
                 type="button"
                 onClick={() => scrollToSection("qb-section-addons")}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                title="5. Add-ons & Extra Services"
+                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Sparkles size={12} className="text-slate-500" />
                 <span>5. Add-ons ({activeAddOns.length})</span>
@@ -1423,18 +1425,20 @@ export default function AdminBookingEditModal({
               <button
                 type="button"
                 onClick={() => scrollToSection("qb-section-adjustments")}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                title="6. Adjustments & Logistics"
+                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Truck size={12} className="text-slate-500" />
-                <span>6. Adjustments &amp; Fees</span>
+                <span>6. Adjustments</span>
               </button>
               <button
                 type="button"
                 onClick={() => scrollToSection("qb-section-notes")}
-                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                title="7. Revision Notes & Audit Log"
+                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <FileText size={12} className="text-slate-500" />
-                <span>7. Revision Note</span>
+                <span>7. Notes</span>
               </button>
             </div>
 

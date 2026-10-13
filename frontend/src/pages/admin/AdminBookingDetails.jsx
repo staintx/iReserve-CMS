@@ -68,6 +68,7 @@ import { createConversation } from "../../api/messages";
 import { menuAmountLabel, menuLineTotal } from "../../utils/quotationPricing";
 import { isFoodOnly, isSetupOnly, resolveServiceType } from "../../components/customer/portal/statusMeta";
 import { MAX_FINANCIAL_AMOUNT } from "../../lib/validationRules";
+import { parseInclusion } from "../../lib/packageDisplay";
 
 const safeDateToIsoString = (val) => {
   if (!val) return "";
@@ -120,9 +121,12 @@ export default function AdminBookingDetails() {
   const [showRejectCancelModal, setShowRejectCancelModal] = useState(false);
   const [cancelActionLoading, setCancelActionLoading] = useState(false);
   const [adminCancelNote, setAdminCancelNote] = useState("");
-  const [refundMode, setRefundMode] = useState("queue"); // 'queue' | 'custom'
+  const [refundMode, setRefundMode] = useState("forfeit"); // 'forfeit' | 'custom' | 'queue'
   const [customRefundAmount, setCustomRefundAmount] = useState("");
   const [customRefundReason, setCustomRefundReason] = useState("");
+  const [penaltyReasonPreset, setPenaltyReasonPreset] = useState("no_show"); // 'no_show' | 'late_cancel' | 'uncooperative' | 'standard' | 'custom'
+  const [customPenaltyReason, setCustomPenaltyReason] = useState("");
+  const [cancellationReasonInput, setCancellationReasonInput] = useState("");
 
   // Form states
   const [quoteForm, setQuoteForm] = useState({ total_price: "", notes: "" });
@@ -143,6 +147,7 @@ export default function AdminBookingDetails() {
     if (!booking) return [];
     const returns = Array.isArray(booking.equipment_returns) ? booking.equipment_returns : [];
     const assigned = Array.isArray(booking.inventory_items) ? booking.inventory_items : [];
+    const checklist = Array.isArray(booking.equipment_checklist) ? booking.equipment_checklist : [];
 
     const itemMap = new Map();
 
@@ -151,6 +156,7 @@ export default function AdminBookingDetails() {
       if (!invId) return;
       const key = String(invId);
       itemMap.set(key, {
+        _id: item._id,
         inventory_id: invId,
         name: item.name || item.inventory_id?.item_name || "Equipment Item",
         category: item.inventory_id?.category || item.category || "Equipment",
@@ -164,10 +170,81 @@ export default function AdminBookingDetails() {
       });
     });
 
+    checklist.forEach((item) => {
+      const key = item.item_key || (item.name ? item.name.toLowerCase() : String(item._id));
+      if (!key) return;
+      if (!itemMap.has(key)) {
+        const booked = Number(item.quantity || 1);
+        const isDamaged = item.issue_type === "damaged";
+        const isMissing = item.issue_type === "missing";
+        const isIssue = item.status === "incomplete" || item.status === "issue_reported" || (item.issue_type && item.issue_type !== "none");
+        itemMap.set(key, {
+          _id: item._id,
+          name: item.name || "Equipment Item",
+          category: item.category || "Equipment",
+          quantity_assigned: booked,
+          quantity_returned: isIssue ? 0 : (item.is_inspected ? booked : 0),
+          quantity_damaged: isDamaged ? booked : (isIssue && !isMissing ? booked : 0),
+          quantity_missing: isMissing ? booked : 0,
+          notes: item.notes || "",
+          verified_at: item.completed_at || null,
+          verified_by: item.completed_by || null,
+        });
+      }
+    });
+
+    // Fallback: Inclusions from package if checklist has not been saved yet
+    const inclusions = Array.isArray(booking.package_inclusions) ? booking.package_inclusions : [];
+    inclusions.forEach((inc, idx) => {
+      const parsed = parseInclusion(inc);
+      if (!parsed || !parsed.name) return;
+      const cleanLower = parsed.name.toLowerCase();
+      const catLower = (parsed.category || "").toLowerCase();
+      if (cleanLower === "crew" || catLower === "crew" || catLower === "staff") return;
+
+      const key = `inclusion_${idx}_${cleanLower.replace(/[^a-z0-9]/g, "_")}`;
+      let alreadyExists = false;
+      for (const [, v] of itemMap.entries()) {
+        if (v.name && v.name.toLowerCase() === cleanLower) {
+          alreadyExists = true;
+          break;
+        }
+      }
+      if (!alreadyExists && !itemMap.has(key)) {
+        let qty = 1;
+        if (parsed.qty) {
+          const numMatch = parsed.qty.match(/\d+/);
+          qty = numMatch ? parseInt(numMatch[0], 10) : 1;
+        }
+        itemMap.set(key, {
+          name: parsed.name,
+          category: parsed.category || "Package Inclusion",
+          quantity_assigned: qty,
+          quantity_returned: 0,
+          quantity_damaged: 0,
+          quantity_missing: 0,
+          notes: "",
+          verified_at: null,
+          verified_by: null,
+        });
+      }
+    });
+
     returns.forEach((ret) => {
       const invId = ret.inventory_id?._id || ret.inventory_id;
-      if (!invId) return;
-      const key = String(invId);
+      let key = invId ? String(invId) : null;
+      if (!key && ret.name) {
+        for (const [k, v] of itemMap.entries()) {
+          if (v.name && v.name.toLowerCase() === ret.name.toLowerCase()) {
+            key = k;
+            break;
+          }
+        }
+      }
+      if (!key) {
+        key = ret._id ? String(ret._id) : (ret.name ? ret.name.toLowerCase() : `ret_${Math.random()}`);
+      }
+
       const existing = itemMap.get(key);
       const booked = Number(ret.quantity_booked || existing?.quantity_assigned || 1);
       const returned = Number(ret.quantity_returned !== undefined ? ret.quantity_returned : (existing?.quantity_returned ?? 0));
@@ -178,7 +255,8 @@ export default function AdminBookingDetails() {
       const notes = ret.notes !== undefined ? ret.notes : (existing?.notes || "");
 
       itemMap.set(key, {
-        inventory_id: invId,
+        _id: ret._id || existing?._id,
+        inventory_id: invId || existing?.inventory_id,
         name: ret.name || existing?.name || ret.inventory_id?.item_name || "Equipment Item",
         category: ret.inventory_id?.category || existing?.category || "Equipment",
         quantity_assigned: booked,
@@ -207,13 +285,16 @@ export default function AdminBookingDetails() {
       totalMissing += it.quantity_missing;
     });
 
-    const hasIssues = totalDamaged > 0 || totalMissing > 0;
+    const checklistHasIssues = Array.isArray(booking?.equipment_checklist) &&
+      booking.equipment_checklist.some(it => it.status === "incomplete" || it.status === "issue_reported" || (it.issue_type && it.issue_type !== "none"));
+
+    const hasIssues = totalDamaged > 0 || totalMissing > 0 || checklistHasIssues;
     const hasReturnsLogged = equipmentItems.some(
       (it) => it.verified_at || it.notes || it.quantity_returned > 0 || it.quantity_damaged > 0 || it.quantity_missing > 0
-    );
+    ) || Boolean(booking?.equipment_checklist_done) || Boolean(booking?.equipment_manager_verified?.confirmed);
 
     return { totalAssigned, totalReturned, totalDamaged, totalMissing, hasIssues, hasReturnsLogged };
-  }, [equipmentItems]);
+  }, [equipmentItems, booking]);
 
   const resolvedThemeAndPalette = useMemo(() => {
     if (!booking) return "Standard Styling";
@@ -336,17 +417,48 @@ export default function AdminBookingDetails() {
     try {
       const payload = {
         admin_notes: adminCancelNote,
+        cancellation_reason: cancellationReasonInput || booking.cancellation_reason || booking.cancellation_request?.reason || adminCancelNote || "Cancelled by management",
       };
-      if (refundMode === "custom" && customRefundAmount !== "") {
-        payload.refund_amount = Number(customRefundAmount);
+
+      if (refundMode === "forfeit") {
+        payload.refund_amount = 0;
+        payload.penalty_amount = totalPaid;
+        let pReason = "Standard non-refundable deposit terms";
+        let cType = "standard";
+        if (penaltyReasonPreset === "no_show") {
+          pReason = "Client failed to show up on event date (No-Show forfeiture)";
+          cType = "no_show";
+        } else if (penaltyReasonPreset === "late_cancel") {
+          pReason = "Late cancellation (< 14 days before scheduled event date)";
+          cType = "customer_requested";
+        } else if (penaltyReasonPreset === "uncooperative") {
+          pReason = "Client non-cooperation / agreement breach";
+          cType = "breach_uncooperative";
+        } else if (penaltyReasonPreset === "custom") {
+          pReason = customPenaltyReason || adminCancelNote || "Deposit forfeited per cancellation policy";
+          cType = "admin_direct";
+        }
+        payload.penalty_reason = pReason;
+        payload.cancellation_type = cType;
+        payload.policy_clause = "Section 1 & 2: Non-Refundable Deposit Rule & Client Cancellation Timelines";
+      } else if (refundMode === "custom" && customRefundAmount !== "") {
+        const numRef = Number(customRefundAmount);
+        payload.refund_amount = numRef;
         payload.refund_reason = customRefundReason || adminCancelNote || "Approved cancellation refund";
+        const deduction = Math.max(0, totalPaid - numRef);
+        if (deduction > 0) {
+          payload.penalty_amount = deduction;
+          payload.penalty_reason = customRefundReason || "Cancellation deduction fee";
+          payload.policy_clause = "Section 2: Client Cancellation Timelines (Partial Forfeiture)";
+        }
       }
+
       await AdminAPI.approveCancellation(booking._id, payload);
-      notify("Booking cancellation approved.", "success");
+      notify("Booking cancellation processed successfully.", "success");
       setShowApproveCancelModal(false);
       loadData();
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to approve cancellation.", "error");
+      notify(err.response?.data?.message || "Failed to process cancellation.", "error");
     } finally {
       setCancelActionLoading(false);
     }
@@ -722,7 +834,7 @@ export default function AdminBookingDetails() {
   } else {
     if (rawStatus === "completed") {
       completedIdx = 7;
-    } else if (["ready for event", "ongoing", "preparing"].includes(rawStatus)) {
+    } else if (["ready for event", "ongoing", "preparing", "pending completion"].includes(rawStatus)) {
       completedIdx = 6;
     } else if (hasOcularScheduledOrDone || rawStatus === "ocular scheduled") {
       completedIdx = 5;
@@ -974,7 +1086,18 @@ export default function AdminBookingDetails() {
     setUpdatingStatus(true);
     try {
       if (newStatus === "completed" || newStatus === "delivered") {
-        await AdminAPI.markBookingCompleted(booking._id);
+        let collectedCash = false;
+        if (remainingBalance > 0) {
+          const confirmCash = window.confirm(
+            `This booking has an outstanding balance of ₱${remainingBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}.\n\nDid you collect this remaining balance in cash on-site? Click OK to record cash collection and complete the event, or Cancel to abort.`
+          );
+          if (!confirmCash) {
+            setUpdatingStatus(false);
+            return;
+          }
+          collectedCash = true;
+        }
+        await AdminAPI.markBookingCompleted(booking._id, collectedCash ? { collected_cash_balance: true } : {});
       } else {
         await AdminAPI.updateBooking(booking._id, { status: newStatus });
       }
@@ -1162,20 +1285,38 @@ export default function AdminBookingDetails() {
                     </Btn>
                   )}
 
-                  {["confirmed", "Confirmed", "preparing", "Ready for Event", "ready for event", "ongoing"].includes(booking.status) && remainingBalance <= 0 && (
+                  {["confirmed", "Confirmed", "preparing", "Ready for Event", "ready for event", "ongoing", "Pending Completion", "pending completion"].includes(booking.status) && (
                     <Btn
                       size="sm"
                       variant="primary"
+                      disabled={updatingStatus}
                       onClick={() => setStatusConfirmTarget({
                         status: "completed",
                         title: "Mark Event as Completed?",
-                        message: "Are you sure you want to mark this event as Completed? This will finalize the event and allow the customer to leave a review.",
+                        message: remainingBalance > 0
+                          ? `Are you sure you want to mark this event as Completed? There is an outstanding balance of ₱${remainingBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })} which will be recorded as collected in cash on-site.`
+                          : "Are you sure you want to mark this event as Completed? This will finalize the event and allow the customer to leave a review.",
                         confirmText: "Yes, Mark Completed",
                         successMsg: "Event marked as Completed successfully!"
                       })}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-2xs"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
                     >
                       <CheckCircle2 size={13} /> Mark Completed
+                    </Btn>
+                  )}
+
+                  {!["cancelled", "completed"].includes(rawStatus) && (
+                    <Btn
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setSelectedNewStatus(booking.status);
+                        setShowStatusSelectModal(true);
+                      }}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                      title="Manually adjust booking status"
+                    >
+                      Change Status...
                     </Btn>
                   )}
                 </>
@@ -1253,13 +1394,47 @@ export default function AdminBookingDetails() {
                   className="font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-2xs"
                   onClick={() => {
                     setAdminCancelNote("");
+                    setCancellationReasonInput(cancellationReason || "");
                     setCustomRefundAmount(totalPaid > 0 ? String(totalPaid * 0.5) : "0");
-                    setRefundMode("queue");
+                    setRefundMode(totalPaid > 0 ? "forfeit" : "custom");
+                    setPenaltyReasonPreset("late_cancel");
                     setShowApproveCancelModal(true);
                   }}
                 >
                   <Check className="w-3.5 h-3.5 mr-1" /> Review &amp; Approve
                 </Btn>
+              </div>
+            </div>
+          )}
+
+          {/* Active Cancelled Status & Penalty Banner */}
+          {rawStatus === "cancelled" && (
+            <div className="bg-rose-50/95 border border-rose-200 rounded-lg p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-bold text-rose-950 text-xs sm:text-sm">
+                      {Number(booking.cancellation_penalty_amount || 0) > 0
+                        ? `Booking Cancelled — ₱${Number(booking.cancellation_penalty_amount).toLocaleString("en-PH")} Deposit Forfeited (Penalty)`
+                        : booking.payment_status === "refunded"
+                        ? "Booking Cancelled & Refunded"
+                        : "Booking Cancelled"}
+                    </h4>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                      Cancelled
+                    </span>
+                  </div>
+                  <p className="text-rose-900 text-xs">
+                    <strong>Reason / Penalty Assessment:</strong>{" "}
+                    {booking.cancellation_penalty_reason || booking.cancellation_reason || booking.cancellation_request?.admin_notes || "Cancelled by admin"}
+                  </p>
+                  {booking.cancellation_policy_clause && (
+                    <p className="text-rose-700 text-[11px]">
+                      <strong>Governing Policy:</strong> {booking.cancellation_policy_clause}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -2554,16 +2729,27 @@ export default function AdminBookingDetails() {
                             )}
                           </div>
 
-                          {/* Navigation directly to payment */}
-                          <Btn
-                            size="xs"
-                            variant="primary"
-                            onClick={handleGoToPayment}
-                            className="font-bold gap-1 text-xs shrink-0 cursor-pointer shadow-2xs"
-                            title="Go to Financials & History to review payments and balance"
-                          >
-                            <CreditCard size={13} /> Go to Payment
-                          </Btn>
+                          {/* Actions: Verify Returns & Navigation directly to payment */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Btn
+                              size="xs"
+                              variant="secondary"
+                              onClick={() => setShowVerifyReturnsModal(true)}
+                              className="font-bold gap-1 text-xs shrink-0 cursor-pointer shadow-2xs"
+                              title="Verify and record equipment turnover return counts"
+                            >
+                              <ShieldCheck size={13} /> Verify Equipment Returns
+                            </Btn>
+                            <Btn
+                              size="xs"
+                              variant="primary"
+                              onClick={handleGoToPayment}
+                              className="font-bold gap-1 text-xs shrink-0 cursor-pointer shadow-2xs"
+                              title="Go to Financials & History to review payments and balance"
+                            >
+                              <CreditCard size={13} /> Go to Payment
+                            </Btn>
+                          </div>
                         </div>
 
                         {/* Inspection Status Banner */}
@@ -2632,12 +2818,19 @@ export default function AdminBookingDetails() {
                                     </p>
                                   </div>
 
-                                  {item.completed_at && (
-                                    <div className="text-[10.5px] text-muted-foreground pt-1 border-t border-rose-200/60 flex items-center justify-between">
-                                      <span>Inspected</span>
-                                      <span className="font-mono">{formatDateTime(item.completed_at)}</span>
-                                    </div>
-                                  )}
+                                  <div className="pt-2 border-t border-rose-200/60 flex items-center justify-between gap-2">
+                                    <span className="text-[10.5px] text-muted-foreground font-mono">
+                                      {item.completed_at ? formatDateTime(item.completed_at) : "Reported by Manager"}
+                                    </span>
+                                    <Btn
+                                      size="xs"
+                                      variant="secondary"
+                                      onClick={() => handleOpenDamageModal(item)}
+                                      className="text-[11px] font-bold border-rose-300 text-rose-800 hover:bg-rose-100 cursor-pointer py-1 px-2.5"
+                                    >
+                                      <DollarSign size={12} /> Assess Damage Fee
+                                    </Btn>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -3099,22 +3292,23 @@ export default function AdminBookingDetails() {
           <PrintableInvoice booking={booking} payments={payments} businessInfo={businessInfo} />
         )}
 
-        {/* Approve Booking Cancellation Modal */}
+        {/* Approve / Process Booking Cancellation & Penalty Modal */}
         <Dialog open={showApproveCancelModal} onOpenChange={setShowApproveCancelModal}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md sm:max-w-lg">
             <DialogHeader>
               <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center mb-1 text-rose-600">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <DialogTitle className="text-base font-bold text-foreground">
-                Approve Booking Cancellation?
+                Process Booking Cancellation &amp; Policy Terms
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                This will officially cancel booking <strong>#{booking.reference || booking._id}</strong>, release any reserved inventory items, and update customer status.
+                This will officially cancel booking <strong>#{booking.reference || booking._id}</strong>, release any reserved inventory items, and apply policy terms.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 py-1">
+            <div className="space-y-3 py-1 text-xs">
+              {/* Context overview box */}
               <div className="p-3 bg-muted/40 rounded-lg border border-border/70 text-xs space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Client:</span>
@@ -3127,49 +3321,125 @@ export default function AdminBookingDetails() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Amount Paid:</span>
+                  <span className="text-muted-foreground">Amount Collected / Paid:</span>
                   <span className="font-bold text-emerald-700 font-mono">{fmt(totalPaid)}</span>
                 </div>
-                <div className="pt-1 border-t border-border/50 text-[11px] text-muted-foreground">
-                  <strong>Customer Reason:</strong> "{cancellationReason}"
-                </div>
+                {isCancellationPending ? (
+                  <div className="pt-1 border-t border-border/50 text-[11px] text-muted-foreground">
+                    <strong>Customer Stated Reason:</strong> "{cancellationReason}"
+                  </div>
+                ) : (
+                  <div className="pt-1.5 border-t border-border/50 space-y-1">
+                    <label className="text-[11px] font-semibold text-foreground block">
+                      Cancellation Circumstance / Reason:
+                    </label>
+                    <Input
+                      type="text"
+                      value={cancellationReasonInput}
+                      onChange={(e) => setCancellationReasonInput(e.target.value)}
+                      placeholder="e.g., Client No-Show, late cancellation, emergency..."
+                      className="text-xs h-7.5"
+                    />
+                  </div>
+                )}
               </div>
 
+              {/* Resolution options when payments were made */}
               {totalPaid > 0 && (
                 <div className="space-y-2 pt-1 border-t border-border/60">
                   <label className="text-xs font-bold text-foreground block">
-                    Refund Resolution Method
+                    Cancellation &amp; Policy Resolution Method
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
-                      onClick={() => setRefundMode("queue")}
-                      className={`p-2.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "queue"
-                          ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary"
+                      onClick={() => setRefundMode("forfeit")}
+                      className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "forfeit"
+                          ? "border-rose-500 bg-rose-50/50 text-foreground font-semibold ring-1 ring-rose-500"
                           : "border-border bg-background text-muted-foreground hover:border-border/80"
                         }`}
                     >
-                      <div className="font-bold text-xs text-foreground mb-0.5">Send to Refund Queue</div>
+                      <div className="font-bold text-xs text-rose-900 mb-0.5 flex items-center gap-1">
+                        <ShieldAlert className="w-3 h-3 text-rose-600 shrink-0" />
+                        Forfeit Deposit
+                      </div>
                       <p className="text-[10px] text-muted-foreground leading-tight">
-                        Calculate exact deductions &amp; issue refund voucher in Refund Management.
+                        Non-refundable penalty per policy. ₱0 refund issued.
                       </p>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setRefundMode("custom")}
-                      className={`p-2.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "custom"
+                      className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "custom"
                           ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary"
                           : "border-border bg-background text-muted-foreground hover:border-border/80"
                         }`}
                     >
-                      <div className="font-bold text-xs text-foreground mb-0.5">Direct Refund Now</div>
+                      <div className="font-bold text-xs text-foreground mb-0.5">Custom Refund</div>
                       <p className="text-[10px] text-muted-foreground leading-tight">
-                        Specify immediate refund amount and record refund transaction now.
+                        Specify partial refund amount and penalty deduction.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRefundMode("queue")}
+                      className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "queue"
+                          ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary"
+                          : "border-border bg-background text-muted-foreground hover:border-border/80"
+                        }`}
+                    >
+                      <div className="font-bold text-xs text-foreground mb-0.5">Refund Queue</div>
+                      <p className="text-[10px] text-muted-foreground leading-tight">
+                        Send to Refund Management for finance review.
                       </p>
                     </button>
                   </div>
 
+                  {/* Mode = Forfeit details */}
+                  {refundMode === "forfeit" && (
+                    <div className="p-3 bg-rose-50/40 rounded-lg border border-rose-200/80 space-y-2 mt-2">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-semibold text-rose-950">Penalty Amount Forfeited:</span>
+                        <span className="font-mono font-bold text-rose-700 text-sm">{fmt(totalPaid)}</span>
+                      </div>
+                      <p className="text-[11px] text-rose-800 leading-tight">
+                        Enforces <strong>Section 1 &amp; 2 of Cancellation Policy</strong>: deposits are non-refundable to cover ingredient procurement, kitchen capacity, and administrative costs.
+                      </p>
+
+                      <div className="space-y-1.5 pt-1">
+                        <label className="text-[11px] font-semibold text-foreground block">
+                          Penalty Assessment Reason:
+                        </label>
+                        <select
+                          value={penaltyReasonPreset}
+                          onChange={(e) => setPenaltyReasonPreset(e.target.value)}
+                          className="w-full text-xs rounded border border-border p-1.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          <option value="no_show">Customer failed to show up on event date (No-Show)</option>
+                          <option value="late_cancel">Late cancellation (&lt; 14 days prior to event)</option>
+                          <option value="uncooperative">Customer non-cooperation / breach of agreement</option>
+                          <option value="standard">Standard non-refundable deposit terms</option>
+                          <option value="custom">Other / Custom penalty explanation...</option>
+                        </select>
+                      </div>
+
+                      {penaltyReasonPreset === "custom" && (
+                        <div className="pt-1">
+                          <Input
+                            type="text"
+                            value={customPenaltyReason}
+                            onChange={(e) => setCustomPenaltyReason(e.target.value)}
+                            placeholder="Specify exact penalty reason..."
+                            className="text-xs h-7.5"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Mode = Custom details */}
                   {refundMode === "custom" && (
                     <div className="p-3 bg-muted/30 rounded-lg border border-border/80 space-y-2 mt-2">
                       <div>
@@ -3186,9 +3456,14 @@ export default function AdminBookingDetails() {
                           placeholder="0.00"
                           className="text-xs font-mono h-8"
                         />
-                        <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                          Maximum refundable: {fmt(totalPaid)}
-                        </span>
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                          <span>Max refundable: {fmt(totalPaid)}</span>
+                          {Number(customRefundAmount) > 0 && totalPaid > Number(customRefundAmount) && (
+                            <span className="text-rose-700 font-semibold">
+                              Retained penalty: {fmt(totalPaid - Number(customRefundAmount))}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <label className="text-[11px] font-semibold text-foreground block mb-1">
@@ -3198,7 +3473,7 @@ export default function AdminBookingDetails() {
                           type="text"
                           value={customRefundReason}
                           onChange={(e) => setCustomRefundReason(e.target.value)}
-                          placeholder="e.g., 50% deposit refund per cancellation terms"
+                          placeholder="e.g., 50% deposit deduction per cancellation terms"
                           className="text-xs h-8"
                         />
                       </div>
@@ -3237,7 +3512,7 @@ export default function AdminBookingDetails() {
                 onClick={handleApproveCancellation}
                 disabled={cancelActionLoading}
               >
-                {cancelActionLoading ? "Processing..." : "Confirm Cancellation"}
+                {cancelActionLoading ? "Processing..." : refundMode === "forfeit" ? "Confirm Forfeiture & Cancel" : "Confirm Cancellation"}
               </Btn>
             </DialogFooter>
           </DialogContent>
@@ -3610,17 +3885,16 @@ export default function AdminBookingDetails() {
                   {[
                     { id: "confirmed", label: "Confirmed / Reserved", desc: "Deposit received, date locked in schedule", disabled: false, tone: "border-emerald-200 bg-emerald-50/40 text-emerald-950 hover:border-emerald-400" },
                     { id: "preparing", label: isFoodOnlyService ? "Food Prep (Kitchen In-Progress)" : "Preparing / Ready for Setup", desc: isFoodOnlyService ? "Culinary team cooking and packaging food trays" : "Event preparations in progress", disabled: false, tone: "border-amber-200 bg-amber-50/40 text-amber-950 hover:border-amber-400" },
+                    { id: "pending completion", label: "Pending Completion", desc: "Event concluded; awaiting post-event inspection, wrap-up, and final balance settlement", disabled: false, tone: "border-purple-200 bg-purple-50/40 text-purple-950 hover:border-purple-400" },
                     ...(isFoodOnlyService ? [{ id: "out for delivery", label: "Out for Delivery (Dispatched)", desc: "Delivery courier en route to destination venue", disabled: false, tone: "border-blue-200 bg-blue-50/40 text-blue-950 hover:border-blue-400" }] : []),
                     {
                       id: "completed",
                       label: isFoodOnlyService ? "Delivered & Completed" : "Completed / Event Concluded",
                       desc: remainingBalance > 0
-                        ? `Disabled: Outstanding balance of ₱${remainingBalance.toLocaleString()} must be settled first`
+                        ? `Outstanding balance of ₱${remainingBalance.toLocaleString()} will be settled via on-site cash collection`
                         : "Service delivered and concluded successfully",
-                      disabled: remainingBalance > 0,
-                      tone: remainingBalance > 0
-                        ? "opacity-50 cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                        : "border-emerald-200 bg-emerald-50/40 text-emerald-950 hover:border-emerald-400"
+                      disabled: false,
+                      tone: "border-emerald-200 bg-emerald-50/40 text-emerald-950 hover:border-emerald-400"
                     },
                     { id: "cancelled", label: "Cancelled", desc: "Reservation cancelled", disabled: false, tone: "border-rose-200 bg-rose-50/40 text-rose-950 hover:border-rose-400" },
                   ].map((opt) => (
@@ -3675,6 +3949,16 @@ export default function AdminBookingDetails() {
                 onClick={() => {
                   if (!selectedNewStatus) {
                     notify("Please select a status to apply.", "warning");
+                    return;
+                  }
+                  if (selectedNewStatus?.toLowerCase() === "cancelled") {
+                    setShowStatusSelectModal(false);
+                    setAdminCancelNote("");
+                    setCancellationReasonInput(booking.cancellation_reason || "");
+                    setRefundMode(totalPaid > 0 ? "forfeit" : "custom");
+                    setPenaltyReasonPreset("no_show");
+                    setCustomRefundAmount("0");
+                    setShowApproveCancelModal(true);
                     return;
                   }
                   setShowStatusSelectModal(false);

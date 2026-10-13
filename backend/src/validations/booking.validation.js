@@ -82,5 +82,10 @@ exports.bookingSchema = Joi.object({
   payment_status: Joi.string().valid("pending", "deposit_paid", "fully_paid", "refund_requested", "refunded").allow("").optional(),
   paymongo_checkout_session_id: Joi.string().allow("").optional(),
   paymongo_payment_intent_id: Joi.string().allow("").optional(),
-  status: Joi.string().valid("pending deposit", "confirmed", "preparing", "ongoing", "completed", "cancelled").allow("").optional()
+  status: Joi.string().valid("pending deposit", "confirmed", "preparing", "ongoing", "pending completion", "Pending Completion", "completed", "cancelled").allow("").optional(),
+  cancellation_reason: Joi.string().allow("").optional(),
+  cancellation_penalty_amount: monetaryRule("Cancellation penalty amount", { min: 0, max: MAX_FINANCIAL_AMOUNT, required: false, allowZero: true }),
+  cancellation_penalty_reason: Joi.string().allow("").optional(),
+  cancellation_policy_clause: Joi.string().allow("").optional(),
+  cancellation_type: Joi.string().valid("standard", "customer_requested", "no_show", "breach_uncooperative", "admin_direct").optional()
 }).unknown(true);

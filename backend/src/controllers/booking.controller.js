@@ -1662,16 +1662,41 @@ exports.processRefund = asyncHandler(async (req, res) => {
   }
 
   const refundAmount = Number(req.body.amount);
-  if (!Number.isFinite(refundAmount) || refundAmount <= 0 || refundAmount > MAX_FINANCIAL_AMOUNT) {
-    return res.status(400).json({ message: `Refund amount must be between ₱1 and ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
+  if (!Number.isFinite(refundAmount) || refundAmount < 0 || refundAmount > MAX_FINANCIAL_AMOUNT) {
+    return res.status(400).json({ message: `Refund amount must be between ₱0 and ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
   }
 
   const deductionReason =
-    req.body.reason || "Post-ocular cancellation deduction";
+    req.body.reason || "Cancellation deduction per policy";
+
+  const Payment = require("../models/Payment");
+  const approvedPayments = await Payment.find({
+    booking_id: booking._id,
+    status: { $in: ["approved", "paid"] },
+    amount: { $gt: 0 },
+  });
+  const totalPaid = approvedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
   // Cancel booking and update payment status
   booking.status = "cancelled";
-  booking.payment_status = "refunded";
+
+  if (refundAmount > 0) {
+    booking.payment_status = "refunded";
+    const deduction = Math.max(0, totalPaid - refundAmount);
+    if (deduction > 0) {
+      booking.cancellation_penalty_amount = deduction;
+      booking.cancellation_penalty_reason = deductionReason;
+      booking.cancellation_policy_clause = "Section 2: Client Cancellation Timelines (Partial Forfeiture)";
+    }
+  } else {
+    // 0% refund — deposit / payment forfeited as penalty per policy
+    booking.cancellation_penalty_amount = totalPaid;
+    booking.cancellation_penalty_reason = deductionReason;
+    booking.cancellation_policy_clause = "Section 1 & 2: Non-Refundable Deposit Rule & Client Cancellation Timelines";
+    const totalPrice = Number(booking.total_price || 0);
+    booking.payment_status = totalPaid >= totalPrice && totalPrice > 0 ? "fully_paid" : (totalPaid > 0 ? "deposit_paid" : "pending");
+  }
+
   if (booking.cancellation_request?.status === "pending") {
     booking.cancellation_request.status = "approved";
     booking.cancellation_request.resolved_at = new Date();
@@ -1686,40 +1711,50 @@ exports.processRefund = asyncHandler(async (req, res) => {
   // Delete any existing inventory reservations
   await InventoryReservation.deleteMany({ booking_id: booking._id });
 
-  // Create negative payment record for refund
-  const Payment = require("../models/Payment");
-  await Payment.create({
-    booking_id: booking._id,
-    customer_id: booking.customer_id,
-    amount: -refundAmount,
-    currency: "PHP",
-    payment_type: "refund",
-    method: "manual",
-    status: "approved",
-    gateway: "manual",
-    metadata: {
-      reason: deductionReason,
-    },
-  });
+  // Create negative payment record for refund if refundAmount > 0
+  if (refundAmount > 0) {
+    await Payment.create({
+      booking_id: booking._id,
+      customer_id: booking.customer_id,
+      amount: -refundAmount,
+      currency: "PHP",
+      payment_type: "refund",
+      method: "manual",
+      status: "approved",
+      gateway: "manual",
+      metadata: {
+        reason: deductionReason,
+      },
+    });
+  }
 
   await logAction({
     user_id: req.user._id,
-    action: "booking_refunded",
+    action: refundAmount > 0 ? "booking_refunded" : "booking_cancellation_forfeited",
     entity_type: "booking",
     entity_id: booking._id,
-    details: `Processed custom refund of PHP ${refundAmount}. Reason: ${deductionReason}`,
+    details: refundAmount > 0
+      ? `Processed refund of PHP ${refundAmount}. Reason: ${deductionReason}`
+      : `Processed 0 refund / non-refundable cancellation forfeiture of PHP ${totalPaid}. Reason: ${deductionReason}`,
     ip_address: req.ip,
   });
 
   const io = req.app.get("io");
 
-  // Notify customer about the refund
+  const notificationTitle = refundAmount > 0
+    ? "Booking Cancelled & Refunded"
+    : "Booking Cancelled (Deposit Forfeited)";
+  const notificationBody = refundAmount > 0
+    ? `Your booking #${booking.reference || booking._id} has been cancelled. A refund of ₱${refundAmount.toLocaleString("en-PH")} has been processed (${deductionReason}).`
+    : `Your booking #${booking.reference || booking._id} has been cancelled. Collected payment of ₱${totalPaid.toLocaleString("en-PH")} was forfeited as a penalty per our Cancellation Policy (${deductionReason}). No refund was issued.`;
+
+  // Notify customer about the resolution
   if (booking.customer_id) {
     await createNotification(
       {
         userId: booking.customer_id,
-        title: "Booking Cancelled & Refunded",
-        body: `Your booking has been cancelled. A refund of ₱${refundAmount.toLocaleString()} has been processed.`,
+        title: notificationTitle,
+        body: notificationBody,
         type: "info",
         link: "/customer/bookings",
         meta: { booking_id: booking._id },
@@ -1735,15 +1770,17 @@ exports.processRefund = asyncHandler(async (req, res) => {
         booking,
         newStatus: "cancelled",
         customerEmail,
-        customMessage: `Your booking #${booking.reference || booking._id} has been cancelled. A refund of ₱${refundAmount.toLocaleString("en-PH")} has been processed (${deductionReason}).`,
-      }).catch((err) => console.error("[Email Error] Failed to send refund cancel email:", err.message));
+        customMessage: notificationBody,
+      }).catch((err) => console.error("[Email Error] Failed to send cancel email:", err.message));
     }
   }).catch(() => {});
 
   await notifyAdmins(
     {
-      title: "Booking Cancelled & Refunded",
-      body: `Admin processed a custom refund of ₱${refundAmount.toLocaleString()} for booking #${booking.reference || booking._id}.`,
+      title: notificationTitle,
+      body: refundAmount > 0
+        ? `Admin processed a refund of ₱${refundAmount.toLocaleString()} for booking #${booking.reference || booking._id}.`
+        : `Admin marked booking #${booking.reference || booking._id} as non-refundable cancellation (₱${totalPaid.toLocaleString()} forfeited).`,
       type: "info",
       link: `/admin/bookings/${booking._id}/details`,
       meta: { booking_id: booking._id },
@@ -1751,7 +1788,7 @@ exports.processRefund = asyncHandler(async (req, res) => {
     io,
   );
 
-  res.json({ message: "Refund processed successfully", booking });
+  res.json({ message: refundAmount > 0 ? "Refund processed successfully" : "Cancellation with penalty forfeiture processed successfully", booking });
 });
 
 exports.denyRefund = asyncHandler(async (req, res) => {
@@ -2669,14 +2706,23 @@ exports.approveCancellation = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Cannot approve refund: The refund request for this booking has already been denied." });
   }
 
-  const { admin_notes, refund_amount, refund_reason } = req.body;
+  const {
+    admin_notes,
+    refund_amount,
+    refund_reason,
+    penalty_amount,
+    penalty_reason,
+    policy_clause,
+    cancellation_type,
+    cancellation_reason,
+  } = req.body;
 
   // 1. Update cancellation_request
   booking.cancellation_request = {
     ...(booking.cancellation_request?.toObject?.() || {}),
     status: "approved",
     resolved_at: new Date(),
-    admin_notes: (admin_notes || "Cancellation approved by catering management.").trim(),
+    admin_notes: (admin_notes || "Cancellation processed by catering management.").trim(),
   };
 
   if (booking.change_request?.status === "pending") {
@@ -2701,7 +2747,7 @@ exports.approveCancellation = asyncHandler(async (req, res) => {
     }),
   );
 
-  // 4. Handle payments and refund status
+  // 4. Handle payments, penalty forfeiture, and refund status
   const Payment = require("../models/Payment");
   const payments = await Payment.find({
     booking_id: booking._id,
@@ -2710,11 +2756,45 @@ exports.approveCancellation = asyncHandler(async (req, res) => {
   });
   const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
+  const hasExplicitRefund = refund_amount !== undefined && refund_amount !== null && refund_amount !== "" && !isNaN(refund_amount);
+  const numRefund = hasExplicitRefund ? Math.max(0, Number(refund_amount)) : null;
+
+  let calculatedPenalty = 0;
+  if (penalty_amount !== undefined && penalty_amount !== null && !isNaN(penalty_amount)) {
+    calculatedPenalty = Math.max(0, Number(penalty_amount));
+  } else if (hasExplicitRefund && numRefund === 0 && totalPaid > 0) {
+    calculatedPenalty = totalPaid;
+  } else if (hasExplicitRefund && numRefund > 0 && totalPaid > numRefund) {
+    calculatedPenalty = Math.max(0, totalPaid - numRefund);
+  }
+
+  const effectivePenaltyReason = (
+    penalty_reason ||
+    (cancellation_type === "no_show" ? "Customer No-Show on Event Day" : "") ||
+    (cancellation_type === "breach_uncooperative" ? "Client Breach / Non-cooperation" : "") ||
+    admin_notes ||
+    "Deposit forfeited per Cancellation & Refund Policy"
+  ).trim();
+
+  const effectivePolicyClause = (
+    policy_clause ||
+    (calculatedPenalty > 0 ? "Section 1 & 2: Non-Refundable Deposit Rule & Client Cancellation Timelines" : "")
+  ).trim();
+
+  booking.cancellation_penalty_amount = calculatedPenalty;
+  booking.cancellation_penalty_reason = effectivePenaltyReason;
+  booking.cancellation_policy_clause = effectivePolicyClause;
+  if (cancellation_type) {
+    booking.cancellation_type = cancellation_type;
+  }
+  if (cancellation_reason) {
+    booking.cancellation_reason = cancellation_reason;
+  }
+
   if (totalPaid > 0) {
-    if (refund_amount !== undefined && refund_amount !== null && refund_amount !== "" && !isNaN(refund_amount)) {
-      const numRefund = Number(refund_amount);
-      booking.payment_status = "refunded";
+    if (hasExplicitRefund) {
       if (numRefund > 0) {
+        booking.payment_status = "refunded";
         await Payment.create({
           booking_id: booking._id,
           customer_id: booking.customer_id,
@@ -2728,6 +2808,10 @@ exports.approveCancellation = asyncHandler(async (req, res) => {
             reason: refund_reason || admin_notes || "Cancellation refund",
           },
         });
+      } else {
+        // numRefund is 0 (100% deposit / payment forfeiture)
+        const totalPrice = Number(booking.total_price || 0);
+        booking.payment_status = (totalPaid >= totalPrice && totalPrice > 0) ? "fully_paid" : "deposit_paid";
       }
     } else {
       // Direct into refund management queue
@@ -2740,19 +2824,37 @@ exports.approveCancellation = asyncHandler(async (req, res) => {
   await booking.save();
 
   // 5. Notifications
+  let notificationTitle = "Booking Cancellation";
+  let customerMessage = `Your booking #${booking.reference || booking._id} has been cancelled.`;
+
+  if (totalPaid > 0) {
+    if (hasExplicitRefund) {
+      if (numRefund > 0 && calculatedPenalty > 0) {
+        notificationTitle = "Booking Cancelled & Partial Refund";
+        customerMessage = `Your booking #${booking.reference || booking._id} has been cancelled. A partial refund of ₱${numRefund.toLocaleString("en-PH")} was processed after deducting a penalty of ₱${calculatedPenalty.toLocaleString("en-PH")} (${effectivePenaltyReason}).`;
+      } else if (numRefund > 0) {
+        notificationTitle = "Booking Cancelled & Refunded";
+        customerMessage = `Your booking #${booking.reference || booking._id} has been cancelled. A refund of ₱${numRefund.toLocaleString("en-PH")} was processed.`;
+      } else {
+        // numRefund === 0
+        notificationTitle = "Booking Cancelled (Deposit Forfeited)";
+        customerMessage = `Your booking #${booking.reference || booking._id} has been cancelled. In accordance with our Cancellation Policy, collected payment of ₱${calculatedPenalty.toLocaleString("en-PH")} was forfeited as a penalty (${effectivePenaltyReason}). No refund was issued.`;
+      }
+    } else {
+      notificationTitle = "Booking Cancellation in Review";
+      customerMessage = `Your booking #${booking.reference || booking._id} has been cancelled. Any eligible refund is currently being calculated and reviewed per our Cancellation Policy.`;
+    }
+  } else {
+    customerMessage = `Your booking #${booking.reference || booking._id} has been cancelled.${admin_notes ? ` Reason: ${admin_notes}` : ""}`;
+  }
+
   const io = req.app.get("io");
   if (booking.customer_id) {
-    const refundNote = totalPaid > 0
-      ? (refund_amount !== undefined && refund_amount !== null && !isNaN(refund_amount)
-        ? ` A refund of ₱${Number(refund_amount).toLocaleString()} was processed.`
-        : " Any eligible refund is currently being calculated and processed.")
-      : "";
-
     await createNotification(
       {
         userId: booking.customer_id,
-        title: "Booking Cancellation Approved",
-        body: `Your cancellation request for booking #${booking.reference || booking._id} has been approved.${refundNote}`,
+        title: notificationTitle,
+        body: customerMessage,
         type: "info",
         link: `/customer/bookings/${booking._id}`,
         meta: { booking_id: booking._id },
@@ -2768,7 +2870,7 @@ exports.approveCancellation = asyncHandler(async (req, res) => {
         booking,
         newStatus: "cancelled",
         customerEmail,
-        customMessage: `Your cancellation request for booking #${booking.reference || booking._id} has been approved.${refundNote}`,
+        customMessage: customerMessage,
       }).catch((err) => console.error("[Email Error] Failed to send cancel approval email:", err.message));
     }
   }).catch(() => {});
@@ -2776,16 +2878,16 @@ exports.approveCancellation = asyncHandler(async (req, res) => {
   // 6. Audit logging
   await logAction({
     user_id: req.user?._id,
-    action: "booking_cancellation_approved",
+    action: calculatedPenalty > 0 ? "booking_cancellation_penalty_applied" : "booking_cancellation_approved",
     entity_type: "booking",
     entity_id: booking._id,
-    details: `Admin approved cancellation request for booking #${booking.reference || booking._id}.${admin_notes ? ` Note: ${admin_notes}` : ""}`,
+    details: `Admin processed cancellation for booking #${booking.reference || booking._id}.${calculatedPenalty > 0 ? ` Penalty: PHP ${calculatedPenalty} (${effectivePenaltyReason}).` : ""}${admin_notes ? ` Note: ${admin_notes}` : ""}`,
     ip_address: req.ip,
   });
 
   if (io) io.emit("system:refresh", { type: "booking", action: "update" });
 
-  res.json({ message: "Cancellation approved successfully", booking });
+  res.json({ message: "Cancellation processed successfully", booking });
 });
 
 exports.rejectCancellation = asyncHandler(async (req, res) => {

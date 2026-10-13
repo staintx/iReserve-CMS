@@ -302,7 +302,36 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
   }
 
   if (raw === "ongoing") {
+    const isPast = (() => {
+      if (!record?.event_date) return false;
+      const d = new Date(record.event_date);
+      if (Number.isNaN(d.getTime())) return false;
+      const endOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+      return new Date() > endOfDay;
+    })();
+
+    if (isPast) {
+      return {
+        tone: "neutral",
+        label: "Concluded",
+        icon: CheckCircle2,
+        notice: balance > 0
+          ? { tone: "warning", title: "Balance remaining.", text: "Your event has concluded. Please settle your remaining balance." }
+          : null,
+      };
+    }
     return { tone: "info", label: "Happening Now", icon: ChefHat, notice: null };
+  }
+
+  if (raw === "pending completion") {
+    return {
+      tone: balance > 0 ? "warning" : "neutral",
+      label: "Pending Completion",
+      icon: CheckCircle2,
+      notice: balance > 0
+        ? { tone: "warning", title: "Event concluded. Remaining balance due.", text: "Your event has concluded. Please settle your remaining balance to complete your booking." }
+        : { tone: "neutral", title: "Event concluded.", text: "Your event has concluded. Our team is finalizing equipment and billing wrap-up." },
+    };
   }
 
   if (["ready for event", "delivered"].includes(raw)) {
@@ -330,11 +359,38 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
   }
 
   if (["cancelled", "canceled", "rejected", "refunded"].includes(raw)) {
+    const penaltyAmt = Number(record?.cancellation_penalty_amount || 0);
+    const penaltyReason = record?.cancellation_penalty_reason || record?.cancellation_reason || record?.cancellation_request?.admin_notes || "";
+    const isRefunded = raw === "refunded" || record?.payment_status === "refunded";
+
+    let notice = null;
+    if (penaltyAmt > 0) {
+      notice = {
+        tone: "danger",
+        title: "Reservation Cancelled — Deposit Forfeited",
+        text: penaltyReason
+          ? `In accordance with our Cancellation Policy, collected payment of ₱${penaltyAmt.toLocaleString("en-PH")} was forfeited as a penalty (${penaltyReason}).`
+          : `In accordance with our Cancellation Policy, collected payment of ₱${penaltyAmt.toLocaleString("en-PH")} was forfeited to cover reservation and preparation costs.`,
+      };
+    } else if (isRefunded) {
+      notice = {
+        tone: "info",
+        title: "Reservation Cancelled & Refunded",
+        text: "Your reservation was cancelled and an eligible refund has been processed to your account.",
+      };
+    } else if (penaltyReason) {
+      notice = {
+        tone: "neutral",
+        title: "Reservation Cancelled",
+        text: `Reason: ${penaltyReason}`,
+      };
+    }
+
     return {
       tone: "danger",
       label: raw === "refunded" ? "Refunded" : "Cancelled",
       icon: XCircle,
-      notice: null,
+      notice,
     };
   }
 

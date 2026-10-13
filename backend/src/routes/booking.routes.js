@@ -26,6 +26,7 @@ router.post("/:id/ocular/request", protect, authorize("customer"), ctrl.requestO
 router.post("/:id/ocular/skip", protect, authorize("customer"), ctrl.skipOcular);
 router.post("/:id/request-cancellation", protect, authorize("customer"), ctrl.requestCancellation);
 router.post("/:id/cancellation/approve", protect, authorize("admin", "manager", "staff"), ctrl.approveCancellation);
+router.post("/:id/cancel", protect, authorize("admin", "manager", "staff"), ctrl.approveCancellation);
 router.post("/:id/cancellation/reject", protect, authorize("admin", "manager", "staff"), ctrl.rejectCancellation);
 router.get("/availability", optionalProtect, ctrl.checkAvailability);
 router.get("/booked-dates", ctrl.getBookedDates);

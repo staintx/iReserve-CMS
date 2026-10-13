@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TextInput,
   TouchableOpacity,
   RefreshControl,
   Alert,
@@ -13,8 +12,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import {
-  Search,
-  X,
   Plus,
   Calendar,
   Clock,
@@ -23,46 +20,67 @@ import {
   ChevronRight,
   Sparkles,
   FileText,
-  SlidersHorizontal,
+  FileCheck2,
+  CreditCard,
+  AlertCircle,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import customerApi from "../../api/customer";
 import useRealTimeRefresh from "../../utils/useRealTimeRefresh";
 import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
-import PillFilter from "../../components/common/PillFilter";
 import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
 import ProcessTimeline from "../../components/common/ProcessTimeline";
+import FilterSortBar from "../../components/common/FilterSortBar";
 import { formatDate, formatTime } from "../../utils/format";
+import { isSpecialOffer } from "../../utils/packageDisplay";
+import {
+  inquiryStatusGroup,
+  resolveServiceType,
+  recordTitle,
+  isCancelledInquiry,
+  isPastDay,
+} from "../../utils/statusMeta";
 
-const SERVICE_OPTIONS = [
-  "All Services",
-  "Food Only",
-  "Event Setup Only",
-  "Food and Event Setup",
+const CUSTOM_QUOTE_OPTIONS = [
+  "Custom Quote - Food Only",
+  "Custom Quote - Event Setup Only",
+  "Custom Quote - Food and Event Setup",
+];
+
+const SORT_OPTIONS = [
+  { key: "newest", label: "Newest first" },
+  { key: "oldest", label: "Oldest first" },
+  { key: "date", label: "Event date" },
 ];
 
 export const InquiriesListScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [inquiries, setInquiries] = useState([]);
+  const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  // Filters & Search
+  // Filters, Search & Sort State
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedService, setSelectedService] = useState("All Services");
+  const [selectedService, setSelectedService] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
 
-  const loadInquiries = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setError("");
     try {
-      const data = await customerApi.getInquiries();
-      setInquiries(Array.isArray(data) ? data : []);
+      const [inqData, pkgData] = await Promise.all([
+        customerApi.getInquiries(),
+        customerApi.getPackages().catch(() => []),
+      ]);
+      setInquiries(Array.isArray(inqData) ? inqData : inqData?.data || []);
+      setPackages(Array.isArray(pkgData) ? pkgData : pkgData?.data || []);
     } catch (err) {
-      setError("Unable to load inquiries. Please try again.");
+      setError("Unable to load inquiries. Please check your connection.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -70,26 +88,26 @@ export const InquiriesListScreen = ({ navigation }) => {
   }, []);
 
   useEffect(() => {
-    loadInquiries();
-  }, [loadInquiries]);
+    loadData();
+  }, [loadData]);
 
-  useRealTimeRefresh(loadInquiries);
+  useRealTimeRefresh(loadData);
 
   useFocusEffect(
     useCallback(() => {
-      loadInquiries();
-    }, [loadInquiries])
+      loadData();
+    }, [loadData])
   );
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadInquiries();
+    loadData();
   };
 
   const handleCancelInquiry = (inquiryId) => {
     Alert.alert(
       "Cancel Inquiry",
-      "Are you sure you want to cancel this event inquiry?",
+      "Are you sure you want to cancel this event request?",
       [
         { text: "No, Keep It", style: "cancel" },
         {
@@ -98,9 +116,12 @@ export const InquiriesListScreen = ({ navigation }) => {
           onPress: async () => {
             try {
               await customerApi.cancelInquiry(inquiryId);
-              loadInquiries();
+              loadData();
             } catch (err) {
-              Alert.alert("Error", err.response?.data?.message || "Failed to cancel inquiry.");
+              Alert.alert(
+                "Error",
+                err.response?.data?.message || "Failed to cancel inquiry."
+              );
             }
           },
         },
@@ -108,74 +129,184 @@ export const InquiriesListScreen = ({ navigation }) => {
     );
   };
 
-  // Compute count badges for filter tabs matching Screenshot 3
+  // Derive configured Combo Pack names matching website
+  const comboPackNames = useMemo(() => {
+    const names = new Set();
+    (packages || []).forEach((pkg) => {
+      if (pkg.offer_type === "special" || isSpecialOffer(pkg)) {
+        if (pkg.name) names.add(pkg.name);
+      }
+    });
+    (inquiries || []).forEach((inq) => {
+      const isSpecial =
+        inq.booking_type === "special" ||
+        inq.package_id?.offer_type === "special" ||
+        inq.event_type === "Special Offer Catering" ||
+        Boolean(inq.package_id?.is_special_offer) ||
+        (Array.isArray(inq.offer_food_snapshot) && inq.offer_food_snapshot.length > 0);
+      if (isSpecial) {
+        const name = inq.package_name_snapshot || inq.package_id?.name;
+        if (name) names.add(name);
+      }
+    });
+    return Array.from(names);
+  }, [packages, inquiries]);
+
+  // Derive package service options matching website
+  const packageServiceOptions = useMemo(() => {
+    const options = new Set();
+    (packages || []).forEach((pkg) => {
+      if (pkg.offer_type !== "special" && !isSpecialOffer(pkg) && pkg.name) {
+        options.add(pkg.name);
+        options.add(`${pkg.name} + Menu`);
+      }
+    });
+    (inquiries || []).forEach((inq) => {
+      const st = resolveServiceType(inq);
+      if (st && !st.startsWith("Custom Quote -") && !comboPackNames.includes(st)) {
+        options.add(st);
+      }
+    });
+    return Array.from(options);
+  }, [packages, inquiries, comboPackNames]);
+
+  // Grouped service options for the Service Type picker (matching website 1:1)
+  const serviceGroups = useMemo(() => {
+    const groups = [];
+
+    // Custom Quotes
+    groups.push({
+      title: "Custom Quotes",
+      options: CUSTOM_QUOTE_OPTIONS.map((opt) => ({
+        key: opt,
+        label: opt,
+      })),
+    });
+
+    // Packages
+    if (packageServiceOptions.length > 0) {
+      groups.push({
+        title: "Packages",
+        options: packageServiceOptions.map((opt) => ({
+          key: opt,
+          label: opt,
+        })),
+      });
+    }
+
+    // Combo Packs
+    if (comboPackNames.length > 0) {
+      groups.push({
+        title: "Combo Packs",
+        options: comboPackNames.map((opt) => ({
+          key: opt,
+          label: opt,
+        })),
+      });
+    }
+
+    return groups;
+  }, [packageServiceOptions, comboPackNames]);
+
+  // Active inquiries base list (exclude converted to bookings, identical to website)
+  const baseInquiries = useMemo(() => {
+    return inquiries.filter((inq) => inquiryStatusGroup(inq) !== "converted");
+  }, [inquiries]);
+
+  // Calculate status counts matching website status groups
   const filterCounts = useMemo(() => {
     const counts = {
-      all: inquiries.length,
+      all: baseInquiries.length,
+      pending_review: 0,
       quote_ready: 0,
-      under_review: 0,
       accepted: 0,
-      closed: 0,
+      cancelled: 0,
     };
 
-    inquiries.forEach((item) => {
-      const st = String(item.status || "").toLowerCase();
-      if (st.includes("sent") || st.includes("ready") || st.includes("quotation")) {
-        counts.quote_ready += 1;
-      } else if (st.includes("review") || st.includes("pending") || st === "draft") {
-        counts.under_review += 1;
-      } else if (st.includes("accepted") || st.includes("converted") || st.includes("booked")) {
-        counts.accepted += 1;
-      } else if (st.includes("cancel") || st.includes("reject") || st.includes("closed")) {
-        counts.closed += 1;
+    baseInquiries.forEach((item) => {
+      const group = inquiryStatusGroup(item);
+      if (group in counts) {
+        counts[group] += 1;
       }
     });
 
     return counts;
-  }, [inquiries]);
+  }, [baseInquiries]);
 
-  const filterTabs = [
-    { key: "all", label: "All", count: filterCounts.all },
-    { key: "quote_ready", label: "Quote Ready", count: filterCounts.quote_ready },
-    { key: "under_review", label: "Under Review", count: filterCounts.under_review },
+  // Status dropdown options matching website 1:1
+  const statusOptions = [
+    { key: "all", label: "All inquiries", count: filterCounts.all },
+    { key: "pending_review", label: "Pending review", count: filterCounts.pending_review },
+    { key: "quote_ready", label: "Quotation ready", count: filterCounts.quote_ready },
     { key: "accepted", label: "Accepted", count: filterCounts.accepted },
-    { key: "closed", label: "Closed", count: filterCounts.closed },
+    { key: "cancelled", label: "Cancelled", count: filterCounts.cancelled },
   ];
 
-  // Filtered inquiries list based on tab, service, and search query
-  const filteredInquiries = useMemo(() => {
-    return inquiries.filter((item) => {
-      const st = String(item.status || "").toLowerCase();
+  // Sorting function matching website exactly
+  const sortInquiriesList = (list, sortOrder) => {
+    return [...list].sort((a, b) => {
+      if (sortOrder === "oldest") {
+        const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+        const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+        return timeA - timeB;
+      }
+      if (sortOrder === "date") {
+        const timeA = new Date(a.event_date || 0).getTime();
+        const timeB = new Date(b.event_date || 0).getTime();
+        return timeA - timeB;
+      }
+      // Default: newest
+      const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+      const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+      return timeB - timeA;
+    });
+  };
 
-      // Tab filter
-      if (statusFilter === "quote_ready") {
-        if (!st.includes("sent") && !st.includes("ready") && !st.includes("quotation")) return false;
-      } else if (statusFilter === "under_review") {
-        if (!st.includes("review") && !st.includes("pending") && st !== "draft") return false;
-      } else if (statusFilter === "accepted") {
-        if (!st.includes("accepted") && !st.includes("converted") && !st.includes("booked")) return false;
-      } else if (statusFilter === "closed") {
-        if (!st.includes("cancel") && !st.includes("reject") && !st.includes("closed")) return false;
+  // Filtered and sorted inquiries list
+  const filteredInquiries = useMemo(() => {
+    const filtered = baseInquiries.filter((item) => {
+      const group = inquiryStatusGroup(item);
+
+      // Status filter
+      if (statusFilter !== "all" && group !== statusFilter) {
+        return false;
       }
 
       // Service filter
-      if (selectedService !== "All Services") {
-        const itemService = String(item.service_type || "").toLowerCase();
-        if (!itemService.includes(selectedService.toLowerCase())) return false;
+      if (selectedService !== "all") {
+        const itemService = resolveServiceType(item);
+        const rawService = String(item.service_type || "");
+        const pkgName = String(item.package_name_snapshot || item.package_name || "");
+
+        const matches =
+          itemService === selectedService ||
+          itemService === `Custom Quote - ${selectedService}` ||
+          `Custom Quote - ${itemService}` === selectedService ||
+          rawService.toLowerCase().includes(selectedService.toLowerCase()) ||
+          pkgName.toLowerCase() === selectedService.toLowerCase();
+
+        if (!matches) return false;
       }
 
       // Search filter
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
         const ref = String(item.reference || "").toLowerCase();
-        const eventName = String(item.event_name || item.event_type || "").toLowerCase();
+        const title = recordTitle(item).toLowerCase();
         const celebrant = String(item.celebrant_name || "").toLowerCase();
-        const venue = String(item.venue_address || item.municipality || "").toLowerCase();
+        const venue = String(
+          item.venue_address || item.municipality || item.province || ""
+        ).toLowerCase();
+        const pkg = String(
+          item.package_name_snapshot || item.package_name || ""
+        ).toLowerCase();
+
         if (
           !ref.includes(query) &&
-          !eventName.includes(query) &&
+          !title.includes(query) &&
           !celebrant.includes(query) &&
-          !venue.includes(query)
+          !venue.includes(query) &&
+          !pkg.includes(query)
         ) {
           return false;
         }
@@ -183,92 +314,199 @@ export const InquiriesListScreen = ({ navigation }) => {
 
       return true;
     });
-  }, [inquiries, statusFilter, selectedService, searchQuery]);
+
+    return sortInquiriesList(filtered, sortBy);
+  }, [baseInquiries, statusFilter, selectedService, searchQuery, sortBy]);
+
+  // Dynamic result count preview calculator for the bottom sheet
+  const getPreviewCount = useCallback(
+    ({ statusFilter: draftStatus, serviceFilter: draftService }) => {
+      return baseInquiries.filter((item) => {
+        const group = inquiryStatusGroup(item);
+        if (draftStatus !== "all" && group !== draftStatus) return false;
+
+        if (draftService !== "all") {
+          const itemService = resolveServiceType(item);
+          const rawService = String(item.service_type || "");
+          const pkgName = String(item.package_name_snapshot || item.package_name || "");
+          const matches =
+            itemService === draftService ||
+            itemService === `Custom Quote - ${draftService}` ||
+            `Custom Quote - ${itemService}` === draftService ||
+            rawService.toLowerCase().includes(draftService.toLowerCase()) ||
+            pkgName.toLowerCase() === draftService.toLowerCase();
+          if (!matches) return false;
+        }
+
+        if (searchQuery.trim()) {
+          const query = searchQuery.toLowerCase().trim();
+          const ref = String(item.reference || "").toLowerCase();
+          const title = recordTitle(item).toLowerCase();
+          const celebrant = String(item.celebrant_name || "").toLowerCase();
+          const venue = String(
+            item.venue_address || item.municipality || item.province || ""
+          ).toLowerCase();
+          const pkg = String(
+            item.package_name_snapshot || item.package_name || ""
+          ).toLowerCase();
+          if (
+            !ref.includes(query) &&
+            !title.includes(query) &&
+            !celebrant.includes(query) &&
+            !venue.includes(query) &&
+            !pkg.includes(query)
+          ) {
+            return false;
+          }
+        }
+
+        return true;
+      }).length;
+    },
+    [baseInquiries, searchQuery]
+  );
+
+  const handleClearAllFilters = () => {
+    setStatusFilter("all");
+    setSelectedService("all");
+    setSortBy("newest");
+    setSearchQuery("");
+  };
 
   const renderInquiryItem = ({ item }) => {
     const isQuoteReady =
       item.status === "Quotation Sent" ||
       String(item.status || "").toLowerCase().includes("quote");
-    const canCancel = ["Pending Review", "Under Review", "draft"].includes(item.status);
 
-    const eventTitle =
-      item.event_name ||
-      `${item.celebrant_name || "Special Party"}'s ${item.event_type || "Event"}`;
+    const isConverted =
+      item.status === "Converted to Booking" || Boolean(item.converted_booking_id);
+    const isDepositPaid =
+      item.payment_status === "deposit_paid" ||
+      item.payment_status === "fully_paid" ||
+      item.is_deposit_paid === true;
+
+    const isQuoteAcceptedAwaitingPayment =
+      ["Quote Accepted", "Awaiting Final Confirmation"].includes(item.status) &&
+      !isConverted &&
+      !isDepositPaid;
+
+    const canCancel = ["Pending Review", "Under Review", "draft"].includes(item.status);
+    const eventTitle = recordTitle(item);
+    const resolvedService = resolveServiceType(item);
+    const isExpired = item.status === "Expired" || (item.event_date && isPastDay(item.event_date));
+
+    // Contextual status guidance
+    let statusNotice = null;
+    if (isExpired) {
+      statusNotice = "Requested event date has passed without confirmation.";
+    } else if (isQuoteAcceptedAwaitingPayment) {
+      statusNotice = "Quote accepted! Pay deposit to lock your event date.";
+    } else if (isQuoteReady) {
+      statusNotice = "Official proposal ready! Review itemized quote to confirm.";
+    } else if (item.status === "Revision Requested") {
+      statusNotice = "Our coordinators are revising your quotation specs.";
+    }
+
+    const venue = [item.municipality, item.province].filter(Boolean).join(", ") || item.venue_address;
+    const packageName = item.package_name_snapshot || item.package_name;
 
     return (
-      <Card style={styles.inquiryCard}>
-        {/* Top Reference, Date & Status */}
-        <View style={styles.cardTopRow}>
-          <View style={styles.refAndDateCol}>
-            <View style={styles.refDateWrap}>
-              <Text style={styles.inquiryRef} numberOfLines={1}>
-                {item.reference || `INQ-${String(item._id).slice(-6).toUpperCase()}`}
+      <Card
+        style={styles.inquiryCard}
+        onPress={() => navigation.navigate("InquiryDetail", { inquiryId: item._id })}
+      >
+        {/* Top Reference & Status Badge */}
+        <View style={styles.cardHeaderRow}>
+          <View style={styles.refDateWrap}>
+            <Text style={styles.inquiryRef} numberOfLines={1}>
+              {item.reference || `INQ-${String(item._id).slice(-6).toUpperCase()}`}
+            </Text>
+            {item.createdAt || item.created_at ? (
+              <Text style={styles.submitDate} numberOfLines={1}>
+                • {formatDate(item.createdAt || item.created_at)}
               </Text>
-              {item.created_at || item.createdAt ? (
-                <Text style={styles.submitDate} numberOfLines={1} ellipsizeMode="tail">
-                  Submitted {formatDate(item.created_at || item.createdAt)}
-                </Text>
-              ) : null}
-            </View>
+            ) : null}
           </View>
 
-          <View style={styles.statusWrap}>
-            <StatusBadge status={item.status} size="sm" />
-          </View>
+          <StatusBadge status={item.status} size="sm" />
         </View>
 
-        {/* Event Title Row */}
+        {/* Event Title */}
         <Text style={styles.eventTitle} numberOfLines={2}>
           {eventTitle}
         </Text>
 
-        {/* Service Subtitle */}
-        <View style={styles.serviceRow}>
-          <Sparkles size={13} color={colors.foregroundMuted} style={styles.serviceIcon} />
-          <Text style={styles.serviceSubtitle} numberOfLines={1}>
-            {item.service_type || "Food and Event Setup"} • {item.guest_count || 50} guests
-          </Text>
+        {/* Compact 4-Step Process Stepper */}
+        <View style={styles.stepperContainer}>
+          <ProcessTimeline status={item.status} compact />
         </View>
 
-        {/* 4-Step Process Stepper */}
-        <View style={styles.processBox}>
-          <ProcessTimeline status={item.status} />
-        </View>
-
-        {/* Event Specifications Card */}
-        <View style={styles.specsBox}>
-          <Text style={styles.specsHeaderTitle}>EVENT SPECIFICATIONS</Text>
-
-          <View style={styles.specsGrid}>
-            <View style={styles.specCell}>
-              <Text style={styles.specCellLabel}>Celebrant / Honoree</Text>
-              <Text style={styles.specCellValue} numberOfLines={1}>
-                {item.celebrant_name || item.honoree || "Customer Event"}
-              </Text>
-            </View>
-
-            <View style={styles.specCell}>
-              <Text style={styles.specCellLabel}>Date & Time</Text>
-              <Text style={styles.specCellValue} numberOfLines={1}>
-                {formatDate(item.event_date)} • {formatTime(item.start_time)}
-              </Text>
-            </View>
-
-            <View style={styles.specCell}>
-              <Text style={styles.specCellLabel}>Guest Count</Text>
-              <Text style={styles.specCellValue} numberOfLines={1}>
-                {item.guest_count || 50} pax
-              </Text>
-            </View>
-
-            <View style={styles.specCell}>
-              <Text style={styles.specCellLabel}>Package</Text>
-              <Text style={styles.specCellValue} numberOfLines={1}>
-                {item.package_name_snapshot || item.package_name || "Custom Selection"}
-              </Text>
-            </View>
+        {/* Compact Metadata Rows (No Truncation) */}
+        <View style={styles.detailsBlock}>
+          {/* Row 1: Date & Time */}
+          <View style={styles.metaRow}>
+            <Calendar size={13} color={colors.primary} style={styles.metaIcon} />
+            <Text style={styles.metaHighlightText} numberOfLines={1}>
+              {formatDate(item.event_date)}
+              {item.start_time ? ` • ${formatTime(item.start_time)}` : ""}
+            </Text>
           </View>
+
+          {/* Row 2: Service Type, Package & Guests */}
+          <View style={styles.metaRow}>
+            <Sparkles size={13} color={colors.textSubtle} style={styles.metaIcon} />
+            <Text style={styles.metaText} numberOfLines={1}>
+              {resolvedService}
+              {packageName ? ` • ${packageName}` : ""}
+              {item.guest_count ? ` • ${item.guest_count} guests` : ""}
+            </Text>
+          </View>
+
+          {/* Row 3: Venue / Location (if provided) */}
+          {Boolean(venue) && (
+            <View style={styles.metaRow}>
+              <MapPin size={13} color={colors.textSubtle} style={styles.metaIcon} />
+              <Text style={styles.metaText} numberOfLines={1}>
+                {venue}
+              </Text>
+            </View>
+          )}
         </View>
+
+        {/* Contextual Notice Callout (if active) */}
+        {Boolean(statusNotice) && (
+          <View
+            style={[
+              styles.noticeCallout,
+              isExpired
+                ? styles.noticeCalloutNeutral
+                : isQuoteAcceptedAwaitingPayment
+                ? styles.noticeCalloutSuccess
+                : styles.noticeCalloutInfo,
+            ]}
+          >
+            {isExpired ? (
+              <AlertCircle size={13} color={colors.foregroundMuted} style={styles.noticeIcon} />
+            ) : isQuoteAcceptedAwaitingPayment ? (
+              <CreditCard size={13} color={colors.success} style={styles.noticeIcon} />
+            ) : (
+              <FileCheck2 size={13} color={colors.primary} style={styles.noticeIcon} />
+            )}
+            <Text
+              style={[
+                styles.noticeText,
+                isExpired
+                  ? styles.noticeTextNeutral
+                  : isQuoteAcceptedAwaitingPayment
+                  ? styles.noticeTextSuccess
+                  : styles.noticeTextInfo,
+              ]}
+              numberOfLines={2}
+            >
+              {statusNotice}
+            </Text>
+          </View>
+        )}
 
         {/* Footer Actions */}
         <View style={styles.cardFooter}>
@@ -282,31 +520,44 @@ export const InquiriesListScreen = ({ navigation }) => {
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
           ) : (
-            <View />
+            <View style={styles.emptySpacer} />
           )}
 
-          <View style={styles.rightActionsRow}>
-            {isQuoteReady ? (
+          <View style={styles.actionGroup}>
+            {isQuoteAcceptedAwaitingPayment ? (
+              <TouchableOpacity
+                style={styles.payDepositBtn}
+                onPress={() =>
+                  navigation.navigate("QuotationDetail", { inquiryId: item._id })
+                }
+                activeOpacity={0.85}
+              >
+                <CreditCard size={14} color={colors.white} style={{ marginRight: 5 }} />
+                <Text style={styles.payDepositBtnText}>Pay Deposit</Text>
+                <ChevronRight size={14} color={colors.white} />
+              </TouchableOpacity>
+            ) : isQuoteReady ? (
               <TouchableOpacity
                 style={styles.viewQuoteBtn}
                 onPress={() =>
                   navigation.navigate("QuotationDetail", { inquiryId: item._id })
                 }
-                activeOpacity={0.8}
+                activeOpacity={0.85}
               >
-                <FileText size={15} color={colors.white} style={{ marginRight: 6 }} />
-                <Text style={styles.viewQuoteBtnText}>View Quotation</Text>
+                <FileCheck2 size={14} color={colors.white} style={{ marginRight: 5 }} />
+                <Text style={styles.viewQuoteBtnText}>Review Quote</Text>
+                <ChevronRight size={14} color={colors.white} />
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={styles.fullDetailsBtn}
+                style={styles.detailsBtn}
                 onPress={() =>
                   navigation.navigate("InquiryDetail", { inquiryId: item._id })
                 }
-                activeOpacity={0.8}
+                activeOpacity={0.7}
               >
-                <Text style={styles.fullDetailsBtnText}>Full Details</Text>
-                <ChevronRight size={15} color={colors.primary} />
+                <Text style={styles.detailsBtnText}>Full Details</Text>
+                <ChevronRight size={14} color={colors.primary} />
               </TouchableOpacity>
             )}
           </View>
@@ -321,14 +572,14 @@ export const InquiriesListScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Top Header */}
+      {/* Screen Header */}
       <View style={[styles.header, { paddingTop: headerPaddingTop }]}>
         <View style={styles.headerTopRow}>
           <View style={styles.headerTitleGroup}>
             <Text style={styles.screenTitle}>My Inquiries</Text>
-            {inquiries.length > 0 && (
+            {baseInquiries.length > 0 && (
               <View style={styles.countBadge}>
-                <Text style={styles.countBadgeText}>{inquiries.length}</Text>
+                <Text style={styles.countBadgeText}>{baseInquiries.length}</Text>
               </View>
             )}
           </View>
@@ -336,7 +587,7 @@ export const InquiriesListScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.newRequestBtn}
             onPress={() => navigation.navigate("InquiryWizard")}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
             <Plus size={15} color={colors.white} style={{ marginRight: 4 }} />
             <Text style={styles.newRequestBtnText}>New Request</Text>
@@ -348,79 +599,40 @@ export const InquiriesListScreen = ({ navigation }) => {
         </Text>
       </View>
 
-      {/* Search Input Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBox}>
-          <Search size={18} color={colors.foregroundMuted} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by event, reference, venue..."
-            placeholderTextColor={colors.textSubtle}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-          />
-          {Boolean(searchQuery) && (
-            <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.clearSearchBtn}>
-              <X size={16} color={colors.foregroundMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* Filter Tabs matching Screenshot 3 */}
-      <PillFilter
-        items={filterTabs}
-        selectedKey={statusFilter}
-        onSelect={setStatusFilter}
-        style={styles.filterTabsWrapper}
+      {/* 1-Row Combined Search and Filter with Bottom Sheet */}
+      <FilterSortBar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search by event, reference, venue..."
+        sortBy={sortBy}
+        onSortChange={setSortBy}
+        sortOptions={SORT_OPTIONS}
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        statusOptions={statusOptions}
+        serviceFilter={selectedService}
+        onServiceChange={setSelectedService}
+        serviceGroups={serviceGroups}
+        onClearAll={handleClearAllFilters}
+        getPreviewCount={getPreviewCount}
       />
 
-      {/* Service Type Sub-Filter */}
-      <View style={styles.serviceFilterRow}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={SERVICE_OPTIONS}
-          keyExtractor={(item) => item}
-          contentContainerStyle={styles.serviceFilterContent}
-          renderItem={({ item }) => {
-            const isSelected = selectedService === item;
-            return (
-              <TouchableOpacity
-                onPress={() => setSelectedService(item)}
-                style={[
-                  styles.serviceChip,
-                  isSelected && styles.serviceChipActive,
-                ]}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.serviceChipText,
-                    isSelected && styles.serviceChipTextActive,
-                  ]}
-                >
-                  {item}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
-      </View>
-
-      {/* Main Content List */}
+      {/* Main List */}
       {loading ? (
         <LoadingState message="Loading your inquiries..." />
       ) : error ? (
-        <ErrorState message={error} onRetry={loadInquiries} />
+        <ErrorState message={error} onRetry={loadData} />
       ) : filteredInquiries.length === 0 ? (
         <EmptyState
           icon={FileText}
-          title={searchQuery ? "No matching inquiries" : "No inquiries yet"}
+          title={
+            searchQuery || statusFilter !== "all" || selectedService !== "all" || sortBy !== "newest"
+              ? "No matching inquiries"
+              : "No inquiries yet"
+          }
           description={
-            searchQuery
-              ? "Try adjusting your search terms or filters."
+            searchQuery || statusFilter !== "all" || selectedService !== "all" || sortBy !== "newest"
+              ? "Try adjusting your search criteria or resetting filters."
               : "Create an inquiry to request quotation and menu proposals tailored for your event."
           }
           actionLabel="Submit New Request"
@@ -433,7 +645,7 @@ export const InquiriesListScreen = ({ navigation }) => {
           keyExtractor={(item) => item._id}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: Math.max(insets.bottom, 16) + 120 },
+            { paddingBottom: Math.max(insets.bottom, 16) + 100 },
           ]}
           refreshControl={
             <RefreshControl
@@ -455,8 +667,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.xs + 2,
     backgroundColor: colors.surface,
   },
   headerTopRow: {
@@ -474,7 +686,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   screenTitle: {
-    fontSize: 22,
+    fontSize: 21,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.foreground,
@@ -483,15 +695,15 @@ const styles = StyleSheet.create({
   },
   countBadge: {
     backgroundColor: colors.surfaceAlt,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     flexShrink: 0,
   },
   countBadgeText: {
-    fontSize: typography.sizes.xs,
+    fontSize: typography.sizes.micro,
     fontFamily: typography.fontFamilies.bold,
     color: colors.foregroundMuted,
   },
@@ -499,128 +711,48 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.base,
-    paddingVertical: 8,
-    minHeight: 38,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 7,
+    minHeight: 36,
     borderRadius: radius.pill,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 2,
     flexShrink: 0,
   },
   newRequestBtnText: {
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.bold,
     color: colors.white,
   },
   screenSubtitle: {
-    fontSize: typography.sizes.xs,
+    fontSize: 12,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     lineHeight: 16,
   },
-  /* Search */
-  searchContainer: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    height: 44,
-  },
-  searchIcon: {
-    marginRight: spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamilies.regular,
-    color: colors.foreground,
-    paddingVertical: 0,
-  },
-  clearSearchBtn: {
-    padding: 4,
-  },
-  /* Filter Tabs */
-  filterTabsWrapper: {
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.surface,
-  },
-  /* Service Chips */
-  serviceFilterRow: {
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  serviceFilterContent: {
-    paddingHorizontal: spacing.lg,
-    gap: spacing.xs,
-  },
-  serviceChip: {
-    paddingHorizontal: spacing.base,
-    paddingVertical: 9,
-    minHeight: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  serviceChipActive: {
-    backgroundColor: colors.primaryLight,
-    borderColor: colors.powderBlue,
-  },
-  serviceChipText: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamilies.medium,
-    color: colors.foregroundMuted,
-  },
-  serviceChipTextActive: {
-    color: colors.primary,
-    fontFamily: typography.fontFamilies.bold,
-  },
   /* List Content */
   listContent: {
-    padding: spacing.lg,
-    paddingBottom: 130,
-    gap: spacing.lg,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.sm,
+    gap: spacing.sm,
   },
   inquiryCard: {
-    padding: spacing.lg,
+    padding: spacing.base - 1,
     backgroundColor: colors.card,
     borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
-  cardTopRow: {
+  cardHeaderRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  refAndDateCol: {
-    flex: 1,
-    minWidth: 0,
-    marginRight: spacing.xs,
+    gap: spacing.xs,
+    marginBottom: 4,
   },
   refDateWrap: {
     flexDirection: "row",
-    flexWrap: "wrap",
     alignItems: "center",
-    columnGap: 6,
-    rowGap: 2,
+    flex: 1,
+    flexWrap: "wrap",
   },
   inquiryRef: {
     fontSize: typography.sizes.xs,
@@ -633,118 +765,131 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: typography.fontFamilies.regular,
     color: colors.textSubtle,
-    lineHeight: 15,
-  },
-  statusWrap: {
-    flexShrink: 0,
-    alignSelf: "flex-start",
+    marginLeft: 3,
   },
   eventTitle: {
-    fontSize: typography.sizes.base + 1,
+    fontSize: 15.5,
     fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
     color: colors.foreground,
     letterSpacing: -0.2,
-    marginBottom: 4,
-    lineHeight: 22,
+    marginBottom: spacing.xs + 2,
+    lineHeight: 21,
   },
-  serviceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.md,
-  },
-  serviceIcon: {
-    marginRight: 4,
-  },
-  serviceSubtitle: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamilies.regular,
-    color: colors.foregroundMuted,
-    flex: 1,
-  },
-  /* 4-Step Process Box */
-  processBox: {
+  /* Stepper */
+  stepperContainer: {
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    marginBottom: spacing.md,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    marginBottom: spacing.xs + 2,
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
-  /* Specifications Box matching Screenshot 3 */
-  specsBox: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    padding: spacing.base,
-    marginBottom: spacing.md,
-    backgroundColor: colors.white,
+  /* Structured Details Block */
+  detailsBlock: {
+    gap: 3,
+    marginBottom: spacing.xs + 2,
   },
-  specsHeaderTitle: {
-    fontSize: typography.sizes.micro,
-    fontFamily: typography.fontFamilies.bold,
-    color: colors.foregroundMuted,
-    letterSpacing: 0.8,
-    marginBottom: spacing.sm,
-    textTransform: "uppercase",
-  },
-  specsGrid: {
+  metaRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    rowGap: spacing.sm + 2,
-    justifyContent: "space-between",
+    alignItems: "center",
   },
-  specCell: {
-    width: "48%",
+  metaIcon: {
+    marginRight: 6,
+    flexShrink: 0,
   },
-  specCellLabel: {
-    fontSize: typography.sizes.micro,
-    fontFamily: typography.fontFamilies.medium,
-    color: colors.textSubtle,
-    marginBottom: 2,
-  },
-  specCellValue: {
-    fontSize: typography.sizes.sm,
+  metaHighlightText: {
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.bold,
-    color: colors.foreground,
+    fontWeight: "700",
+    color: colors.foregroundDark,
+    flexShrink: 1,
   },
-  /* Card Footer Actions */
+  metaText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundMuted,
+    flexShrink: 1,
+  },
+  /* Contextual Notice */
+  noticeCallout: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: radius.md,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    marginBottom: spacing.xs + 2,
+    borderWidth: 1,
+  },
+  noticeIcon: {
+    marginRight: 5,
+    flexShrink: 0,
+  },
+  noticeText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
+    lineHeight: 15,
+    flex: 1,
+  },
+  noticeCalloutInfo: {
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.powderBlue,
+  },
+  noticeTextInfo: {
+    color: colors.primaryDark,
+  },
+  noticeCalloutSuccess: {
+    backgroundColor: colors.successLight,
+    borderColor: colors.successBorder,
+  },
+  noticeTextSuccess: {
+    color: colors.successText,
+    fontFamily: typography.fontFamilies.bold,
+  },
+  noticeCalloutNeutral: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.cardBorder,
+  },
+  noticeTextNeutral: {
+    color: colors.foregroundMuted,
+  },
+  /* Footer */
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: spacing.xs,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+  },
+  emptySpacer: {
+    flex: 1,
   },
   cancelBtn: {
-    minHeight: 44,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.xs,
     justifyContent: "center",
   },
   cancelBtnText: {
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.medium,
     color: colors.error,
   },
-  rightActionsRow: {
+  actionGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    justifyContent: "flex-end",
   },
-  fullDetailsBtn: {
+  detailsBtn: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    minHeight: 44,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.base,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.surfaceAlt,
+    minHeight: 34,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.xs,
   },
-  fullDetailsBtnText: {
-    fontSize: typography.sizes.sm,
+  detailsBtnText: {
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.bold,
     color: colors.primary,
     marginRight: 2,
@@ -752,17 +897,32 @@ const styles = StyleSheet.create({
   viewQuoteBtn: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    minHeight: 44,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.pill,
     backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    minHeight: 34,
   },
   viewQuoteBtnText: {
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.bold,
     color: colors.white,
+    marginRight: 2,
+  },
+  payDepositBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.success,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    minHeight: 34,
+  },
+  payDepositBtnText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.white,
+    marginRight: 2,
   },
 });
 

@@ -19,16 +19,15 @@ export default function AdminDashboard() {
 
   const KPIS = [
     { 
-      title: "Pending Inquiries", 
-      value: summary.pendingInquiries ?? "0", 
-      sub: "Awaiting review", 
-      badge: summary.pendingInquiries > 0 ? "Review Needed" : null, 
+      title: "Needs Quotations", 
+      value: summary.needsQuotations ?? "0", 
+      sub: "Awaiting quotation", 
       icon: Clock 
     },
     { 
-      title: "Accepted Quotes", 
-      value: summary.acceptedQuotes ?? "0", 
-      sub: "Awaiting deposit", 
+      title: "Quotation Sent", 
+      value: summary.quotationSent ?? "0", 
+      sub: "Awaiting customer response", 
       icon: FileText 
     },
     { 
@@ -49,6 +48,59 @@ export default function AdminDashboard() {
     if (!value) return null;
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  const isPastDay = (value) => {
+    if (!value) return false;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return startOfDay < startOfToday;
+  };
+
+  const isTerminalOrConvertedInquiry = (inq) => {
+    if (!inq) return true;
+    if (inq.converted_booking_id || inq.status === "Converted to Booking") return true;
+    if (inq.archived) return true;
+    const s = String(inq.status || "").toLowerCase();
+    if (s === "cancelled" || s === "quote rejected" || s.includes("cancel")) return true;
+    if (s === "expired") return true;
+    if (inq.event_date && isPastDay(inq.event_date)) return true;
+    return false;
+  };
+
+  const isQuotationSentInquiry = (inq) => {
+    if (isTerminalOrConvertedInquiry(inq)) return false;
+    if (["Quote Accepted", "Awaiting Final Confirmation"].includes(inq.status)) return false;
+    if (inq.status === "Revision Requested") return false;
+
+    const isSentStatus =
+      inq.status === "Quotation Sent" ||
+      (inq.latestQuote && ["Sent", "Quotation Sent"].includes(inq.latestQuote.status));
+    if (!isSentStatus) return false;
+
+    const quoteExp = inq.latestQuote?.expiration_date || inq.quotation_expiration_date;
+    if (quoteExp && isPastDay(quoteExp)) return false;
+
+    return true;
+  };
+
+  const isNeedsQuotationInquiry = (inq) => {
+    if (isTerminalOrConvertedInquiry(inq)) return false;
+    if (isQuotationSentInquiry(inq)) return false;
+    if (["Quote Accepted", "Awaiting Final Confirmation"].includes(inq.status)) return false;
+
+    return (
+      ["Pending Review", "Under Review", "Revision Requested"].includes(inq.status) ||
+      (!inq.latestQuote || inq.latestQuote.status === "Draft")
+    );
+  };
+
+  const isQuotationSentBooking = (b) => {
+    if (!b) return false;
+    return (b.status || "").toLowerCase() === "quote_sent";
   };
 
   const loadData = () => {
@@ -77,15 +129,35 @@ export default function AdminDashboard() {
 
         const upcomingNext30Days = allFuture.filter((b) => b.eventDate <= next30Days);
 
-        const isAcceptedQuote = (inq) =>
-          inq.status === "Quote Accepted" || inq.status === "Awaiting Final Confirmation";
+        // Calculate Needs Quotations inquiries (awaiting quotation from admin)
+        const needsQuotationsInquiries = inquiries.filter(isNeedsQuotationInquiry);
+
+        // Calculate Quotation Sent (inquiries/reservations where quotation was sent to customer and awaiting response)
+        const quotationSentInquiries = inquiries.filter(isQuotationSentInquiry);
+        const countedInquiryIds = new Set(quotationSentInquiries.map((i) => String(i._id)));
+        const countedBookingIds = new Set(
+          quotationSentInquiries
+            .map((i) => (i.converted_booking_id ? String(i.converted_booking_id?._id || i.converted_booking_id) : null))
+            .filter(Boolean)
+        );
+
+        const quotationSentBookings = data.filter((b) => {
+          if (!isQuotationSentBooking(b)) return false;
+          const bId = String(b._id);
+          const inqId = b.inquiry_id ? String(b.inquiry_id?._id || b.inquiry_id) : null;
+          return !countedBookingIds.has(bId) && (!inqId || !countedInquiryIds.has(inqId));
+        });
+
+        const totalQuotationSent = quotationSentInquiries.length + quotationSentBookings.length;
 
         setSummary({
           totalReservations: data.length,
           upcomingEvents: upcomingNext30Days.length,
           totalUpcomingEvents: allFuture.length,
-          pendingInquiries: inquiries.filter((inq) => inq.status === "Pending Review").length,
-          acceptedQuotes: inquiries.filter(isAcceptedQuote).length,
+          needsQuotations: needsQuotationsInquiries.length,
+          quotationSent: totalQuotationSent,
+          pendingInquiries: needsQuotationsInquiries.length,
+          acceptedQuotes: totalQuotationSent,
           completedEvents: data.filter((booking) => booking.status === "completed" || booking.status === "Completed").length,
         });
       } catch (err) {

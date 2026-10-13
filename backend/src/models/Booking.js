@@ -415,6 +415,9 @@ const BookingSchema = new mongoose.Schema(
       },
     ],
     equipment_notes: { type: String, default: "" },
+    equipment_checklist_done: { type: Boolean, default: false },
+    equipment_checklist_done_at: Date,
+    equipment_checklist_done_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
     ocular_visit: {
       is_required: { type: Boolean, default: false },

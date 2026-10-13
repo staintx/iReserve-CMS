@@ -5,6 +5,7 @@ import ManagerLayout from "../../components/layout/ManagerLayout";
 import PageHeader from "../../components/admin/ui/PageHeader";
 import Badge from "../../components/admin/ui/Badge";
 import useToast from "../../hooks/useToast";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -61,6 +62,8 @@ export default function ManagerBookings() {
   useEffect(() => {
     loadBookings();
   }, []);
+
+  useRealTimeRefresh(loadBookings, ["booking"]);
 
   // Handle URL query params (e.g. ?booking_id=123 to open details page)
   useEffect(() => {

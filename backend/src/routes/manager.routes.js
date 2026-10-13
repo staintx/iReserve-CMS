@@ -16,11 +16,12 @@ router.put("/bookings/:id/report", protect, authorize("manager", "admin"), ctrl.
 router.put("/bookings/:id/staff-attendance", protect, authorize("manager", "admin"), ctrl.updateStaffAttendance);
 router.put("/bookings/:id/equipment-returns", protect, authorize("manager", "admin"), ctrl.submitEquipmentReturns);
 router.put("/bookings/:id/equipment-checklist", protect, authorize("manager", "admin"), ctrl.updateEquipmentChecklist);
+router.put("/bookings/:id/equipment-checklist/done", protect, authorize("manager", "admin"), ctrl.markEquipmentChecklistDone);
 router.put("/bookings/:id/equipment-notes", protect, authorize("manager", "admin"), ctrl.updateEquipmentNotes);
 router.put("/bookings/:id/notes", protect, authorize("manager", "admin"), ctrl.addNote);
 router.put("/bookings/:id/equipment", protect, authorize("manager", "admin"), ctrl.updateEquipment);
 router.put("/bookings/:id/verify-equipment", protect, authorize("manager", "admin"), ctrl.verifyEquipment);
-router.put("/bookings/:id/complete", protect, authorize("manager", "admin"), ctrl.markCompleted);
+router.put("/bookings/:id/complete", protect, authorize("admin"), ctrl.markCompleted);
 
 router.get("/staff", protect, authorize("manager", "admin"), ctrl.getStaff);
 router.get("/staff/:id/calendar", protect, authorize("manager", "admin"), ctrl.getStaffCalendar);

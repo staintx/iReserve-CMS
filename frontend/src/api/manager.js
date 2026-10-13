@@ -18,6 +18,7 @@ export const ManagerAPI = {
   updateStaffAttendance: (id, data) => api.put(`/manager/bookings/${id}/staff-attendance`, data),
   submitEquipmentReturns: (id, data) => api.put(`/manager/bookings/${id}/equipment-returns`, data),
   updateEquipmentChecklist: (id, data) => api.put(`/manager/bookings/${id}/equipment-checklist`, data),
+  markEquipmentChecklistDone: (id) => api.put(`/manager/bookings/${id}/equipment-checklist/done`),
   updateEquipmentNotes: (id, data) => api.put(`/manager/bookings/${id}/equipment-notes`, data),
   updateEquipment: (id, data) => api.put(`/manager/bookings/${id}/equipment`, data),
   verifyEquipment: (id, data) => api.put(`/manager/bookings/${id}/verify-equipment`, data),

@@ -26,8 +26,11 @@ export default function QuickServiceCreateModal({
   if (!isOpen) return null;
 
   const normalized = serviceName.trim().toLowerCase();
-  const isDuplicate = (existingServices || []).some(
-    (s) => (s?.name || s || "").trim().toLowerCase() === normalized
+  const isDuplicate = Boolean(
+    normalized &&
+    (existingServices || []).some(
+      (s) => (s?.name || s || "").trim().toLowerCase() === normalized
+    )
   );
 
   const handleSubmit = async (e) => {

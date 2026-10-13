@@ -40,7 +40,7 @@ import KPICard from "../../components/admin/ui/KPICard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import DataTable from "../../components/admin/table/DataTable";
@@ -53,12 +53,15 @@ import usePagination from "../../hooks/usePagination";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import RecordPaymentModal from "../../components/admin/payment/RecordPaymentModal";
 import AdminReceiptModal from "../../components/admin/payment/AdminReceiptModal";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 export default function AdminPayments() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialSearch = searchParams.get("search") || searchParams.get("booking") || "";
   const { notify } = useToast();
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState("all");
   const [payments, setPayments] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -80,6 +83,7 @@ export default function AdminPayments() {
   const [recordModalOpen, setRecordModalOpen] = useState(false);
   const [receiptModalRow, setReceiptModalRow] = useState(null);
   const [proofModalUrl, setProofModalUrl] = useState(null);
+  const [approveTarget, setApproveTarget] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
   const loadData = async (showToast = false) => {
@@ -110,6 +114,11 @@ export default function AdminPayments() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const param = searchParams.get("search") || searchParams.get("booking");
+    if (param) setSearch(param);
+  }, [searchParams]);
 
   useRealTimeRefresh(loadData, ["payment"]);
 
@@ -320,7 +329,13 @@ export default function AdminPayments() {
       const payId = (`PAY-${p._id.slice(-6)}`).toLowerCase();
       const q = search.toLowerCase();
 
-      const matchSearch = !search || custName.includes(q) || ref.includes(q) || payId.includes(q) || (p.gateway_reference || "").toLowerCase().includes(q);
+      const matchSearch =
+        !search ||
+        custName.includes(q) ||
+        ref.includes(q) ||
+        payId.includes(q) ||
+        (p.gateway_reference || "").toLowerCase().includes(q) ||
+        String(p.booking_id?._id || p.booking_id || "").toLowerCase().includes(q);
       const statusLabel = getTransactionStatusLabel(p);
       const matchStatus = statusFilter === "all" || statusLabel === statusFilter;
       const matchMethod = methodFilter === "all" || p.method === methodFilter;
@@ -584,7 +599,7 @@ export default function AdminPayments() {
                 actions={[
                   { key: "view", label: "View Details", icon: Eye, onSelect: () => setDrawerRow(p) },
                   { key: "verify", label: "Sync with Gateway", icon: ShieldCheck, show: p.method === "paymongo", onSelect: () => handleVerify(p) },
-                  { key: "approve", label: "Approve Payment", icon: CheckCircle2, show: p.method !== "paymongo", onSelect: () => handleUpdateStatus(p, "approved") },
+                  { key: "approve", label: "Approve Payment", icon: CheckCircle2, show: p.method !== "paymongo", onSelect: () => setApproveTarget(p) },
                   { key: "reject", label: "Reject Payment", icon: XCircle, destructive: true, show: p.method !== "paymongo", onSelect: () => handleUpdateStatus(p, "rejected") },
                 ]}
               />
@@ -980,12 +995,12 @@ export default function AdminPayments() {
                   </div>
                 )}
 
-                {/* 4. Payment Proof Section */}
-                <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2.5 shadow-2xs">
-                  <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Eye size={12} className="text-primary" /> Payment Proof
-                  </h5>
-                  {drawerRow.proof_url ? (
+                {/* 4. Payment Proof Section (only shown when proof image was uploaded) */}
+                {Boolean(drawerRow.proof_url) && (
+                  <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2.5 shadow-2xs">
+                    <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Eye size={12} className="text-primary" /> Payment Proof
+                    </h5>
                     <div className="space-y-2">
                       <div className="relative group rounded-xl overflow-hidden border border-border/70 bg-muted/40 max-h-44 flex items-center justify-center p-2">
                         <img
@@ -1008,12 +1023,8 @@ export default function AdminPayments() {
                         <ExternalLink size={12} /> Open Fullscreen Image
                       </button>
                     </div>
-                  ) : (
-                    <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-center text-muted-foreground italic text-xs">
-                      No proof image attached to this payment record.
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* 5. Booking Payment History */}
                 {bookingPayments.length > 0 && (
@@ -1100,7 +1111,7 @@ export default function AdminPayments() {
                           <span>Reject</span>
                         </button>
                         <button
-                          onClick={() => handleUpdateStatus(drawerRow, "approved")}
+                          onClick={() => setApproveTarget(drawerRow)}
                           disabled={actionLoading}
                           className="flex-1 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs disabled:opacity-50"
                           title="Approve Payment"
@@ -1176,6 +1187,22 @@ export default function AdminPayments() {
           onClose={() => setReceiptModalRow(null)}
           onViewProof={(url) => setProofModalUrl(url)}
         />
+
+        {/* Approve Payment Confirmation Dialog */}
+        {approveTarget && (
+          <ConfirmDialog
+            title="Approve Payment"
+            message={`Are you sure you want to approve this payment of ${formatTransactionAmount(approveTarget)} for ${getBookingRef(approveTarget) || "this booking"} (${getCustomerName(approveTarget)})? Once approved, the payment will be recorded as paid and the booking balance will be updated.`}
+            confirmText="Yes, Approve Payment"
+            cancelText="Cancel"
+            onConfirm={() => {
+              const target = approveTarget;
+              setApproveTarget(null);
+              handleUpdateStatus(target, "approved");
+            }}
+            onCancel={() => setApproveTarget(null)}
+          />
+        )}
 
         {/* Fullscreen Proof Image Lightbox Modal */}
         {proofModalUrl && (

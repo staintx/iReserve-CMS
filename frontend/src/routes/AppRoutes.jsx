@@ -158,9 +158,11 @@ export default function AppRoutes() {
           <Route path="/customer/inquiries/:id/edit" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
           <Route path="/customer/inquiries/edit/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
           <Route path="/customer/bookings/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
+          <Route path="/customer/bookings/:id/details" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
           <Route path="/customer/bookings/:id/revision" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
-          <Route path="/customer/events/:id/revision" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
           <Route path="/customer/events/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
+          <Route path="/customer/events/:id/details" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
+          <Route path="/customer/events/:id/revision" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
           <Route path="/customer/checkout" element={<ProtectedRoute allowedRoles={customerOnly}><CustomCheckout /></ProtectedRoute>} />
           <Route path="/customer/payments" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerPayments /></ProtectedRoute>} />
           <Route path="/customer/messages" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerMessages /></ProtectedRoute>} />
@@ -183,8 +185,9 @@ export default function AppRoutes() {
           <Route path="/admin/bookings/inquiries/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
           <Route path="/admin/bookings/ocular" element={<ProtectedRoute allowedRoles={adminOnly}><AdminOcular /></ProtectedRoute>} />
           <Route path="/admin/bookings/new" element={<ProtectedRoute allowedRoles={adminOnly}><Navigate to="/admin/bookings/reservations?new=true" replace /></ProtectedRoute>} />
-          <Route path="/admin/bookings/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminBookingDetails /></ProtectedRoute>} />
           <Route path="/admin/bookings/history" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsHistory /></ProtectedRoute>} />
+          <Route path="/admin/bookings/:id" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminBookingDetails /></ProtectedRoute>} />
+          <Route path="/admin/bookings/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminBookingDetails /></ProtectedRoute>} />
           <Route path="/admin/packages" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminPackages /></ProtectedRoute>} />
           <Route path="/admin/menu" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminMenu /></ProtectedRoute>} />
           <Route path="/admin/gallery" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminGallery /></ProtectedRoute>} />
@@ -198,6 +201,9 @@ export default function AppRoutes() {
           <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminSystemLogs /></ProtectedRoute>} />
           <Route path="/admin/quotes" element={<ProtectedRoute allowedRoles={adminManagerOnly}><Navigate to="/admin/bookings/inquiries" replace /></ProtectedRoute>} />
           <Route path="/admin/quotes/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
+          <Route path="/admin/inquiries" element={<ProtectedRoute allowedRoles={adminManagerOnly}><Navigate to="/admin/bookings/inquiries" replace /></ProtectedRoute>} />
+          <Route path="/admin/inquiries/:id" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
+          <Route path="/admin/inquiries/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
           <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesList /></ProtectedRoute>} />
           <Route path="/admin/messages/:id" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesChat /></ProtectedRoute>} />
           <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminProfile /></ProtectedRoute>} />

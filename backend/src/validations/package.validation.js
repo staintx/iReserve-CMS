@@ -22,9 +22,9 @@ const packageOnly = (schema) =>
 
 
 exports.packageSchema = Joi.object({
-  name: catalogNameRule(2, 100, true),
-  description: safeTextRule(2000, true),
-  fullDescription: safeTextRule(5000, false),
+  name: catalogNameRule("Package name", { min: 2, max: 100, required: true }),
+  description: safeTextRule("Description", { max: 2000, required: true }),
+  fullDescription: safeTextRule("Full description", { max: 5000, required: false, allowEmpty: true }),
   // A regular package's advisory guest range. A combo has one exact count
   // instead, so these are dropped for it rather than kept beside `guest_count`
   // where they would read as a second, contradicting answer.
@@ -33,13 +33,13 @@ exports.packageSchema = Joi.object({
   price_per_guest: monetaryRule("Price per guest", { min: 0, max: MAX_FINANCIAL_AMOUNT, required: false, allowZero: true }).allow(""),
   // What a regular package's event set-up starts at. A combo has none.
   setup_price: packageOnly(monetaryRule("Setup price", { min: 0, max: MAX_FINANCIAL_AMOUNT, required: false, allowZero: true }).allow("")),
-  price_label: safeTextRule(100, false),
+  price_label: safeTextRule("Price label", { max: 100, required: false, allowEmpty: true }),
   featured: Joi.boolean().optional(),
-  badge_text: safeTextRule(50, false),
-  service_type: safeTextRule(100, false),
+  badge_text: safeTextRule("Badge text", { max: 50, required: false, allowEmpty: true }),
+  service_type: safeTextRule("Service type", { max: 100, required: false, allowEmpty: true }),
   available: Joi.boolean().optional(),
-  booking_requirements: safeTextRule(2000, false),
-  cancellation_policy: safeTextRule(2000, false),
+  booking_requirements: safeTextRule("Booking requirements", { max: 2000, required: false, allowEmpty: true }),
+  cancellation_policy: safeTextRule("Cancellation policy", { max: 2000, required: false, allowEmpty: true }),
   inclusions: Joi.alternatives()
     .try(Joi.array().items(Joi.string()), Joi.string())
     .optional(),
@@ -140,9 +140,9 @@ exports.packageSchema = Joi.object({
 }).unknown(true);
 
 exports.packageUpdateSchema = Joi.object({
-  name: catalogNameRule(2, 100, false),
-  description: safeTextRule(2000, false),
-  fullDescription: safeTextRule(5000, false),
+  name: catalogNameRule("Package name", { min: 2, max: 100, required: false, allowEmpty: true }),
+  description: safeTextRule("Description", { max: 2000, required: false, allowEmpty: true }),
+  fullDescription: safeTextRule("Full description", { max: 5000, required: false, allowEmpty: true }),
   // A regular package's advisory guest range. A combo has one exact count
   // instead, so these are dropped for it rather than kept beside `guest_count`
   // where they would read as a second, contradicting answer.
@@ -151,13 +151,13 @@ exports.packageUpdateSchema = Joi.object({
   price_per_guest: Joi.number().min(0).optional().allow(""),
   // What a regular package's event set-up starts at. A combo has none.
   setup_price: packageOnly(Joi.number().min(0).optional().allow("")),
-  price_label: safeTextRule(100, false),
+  price_label: safeTextRule("Price label", { max: 100, required: false, allowEmpty: true }),
   featured: Joi.boolean().optional(),
-  badge_text: safeTextRule(50, false),
-  service_type: safeTextRule(100, false),
+  badge_text: safeTextRule("Badge text", { max: 50, required: false, allowEmpty: true }),
+  service_type: safeTextRule("Service type", { max: 100, required: false, allowEmpty: true }),
   available: Joi.boolean().optional(),
-  booking_requirements: safeTextRule(2000, false),
-  cancellation_policy: safeTextRule(2000, false),
+  booking_requirements: safeTextRule("Booking requirements", { max: 2000, required: false, allowEmpty: true }),
+  cancellation_policy: safeTextRule("Cancellation policy", { max: 2000, required: false, allowEmpty: true }),
   inclusions: Joi.alternatives()
     .try(Joi.array().items(Joi.string()), Joi.string())
     .optional(),

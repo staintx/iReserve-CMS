@@ -103,25 +103,32 @@ const addressRule = (label = "Address", { max = 150, required = false, allowEmpt
  * Creates a safe text rule for notes, descriptions, allergies, dietary requests, themes.
  * Rejects emojis and HTML/script tags (<, >).
  */
-const safeTextRule = (label = "This field", { max = 500, required = false, allowEmpty = true } = {}) => {
+const safeTextRule = (label = "This field", options = {}) => {
+  let labelText = typeof label === "string" ? label : "This field";
+  let opts = typeof options === "object" && options !== null ? options : {};
+  if (typeof label === "number") {
+    labelText = "This field";
+    opts = { max: label, required: typeof options === "boolean" ? options : false, allowEmpty: true };
+  }
+  const { max = 500, required = false, allowEmpty = true } = opts;
   let rule = Joi.string()
     .trim()
     .max(max)
     .custom((value, helpers) => {
       if (!value) return value;
       if (EMOJI_REGEX.test(value)) {
-        return helpers.message(`${label} cannot contain emojis.`);
+        return helpers.message(`${labelText} cannot contain emojis.`);
       }
       if (HTML_TAGS_REGEX.test(value)) {
-        return helpers.message(`${label} cannot contain angle brackets (< or >).`);
+        return helpers.message(`${labelText} cannot contain angle brackets (< or >).`);
       }
       return value;
     })
     .messages({
-      "string.base": `${label} must be text.`,
-      "string.empty": `${label} is required.`,
-      "string.max": `${label} cannot exceed ${max} characters.`,
-      "any.required": `${label} is required.`
+      "string.base": `${labelText} must be text.`,
+      "string.empty": `${labelText} is required.`,
+      "string.max": `${labelText} cannot exceed ${max} characters.`,
+      "any.required": `${labelText} is required.`
     });
 
   if (allowEmpty) {
@@ -133,19 +140,32 @@ const safeTextRule = (label = "This field", { max = 500, required = false, allow
 /**
  * Catalog item name rule (menu items, inventory items, packages, addons).
  */
-const catalogNameRule = (label = "Item name", { min = 2, max = 100, required = true, allowEmpty = false } = {}) => {
+const catalogNameRule = (label = "Item name", options = {}, legacyRequired) => {
+  let labelText = typeof label === "string" ? label : "Item name";
+  let opts = typeof options === "object" && options !== null ? options : {};
+  if (typeof label === "number") {
+    labelText = "Item name";
+    const isRequired = typeof legacyRequired === "boolean" ? legacyRequired : false;
+    opts = {
+      min: label,
+      max: typeof options === "number" ? options : 100,
+      required: isRequired,
+      allowEmpty: !isRequired,
+    };
+  }
+  const { min = 2, max = 100, required = true, allowEmpty = false } = opts;
   let rule = Joi.string()
     .trim()
     .min(min)
     .max(max)
     .pattern(CATALOG_NAME_REGEX, "catalog item name")
     .messages({
-      "string.base": `${label} must be text.`,
-      "string.empty": `${label} cannot be empty.`,
-      "string.min": `${label} must be at least ${min} characters.`,
-      "string.max": `${label} cannot exceed ${max} characters.`,
-      "string.pattern.name": `${label} can only contain letters, numbers, spaces, and safe punctuation (- & ' , / ( ) .). Emojis are not allowed.`,
-      "any.required": `${label} is required.`
+      "string.base": `${labelText} must be text.`,
+      "string.empty": `${labelText} cannot be empty.`,
+      "string.min": `${labelText} must be at least ${min} characters.`,
+      "string.max": `${labelText} cannot exceed ${max} characters.`,
+      "string.pattern.name": `${labelText} can only contain letters, numbers, spaces, and safe punctuation (- & ' , / ( ) .). Emojis are not allowed.`,
+      "any.required": `${labelText} is required.`
     });
 
   if (allowEmpty) {

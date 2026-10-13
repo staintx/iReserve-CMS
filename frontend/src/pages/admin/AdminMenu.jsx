@@ -12,10 +12,8 @@ import {
   Copy,
   CheckCircle2,
   XCircle,
-  Package,
   ArrowUpDown,
   X,
-  ExternalLink,
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -48,7 +46,6 @@ export default function AdminMenu() {
 
   // Data states
   const [menuItems, setMenuItems] = useState([]);
-  const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Search, filter, sorting
@@ -57,7 +54,7 @@ export default function AdminMenu() {
   const [draftCategoryFilter, setDraftCategoryFilter] = useState("all");
   const [availabilityFilter, setAvailabilityFilter] = useState("all"); // 'all' | 'available' | 'unavailable'
   const [draftAvailabilityFilter, setDraftAvailabilityFilter] = useState("all");
-  const [sortField, setSortField] = useState("category"); // 'name' | 'category' | 'price' | 'status' | 'packages' | 'updatedAt'
+  const [sortField, setSortField] = useState("category"); // 'name' | 'category' | 'price' | 'status' | 'updatedAt'
   const [sortOrder, setSortOrder] = useState("asc"); // 'asc' | 'desc'
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -80,16 +77,12 @@ export default function AdminMenu() {
     return ["all", ...DEFAULT_FOOD_CATEGORIES, ...uniqueCustom];
   }, [menuItems]);
 
-  // Load Menu and Packages for usage cross-reference
+  // Load Menu items
   const loadData = async () => {
     setLoading(true);
     try {
-      const [menuRes, pkgRes] = await Promise.all([
-        AdminAPI.getMenu(),
-        AdminAPI.getPackages().catch(() => ({ data: [] })),
-      ]);
-      setMenuItems(Array.isArray(menuRes.data) ? menuRes.data : []);
-      setPackages(Array.isArray(pkgRes.data) ? pkgRes.data : []);
+      const res = await AdminAPI.getMenu();
+      setMenuItems(Array.isArray(res.data) ? res.data : []);
     } catch {
       notify("Failed to load menu items", "error");
     } finally {
@@ -102,55 +95,6 @@ export default function AdminMenu() {
   }, []);
 
   useRealTimeRefresh(loadData, ["menu"]);
-
-  // Map each dish (by ID and normalized name) to all packages that use it
-  const packageUsageMap = useMemo(() => {
-    const map = new Map();
-    packages.forEach((pkg) => {
-      // 1. pkg.menu_items
-      (pkg.menu_items || []).forEach((m) => {
-        const id = typeof m === "object" ? m?._id : m;
-        if (id) {
-          if (!map.has(id)) map.set(id, []);
-          if (!map.get(id).some((p) => p._id === pkg._id)) {
-            map.get(id).push(pkg);
-          }
-        }
-        const name = typeof m === "object" ? m?.name?.trim().toLowerCase() : null;
-        if (name) {
-          if (!map.has(name)) map.set(name, []);
-          if (!map.get(name).some((p) => p._id === pkg._id)) {
-            map.get(name).push(pkg);
-          }
-        }
-      });
-
-      // 2. pkg.offer_food_items
-      (pkg.offer_food_items || []).forEach((ofi) => {
-        const name = ofi.item_name?.trim().toLowerCase();
-        if (name) {
-          if (!map.has(name)) map.set(name, []);
-          if (!map.get(name).some((p) => p._id === pkg._id)) {
-            map.get(name).push(pkg);
-          }
-        }
-      });
-    });
-    return map;
-  }, [packages]);
-
-  const getAssociatedPackages = (item) => {
-    if (!item) return [];
-    const pkgsById = packageUsageMap.get(item._id) || [];
-    const pkgsByName = item.name ? packageUsageMap.get(item.name.trim().toLowerCase()) || [] : [];
-    const combined = [...pkgsById];
-    pkgsByName.forEach((p) => {
-      if (!combined.some((existing) => existing._id === p._id)) {
-        combined.push(p);
-      }
-    });
-    return combined;
-  };
 
 
   // Filtered & Sorted items
@@ -185,10 +129,6 @@ export default function AdminMenu() {
         valA = a.available ? 1 : 0;
         valB = b.available ? 1 : 0;
         return sortOrder === "asc" ? valB - valA : valA - valB;
-      } else if (sortField === "packages") {
-        valA = getAssociatedPackages(a).length;
-        valB = getAssociatedPackages(b).length;
-        return sortOrder === "asc" ? valA - valB : valB - valA;
       } else if (sortField === "updatedAt") {
         valA = new Date(a.updatedAt || a.createdAt || 0).getTime();
         valB = new Date(b.updatedAt || b.createdAt || 0).getTime();
@@ -203,7 +143,7 @@ export default function AdminMenu() {
       return sortMenuItemsByCategory(result);
     }
     return result;
-  }, [menuItems, search, categoryFilter, availabilityFilter, sortField, sortOrder, packageUsageMap]);
+  }, [menuItems, search, categoryFilter, availabilityFilter, sortField, sortOrder]);
 
   // Pagination slice
   const totalItems = filtered.length;
@@ -254,6 +194,9 @@ export default function AdminMenu() {
     const newStatus = !item.available;
     try {
       await AdminAPI.updateMenu(item._id, { available: newStatus });
+      setMenuItems((prev) =>
+        prev.map((i) => (i._id === item._id ? { ...i, available: newStatus } : i))
+      );
       notify(`"${item.name}" is now marked as ${newStatus ? "available" : "unavailable"}`, "success");
       loadData();
       if (drawerItem && drawerItem._id === item._id) {
@@ -329,22 +272,16 @@ export default function AdminMenu() {
       onSelect: () => handleOpenModal(item),
     },
     {
-      key: "duplicate",
-      label: "Duplicate",
-      icon: Copy,
-      onSelect: () => handleDuplicate(item),
-    },
-    {
       key: "toggle",
       label: item.available ? "Set Unavailable" : "Set Available",
       icon: item.available ? XCircle : CheckCircle2,
       onSelect: () => handleToggleAvailability(item),
     },
     {
-      key: "packages",
-      label: `View Packages (${getAssociatedPackages(item).length})`,
-      icon: Package,
-      onSelect: () => setDrawerItem(item),
+      key: "duplicate",
+      label: "Duplicate",
+      icon: Copy,
+      onSelect: () => handleDuplicate(item),
     },
     { divider: true },
     {
@@ -410,31 +347,6 @@ export default function AdminMenu() {
       render: (row) => (
         <Badge status={row.available ? "available" : "unavailable"} dot />
       ),
-    },
-    {
-      key: "usage",
-      header: "Package Usage",
-      render: (row) => {
-        const pkgs = getAssociatedPackages(row);
-        return (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDrawerItem(row);
-            }}
-            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
-              pkgs.length > 0
-                ? "bg-primary/10 text-primary hover:bg-primary/20"
-                : "bg-muted text-muted-foreground/70"
-            }`}
-            title="Click to view associated packages"
-          >
-            <Package size={12} />
-            <span>{pkgs.length} {pkgs.length === 1 ? "pkg" : "pkgs"}</span>
-          </button>
-        );
-      },
     },
     {
       key: "updatedAt",
@@ -598,7 +510,6 @@ export default function AdminMenu() {
                   { value: "category-asc", label: "Category" },
                   { value: "name-asc", label: "Name (A-Z)" },
                   { value: "name-desc", label: "Name (Z-A)" },
-                  { value: "packages-desc", label: "Most Used in Packages" },
                   { value: "updatedAt-desc", label: "Recently Updated" },
                 ]}
               />
@@ -696,7 +607,6 @@ export default function AdminMenu() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {paginatedItems.map((item) => {
-                const pkgs = getAssociatedPackages(item);
                 return (
                   <AdminCard
                     key={item._id}
@@ -742,20 +652,39 @@ export default function AdminMenu() {
                         </p>
                       </div>
 
-                      <div className="pt-3 border-t border-border/60 flex items-center justify-between mt-auto">
-                        <span
-                          className="text-[11px] font-medium text-primary flex items-center gap-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDrawerItem(item);
-                          }}
-                        >
-                          <Package size={12} />
-                          {pkgs.length} {pkgs.length === 1 ? "package" : "packages"}
+                      <div
+                        className="pt-3 border-t border-border/60 flex items-center justify-between mt-auto gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span className="text-[11px] text-muted-foreground tabular-nums">
+                          {item.updatedAt || item.createdAt
+                            ? `Updated ${new Date(item.updatedAt || item.createdAt).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                              })}`
+                            : ""}
                         </span>
 
-                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <RowActionsMenu actions={getRowActions(item)} />
+                        {/* Direct Card Actions: Edit & Delete */}
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenModal(item)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-slate-700 hover:text-primary hover:bg-blue-50/80 border border-slate-200/90 bg-white transition-all cursor-pointer shadow-2xs active:scale-95"
+                            title="Edit dish"
+                          >
+                            <Edit3 size={12} className="text-slate-500" />
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCancelTarget(item)}
+                            className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200/80 transition-all cursor-pointer active:scale-95"
+                            title="Delete dish"
+                            aria-label={`Delete ${item.name}`}
+                          >
+                            <Trash2 size={13.5} />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -803,7 +732,6 @@ export default function AdminMenu() {
         item={drawerItem}
         open={Boolean(drawerItem)}
         onOpenChange={(open) => !open && setDrawerItem(null)}
-        associatedPackages={drawerItem ? getAssociatedPackages(drawerItem) : []}
         onEdit={(item) => handleOpenModal(item)}
         onDuplicate={(item) => handleDuplicate(item)}
         onToggleAvailability={(item) => handleToggleAvailability(item)}

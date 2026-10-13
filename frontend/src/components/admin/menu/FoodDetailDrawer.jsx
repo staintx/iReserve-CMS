@@ -1,6 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
-import { Edit3, Copy, Trash2, CheckCircle2, XCircle, Package, ExternalLink, Calendar, Tag } from "lucide-react";
+import { Edit3, Copy, Trash2, CheckCircle2, XCircle, Calendar, Tag } from "lucide-react";
 import DetailDrawer from "../table/DetailDrawer";
 import DrawerField from "../table/DrawerField";
 import Badge from "../ui/Badge";
@@ -10,7 +9,6 @@ export default function FoodDetailDrawer({
   item,
   open,
   onOpenChange,
-  associatedPackages = [],
   onEdit,
   onDuplicate,
   onToggleAvailability,
@@ -133,45 +131,7 @@ export default function FoodDetailDrawer({
           </p>
         </DrawerField>
 
-        {/* Associated Packages */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Package size={13} className="text-primary" /> Associated Packages ({associatedPackages.length})
-            </span>
-          </div>
 
-          {associatedPackages.length > 0 ? (
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-              {associatedPackages.map((pkg) => (
-                <div
-                  key={pkg._id}
-                  className="flex items-center justify-between p-2.5 rounded-md border border-border/70 bg-card hover:bg-muted/40 transition-colors"
-                >
-                  <div className="min-w-0 flex-1 pr-2">
-                    <p className="text-xs font-bold text-foreground truncate">{pkg.name}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {pkg.offer_type === "special" ? "Special Combo" : "Event Package"} · {pkg.event_type || "Catering"}
-                    </p>
-                  </div>
-                  <Link
-                    to={`/admin/packages?id=${pkg._id}&tab=${pkg.offer_type === "special" ? "special" : "regular"}`}
-                    onClick={() => onOpenChange(false)}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors"
-                  >
-                    View <ExternalLink size={11} />
-                  </Link>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-3 rounded-md bg-muted/20 border border-dashed border-border/60 text-center">
-              <p className="text-xs text-muted-foreground italic">
-                This dish is not currently assigned to any package or combo.
-              </p>
-            </div>
-          )}
-        </div>
 
         {/* Metadata */}
         <div className="pt-3 border-t border-border/60 grid grid-cols-2 gap-3 text-xs text-muted-foreground">

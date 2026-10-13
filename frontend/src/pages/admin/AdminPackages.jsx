@@ -4,6 +4,7 @@ import {
   Plus,
   Search,
   Eye,
+  Edit,
   Trash2,
   Filter,
   X,
@@ -13,7 +14,6 @@ import {
   Tag,
   LayoutGrid,
   List,
-  Copy,
   CheckCircle2,
   XCircle,
   Package as PackageIcon,
@@ -177,28 +177,17 @@ export default function AdminPackages() {
     }
   };
 
-  const handleDuplicate = async (pkg) => {
-    try {
-      const cloned = {
-        ...pkg,
-        name: `${pkg.name} (Copy)`,
-      };
-      delete cloned._id;
-      delete cloned.createdAt;
-      delete cloned.updatedAt;
-      await AdminAPI.createPackage(cloned);
-      notify(`Duplicated "${pkg.name}" successfully`, "success");
-      loadData();
-    } catch {
-      notify("Failed to duplicate package", "error");
-    }
-  };
-
   const handleToggleAvailability = async (pkg) => {
+    const newStatus = !pkg.available;
     try {
-      const newStatus = !pkg.available;
       await AdminAPI.updatePackage(pkg._id, { available: newStatus });
-      notify(`"${pkg.name}" is now ${newStatus ? "available" : "unavailable"}`, "success");
+      setPackages((prev) =>
+        prev.map((p) => (p._id === pkg._id ? { ...p, available: newStatus } : p))
+      );
+      if (activePkg && activePkg._id === pkg._id) {
+        setActivePkg((prev) => (prev ? { ...prev, available: newStatus } : null));
+      }
+      notify(`"${pkg.name}" is now marked as ${newStatus ? "available" : "unavailable"}`, "success");
       loadData();
     } catch {
       notify("Failed to update status", "error");
@@ -344,14 +333,8 @@ export default function AdminPackages() {
     {
       key: "edit",
       label: "Edit Package",
-      icon: Eye,
+      icon: Edit,
       onSelect: () => handleOpenModal(pkg),
-    },
-    {
-      key: "duplicate",
-      label: "Duplicate",
-      icon: Copy,
-      onSelect: () => handleDuplicate(pkg),
     },
     {
       key: "toggle",

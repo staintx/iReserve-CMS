@@ -511,7 +511,7 @@ const isSpecialOfferBody = (body) =>
 
 const canViewUnavailable = (user) => {
   if (!user) return false;
-  return ["admin", "staff"].includes(user.role);
+  return ["admin", "manager", "staff"].includes(user.role);
 };
 
 exports.create = async (req, res) => {

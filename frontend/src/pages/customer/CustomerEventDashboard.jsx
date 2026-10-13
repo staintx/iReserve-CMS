@@ -1347,14 +1347,14 @@ export default function CustomerEventDashboard() {
             </div>
           )}
 
-          {booking.cancellation_request?.status === "rejected" && !["cancelled", "completed"].includes(rawStatus) && (
+          {(booking.refund_denied || ["rejected", "denied"].includes(booking.cancellation_request?.status)) && (
             <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-3.5 flex items-start justify-between gap-3 shadow-2xs text-xs">
               <div className="flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="font-semibold text-amber-950">Cancellation Request Declined</h4>
+                  <h4 className="font-semibold text-amber-950">Refund Request Declined</h4>
                   <p className="text-amber-800 mt-0.5">
-                    Your cancellation request was reviewed and declined: {booking.cancellation_request.admin_notes || "Please contact our team for details."}
+                    Your refund request was reviewed and declined: {booking.refund_denial_reason || booking.cancellation_request?.admin_notes || "Please contact our team for details."}
                   </p>
                 </div>
               </div>

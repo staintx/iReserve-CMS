@@ -5,6 +5,7 @@ import StaffLayout from "../../components/layout/StaffLayout";
 import Badge from "../../components/admin/ui/Badge";
 import useToast from "../../hooks/useToast";
 import useAuth from "../../hooks/useAuth";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import {
   Calendar,
   Clock,
@@ -55,6 +56,8 @@ export default function StaffEventDetails() {
   useEffect(() => {
     loadEvent();
   }, [id]);
+
+  useRealTimeRefresh(loadEvent, ["booking"]);
 
   const myRole = useMemo(() => {
     if (!booking) return "Crew";

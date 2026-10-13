@@ -13,7 +13,7 @@ import {
 } from "../ui/dropdown-menu";
 import { ScrollArea } from "../ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { formatCustomerNotification, groupNotificationsByDay } from "./notificationMeta";
+import { formatCustomerNotification, groupNotificationsByDay, isNotificationRelevantForRole } from "./notificationMeta";
 
 const formatTime = (value) => {
   if (!value) return "";
@@ -34,13 +34,18 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
 
   const load = useCallback(async () => {
     try {
-      const { data } = await NotificationAPI.getMine({ limit: 10 });
-      setItems(data.items || []);
-      setUnreadCount(data.unreadCount || 0);
+      const { data } = await NotificationAPI.getMine({ limit: 25 });
+      let list = data.items || [];
+      let unread = data.unreadCount || 0;
+      if (user?.role === "manager") {
+        list = list.filter((item) => isNotificationRelevantForRole(item, user.role));
+      }
+      setItems(list);
+      setUnreadCount(unread);
     } catch {
       // silent
     }
-  }, []);
+  }, [user?.role]);
 
   useEffect(() => {
     load();
@@ -49,7 +54,10 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
   useEffect(() => {
     const socket = getSocket();
     const handleNew = (notification) => {
-      setItems((prev) => [notification, ...prev.filter(n => n._id !== notification._id)].slice(0, 10));
+      if (user?.role === "manager" && !isNotificationRelevantForRole(notification, user.role)) {
+        return;
+      }
+      setItems((prev) => [notification, ...prev.filter(n => n._id !== notification._id)].slice(0, 25));
       setUnreadCount((count) => count + 1);
     };
 
@@ -71,7 +79,7 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
       socket.off("notification:read", handleRead);
       socket.off("notification:read_all", handleReadAll);
     };
-  }, []);
+  }, [user?.role]);
 
   const markRead = useCallback(async (notificationId) => {
     try {
@@ -181,12 +189,12 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
         side={menuSide}
         align={menuSide === "right" ? "start" : "end"}
         sideOffset={menuSide === "right" ? 16 : 8}
-        collisionPadding={8}
+        collisionPadding={12}
         /* 320px wide inside a 320px viewport left no room for the collision
            padding, so the panel hung off the edge on the smallest phones. */
-        className="w-[calc(100vw-1rem)] max-w-[22rem] sm:w-96 sm:max-w-none p-0 bg-white border border-slate-200 rounded-xl shadow-lg z-[100] overflow-hidden"
+        className="w-[calc(100vw-1rem)] max-w-[22rem] sm:w-96 sm:max-w-none p-0 bg-white border border-slate-200 rounded-xl shadow-lg z-[100] max-h-[min(540px,calc(100dvh-2rem))] flex flex-col overflow-hidden"
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/70">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/70 shrink-0">
           <div className="flex items-center gap-2">
             <span className="font-bold text-sm text-slate-900 font-sans">Notifications</span>
             {unreadCount > 0 && (
@@ -206,7 +214,7 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
           </button>
         </div>
 
-        <ScrollArea className="max-h-[380px]">
+        <ScrollArea className="flex-1 min-h-0 max-h-[380px] sm:max-h-[420px] overflow-hidden [&>[data-radix-scroll-area-viewport]]:max-h-[inherit] [&>[data-radix-scroll-area-viewport]]:overscroll-contain [&>[data-radix-scroll-area-viewport]]:touch-pan-y">
           {empty ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
               <Bell className="w-7 h-7 mb-2 opacity-30" />
@@ -264,7 +272,7 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
           )}
         </ScrollArea>
 
-        <div className="p-2 border-t border-slate-100 bg-slate-50/70">
+        <div className="p-2 border-t border-slate-100 bg-slate-50/70 shrink-0">
           <Button
             variant="ghost"
             size="sm"

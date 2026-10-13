@@ -754,7 +754,7 @@ exports.getById = asyncHandler(async (req, res) => {
 
   res.json(
     await Booking.findById(req.params.id).populate(
-      "customer_id package_id event_manager_id staff_assignments.user_id inquiry_id quotation_id equipment_returns.verified_by equipment_manager_verified.confirmed_by staff_reports.staff_id",
+      "customer_id package_id event_manager_id staff_assignments.user_id inquiry_id quotation_id equipment_returns.verified_by equipment_manager_verified.confirmed_by staff_reports.staff_id equipment_checklist_done_by",
     ).lean(),
   );
 });
@@ -1752,9 +1752,15 @@ exports.processRefund = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
 
+  if (booking.refund_denied || booking.cancellation_request?.status === "denied") {
+    return res.status(400).json({
+      message: `Cannot process refund: This refund request has been denied. Reason: ${booking.refund_denial_reason || booking.cancellation_request?.admin_notes || "Refund denied by admin."}`,
+    });
+  }
+
   const refundAmount = Number(req.body.amount);
-  if (!Number.isFinite(refundAmount) || refundAmount < 0 || refundAmount > MAX_FINANCIAL_AMOUNT) {
-    return res.status(400).json({ message: `Refund amount must be between ₱0 and ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
+  if (!Number.isFinite(refundAmount) || refundAmount <= 0 || refundAmount > MAX_FINANCIAL_AMOUNT) {
+    return res.status(400).json({ message: `Refund amount must be between ₱1 and ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.` });
   }
 
   const deductionReason =
@@ -1843,6 +1849,105 @@ exports.processRefund = asyncHandler(async (req, res) => {
   );
 
   res.json({ message: "Refund processed successfully", booking });
+});
+
+exports.denyRefund = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id);
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  const reason = (req.body.reason || "").trim();
+  if (!reason || reason.length < 5) {
+    return res.status(400).json({
+      message: "A meaningful reason for denial is required (minimum 5 characters).",
+    });
+  }
+
+  // Prevent denying if already refunded
+  const Payment = require("../models/Payment");
+  const completedRefundPayments = await Payment.find({
+    booking_id: booking._id,
+    payment_type: "refund",
+    status: { $in: ["approved", "paid"] },
+  });
+  if (booking.payment_status === "refunded" || completedRefundPayments.length > 0) {
+    return res.status(400).json({
+      message: "Cannot deny refund: This booking has already been refunded.",
+    });
+  }
+
+  // Set persistent refund denial flags
+  booking.refund_denied = true;
+  booking.refund_denial_reason = reason;
+  booking.refund_denied_at = new Date();
+
+  // If there is a cancellation request, update it to denied
+  if (booking.cancellation_request && booking.cancellation_request.status !== "none") {
+    booking.cancellation_request.status = "denied";
+    booking.cancellation_request.resolved_at = new Date();
+    booking.cancellation_request.admin_notes = reason;
+  } else {
+    booking.cancellation_request = {
+      ...(booking.cancellation_request?.toObject?.() || {}),
+      status: "denied",
+      resolved_at: new Date(),
+      admin_notes: reason,
+    };
+  }
+
+  if (booking.change_request?.status === "pending") {
+    booking.change_request.status = "rejected";
+    booking.change_request.resolved_at = new Date();
+  }
+
+  // Restore payment_status if it was refund_requested based on actual customer payments
+  if (booking.payment_status === "refund_requested") {
+    const approvedPayments = await Payment.find({
+      booking_id: booking._id,
+      status: { $in: ["approved", "paid"] },
+      amount: { $gt: 0 },
+    });
+    const totalPaid = approvedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const totalPrice = Number(booking.total_price || 0);
+
+    if (totalPaid >= totalPrice && totalPrice > 0) {
+      booking.payment_status = "fully_paid";
+    } else if (totalPaid > 0) {
+      booking.payment_status = "deposit_paid";
+    } else {
+      booking.payment_status = "pending";
+    }
+  }
+
+  // Preserve original payment records intact (NO Payment.create for refund)
+  await booking.save();
+
+  await logAction({
+    user_id: req.user._id,
+    action: "booking_refund_denied",
+    entity_type: "booking",
+    entity_id: booking._id,
+    details: `Admin denied refund request for booking #${booking.reference || booking._id}. Reason: ${reason}`,
+    ip_address: req.ip,
+  });
+
+  const io = req.app.get("io");
+  if (booking.customer_id) {
+    await createNotification(
+      {
+        userId: booking.customer_id,
+        title: "Refund Request Denied",
+        body: `Your refund request for booking #${booking.reference || booking._id} was denied. Reason: ${reason}`,
+        type: "warning",
+        link: `/customer/bookings/${booking._id}`,
+        meta: { booking_id: booking._id, reference: booking.reference },
+      },
+      io,
+    ).catch(console.error);
+  }
+
+  if (io) io.emit("system:refresh", { type: "booking", action: "update" });
+
+  res.json({ message: "Refund request denied successfully", booking });
 });
 
 exports.remove = asyncHandler(async (req, res) => {
@@ -2600,6 +2705,10 @@ exports.requestCancellation = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Cannot request cancellation for completed, cancelled, or refunded bookings." });
   }
 
+  if (booking.refund_denied || booking.cancellation_request?.status === "denied") {
+    return res.status(400).json({ message: "A cancellation/refund request for this booking has already been reviewed and denied." });
+  }
+
   if (booking.cancellation_request?.status === "pending") {
     return res.status(400).json({ message: "A cancellation request is already pending review for this booking." });
   }
@@ -2681,6 +2790,10 @@ exports.requestCancellation = asyncHandler(async (req, res) => {
 exports.approveCancellation = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (booking.refund_denied || booking.cancellation_request?.status === "denied") {
+    return res.status(400).json({ message: "Cannot approve refund: The refund request for this booking has already been denied." });
+  }
 
   const { admin_notes, refund_amount, refund_reason } = req.body;
 
@@ -2816,9 +2929,33 @@ exports.rejectCancellation = asyncHandler(async (req, res) => {
     resolved_at: new Date(),
     admin_notes,
   };
+  booking.refund_denied = true;
+  booking.refund_denial_reason = admin_notes;
+  booking.refund_denied_at = new Date();
+
   if (booking.change_request?.status === "pending") {
     booking.change_request.status = "rejected";
     booking.change_request.resolved_at = new Date();
+  }
+
+  // Restore payment_status if it was refund_requested based on actual customer payments
+  if (booking.payment_status === "refund_requested") {
+    const Payment = require("../models/Payment");
+    const approvedPayments = await Payment.find({
+      booking_id: booking._id,
+      status: { $in: ["approved", "paid"] },
+      amount: { $gt: 0 },
+    });
+    const totalPaid = approvedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const totalPrice = Number(booking.total_price || 0);
+
+    if (totalPaid >= totalPrice && totalPrice > 0) {
+      booking.payment_status = "fully_paid";
+    } else if (totalPaid > 0) {
+      booking.payment_status = "deposit_paid";
+    } else {
+      booking.payment_status = "pending";
+    }
   }
 
   await booking.save();

@@ -150,6 +150,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/blocked-dates", blockedDateRoutes);
 app.use("/api/addons", addonRoutes);
+app.use("/api/services", serviceRoutes);
 app.use("/api/zelle", zelleRoutes);
 
 // ---------------------------------------------------------------------------

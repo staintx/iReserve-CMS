@@ -354,7 +354,8 @@ exports.getBooking = asyncHandler(async (req, res) => {
     .populate("inventory_items.inventory_id")
     .populate("equipment_returns.inventory_id")
     .populate("equipment_returns.verified_by", "full_name role")
-    .populate("equipment_manager_verified.confirmed_by", "full_name role");
+    .populate("equipment_manager_verified.confirmed_by", "full_name role")
+    .populate("equipment_checklist_done_by", "full_name role");
 
   if (!booking) {
     return res.status(404).json({ message: "Booking not found or not assigned to you" });
@@ -419,6 +420,47 @@ exports.assignStaff = asyncHandler(async (req, res) => {
   const { staff_assignments } = req.body;
   if (!Array.isArray(staff_assignments)) {
     return res.status(400).json({ message: "staff_assignments must be an array" });
+  }
+
+  // Prevent duplicate staff assignments within the same event
+  const seenUserIds = new Set();
+  for (const sa of staff_assignments) {
+    const uId = String(sa.user_id?._id || sa.user_id || "");
+    if (!uId) continue;
+    if (seenUserIds.has(uId)) {
+      const userDoc = await User.findById(uId).select("full_name");
+      const name = userDoc?.full_name || "A crew member";
+      return res.status(400).json({
+        message: `${name} cannot be assigned to multiple roles on the same event.`
+      });
+    }
+    seenUserIds.add(uId);
+  }
+
+  // Prevent event coordinator from occupying multiple roles on the same event
+  const coordinatorId = String(booking.event_manager_id?._id || booking.event_manager_id || "");
+  if (coordinatorId && seenUserIds.has(coordinatorId)) {
+    const userDoc = await User.findById(coordinatorId).select("full_name");
+    const name = userDoc?.full_name || "The Event Coordinator";
+    return res.status(400).json({
+      message: `${name} is already assigned as Event Coordinator for this event and cannot occupy multiple roles.`
+    });
+  }
+
+  // Prevent invalid role assignments: An Event Coordinator must not be assignable as Head Cook
+  const headCookAssignment = staff_assignments.find((sa) => sa.role === "Head Cook" && sa.user_id);
+  if (headCookAssignment) {
+    const cookId = headCookAssignment.user_id?._id || headCookAssignment.user_id;
+    const cookUser = await User.findById(cookId).select("role position full_name");
+    if (cookUser) {
+      const userRole = String(cookUser.role || "").toLowerCase();
+      const userPos = String(cookUser.position || "").toLowerCase();
+      if (userRole === "manager" || userPos.includes("coordinator") || userPos.includes("event manager")) {
+        return res.status(400).json({
+          message: `${cookUser.full_name} is an Event Coordinator and cannot be assigned as Head Cook.`
+        });
+      }
+    }
   }
 
   // Validate Staff Availability on event date
@@ -809,6 +851,9 @@ exports.updateEquipmentChecklist = asyncHandler(async (req, res) => {
     } else {
       booking.equipment_checklist.push(updatedEntry);
     }
+    if (!isInspected && booking.equipment_checklist_done) {
+      booking.equipment_checklist_done = false;
+    }
   }
 
   if (typeof notes === "string") {
@@ -923,11 +968,114 @@ exports.verifyEquipment = asyncHandler(async (req, res) => {
   });
 });
 
-exports.markCompleted = asyncHandler(async (req, res) => {
+exports.markEquipmentChecklistDone = asyncHandler(async (req, res) => {
   const booking = await Booking.findOne({
     _id: req.params.id,
     ...(req.user.role === "admin" ? {} : { event_manager_id: req.user._id })
   });
+
+  if (!booking) {
+    return res.status(404).json({ message: "Booking not found or not assigned to you" });
+  }
+
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is already completed and read-only." });
+  }
+
+  // Validate Equipment Checklist: every applicable item must have an explicitly recorded inspection
+  const applicableKeys = new Set();
+  const inclusions = Array.isArray(booking.package_inclusions) ? booking.package_inclusions : [];
+  inclusions.forEach((inc, idx) => {
+    const raw = String(inc || "").trim();
+    if (!raw) return;
+    let category = "";
+    let cleanName = raw;
+    const tagMatch = raw.match(/^\s*\[([^\]]+)\]\s*(.*)$/);
+    if (tagMatch) {
+      category = tagMatch[1];
+      cleanName = tagMatch[2];
+    }
+    const cleanLower = cleanName.toLowerCase();
+    const catLower = category.toLowerCase();
+    if (cleanLower === "crew" || catLower === "crew" || catLower === "staff") return;
+
+    cleanName = cleanName.replace(/\((\d+)(?:\s*([a-zA-Z]+))?\)$/, "").trim();
+    const itemKey = `inclusion_${idx}_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+    applicableKeys.add(itemKey);
+  });
+
+  const inventoryItems = Array.isArray(booking.inventory_items) ? booking.inventory_items : [];
+  inventoryItems.forEach((inv, idx) => {
+    const name = inv.name || inv.inventory_id?.name || inv.inventory_id?.item_name || `Equipment Item #${idx + 1}`;
+    const itemKey = `inv_${inv.inventory_id?._id || inv.inventory_id || idx}_${name.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+    applicableKeys.add(itemKey);
+  });
+
+  if (applicableKeys.size > 0) {
+    const checklistMap = new Map();
+    (booking.equipment_checklist || []).forEach((c) => {
+      if (c.item_key) checklistMap.set(c.item_key, c);
+    });
+
+    let uninspectedCount = 0;
+    for (const key of applicableKeys) {
+      const item = checklistMap.get(key);
+      if (!item || !item.is_inspected || item.status === "not_inspected") {
+        uninspectedCount++;
+      }
+    }
+
+    if (uninspectedCount > 0) {
+      return res.status(400).json({
+        message: `Please inspect all equipment items before marking the checklist as done. (${uninspectedCount} item${uninspectedCount > 1 ? "s" : ""} remaining)`
+      });
+    }
+
+    const invalidIncomplete = (booking.equipment_checklist || []).filter(
+      (item) => applicableKeys.has(item.item_key) &&
+        (item.status === "incomplete" || item.status === "issue_reported") &&
+        (!item.notes || !item.notes.trim())
+    );
+    if (invalidIncomplete.length > 0) {
+      return res.status(400).json({
+        message: "Incomplete equipment items must have a saved issue report note before marking the checklist as done."
+      });
+    }
+  }
+
+  booking.equipment_checklist_done = true;
+  booking.equipment_checklist_done_at = new Date();
+  booking.equipment_checklist_done_by = req.user._id;
+
+  await booking.save();
+
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("system:refresh", {
+      type: "booking",
+      action: "equipment_checklist_done",
+      booking_id: booking._id
+    });
+  }
+
+  const populated = await Booking.findById(booking._id)
+    .populate("equipment_checklist_done_by", "full_name role");
+
+  res.json({
+    message: "Equipment inspection checklist marked as Done successfully",
+    equipment_checklist_done: true,
+    equipment_checklist_done_at: populated.equipment_checklist_done_at,
+    equipment_checklist_done_by: populated.equipment_checklist_done_by,
+    booking: populated
+  });
+});
+
+exports.markCompleted = asyncHandler(async (req, res) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Only administrators can officially complete a booking." });
+  }
+
+  const booking = await Booking.findById(req.params.id);
 
   if (!booking) {
     return res.status(404).json({ message: "Booking not found" });

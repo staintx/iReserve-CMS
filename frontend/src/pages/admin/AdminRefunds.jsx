@@ -47,6 +47,7 @@ import FilterChip from "../../components/admin/table/FilterChip";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import Pagination from "../../components/admin/table/Pagination";
 import usePagination from "../../hooks/usePagination";
+import CustomerReceiptModal from "../../components/customer/portal/CustomerReceiptModal";
 
 export default function AdminRefunds() {
   const navigate = useNavigate();
@@ -70,6 +71,9 @@ export default function AdminRefunds() {
 
   const [drawerRow, setDrawerRow] = useState(null);
   const [voucherModalRow, setVoucherModalRow] = useState(null);
+  const [denyModalRow, setDenyModalRow] = useState(null);
+  const [denialReasonText, setDenialReasonText] = useState("");
+  const [denialError, setDenialError] = useState("");
 
   const loadData = async (showToast = false) => {
     if (showToast) setRefreshing(true);
@@ -92,7 +96,10 @@ export default function AdminRefunds() {
             b.status === "refunded" ||
             b.payment_status === "refund_requested" ||
             b.payment_status === "refunded" ||
+            b.refund_denied ||
             b.cancellation_request?.status === "pending" ||
+            b.cancellation_request?.status === "denied" ||
+            b.cancellation_request?.status === "rejected" ||
             (b.change_request?.status === "pending" &&
               b.change_request?.message?.toLowerCase().includes("cancel")) ||
             b.ocular_visit?.outcome === "cancel";
@@ -120,7 +127,9 @@ export default function AdminRefunds() {
 
           // Determine status
           let status = "pending";
-          if (totalRefunded > 0 || b.payment_status === "refunded" || b.status === "refunded") {
+          if (b.refund_denied || b.cancellation_request?.status === "denied" || b.cancellation_request?.status === "rejected") {
+            status = "denied";
+          } else if (totalRefunded > 0 || b.payment_status === "refunded" || b.status === "refunded") {
             status = "approved";
           } else if (positivePaid === 0 && b.status === "cancelled") {
             status = "no_refund_needed";
@@ -132,6 +141,12 @@ export default function AdminRefunds() {
             b.cancellation_reason ||
             b.change_request?.message ||
             (b.ocular_visit?.outcome === "cancel" ? "Cancelled after ocular visit" : "Customer / Admin Cancellation");
+
+          const denialReason =
+            b.refund_denial_reason ||
+            (["denied", "rejected"].includes(b.cancellation_request?.status) ? b.cancellation_request?.admin_notes : "") ||
+            "";
+          const deniedAt = b.refund_denied_at || b.cancellation_request?.resolved_at || null;
 
           return {
             _id: b._id,
@@ -146,9 +161,11 @@ export default function AdminRefunds() {
             eventDate: b.event_date,
             totalPrice: Number(b.total_price || 0),
             totalPaid: positivePaid,
-            totalRefunded: totalRefunded > 0 ? totalRefunded : status === "approved" ? positivePaid : 0,
+            totalRefunded: status === "denied" ? 0 : totalRefunded > 0 ? totalRefunded : status === "approved" ? positivePaid : 0,
             status,
             reason,
+            denialReason,
+            deniedAt,
             updatedAt: b.updatedAt || b.createdAt,
             refundRecord: refundRecords[0] || null,
             payments: bPayments,
@@ -178,6 +195,7 @@ export default function AdminRefunds() {
   const getStatusLabel = (s) => {
     if (s === "approved" || s === "refunded") return "Approved & Refunded";
     if (s === "pending") return "Pending Approval";
+    if (s === "denied") return "Denied";
     if (s === "no_refund_needed") return "No Refund Needed";
     return s;
   };
@@ -185,6 +203,7 @@ export default function AdminRefunds() {
   const getStatusBadgeType = (s) => {
     if (s === "approved" || s === "refunded") return "Paid";
     if (s === "pending") return "Pending";
+    if (s === "denied") return "Denied";
     return "off";
   };
 
@@ -221,6 +240,7 @@ export default function AdminRefunds() {
     let pendingCount = 0;
     let pendingAmount = 0;
     let approvedCount = 0;
+    let deniedCount = 0;
     let noRefundCount = 0;
 
     refunds.forEach((r) => {
@@ -230,6 +250,8 @@ export default function AdminRefunds() {
       } else if (r.status === "pending") {
         pendingCount++;
         pendingAmount += r.totalPaid;
+      } else if (r.status === "denied") {
+        deniedCount++;
       } else if (r.status === "no_refund_needed") {
         noRefundCount++;
       }
@@ -240,6 +262,7 @@ export default function AdminRefunds() {
       pendingCount,
       pendingAmount,
       approvedCount,
+      deniedCount,
       noRefundCount,
       totalRequests: refunds.length,
     };
@@ -302,19 +325,44 @@ export default function AdminRefunds() {
     }
   };
 
-  const handleDenyRefund = async (targetRefund = activeRefund) => {
+  const handleOpenDenyModal = (targetRefund = activeRefund || drawerRow) => {
     if (!targetRefund) return;
+    setDenyModalRow(targetRefund);
+    setDenialReasonText("");
+    setDenialError("");
+  };
+
+  const handleConfirmDeny = async () => {
+    if (!denyModalRow) return;
+    const trimmed = denialReasonText.trim();
+    if (!trimmed || trimmed.length < 5) {
+      setDenialError("Please provide a meaningful reason for denying this refund (at least 5 characters).");
+      return;
+    }
+
     setActionLoading(true);
     try {
-      await AdminAPI.processRefund(targetRefund._id, {
-        amount: 0,
-        reason: refundReason || "Refund request denied per cancellation policy terms.",
-      });
+      await AdminAPI.denyRefund(denyModalRow._id, { reason: trimmed });
 
-      notify("Refund request denied (₱0 refund processed).", "info");
+      notify("Refund request denied successfully. Original payment remains intact.", "info");
       setShowCalcModal(false);
       setActiveRefund(null);
-      if (drawerRow?._id === targetRefund._id) setDrawerRow(null);
+      setDenyModalRow(null);
+      setDenialReasonText("");
+      setDenialError("");
+      if (drawerRow?._id === denyModalRow._id) {
+        setDrawerRow((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: "denied",
+                denialReason: trimmed,
+                deniedAt: new Date().toISOString(),
+                totalRefunded: 0,
+              }
+            : null
+        );
+      }
       loadData();
     } catch (err) {
       notify(err.response?.data?.message || "Failed to deny refund.", "error");
@@ -463,7 +511,7 @@ export default function AdminRefunds() {
             <RowActionsMenu
               actions={[
                 { key: "calc", label: "Calculate & Approve Refund", icon: Calculator, onSelect: () => handleOpenCalc(r) },
-                { key: "deny", label: "Deny / Reject Refund (₱0)", icon: XCircle, destructive: true, onSelect: () => handleDenyRefund(r) },
+                { key: "deny", label: "Deny Refund", icon: XCircle, destructive: true, onSelect: () => handleOpenDenyModal(r) },
                 { key: "view", label: "View Full Details", icon: Eye, onSelect: () => setDrawerRow(r) },
                 { key: "booking", label: "Open Booking Details", icon: FileText, onSelect: () => navigate(`/admin/bookings/${r._id}/details`) },
               ]}
@@ -516,10 +564,10 @@ export default function AdminRefunds() {
             icon={Clock}
           />
           <KPICard
-            title="Cancelled Bookings"
-            value={stats.totalRequests}
-            sub="Total cancellation requests"
-            icon={XCircle}
+            title="Denied Requests"
+            value={stats.deniedCount}
+            sub="Rejected without disbursement"
+            icon={ShieldAlert}
           />
           <KPICard
             title="No Refund Needed"
@@ -540,6 +588,7 @@ export default function AdminRefunds() {
               { value: "all", label: `All Queue (${stats.totalRequests})` },
               { value: "pending", label: `Pending Approval (${stats.pendingCount})` },
               { value: "approved", label: `Refunded (${stats.approvedCount})` },
+              { value: "denied", label: `Denied (${stats.deniedCount})` },
               { value: "no_refund_needed", label: `No Refund Needed (${stats.noRefundCount})` },
             ]}
             activeQuickFilter={statusFilter}
@@ -752,6 +801,18 @@ export default function AdminRefunds() {
                   </div>
                 )}
 
+                {drawerRow.status === "denied" && (
+                  <div className="p-3 bg-rose-50/90 border border-rose-300/80 rounded-xl text-xs space-y-1 shadow-2xs">
+                    <div className="flex items-center gap-1.5 font-bold text-rose-900">
+                      <XCircle size={14} className="text-rose-600 shrink-0" />
+                      <span>Refund Request Denied</span>
+                    </div>
+                    <p className="text-rose-800 text-[11px] pl-5 leading-relaxed">
+                      This refund request was rejected. No refund was processed and the original payment remains intact.
+                    </p>
+                  </div>
+                )}
+
                 {/* 3. Cancellation Reason Card */}
                 <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2 shadow-2xs">
                   <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -768,6 +829,25 @@ export default function AdminRefunds() {
                     )}
                   </div>
                 </div>
+
+                {/* 3b. Reason for Denial Card */}
+                {drawerRow.denialReason && (
+                  <div className="bg-card border border-rose-200/80 rounded-xl p-3.5 space-y-2 shadow-2xs">
+                    <h5 className="font-bold text-[10px] uppercase tracking-wider text-rose-700 flex items-center gap-1.5">
+                      <ShieldAlert size={12} className="text-rose-600" /> Reason for Denial
+                    </h5>
+                    <div className="p-2.5 rounded-lg bg-rose-50/40 border border-rose-100 text-xs">
+                      <p className="text-rose-900 leading-relaxed font-medium">
+                        {drawerRow.denialReason}
+                      </p>
+                      {drawerRow.deniedAt && (
+                        <p className="text-[10px] text-rose-600 mt-1.5 pt-1.5 border-t border-rose-200/40">
+                          Denied on {formatDateTime(drawerRow.deniedAt)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* 4. Customer & Booking Context Card */}
                 <div className="p-3 bg-muted/30 rounded-xl border border-border/60 space-y-2.5 shadow-2xs">
@@ -903,13 +983,13 @@ export default function AdminRefunds() {
                 {drawerRow.status === "pending" && (
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleDenyRefund(drawerRow)}
+                      onClick={() => handleOpenDenyModal(drawerRow)}
                       disabled={actionLoading}
                       className="flex-1 py-2 px-3 rounded-lg border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 font-semibold transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs disabled:opacity-50"
-                      title="Deny refund (₱0)"
+                      title="Deny refund request"
                     >
                       <XCircle size={14} />
-                      <span>Deny Refund (₱0)</span>
+                      <span>Deny Refund</span>
                     </button>
                     <button
                       onClick={() => handleOpenCalc(drawerRow)}
@@ -1076,8 +1156,8 @@ export default function AdminRefunds() {
 
               {/* Action Buttons */}
               <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50">
-                <Btn variant="danger" size="sm" onClick={() => handleDenyRefund()} disabled={actionLoading}>
-                  <XCircle size={13} /> Deny Refund (₱0)
+                <Btn variant="danger" size="sm" onClick={() => handleOpenDenyModal(activeRefund)} disabled={actionLoading}>
+                  <XCircle size={13} /> Deny Refund
                 </Btn>
                 <div className="flex items-center gap-2">
                   <Btn variant="secondary" size="sm" onClick={() => setShowCalcModal(false)}>
@@ -1092,96 +1172,116 @@ export default function AdminRefunds() {
           </div>
         )}
 
-        {/* Printable Refund Voucher Modal */}
-        {voucherModalRow && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-lg max-w-xl w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 my-6">
-              {/* Receipt Action Header */}
-
-              <div className="flex items-center justify-between border-b border-gray-200 pb-4 print:hidden">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Refund Voucher Preview</span>
+        {/* Denial Confirmation Modal */}
+        {denyModalRow && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl max-w-md w-full shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in duration-150">
+              <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Btn variant="primary" size="sm" onClick={() => window.print()}>
-                    <Printer size={13} /> Print Voucher
-                  </Btn>
-                  <button onClick={() => setVoucherModalRow(null)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700">
-                    <X size={18} />
-                  </button>
+                  <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                    <ShieldAlert size={18} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-gray-900">Deny Refund Request</h3>
+                    <p className="text-[11px] text-gray-500">{denyModalRow.bookingRef} • {denyModalRow.customerName}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDenyModalRow(null)}
+                  className="text-gray-400 hover:text-gray-700 p-1 rounded-lg"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-4 sm:p-5 space-y-3.5 text-xs">
+                <div className="bg-amber-50/80 border border-amber-200/80 rounded-lg p-3 text-amber-900 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-[11px]">
+                    <AlertTriangle size={13} className="text-amber-600 shrink-0" />
+                    <span>Confirmation Required</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    Denying this request will mark the refund as <strong>Denied</strong> with ₱0 disbursement. The customer's original payment ({fmt(denyModalRow.totalPaid)}) will remain intact.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-800 mb-1">
+                    Reason for Denial <span className="text-rose-600">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={denialReasonText}
+                    onChange={(e) => {
+                      setDenialReasonText(e.target.value);
+                      if (denialError) setDenialError("");
+                    }}
+                    placeholder="Explain why this refund is denied (e.g., Non-refundable cancellation requested within 48 hours of event per policy terms)..."
+                    className={`w-full text-xs border rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-rose-500/30 ${
+                      denialError ? "border-rose-400 bg-rose-50/20" : "border-gray-200"
+                    }`}
+                  />
+                  {denialError && (
+                    <p className="text-[11px] text-rose-600 font-medium mt-1">{denialError}</p>
+                  )}
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    This explanation will be recorded and shared with the customer so they understand the decision.
+                  </p>
                 </div>
               </div>
 
-              {/* Printable Canvas */}
-              <div className="space-y-6 text-foreground">
-                {/* Branding Header */}
-                <div className="text-center border-b border-gray-200 pb-4">
-                  <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-accent">
-                    iReserve Events & Catering
-                  </h2>
-                  <p className="text-xs text-gray-500 mt-0.5">Cavite, Philippines • Official Refund Voucher</p>
-                </div>
-
-                {/* Voucher Metadata */}
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-gray-400 block">VOUCHER REF</span>
-                    <span className="font-mono font-bold text-sm text-foreground">
-                      RFD-{voucherModalRow._id.slice(-8).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-gray-400 block">DATE</span>
-                    <span className="font-semibold">{formatDate(voucherModalRow.updatedAt)}</span>
-                  </div>
-                </div>
-
-                {/* Payee Details */}
-                <div className="bg-gray-50 p-4 rounded-xl space-y-1 text-xs border border-gray-100">
-                  <div className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Recipient (Customer)</div>
-                  <div className="font-bold text-sm text-foreground">{voucherModalRow.customerName}</div>
-                  <div className="text-gray-500">{voucherModalRow.customerEmail} • {voucherModalRow.customerPhone}</div>
-                  <div className="text-gray-500 font-mono">Booking Ref: {voucherModalRow.bookingRef}</div>
-                </div>
-
-                {/* Financial Table */}
-                <table className="w-full text-xs text-left">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-gray-400 text-[10px] uppercase">
-                      <th className="py-2">Item Description</th>
-                      <th className="py-2 text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    <tr>
-                      <td className="py-2.5 text-gray-700">Total Customer Deposit Paid</td>
-                      <td className="py-2.5 text-right font-semibold text-gray-800">{fmt(voucherModalRow.totalPaid)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2.5 font-semibold text-foreground">Net Refund Disbursed</td>
-                      <td className="py-2.5 text-right font-bold text-red-600 text-sm">{fmt(voucherModalRow.totalRefunded)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                {/* Remarks & Signatures */}
-                <div className="border-t border-gray-200 pt-4 space-y-4">
-                  <div className="text-xs">
-                    <span className="text-gray-400 block text-[10px]">REMARKS</span>
-                    <span className="text-gray-700 italic">{voucherModalRow.reason}</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-4 text-xs">
-                    <div>
-                      <span className="text-gray-400 block text-[10px]">STATUS</span>
-                      <span className="font-bold text-emerald-600 uppercase tracking-wider">Approved & Settled</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="border-b border-gray-400 w-32 ml-auto mb-1"></div>
-                      <span className="text-[10px] text-gray-400 block uppercase">Authorized Signature</span>
-                    </div>
-                  </div>
-                </div>
+              <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-t border-gray-100 bg-gray-50/80 flex items-center justify-end gap-2">
+                <Btn
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setDenyModalRow(null)}
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </Btn>
+                <Btn
+                  variant="danger"
+                  size="sm"
+                  onClick={handleConfirmDeny}
+                  disabled={actionLoading}
+                  className="gap-1.5"
+                >
+                  {actionLoading ? "Denying..." : "Confirm Denial"}
+                </Btn>
               </div>
             </div>
           </div>
+        )}
+
+        {/* Customer-Aligned Printable Refund Voucher Modal */}
+        {voucherModalRow && (
+          <CustomerReceiptModal
+            payment={
+              voucherModalRow.refundRecord || {
+                _id: voucherModalRow._id,
+                amount: -Number(voucherModalRow.totalRefunded || 0),
+                payment_type: "refund",
+                method: voucherModalRow.bookingObj?.payment_method || "manual",
+                status: "approved",
+                paid_at: voucherModalRow.updatedAt,
+                customer_id: voucherModalRow.bookingObj?.customer_id,
+                reference_number: voucherModalRow.bookingRef,
+              }
+            }
+            booking={
+              voucherModalRow.bookingObj || {
+                reference: voucherModalRow.bookingRef,
+                event_type: voucherModalRow.eventType,
+                event_date: voucherModalRow.eventDate,
+                contact_first_name: voucherModalRow.customerName,
+                contact_email: voucherModalRow.customerEmail,
+                contact_phone: voucherModalRow.customerPhone,
+              }
+            }
+            onClose={() => setVoucherModalRow(null)}
+            formatCurrency={fmt}
+          />
         )}
       </div>
     </AdminLayout>

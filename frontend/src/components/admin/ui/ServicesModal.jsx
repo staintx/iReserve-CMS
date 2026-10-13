@@ -20,7 +20,8 @@ export default function ServicesModal({ isOpen = true, onClose, onServicesChange
       const res = await AdminAPI.getServices();
       setServices(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      notify("Failed to load services list", "error");
+      const msg = err.response?.data?.message || "Failed to load services list";
+      notify(msg, "error");
     } finally {
       setLoading(false);
     }
@@ -36,14 +37,20 @@ export default function ServicesModal({ isOpen = true, onClose, onServicesChange
   if (!isOpen) return null;
 
   const normalizedInput = serviceName.trim().toLowerCase();
-  const isDuplicate = services.some(
-    (s) => s.name && s.name.trim().toLowerCase() === normalizedInput
+  const isDuplicate = Boolean(
+    normalizedInput &&
+    services.some(
+      (s) => s.name && s.name.trim().toLowerCase() === normalizedInput
+    )
   );
 
   const handleAddService = async (e) => {
     if (e) e.preventDefault();
     const trimmed = serviceName.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      notify("Please enter a service name.", "error");
+      return;
+    }
 
     if (isDuplicate) {
       notify(`Service "${trimmed}" already exists.`, "error");
@@ -78,7 +85,8 @@ export default function ServicesModal({ isOpen = true, onClose, onServicesChange
       setServices((prev) => prev.filter((s) => s._id !== id));
       if (onServicesChanged) onServicesChanged();
     } catch (err) {
-      notify("Failed to remove service", "error");
+      const msg = err.response?.data?.message || "Failed to remove service";
+      notify(msg, "error");
     } finally {
       setDeletingId(null);
     }

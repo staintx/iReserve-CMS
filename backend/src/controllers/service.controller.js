@@ -57,8 +57,6 @@ const ensureDefaultServices = async () => {
 // GET /api/services
 exports.getServices = async (req, res) => {
   try {
-    await ensureDefaultServices();
-
     const isAdmin = req.user && (req.user.role === "admin" || req.user.role === "manager");
     const includeInactive = req.query.all === "true" || (isAdmin && req.query.active_only !== "true");
 
@@ -116,6 +114,9 @@ exports.createService = async (req, res) => {
     await service.save();
     res.status(201).json(service);
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: `Service "${req.body.name?.trim() || "item"}" already exists.` });
+    }
     if (error.status === 400 || error.statusCode === 400) {
       return res.status(400).json({ message: error.message });
     }
@@ -173,6 +174,15 @@ exports.updateService = async (req, res) => {
     await service.save();
     res.json(service);
   } catch (error) {
+    if (error.name === "CastError") {
+      return res.status(404).json({ message: "Service not found." });
+    }
+    if (error.code === 11000) {
+      return res.status(400).json({ message: `Service "${req.body.name?.trim() || "item"}" already exists.` });
+    }
+    if (error.status === 400 || error.statusCode === 400) {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: "Failed to update service", error: error.message });
   }
 };
@@ -189,6 +199,12 @@ exports.deleteService = async (req, res) => {
     await Service.findByIdAndDelete(id);
     res.json({ message: "Service removed successfully", id });
   } catch (error) {
+    if (error.name === "CastError") {
+      return res.status(404).json({ message: "Service not found." });
+    }
     res.status(500).json({ message: "Failed to delete service", error: error.message });
   }
 };
+
+exports.ensureDefaultServices = ensureDefaultServices;
+exports.DEFAULT_SERVICES = DEFAULT_SERVICES;

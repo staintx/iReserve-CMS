@@ -46,6 +46,7 @@ import FilterPopover, { FilterField } from "../../components/admin/table/FilterP
 import FilterChip from "../../components/admin/table/FilterChip";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import Pagination from "../../components/admin/table/Pagination";
+import usePagination from "../../hooks/usePagination";
 import AdminReceiptModal from "../../components/admin/payment/AdminReceiptModal";
 
 export default function AdminRefunds() {
@@ -176,7 +177,7 @@ export default function AdminRefunds() {
 
       setRefunds(refundsList);
       if (showToast) notify("Refund queue refreshed successfully.", "success");
-    } catch (err) {
+    } catch {
       notify("Failed to load refund queue data.", "error");
     } finally {
       setLoading(false);

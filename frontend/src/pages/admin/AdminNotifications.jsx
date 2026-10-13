@@ -110,6 +110,12 @@ export default function AdminNotifications() {
         state.booking_id = bId;
         state.action = "assign";
       }
+    } else if (user?.role === "admin") {
+      if (targetLink && /^\/admin\/bookings\/([a-f0-9]+)$/i.test(targetLink)) {
+        targetLink = `${targetLink}/details`;
+      } else if (!targetLink && state.booking_id) {
+        targetLink = `/admin/bookings/${state.booking_id}/details`;
+      }
     }
 
     if (targetLink) navigate(targetLink, { state });

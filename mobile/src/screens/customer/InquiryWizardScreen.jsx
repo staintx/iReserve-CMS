@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -107,19 +108,41 @@ const DEFAULT_SCAFFOLD_OPTIONS = [
   { _id: "scaffold_20x60", label: "20 × 60 ft", width_ft: 20, length_ft: 60, guest_max: 250, price: 45000 },
 ];
 
-const MENU_CATEGORIES = [
-  "All",
-  "Main Dish",
-  "Pork",
-  "Beef",
-  "Chicken",
-  "Seafood",
-  "Vegetables",
-  "Pasta",
-  "Dessert",
-  "Beverage",
-  "Appetizer",
-];
+/**
+ * DishThumbnail
+ * Displays the dish image from the database/API with real-time loading feedback
+ * and graceful fallback to a themed icon placeholder on error or absence.
+ */
+const DishThumbnail = React.memo(({ uri, isSelected }) => {
+  const [imageError, setImageError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  if (!uri || imageError) {
+    return (
+      <View style={[styles.dishImagePlaceholder, isSelected && styles.dishImagePlaceholderActive]}>
+        <Utensils size={22} color={isSelected ? colors.primary : colors.textDisabled} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.dishImageContainer}>
+      <Image
+        source={{ uri }}
+        style={styles.dishImage}
+        resizeMode="cover"
+        onLoadStart={() => setIsLoading(true)}
+        onLoadEnd={() => setIsLoading(false)}
+        onError={() => setImageError(true)}
+      />
+      {isLoading && (
+        <View style={styles.dishImageLoadingOverlay}>
+          <ActivityIndicator size="small" color={colors.primary} />
+        </View>
+      )}
+    </View>
+  );
+});
 
 export const InquiryWizardScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -296,6 +319,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   // Dishes & Dining
   const [selectedDishes, setSelectedDishes] = useState([]);
   const [activeMenuCat, setActiveMenuCat] = useState("All");
+  const [menuSearchQuery, setMenuSearchQuery] = useState("");
   const [allergies, setAllergies] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
 
@@ -393,6 +417,88 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   const isFoodOnly = serviceType === SERVICE_TYPES.FOOD_ONLY;
   const isEventSetupOnly = serviceType === SERVICE_TYPES.SETUP_ONLY;
   const isFullService = serviceType === SERVICE_TYPES.FULL_SERVICE;
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // DYNAMIC MENU TAXONOMY & SEARCH
+  // Derived dynamically from database/API MenuItem records (not hardcoded)
+  // ──────────────────────────────────────────────────────────────────────────
+  const dynamicMenuCategories = useMemo(() => {
+    if (!Array.isArray(menuItems) || menuItems.length === 0) {
+      return ["All"];
+    }
+
+    // Standard culinary progression for professional event catering
+    const categoryOrder = [
+      "appetizer",
+      "soup",
+      "salad",
+      "main course",
+      "main dish",
+      "mains",
+      "vegetable",
+      "pasta",
+      "rice",
+      "dessert",
+      "beverage",
+      "drinks",
+      "drinking water",
+    ];
+
+    const categoryMap = new Map();
+    menuItems.forEach((dish) => {
+      const raw = String(dish?.category || "").trim();
+      if (!raw) return;
+      const lower = raw.toLowerCase();
+      if (!categoryMap.has(lower)) {
+        categoryMap.set(lower, raw);
+      }
+    });
+
+    const categories = Array.from(categoryMap.values()).sort((a, b) => {
+      const indexA = categoryOrder.indexOf(a.toLowerCase());
+      const indexB = categoryOrder.indexOf(b.toLowerCase());
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+
+    return ["All", ...categories];
+  }, [menuItems]);
+
+  const categoryDishCounts = useMemo(() => {
+    const counts = { All: menuItems.length };
+    menuItems.forEach((dish) => {
+      const raw = String(dish?.category || "").trim();
+      if (raw) {
+        counts[raw] = (counts[raw] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [menuItems]);
+
+  // Keep active category valid if dynamic list changes
+  useEffect(() => {
+    if (activeMenuCat !== "All" && !dynamicMenuCategories.includes(activeMenuCat)) {
+      setActiveMenuCat("All");
+    }
+  }, [dynamicMenuCategories, activeMenuCat]);
+
+  // Filtered dishes based on dynamic category and live search query
+  const filteredDishes = useMemo(() => {
+    return menuItems.filter((dish) => {
+      const q = menuSearchQuery.trim().toLowerCase();
+      if (q) {
+        const matchesName = String(dish?.name || "").toLowerCase().includes(q);
+        const matchesDesc = String(dish?.description || "").toLowerCase().includes(q);
+        const matchesCat = String(dish?.category || "").toLowerCase().includes(q);
+        if (!matchesName && !matchesDesc && !matchesCat) return false;
+      }
+
+      if (activeMenuCat === "All") return true;
+      return String(dish?.category || "").trim().toLowerCase() === activeMenuCat.trim().toLowerCase();
+    });
+  }, [menuItems, menuSearchQuery, activeMenuCat]);
 
   // ══════════════════════════════════════════════════════════════════════════
   // DYNAMIC STEP PIPELINE
@@ -2025,62 +2131,164 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
 
                 {includeFood && (
                   <View style={{ marginTop: spacing.md }} onLayout={handleFieldLayout("menu")}>
-                    <View style={styles.sectionHeadingRow}>
-                      <Text style={styles.fieldLabel}>
-                        Select Dishes ({selectedDishes.length} selected)
-                      </Text>
-                      <Text style={styles.requiredAsterisk}> *</Text>
+                    {/* Header with Title, Selection Counter & Clear All Action */}
+                    <View style={styles.dishSelectionHeaderRow}>
+                      <View style={{ flex: 1, paddingRight: spacing.sm }}>
+                        <View style={styles.sectionHeadingRow}>
+                          <Text style={styles.fieldLabel}>
+                            Select Dishes ({selectedDishes.length} selected)
+                          </Text>
+                          <Text style={styles.requiredAsterisk}> *</Text>
+                        </View>
+                        <Text style={styles.dishSelectionHint}>
+                          {selectedDishes.length === 0
+                            ? "Tap any dish to include it in your banquet feast"
+                            : `${selectedDishes.length} dish${selectedDishes.length === 1 ? "" : "es"} selected for your event menu`}
+                        </Text>
+                      </View>
+                      {selectedDishes.length > 0 && (
+                        <TouchableOpacity
+                          style={styles.clearSelectionBtn}
+                          onPress={() => setSelectedDishes([])}
+                          activeOpacity={0.7}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityLabel="Clear all selected dishes"
+                        >
+                          <Text style={styles.clearSelectionText}>Clear all</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
+
                     {Boolean(fieldErrors.menu) && (
                       <Text style={styles.fieldErrorText}>{fieldErrors.menu}</Text>
                     )}
 
-                    {/* Category Filter Tabs */}
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
-                      {MENU_CATEGORIES.map((cat) => {
-                        const isSelected = activeMenuCat === cat;
+                    {/* Search Bar for Quick Dish Finding */}
+                    <View style={styles.menuSearchContainer}>
+                      <Search size={16} color={colors.foregroundMuted} />
+                      <TextInput
+                        style={styles.menuSearchInput}
+                        placeholder="Search dishes by name or course..."
+                        placeholderTextColor={colors.textDisabled}
+                        value={menuSearchQuery}
+                        onChangeText={setMenuSearchQuery}
+                        returnKeyType="search"
+                        autoCorrect={false}
+                        accessibilityLabel="Search menu dishes"
+                      />
+                      {menuSearchQuery.length > 0 && (
+                        <TouchableOpacity
+                          onPress={() => setMenuSearchQuery("")}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityLabel="Clear dish search"
+                        >
+                          <X size={16} color={colors.foregroundMuted} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {/* Dynamic Category Filter Tabs with Item Counts */}
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.categoryScroll}
+                    >
+                      {dynamicMenuCategories.map((cat) => {
+                        const isSelected = activeMenuCat.toLowerCase() === cat.toLowerCase();
+                        const count = categoryDishCounts[cat] || 0;
                         return (
                           <TouchableOpacity
                             key={cat}
                             style={[styles.categoryChip, isSelected && styles.categoryChipActive]}
                             onPress={() => setActiveMenuCat(cat)}
                             activeOpacity={0.7}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: isSelected }}
+                            accessibilityLabel={`Filter by ${cat}, ${count} dishes`}
                           >
                             <Text style={[styles.categoryChipText, isSelected && styles.categoryChipTextActive]}>
                               {cat}
                             </Text>
+                            <View style={[styles.categoryCountBadge, isSelected && styles.categoryCountBadgeActive]}>
+                              <Text style={[styles.categoryCountText, isSelected && styles.categoryCountTextActive]}>
+                                {count}
+                              </Text>
+                            </View>
                           </TouchableOpacity>
                         );
                       })}
                     </ScrollView>
 
-                    {/* Dishes List */}
-                    <View style={styles.dishList}>
-                      {menuItems
-                        .filter((dish) => {
-                          if (activeMenuCat === "All") return true;
-                          return (dish.category || "").toLowerCase().includes(activeMenuCat.toLowerCase());
-                        })
-                        .map((dish) => {
+                    {/* Dishes List with Live Photos, Rich Details, and Selected States */}
+                    {filteredDishes.length === 0 ? (
+                      <View style={styles.emptyDishesCard}>
+                        <View style={styles.emptyDishesIconWrap}>
+                          <Utensils size={24} color={colors.primary} />
+                        </View>
+                        <Text style={styles.emptyDishesTitle}>No Dishes Found</Text>
+                        <Text style={styles.emptyDishesDesc}>
+                          {menuSearchQuery
+                            ? `No dishes match "${menuSearchQuery}" in ${activeMenuCat === "All" ? "our menu" : activeMenuCat}.`
+                            : `No dishes are currently available under ${activeMenuCat}.`}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.emptyDishesResetBtn}
+                          onPress={() => {
+                            setMenuSearchQuery("");
+                            setActiveMenuCat("All");
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.emptyDishesResetText}>View All Dishes</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View style={styles.dishList}>
+                        {filteredDishes.map((dish) => {
                           const isSelected = selectedDishes.some((d) => d._id === dish._id);
                           return (
                             <TouchableOpacity
                               key={dish._id}
                               style={[styles.dishItem, isSelected && styles.dishItemActive]}
                               onPress={() => toggleDishSelection(dish)}
-                              activeOpacity={0.7}
+                              activeOpacity={0.75}
+                              accessibilityRole="checkbox"
+                              accessibilityState={{ checked: isSelected }}
+                              accessibilityLabel={`${dish.name}, ${dish.category || "Course"}, ${isSelected ? "selected" : "not selected"}`}
                             >
-                              <View style={[styles.dishCheckbox, isSelected && styles.dishCheckboxActive]}>
-                                {isSelected && <Check size={14} color={colors.white} />}
+                              {/* Dish Photo Thumbnail from Database */}
+                              <View style={[styles.dishImageWrap, isSelected && styles.dishImageWrapActive]}>
+                                <DishThumbnail uri={dish.image_url} isSelected={isSelected} />
                               </View>
+
+                              {/* Dish Info */}
                               <View style={styles.dishInfo}>
-                                <Text style={styles.dishName}>{dish.name}</Text>
-                                <Text style={styles.dishCategory}>{dish.category || "Main Dish"}</Text>
+                                <View style={styles.dishHeaderRow}>
+                                  <View style={[styles.dishCategoryPill, isSelected && styles.dishCategoryPillActive]}>
+                                    <Text style={[styles.dishCategoryText, isSelected && styles.dishCategoryTextActive]}>
+                                      {dish.category || "Course"}
+                                    </Text>
+                                  </View>
+                                </View>
+                                <Text style={[styles.dishName, isSelected && styles.dishNameActive]} numberOfLines={2}>
+                                  {dish.name}
+                                </Text>
+                                {Boolean(dish.description) && (
+                                  <Text style={styles.dishDescription} numberOfLines={2}>
+                                    {dish.description}
+                                  </Text>
+                                )}
+                              </View>
+
+                              {/* Selection Checkbox */}
+                              <View style={[styles.dishCheckbox, isSelected && styles.dishCheckboxActive]}>
+                                {isSelected && <Check size={14} color={colors.white} strokeWidth={2.5} />}
                               </View>
                             </TouchableOpacity>
                           );
                         })}
-                    </View>
+                      </View>
+                    )}
                   </View>
                 )}
               </View>
@@ -3470,23 +3678,70 @@ const styles = StyleSheet.create({
     color: colors.foregroundMuted,
     marginTop: 2,
   },
+  dishSelectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: spacing.xs + 2,
+  },
+  dishSelectionHint: {
+    fontSize: typography.sizes.xs,
+    color: colors.foregroundMuted,
+    marginTop: 2,
+  },
+  clearSelectionBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  clearSelectionText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: "600",
+    color: colors.error,
+  },
+  menuSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: Platform.OS === "ios" ? 10 : 6,
+    marginBottom: spacing.xs + 4,
+    ...shadows.xs,
+  },
+  menuSearchInput: {
+    flex: 1,
+    fontSize: typography.sizes.sm,
+    color: colors.foreground,
+    marginLeft: spacing.sm,
+    padding: 0,
+  },
   categoryScroll: {
     paddingVertical: spacing.xs,
     gap: spacing.xs,
     marginBottom: spacing.sm,
   },
   categoryChip: {
-    backgroundColor: colors.surfaceAlt,
-    paddingVertical: spacing.xs + 2,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    paddingVertical: 7,
     paddingHorizontal: spacing.md,
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.borderLight,
     marginRight: spacing.xs,
+    ...shadows.xs,
   },
   categoryChipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
+    ...shadows.xs,
   },
   categoryChipText: {
     fontSize: typography.sizes.xs,
@@ -3495,41 +3750,190 @@ const styles = StyleSheet.create({
   },
   categoryChipTextActive: {
     color: colors.white,
+    fontWeight: "700",
+  },
+  categoryCountBadge: {
+    marginLeft: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceAlt,
+  },
+  categoryCountBadgeActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  },
+  categoryCountText: {
+    fontSize: 10.5,
+    fontWeight: "700",
+    color: colors.foregroundMuted,
+  },
+  categoryCountTextActive: {
+    color: colors.white,
+  },
+  emptyDishesCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    padding: spacing.xl,
+    alignItems: "center",
+    marginTop: spacing.xs,
+    ...shadows.xs,
+  },
+  emptyDishesIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.sm,
+  },
+  emptyDishesTitle: {
+    fontSize: typography.sizes.sm + 1,
+    fontWeight: "700",
+    color: colors.foreground,
+    marginBottom: 4,
+  },
+  emptyDishesDesc: {
+    fontSize: typography.sizes.xs,
+    color: colors.foregroundMuted,
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: spacing.md,
+    maxWidth: 280,
+  },
+  emptyDishesResetBtn: {
+    backgroundColor: colors.primaryLight,
+    paddingVertical: spacing.xs + 3,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  emptyDishesResetText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: "700",
+    color: colors.primary,
   },
   dishList: {
-    gap: spacing.xs,
+    gap: spacing.xs + 2,
   },
   dishItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
-    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.borderLight,
+    padding: spacing.sm + 2,
+    marginBottom: spacing.xs + 1,
+    ...shadows.xs,
   },
   dishItemActive: {
     backgroundColor: colors.primaryLight,
+    borderColor: colors.primary,
+    ...shadows.sm,
+  },
+  dishImageWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  dishImageWrapActive: {
+    borderColor: colors.primaryBorder,
+  },
+  dishImageContainer: {
+    width: "100%",
+    height: "100%",
+    position: "relative",
+  },
+  dishImage: {
+    width: "100%",
+    height: "100%",
+  },
+  dishImageLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dishImagePlaceholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: colors.surfaceAlt,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dishImagePlaceholderActive: {
+    backgroundColor: colors.primaryLight,
+  },
+  dishInfo: {
+    flex: 1,
+    marginLeft: spacing.sm + 4,
+    marginRight: spacing.sm,
+    justifyContent: "center",
+  },
+  dishHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 3,
+  },
+  dishCategoryPill: {
+    backgroundColor: colors.surfaceAlt,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radius.xs,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    alignSelf: "flex-start",
+  },
+  dishCategoryPillActive: {
+    backgroundColor: colors.powderBlue,
+    borderColor: colors.primaryBorder,
+  },
+  dishCategoryText: {
+    fontSize: 9.5,
+    fontWeight: "700",
+    color: colors.foregroundMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  dishCategoryTextActive: {
+    color: colors.primaryDark,
+  },
+  dishName: {
+    fontSize: typography.sizes.sm + 0.5,
+    fontWeight: "700",
+    color: colors.foreground,
+    lineHeight: 18,
+    marginBottom: 2,
+  },
+  dishNameActive: {
+    color: colors.primaryDark,
+  },
+  dishDescription: {
+    fontSize: 11.5,
+    color: colors.foregroundMuted,
+    lineHeight: 15.5,
   },
   dishCheckbox: {
-    width: 22,
-    height: 22,
+    width: 24,
+    height: 24,
     borderRadius: radius.xs,
     borderWidth: 1.5,
     borderColor: colors.border,
+    backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: spacing.md,
   },
   dishCheckboxActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
-  },
-  dishInfo: {
-    flex: 1,
-  },
-  dishName: {
-    fontSize: typography.sizes.sm,
-    fontWeight: "600",
-    color: colors.foreground,
   },
   dishCategory: {
     fontSize: 11,

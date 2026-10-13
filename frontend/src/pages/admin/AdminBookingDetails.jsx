@@ -121,9 +121,12 @@ export default function AdminBookingDetails() {
   const [showRejectCancelModal, setShowRejectCancelModal] = useState(false);
   const [cancelActionLoading, setCancelActionLoading] = useState(false);
   const [adminCancelNote, setAdminCancelNote] = useState("");
-  const [refundMode, setRefundMode] = useState("queue"); // 'queue' | 'custom'
+  const [refundMode, setRefundMode] = useState("forfeit"); // 'forfeit' | 'custom' | 'queue'
   const [customRefundAmount, setCustomRefundAmount] = useState("");
   const [customRefundReason, setCustomRefundReason] = useState("");
+  const [penaltyReasonPreset, setPenaltyReasonPreset] = useState("no_show"); // 'no_show' | 'late_cancel' | 'uncooperative' | 'standard' | 'custom'
+  const [customPenaltyReason, setCustomPenaltyReason] = useState("");
+  const [cancellationReasonInput, setCancellationReasonInput] = useState("");
 
   // Form states
   const [quoteForm, setQuoteForm] = useState({ total_price: "", notes: "" });
@@ -414,17 +417,48 @@ export default function AdminBookingDetails() {
     try {
       const payload = {
         admin_notes: adminCancelNote,
+        cancellation_reason: cancellationReasonInput || booking.cancellation_reason || booking.cancellation_request?.reason || adminCancelNote || "Cancelled by management",
       };
-      if (refundMode === "custom" && customRefundAmount !== "") {
-        payload.refund_amount = Number(customRefundAmount);
+
+      if (refundMode === "forfeit") {
+        payload.refund_amount = 0;
+        payload.penalty_amount = totalPaid;
+        let pReason = "Standard non-refundable deposit terms";
+        let cType = "standard";
+        if (penaltyReasonPreset === "no_show") {
+          pReason = "Client failed to show up on event date (No-Show forfeiture)";
+          cType = "no_show";
+        } else if (penaltyReasonPreset === "late_cancel") {
+          pReason = "Late cancellation (< 14 days before scheduled event date)";
+          cType = "customer_requested";
+        } else if (penaltyReasonPreset === "uncooperative") {
+          pReason = "Client non-cooperation / agreement breach";
+          cType = "breach_uncooperative";
+        } else if (penaltyReasonPreset === "custom") {
+          pReason = customPenaltyReason || adminCancelNote || "Deposit forfeited per cancellation policy";
+          cType = "admin_direct";
+        }
+        payload.penalty_reason = pReason;
+        payload.cancellation_type = cType;
+        payload.policy_clause = "Section 1 & 2: Non-Refundable Deposit Rule & Client Cancellation Timelines";
+      } else if (refundMode === "custom" && customRefundAmount !== "") {
+        const numRef = Number(customRefundAmount);
+        payload.refund_amount = numRef;
         payload.refund_reason = customRefundReason || adminCancelNote || "Approved cancellation refund";
+        const deduction = Math.max(0, totalPaid - numRef);
+        if (deduction > 0) {
+          payload.penalty_amount = deduction;
+          payload.penalty_reason = customRefundReason || "Cancellation deduction fee";
+          payload.policy_clause = "Section 2: Client Cancellation Timelines (Partial Forfeiture)";
+        }
       }
+
       await AdminAPI.approveCancellation(booking._id, payload);
-      notify("Booking cancellation approved.", "success");
+      notify("Booking cancellation processed successfully.", "success");
       setShowApproveCancelModal(false);
       loadData();
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to approve cancellation.", "error");
+      notify(err.response?.data?.message || "Failed to process cancellation.", "error");
     } finally {
       setCancelActionLoading(false);
     }
@@ -1360,13 +1394,47 @@ export default function AdminBookingDetails() {
                   className="font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-2xs"
                   onClick={() => {
                     setAdminCancelNote("");
+                    setCancellationReasonInput(cancellationReason || "");
                     setCustomRefundAmount(totalPaid > 0 ? String(totalPaid * 0.5) : "0");
-                    setRefundMode("queue");
+                    setRefundMode(totalPaid > 0 ? "forfeit" : "custom");
+                    setPenaltyReasonPreset("late_cancel");
                     setShowApproveCancelModal(true);
                   }}
                 >
                   <Check className="w-3.5 h-3.5 mr-1" /> Review &amp; Approve
                 </Btn>
+              </div>
+            </div>
+          )}
+
+          {/* Active Cancelled Status & Penalty Banner */}
+          {rawStatus === "cancelled" && (
+            <div className="bg-rose-50/95 border border-rose-200 rounded-lg p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-bold text-rose-950 text-xs sm:text-sm">
+                      {Number(booking.cancellation_penalty_amount || 0) > 0
+                        ? `Booking Cancelled — ₱${Number(booking.cancellation_penalty_amount).toLocaleString("en-PH")} Deposit Forfeited (Penalty)`
+                        : booking.payment_status === "refunded"
+                        ? "Booking Cancelled & Refunded"
+                        : "Booking Cancelled"}
+                    </h4>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                      Cancelled
+                    </span>
+                  </div>
+                  <p className="text-rose-900 text-xs">
+                    <strong>Reason / Penalty Assessment:</strong>{" "}
+                    {booking.cancellation_penalty_reason || booking.cancellation_reason || booking.cancellation_request?.admin_notes || "Cancelled by admin"}
+                  </p>
+                  {booking.cancellation_policy_clause && (
+                    <p className="text-rose-700 text-[11px]">
+                      <strong>Governing Policy:</strong> {booking.cancellation_policy_clause}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -3224,22 +3292,23 @@ export default function AdminBookingDetails() {
           <PrintableInvoice booking={booking} payments={payments} businessInfo={businessInfo} />
         )}
 
-        {/* Approve Booking Cancellation Modal */}
+        {/* Approve / Process Booking Cancellation & Penalty Modal */}
         <Dialog open={showApproveCancelModal} onOpenChange={setShowApproveCancelModal}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md sm:max-w-lg">
             <DialogHeader>
               <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center mb-1 text-rose-600">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <DialogTitle className="text-base font-bold text-foreground">
-                Approve Booking Cancellation?
+                Process Booking Cancellation &amp; Policy Terms
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                This will officially cancel booking <strong>#{booking.reference || booking._id}</strong>, release any reserved inventory items, and update customer status.
+                This will officially cancel booking <strong>#{booking.reference || booking._id}</strong>, release any reserved inventory items, and apply policy terms.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-3 py-1">
+            <div className="space-y-3 py-1 text-xs">
+              {/* Context overview box */}
               <div className="p-3 bg-muted/40 rounded-lg border border-border/70 text-xs space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Client:</span>
@@ -3252,49 +3321,125 @@ export default function AdminBookingDetails() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Amount Paid:</span>
+                  <span className="text-muted-foreground">Amount Collected / Paid:</span>
                   <span className="font-bold text-emerald-700 font-mono">{fmt(totalPaid)}</span>
                 </div>
-                <div className="pt-1 border-t border-border/50 text-[11px] text-muted-foreground">
-                  <strong>Customer Reason:</strong> "{cancellationReason}"
-                </div>
+                {isCancellationPending ? (
+                  <div className="pt-1 border-t border-border/50 text-[11px] text-muted-foreground">
+                    <strong>Customer Stated Reason:</strong> "{cancellationReason}"
+                  </div>
+                ) : (
+                  <div className="pt-1.5 border-t border-border/50 space-y-1">
+                    <label className="text-[11px] font-semibold text-foreground block">
+                      Cancellation Circumstance / Reason:
+                    </label>
+                    <Input
+                      type="text"
+                      value={cancellationReasonInput}
+                      onChange={(e) => setCancellationReasonInput(e.target.value)}
+                      placeholder="e.g., Client No-Show, late cancellation, emergency..."
+                      className="text-xs h-7.5"
+                    />
+                  </div>
+                )}
               </div>
 
+              {/* Resolution options when payments were made */}
               {totalPaid > 0 && (
                 <div className="space-y-2 pt-1 border-t border-border/60">
                   <label className="text-xs font-bold text-foreground block">
-                    Refund Resolution Method
+                    Cancellation &amp; Policy Resolution Method
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
-                      onClick={() => setRefundMode("queue")}
-                      className={`p-2.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "queue"
-                          ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary"
+                      onClick={() => setRefundMode("forfeit")}
+                      className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "forfeit"
+                          ? "border-rose-500 bg-rose-50/50 text-foreground font-semibold ring-1 ring-rose-500"
                           : "border-border bg-background text-muted-foreground hover:border-border/80"
                         }`}
                     >
-                      <div className="font-bold text-xs text-foreground mb-0.5">Send to Refund Queue</div>
+                      <div className="font-bold text-xs text-rose-900 mb-0.5 flex items-center gap-1">
+                        <ShieldAlert className="w-3 h-3 text-rose-600 shrink-0" />
+                        Forfeit Deposit
+                      </div>
                       <p className="text-[10px] text-muted-foreground leading-tight">
-                        Calculate exact deductions &amp; issue refund voucher in Refund Management.
+                        Non-refundable penalty per policy. ₱0 refund issued.
                       </p>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setRefundMode("custom")}
-                      className={`p-2.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "custom"
+                      className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "custom"
                           ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary"
                           : "border-border bg-background text-muted-foreground hover:border-border/80"
                         }`}
                     >
-                      <div className="font-bold text-xs text-foreground mb-0.5">Direct Refund Now</div>
+                      <div className="font-bold text-xs text-foreground mb-0.5">Custom Refund</div>
                       <p className="text-[10px] text-muted-foreground leading-tight">
-                        Specify immediate refund amount and record refund transaction now.
+                        Specify partial refund amount and penalty deduction.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRefundMode("queue")}
+                      className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${refundMode === "queue"
+                          ? "border-primary bg-primary/5 text-foreground font-semibold ring-1 ring-primary"
+                          : "border-border bg-background text-muted-foreground hover:border-border/80"
+                        }`}
+                    >
+                      <div className="font-bold text-xs text-foreground mb-0.5">Refund Queue</div>
+                      <p className="text-[10px] text-muted-foreground leading-tight">
+                        Send to Refund Management for finance review.
                       </p>
                     </button>
                   </div>
 
+                  {/* Mode = Forfeit details */}
+                  {refundMode === "forfeit" && (
+                    <div className="p-3 bg-rose-50/40 rounded-lg border border-rose-200/80 space-y-2 mt-2">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-semibold text-rose-950">Penalty Amount Forfeited:</span>
+                        <span className="font-mono font-bold text-rose-700 text-sm">{fmt(totalPaid)}</span>
+                      </div>
+                      <p className="text-[11px] text-rose-800 leading-tight">
+                        Enforces <strong>Section 1 &amp; 2 of Cancellation Policy</strong>: deposits are non-refundable to cover ingredient procurement, kitchen capacity, and administrative costs.
+                      </p>
+
+                      <div className="space-y-1.5 pt-1">
+                        <label className="text-[11px] font-semibold text-foreground block">
+                          Penalty Assessment Reason:
+                        </label>
+                        <select
+                          value={penaltyReasonPreset}
+                          onChange={(e) => setPenaltyReasonPreset(e.target.value)}
+                          className="w-full text-xs rounded border border-border p-1.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          <option value="no_show">Customer failed to show up on event date (No-Show)</option>
+                          <option value="late_cancel">Late cancellation (&lt; 14 days prior to event)</option>
+                          <option value="uncooperative">Customer non-cooperation / breach of agreement</option>
+                          <option value="standard">Standard non-refundable deposit terms</option>
+                          <option value="custom">Other / Custom penalty explanation...</option>
+                        </select>
+                      </div>
+
+                      {penaltyReasonPreset === "custom" && (
+                        <div className="pt-1">
+                          <Input
+                            type="text"
+                            value={customPenaltyReason}
+                            onChange={(e) => setCustomPenaltyReason(e.target.value)}
+                            placeholder="Specify exact penalty reason..."
+                            className="text-xs h-7.5"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Mode = Custom details */}
                   {refundMode === "custom" && (
                     <div className="p-3 bg-muted/30 rounded-lg border border-border/80 space-y-2 mt-2">
                       <div>
@@ -3311,9 +3456,14 @@ export default function AdminBookingDetails() {
                           placeholder="0.00"
                           className="text-xs font-mono h-8"
                         />
-                        <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                          Maximum refundable: {fmt(totalPaid)}
-                        </span>
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                          <span>Max refundable: {fmt(totalPaid)}</span>
+                          {Number(customRefundAmount) > 0 && totalPaid > Number(customRefundAmount) && (
+                            <span className="text-rose-700 font-semibold">
+                              Retained penalty: {fmt(totalPaid - Number(customRefundAmount))}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <label className="text-[11px] font-semibold text-foreground block mb-1">
@@ -3323,7 +3473,7 @@ export default function AdminBookingDetails() {
                           type="text"
                           value={customRefundReason}
                           onChange={(e) => setCustomRefundReason(e.target.value)}
-                          placeholder="e.g., 50% deposit refund per cancellation terms"
+                          placeholder="e.g., 50% deposit deduction per cancellation terms"
                           className="text-xs h-8"
                         />
                       </div>
@@ -3362,7 +3512,7 @@ export default function AdminBookingDetails() {
                 onClick={handleApproveCancellation}
                 disabled={cancelActionLoading}
               >
-                {cancelActionLoading ? "Processing..." : "Confirm Cancellation"}
+                {cancelActionLoading ? "Processing..." : refundMode === "forfeit" ? "Confirm Forfeiture & Cancel" : "Confirm Cancellation"}
               </Btn>
             </DialogFooter>
           </DialogContent>
@@ -3799,6 +3949,16 @@ export default function AdminBookingDetails() {
                 onClick={() => {
                   if (!selectedNewStatus) {
                     notify("Please select a status to apply.", "warning");
+                    return;
+                  }
+                  if (selectedNewStatus?.toLowerCase() === "cancelled") {
+                    setShowStatusSelectModal(false);
+                    setAdminCancelNote("");
+                    setCancellationReasonInput(booking.cancellation_reason || "");
+                    setRefundMode(totalPaid > 0 ? "forfeit" : "custom");
+                    setPenaltyReasonPreset("no_show");
+                    setCustomRefundAmount("0");
+                    setShowApproveCancelModal(true);
                     return;
                   }
                   setShowStatusSelectModal(false);

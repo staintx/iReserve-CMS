@@ -40,6 +40,7 @@ export const AdminAPI = {
   completeOcular: (id, data) => api.post(`/bookings/${id}/ocular/complete`, data),
   resolveChangeRequest: (id, data) => api.post(`/bookings/${id}/change-request/resolve`, data),
   approveCancellation: (id, data) => api.post(`/bookings/${id}/cancellation/approve`, data),
+  cancelBooking: (id, data) => api.post(`/bookings/${id}/cancel`, data),
   rejectCancellation: (id, data) => api.post(`/bookings/${id}/cancellation/reject`, data),
   sendQuote: (id, data) => api.put(`/bookings/${id}/send-quote`, data),
   proposeRevision: (id, data) => api.post(`/bookings/${id}/propose-revision`, data),

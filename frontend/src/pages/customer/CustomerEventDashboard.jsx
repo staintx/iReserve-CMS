@@ -40,6 +40,7 @@ import {
   Eye,
   ShieldAlert,
   RefreshCcw,
+  XCircle,
 } from "lucide-react";
 import { getBookingOcularActionMeta } from "../../utils/ocularStatusHelper";
 import { isBookingAwaitingDeposit } from "../../utils/bookingDeposit";
@@ -1467,6 +1468,64 @@ export default function CustomerEventDashboard() {
 
           {/* TAB 1: RESERVATION OVERVIEW (FOCUSED OPERATIONAL DASHBOARD) */}
           <TabsContent value="overview" className="space-y-6">
+            {/* CANCELLATION / PENALTY OVERVIEW CARD */}
+            {isCancelled && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4 sm:p-5 space-y-3.5 shadow-2xs">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full bg-rose-100 border border-rose-200 flex items-center justify-center shrink-0 text-rose-600 mt-0.5">
+                    <XCircle className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-sm sm:text-base text-rose-950">
+                        {Number(booking.cancellation_penalty_amount || 0) > 0
+                          ? "Booking Cancelled — Penalty Applied (Deposit Forfeited)"
+                          : booking.payment_status === "refunded"
+                          ? "Booking Cancelled & Refund Processed"
+                          : "Booking Cancelled"}
+                      </h3>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                        Cancelled
+                      </span>
+                    </div>
+
+                    {Number(booking.cancellation_penalty_amount || 0) > 0 ? (
+                      <div className="space-y-2 pt-1 text-xs">
+                        <p className="text-rose-900 leading-relaxed">
+                          In accordance with our <strong>Cancellation &amp; Refund Policy</strong>, collected payment of{" "}
+                          <strong className="font-mono text-rose-950 font-bold">
+                            {formatCurrency(booking.cancellation_penalty_amount)}
+                          </strong>{" "}
+                          has been forfeited as a non-refundable cancellation penalty.
+                        </p>
+                        <div className="p-2.5 rounded-lg bg-white/90 border border-rose-200/80 text-xs text-rose-950 space-y-1">
+                          <div className="flex justify-between flex-wrap gap-1">
+                            <span className="text-slate-500 font-medium">Penalty Assessment:</span>
+                            <span className="font-semibold text-rose-900">
+                              {booking.cancellation_penalty_reason || booking.cancellation_reason || "Cancellation / No-Show per policy terms"}
+                            </span>
+                          </div>
+                          {booking.cancellation_policy_clause && (
+                            <div className="flex justify-between flex-wrap gap-1 pt-1 border-t border-rose-100 text-[11px]">
+                              <span className="text-slate-500">Governing Policy:</span>
+                              <span className="font-medium text-slate-700">{booking.cancellation_policy_clause}</span>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-600 pt-0.5">
+                          Deposits offset mandatory kitchen ingredient procurement, staff scheduling, and exclusively reserved date capacity. If you have questions regarding this assessment, please contact catering support.
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-rose-900 pt-0.5">
+                        {booking.cancellation_reason || booking.cancellation_request?.admin_notes || "This reservation has been cancelled."}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* COMPACT BOOKING STATUS STEPPER */}
             {!isCancelled && (
               <div className="rounded-xl border border-blue-100/70 bg-blue-50/30 p-4 sm:p-5 space-y-3.5">

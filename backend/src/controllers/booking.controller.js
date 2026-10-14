@@ -1677,16 +1677,26 @@ exports.processRefund = asyncHandler(async (req, res) => {
   });
   const totalPaid = approvedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
+  // Validate that refund amount does not exceed total customer deposit/payment paid
+  if (refundAmount > totalPaid) {
+    return res.status(400).json({
+      message: `Refund amount (₱${refundAmount.toLocaleString("en-PH")}) cannot exceed the eligible customer deposit paid (₱${totalPaid.toLocaleString("en-PH")}).`,
+    });
+  }
+
   // Cancel booking and update payment status
   booking.status = "cancelled";
 
   if (refundAmount > 0) {
     booking.payment_status = "refunded";
     const deduction = Math.max(0, totalPaid - refundAmount);
+    booking.cancellation_penalty_amount = deduction;
     if (deduction > 0) {
-      booking.cancellation_penalty_amount = deduction;
       booking.cancellation_penalty_reason = deductionReason;
       booking.cancellation_policy_clause = "Section 2: Client Cancellation Timelines (Partial Forfeiture)";
+    } else {
+      booking.cancellation_penalty_reason = "Full refund approved — no penalty retained";
+      booking.cancellation_policy_clause = "Full Refund Agreement";
     }
   } else {
     // 0% refund — deposit / payment forfeited as penalty per policy

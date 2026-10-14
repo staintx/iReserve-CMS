@@ -29,6 +29,8 @@ import {
   Building2,
   Wallet,
   Banknote,
+  AlertCircle,
+  Info,
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -68,6 +70,14 @@ export default function AdminRefunds() {
   const [calcPct, setCalcPct] = useState(50);
   const [refundReason, setRefundReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Custom Refund Amount & Confirmation Alerts State
+  const [refundAmount, setRefundAmount] = useState(0);
+  const [amountInput, setAmountInput] = useState("0");
+  const [amountError, setAmountError] = useState("");
+  const [initialCalcState, setInitialCalcState] = useState(null);
+  const [showApproveConfirmModal, setShowApproveConfirmModal] = useState(false);
+  const [showDiscardConfirmModal, setShowDiscardConfirmModal] = useState(false);
 
   const [drawerRow, setDrawerRow] = useState(null);
   const [voucherModalRow, setVoucherModalRow] = useState(null);
@@ -295,33 +305,196 @@ export default function AdminRefunds() {
   // Open refund calculator
   const handleOpenCalc = (r) => {
     setActiveRefund(r);
-    setCalcPct(50); // Default 50% refund
-    setRefundReason(r.reason || "Cancellation refund agreement");
+    const initialPct = 50;
+    const initialAmount = Math.round(((Number(r.totalPaid || 0) * initialPct) / 100) * 100) / 100;
+    const initialReason = r.reason || "Cancellation refund agreement";
+    setCalcPct(initialPct);
+    setRefundAmount(initialAmount);
+    setAmountInput(initialAmount > 0 ? initialAmount.toString() : "0");
+    setAmountError("");
+    setRefundReason(initialReason);
+    setInitialCalcState({
+      pct: initialPct,
+      amount: initialAmount,
+      reason: initialReason,
+    });
+    setShowApproveConfirmModal(false);
+    setShowDiscardConfirmModal(false);
     setShowCalcModal(true);
   };
 
-  // Process refund submission
-  const handleApproveRefund = async () => {
+  // Percentage Preset selection
+  const handleSelectPreset = (pct) => {
     if (!activeRefund) return;
-    const refundAmount = (activeRefund.totalPaid * calcPct) / 100;
+    setCalcPct(pct);
+    const newAmount = Math.round(((Number(activeRefund.totalPaid || 0) * pct) / 100) * 100) / 100;
+    setRefundAmount(newAmount);
+    setAmountInput(newAmount > 0 ? newAmount.toString() : "0");
+    setAmountError("");
+  };
+
+  // Slider change
+  const handleSliderChange = (e) => {
+    if (!activeRefund) return;
+    const pct = parseFloat(e.target.value);
+    setCalcPct(pct);
+    const newAmount = Math.round(((Number(activeRefund.totalPaid || 0) * pct) / 100) * 100) / 100;
+    setRefundAmount(newAmount);
+    setAmountInput(newAmount > 0 ? newAmount.toString() : "0");
+    setAmountError("");
+  };
+
+  // Custom Amount input change
+  const handleAmountInputChange = (e) => {
+    const raw = e.target.value;
+    setAmountInput(raw);
+
+    if (!activeRefund) return;
+
+    if (raw.trim() === "") {
+      setRefundAmount(0);
+      setCalcPct(0);
+      setAmountError("Please enter a refund amount.");
+      return;
+    }
+
+    const val = parseFloat(raw);
+    if (isNaN(val)) {
+      setAmountError("Please enter a valid numeric amount.");
+      return;
+    }
+
+    if (val < 0) {
+      setRefundAmount(val);
+      setAmountError("Refund amount cannot be negative.");
+      return;
+    }
+
+    const maxEligible = Number(activeRefund.totalPaid || 0);
+    if (val > maxEligible) {
+      setRefundAmount(val);
+      if (maxEligible > 0) {
+        setCalcPct(Math.min(100, Math.round(((val / maxEligible) * 100) * 100) / 100));
+      }
+      setAmountError(`Refund amount cannot exceed deposit paid (${fmt(maxEligible)}).`);
+      return;
+    }
+
+    if (val > MAX_FINANCIAL_AMOUNT) {
+      setRefundAmount(val);
+      setAmountError("Amount cannot exceed ₱10,000,000.");
+      return;
+    }
+
+    // Valid amount within bounds [0, maxEligible]
+    setAmountError("");
+    setRefundAmount(val);
+
+    if (maxEligible > 0) {
+      const calculatedPct = (val / maxEligible) * 100;
+      setCalcPct(Math.round(calculatedPct * 100) / 100);
+    } else {
+      setCalcPct(0);
+    }
+  };
+
+  // Custom Amount blur formatting
+  const handleAmountBlur = () => {
+    if (amountInput.trim() === "" || isNaN(parseFloat(amountInput))) {
+      const fallback = 0;
+      setRefundAmount(fallback);
+      setAmountInput("0");
+      setCalcPct(0);
+      setAmountError("");
+      return;
+    }
+    const val = parseFloat(amountInput);
+    if (val >= 0 && val <= Number(activeRefund?.totalPaid || 0)) {
+      const cleanVal = Math.round(val * 100) / 100;
+      setRefundAmount(cleanVal);
+      setAmountInput(cleanVal.toString());
+      setAmountError("");
+    }
+  };
+
+  // Check unsaved changes
+  const hasUnsavedCalcChanges = () => {
+    if (!initialCalcState) return false;
+    const amountChanged = Math.abs((Number.isFinite(refundAmount) ? refundAmount : 0) - initialCalcState.amount) > 0.01;
+    const reasonChanged = refundReason.trim() !== (initialCalcState.reason || "").trim();
+    return amountChanged || reasonChanged;
+  };
+
+  const handleRequestCloseCalc = () => {
+    if (hasUnsavedCalcChanges()) {
+      setShowDiscardConfirmModal(true);
+    } else {
+      setShowCalcModal(false);
+      setActiveRefund(null);
+    }
+  };
+
+  const handleConfirmDiscard = () => {
+    setShowDiscardConfirmModal(false);
+    setShowCalcModal(false);
+    setActiveRefund(null);
+  };
+
+  // Open approve confirmation dialog
+  const handleOpenApproveConfirm = () => {
+    if (!activeRefund) return;
+
+    if (amountInput.trim() === "" || isNaN(refundAmount)) {
+      setAmountError("Please enter a valid refund amount.");
+      return;
+    }
+
+    if (refundAmount < 0) {
+      setAmountError("Refund amount cannot be negative.");
+      return;
+    }
+
+    if (refundAmount > Number(activeRefund.totalPaid || 0)) {
+      setAmountError(`Refund amount cannot exceed deposit paid (${fmt(activeRefund.totalPaid)}).`);
+      return;
+    }
 
     if (refundAmount > MAX_FINANCIAL_AMOUNT) {
+      setAmountError("Amount cannot exceed ₱10,000,000.");
+      return;
+    }
+
+    setShowApproveConfirmModal(true);
+  };
+
+  // Process refund submission after confirmation
+  const handleExecuteApproval = async () => {
+    if (!activeRefund) return;
+    const finalAmount = Math.round((Number.isFinite(refundAmount) ? refundAmount : 0) * 100) / 100;
+
+    if (finalAmount > MAX_FINANCIAL_AMOUNT) {
       notify("Amount cannot exceed ₱10,000,000.", "error");
+      return;
+    }
+
+    if (finalAmount > Number(activeRefund.totalPaid || 0)) {
+      notify(`Refund amount cannot exceed deposit paid (${fmt(activeRefund.totalPaid)}).`, "error");
       return;
     }
 
     setActionLoading(true);
     try {
       await AdminAPI.processRefund(activeRefund._id, {
-        amount: refundAmount,
-        reason: refundReason,
+        amount: finalAmount,
+        reason: refundReason.trim() || "Cancellation refund agreement",
       });
 
-      if (refundAmount > 0) {
-        notify(`Refund of ${fmt(refundAmount)} processed successfully!`, "success");
+      if (finalAmount > 0) {
+        notify(`Refund of ${fmt(finalAmount)} processed successfully!`, "success");
       } else {
         notify(`Cancellation recorded as non-refundable penalty (${fmt(activeRefund.totalPaid)} forfeited per policy).`, "info");
       }
+      setShowApproveConfirmModal(false);
       setShowCalcModal(false);
       setActiveRefund(null);
       if (drawerRow?._id === activeRefund._id) setDrawerRow(null);
@@ -331,6 +504,31 @@ export default function AdminRefunds() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  // Calculator helpers
+  const currentTotalPaid = Number(activeRefund?.totalPaid || 0);
+  const numericRefundAmount = Number.isFinite(refundAmount) ? refundAmount : 0;
+  const retainedPenalty = Math.max(0, currentTotalPaid - numericRefundAmount);
+
+  const calcPctFormatted = useMemo(() => {
+    if (!Number.isFinite(calcPct)) return "0";
+    return calcPct % 1 === 0 ? calcPct.toFixed(0) : calcPct.toFixed(1);
+  }, [calcPct]);
+
+  const retainedPctFormatted = useMemo(() => {
+    if (currentTotalPaid <= 0) return "0";
+    const p = Math.max(0, Math.min(100, 100 - (calcPct || 0)));
+    return p % 1 === 0 ? p.toFixed(0) : p.toFixed(1);
+  }, [calcPct, currentTotalPaid]);
+
+  const isPresetActive = (presetPct) => {
+    if (!activeRefund || currentTotalPaid <= 0) return false;
+    const targetAmount = Math.round(((currentTotalPaid * presetPct) / 100) * 100) / 100;
+    return (
+      Math.abs(calcPct - presetPct) < 0.1 &&
+      Math.abs(numericRefundAmount - targetAmount) < 0.05
+    );
   };
 
   const handleOpenDenyModal = (targetRefund = activeRefund || drawerRow) => {
@@ -1041,23 +1239,33 @@ export default function AdminRefunds() {
 
         {/* Interactive Refund Calculator Modal */}
         {showCalcModal && activeRefund && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden space-y-4 animate-in fade-in zoom-in duration-150">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) handleRequestCloseCalc();
+            }}
+          >
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden space-y-4 animate-in fade-in zoom-in duration-150 border border-slate-200">
               {/* Header */}
-              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-accent/10">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8.5 h-8.5 bg-accent/15 rounded-lg flex items-center justify-center text-accent-foreground">
+                  <div className="w-9 h-9 bg-blue-50 text-[#4C81E0] border border-blue-100 rounded-xl flex items-center justify-center font-bold">
                     <Calculator size={18} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-foreground text-sm sm:text-base">
+                    <h3 className="font-bold text-slate-900 text-sm sm:text-base">
                       Calculate &amp; Approve Refund
                     </h3>
-                    <p className="text-[11px] text-muted-foreground">Booking {activeRefund.bookingRef} • {activeRefund.customerName}</p>
+                    <p className="text-[11px] text-slate-500">Booking {activeRefund.bookingRef} • {activeRefund.customerName}</p>
                   </div>
                 </div>
 
-                <button onClick={() => setShowCalcModal(false)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700">
+                <button
+                  type="button"
+                  onClick={handleRequestCloseCalc}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                  aria-label="Close"
+                >
                   <X size={18} />
                 </button>
               </div>
@@ -1065,46 +1273,56 @@ export default function AdminRefunds() {
               {/* Body Content */}
               <div className="px-6 space-y-4">
                 {/* Contract Summary Card */}
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-2">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
                   <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Total Amount</span>
-                    <span className="font-semibold text-gray-800">{fmt(activeRefund.totalPrice)}</span>
+                    <span className="text-slate-500">Total Amount</span>
+                    <span className="font-semibold text-slate-800 font-mono">{fmt(activeRefund.totalPrice)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Total Customer Deposit Paid</span>
-                    <span className="font-bold text-emerald-600 text-sm">{fmt(activeRefund.totalPaid)}</span>
+                    <span className="text-slate-500">Total Customer Deposit Paid</span>
+                    <span className="font-bold text-emerald-600 text-sm font-mono">{fmt(activeRefund.totalPaid)}</span>
                   </div>
-                  <div className="flex justify-between text-xs border-t border-gray-200 pt-2">
-                    <span className="text-gray-500">Cancellation Reason</span>
-                    <span className="font-semibold text-gray-800 text-right max-w-[200px] truncate">{activeRefund.reason}</span>
+                  <div className="flex justify-between text-xs border-t border-slate-200 pt-2">
+                    <span className="text-slate-500">Cancellation Reason</span>
+                    <span className="font-semibold text-slate-800 text-right max-w-[220px] truncate" title={activeRefund.reason}>
+                      {activeRefund.reason}
+                    </span>
                   </div>
                 </div>
 
                 {/* Percentage Preset Buttons */}
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                    Select Refund Percentage
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
+                      Select Refund Percentage
+                    </label>
+                    <span className="text-[11px] text-slate-400">
+                      Preset buttons or range slider
+                    </span>
+                  </div>
                   <div className="grid grid-cols-4 gap-2 mb-3">
                     {[
                       { label: "100% Full", pct: 100 },
                       { label: "80%", pct: 80 },
                       { label: "50% Std", pct: 50 },
                       { label: "0% Fee", pct: 0 },
-                    ].map((preset) => (
-                      <button
-                        key={preset.pct}
-                        type="button"
-                        onClick={() => setCalcPct(preset.pct)}
-                        className={`py-2 text-xs font-semibold rounded-xl border transition-all ${
-                          calcPct === preset.pct
-                            ? "bg-primary text-white border-primary shadow-sm"
-                            : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
+                    ].map((preset) => {
+                      const active = isPresetActive(preset.pct);
+                      return (
+                        <button
+                          key={preset.pct}
+                          type="button"
+                          onClick={() => handleSelectPreset(preset.pct)}
+                          className={`py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                            active
+                              ? "bg-[#4C81E0] text-white border-[#4C81E0] shadow-2xs font-bold"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Range Slider */}
@@ -1113,48 +1331,94 @@ export default function AdminRefunds() {
                       type="range"
                       min="0"
                       max="100"
-                      step="5"
-                      value={calcPct}
-                      onChange={(e) => setCalcPct(parseInt(e.target.value))}
-                      className="flex-1 accent-primary cursor-pointer"
+                      step="1"
+                      value={Math.min(100, Math.max(0, calcPct))}
+                      onChange={handleSliderChange}
+                      className="flex-1 accent-[#4C81E0] cursor-pointer"
                     />
-                    <span className="font-bold text-foreground w-14 text-right text-sm bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
-                      {calcPct}%
+                    <span className="font-bold text-slate-800 font-mono w-16 text-center text-xs bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
+                      {calcPctFormatted}%
                     </span>
                   </div>
                 </div>
 
-                {/* Dynamic Calculation Outcome Box */}
-                <div className="bg-accent/10 p-4 rounded-xl border border-accent/30 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-xs text-gray-700 uppercase tracking-wider">Refund Disbursed to Customer</span>
-                    <span className={`text-2xl font-bold ${calcPct === 0 ? "text-slate-500" : "text-red-600"}`}>
-                      {fmt((activeRefund.totalPaid * calcPct) / 100)}
-                    </span>
+                {/* Dynamic Calculation Outcome Box (Editable Currency Input, No gold/warm tones) */}
+                <div className="bg-slate-50/90 p-4 rounded-xl border border-slate-200 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                      <span className="font-bold text-xs text-slate-700 uppercase tracking-wider block">
+                        Refund Disbursed to Customer
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-normal">
+                        Type custom amount or adjust slider
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col items-end">
+                      <div
+                        className={`relative flex items-center bg-white border rounded-xl shadow-2xs transition-all ${
+                          amountError
+                            ? "border-rose-400 ring-2 ring-rose-500/20"
+                            : "border-slate-300 hover:border-slate-400 focus-within:border-[#4C81E0] focus-within:ring-2 focus-within:ring-[#4C81E0]/20"
+                        }`}
+                      >
+                        <div className="pl-3 pr-1 text-slate-400 font-bold text-base select-none pointer-events-none flex items-center">
+                          ₱
+                        </div>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          max={activeRefund.totalPaid}
+                          value={amountInput}
+                          onChange={handleAmountInputChange}
+                          onBlur={handleAmountBlur}
+                          placeholder="0.00"
+                          className="text-xl sm:text-2xl font-bold font-mono text-red-600 bg-transparent text-right pr-3 py-1.5 w-36 sm:w-44 focus:outline-none placeholder:text-slate-300"
+                          aria-label="Custom refund amount in Philippine Pesos"
+                        />
+                      </div>
+                      {amountError ? (
+                        <p className="text-[11px] font-semibold text-rose-600 text-right mt-1 max-w-[240px]">
+                          {amountError}
+                        </p>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 font-mono text-right mt-0.5">
+                          Max refundable: {fmt(activeRefund.totalPaid)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center text-xs text-gray-600 pt-1 border-t border-accent/30">
+
+                  <div className="flex justify-between items-center text-xs text-slate-600 pt-2 border-t border-slate-200">
                     <span>Retained Cancellation Fee / Penalty:</span>
-                    <span className="font-semibold text-rose-700 font-mono">
-                      {fmt((activeRefund.totalPaid * (100 - calcPct)) / 100)}
+                    <span className="font-semibold text-rose-700 font-mono text-sm">
+                      {fmt(retainedPenalty)}
                     </span>
                   </div>
 
-                  {calcPct === 0 ? (
-                    <p className="text-[11px] text-rose-800 flex items-center gap-1 pt-1 font-medium">
-                      <AlertTriangle size={12} className="text-rose-600 shrink-0" />
-                      100% of collected payment forfeited as non-refundable penalty per policy terms.
-                    </p>
-                  ) : calcPct < 100 ? (
-                    <p className="text-[11px] text-amber-800 flex items-center gap-1 pt-1 font-medium">
-                      <AlertTriangle size={12} className="text-amber-600 shrink-0" />
-                      {100 - calcPct}% retained as non-refundable administrative &amp; prep fee.
-                    </p>
-                  ) : null}
+                  {/* Status / Policy Notice Banner (Slate / Rose / Emerald only, no gold) */}
+                  {numericRefundAmount === 0 ? (
+                    <div className="text-[11px] text-rose-800 bg-rose-50/80 border border-rose-200 p-2.5 rounded-lg flex items-start gap-1.5 font-medium leading-relaxed">
+                      <AlertTriangle size={13} className="text-rose-600 shrink-0 mt-0.5" />
+                      <span>100% of collected deposit ({fmt(activeRefund.totalPaid)}) forfeited as non-refundable penalty per policy terms.</span>
+                    </div>
+                  ) : numericRefundAmount >= currentTotalPaid && currentTotalPaid > 0 ? (
+                    <div className="text-[11px] text-emerald-800 bg-emerald-50/80 border border-emerald-200 p-2.5 rounded-lg flex items-start gap-1.5 font-medium leading-relaxed">
+                      <CheckCircle2 size={13} className="text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Full 100% deposit ({fmt(numericRefundAmount)}) disbursed to customer. ₱0 retained penalty.</span>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-slate-700 bg-white/90 border border-slate-200 p-2.5 rounded-lg flex items-start gap-1.5 font-medium leading-relaxed">
+                      <AlertCircle size={13} className="text-slate-500 shrink-0 mt-0.5" />
+                      <span>{retainedPctFormatted}% retained ({fmt(retainedPenalty)}) as non-refundable administrative &amp; prep fee.</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Notes / Reason text input */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Deduction / Settlement Remarks
                   </label>
                   <textarea
@@ -1162,22 +1426,40 @@ export default function AdminRefunds() {
                     value={refundReason}
                     onChange={(e) => setRefundReason(e.target.value)}
                     placeholder="Enter reason for deduction or refund note..."
-                    className="w-full text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="w-full text-xs border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/30 focus:border-[#4C81E0] text-slate-800"
                   />
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50">
-                <Btn variant="danger" size="sm" onClick={() => handleOpenDenyModal(activeRefund)} disabled={actionLoading}>
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/80">
+                <Btn
+                  variant="danger"
+                  size="sm"
+                  onClick={() => handleOpenDenyModal(activeRefund)}
+                  disabled={actionLoading}
+                  className="gap-1.5"
+                >
                   <XCircle size={13} /> Deny Refund
                 </Btn>
                 <div className="flex items-center gap-2">
-                  <Btn variant="secondary" size="sm" onClick={() => setShowCalcModal(false)}>
+                  <Btn
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleRequestCloseCalc}
+                    disabled={actionLoading}
+                  >
                     Cancel
                   </Btn>
-                  <Btn variant="primary" size="sm" onClick={handleApproveRefund} disabled={actionLoading}>
-                    {actionLoading ? "Processing..." : "Approve Refund"}
+                  <Btn
+                    variant="primary"
+                    size="sm"
+                    onClick={handleOpenApproveConfirm}
+                    disabled={actionLoading || Boolean(amountError) || isNaN(refundAmount) || refundAmount < 0 || refundAmount > currentTotalPaid}
+                    className="bg-[#4C81E0] hover:bg-[#3b6bc4] text-white font-bold gap-1.5"
+                  >
+                    <CheckCircle2 size={13} />
+                    Approve Refund
                   </Btn>
                 </div>
               </div>
@@ -1185,42 +1467,203 @@ export default function AdminRefunds() {
           </div>
         )}
 
-        {/* Denial Confirmation Modal */}
-        {denyModalRow && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl max-w-md w-full shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in duration-150">
-              <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-                    <ShieldAlert size={18} />
+        {/* Confirmation Alert: Approve Refund Modal */}
+        {showApproveConfirmModal && activeRefund && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-60 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in duration-150">
+              
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#4C81E0] border border-blue-100 flex items-center justify-center font-bold">
+                    <CheckCircle2 size={19} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-gray-900">Deny Refund Request</h3>
-                    <p className="text-[11px] text-gray-500">{denyModalRow.bookingRef} • {denyModalRow.customerName}</p>
+                    <h3 className="font-bold text-sm text-slate-900">
+                      Confirm Refund Approval
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      {activeRefund.bookingRef} • {activeRefund.customerName}
+                    </p>
                   </div>
                 </div>
                 <button
                   type="button"
+                  disabled={actionLoading}
+                  onClick={() => setShowApproveConfirmModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body Summary */}
+              <div className="p-5 space-y-3.5 text-xs">
+                <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Booking Reference</span>
+                    <span className="font-mono font-bold text-slate-800">{activeRefund.bookingRef}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Customer</span>
+                    <span className="font-medium text-slate-800">{activeRefund.customerName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Customer Deposit Paid</span>
+                    <span className="font-bold text-slate-800 font-mono">{fmt(activeRefund.totalPaid)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-200 pt-2">
+                    <span className="text-slate-700 font-semibold">Final Refund Disbursed</span>
+                    <span className="font-mono font-bold text-red-600 text-sm">
+                      {fmt(numericRefundAmount)} ({calcPctFormatted}%)
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Retained Penalty Fee</span>
+                    <span className="font-mono font-semibold text-rose-700">
+                      {fmt(retainedPenalty)} ({retainedPctFormatted}%)
+                    </span>
+                  </div>
+                  {refundReason && (
+                    <div className="border-t border-slate-200 pt-2 text-[11px]">
+                      <span className="text-slate-500 block mb-0.5">Remarks / Reason:</span>
+                      <span className="text-slate-700 italic font-normal">{refundReason}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Clear Consequence / Policy Notice */}
+                <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl text-slate-700 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-[#4C81E0] text-[11px]">
+                    <Info size={13} className="shrink-0" />
+                    <span>Consequential Action</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-slate-600">
+                    {numericRefundAmount > 0 ? (
+                      <>
+                        Approving will immediately submit and record a refund disbursement of{" "}
+                        <strong className="text-slate-900 font-semibold">{fmt(numericRefundAmount)}</strong> to the customer, log the{" "}
+                        <strong className="text-slate-900 font-semibold">{fmt(retainedPenalty)}</strong> retained penalty, and update booking status to cancelled &amp; refunded.
+                      </>
+                    ) : (
+                      <>
+                        Approving will record a non-refundable cancellation with{" "}
+                        <strong className="text-slate-900 font-semibold">₱0 refund</strong>. The customer deposit of{" "}
+                        <strong className="text-slate-900 font-semibold">{fmt(activeRefund.totalPaid)}</strong> will be retained as non-refundable penalty per policy.
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2">
+                <Btn
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowApproveConfirmModal(false)}
+                  disabled={actionLoading}
+                >
+                  Go Back
+                </Btn>
+                <Btn
+                  variant="primary"
+                  size="sm"
+                  onClick={handleExecuteApproval}
+                  disabled={actionLoading}
+                  className="bg-[#4C81E0] hover:bg-[#3b6bc4] text-white font-bold gap-1.5"
+                >
+                  {actionLoading ? (
+                    <>
+                      <RefreshCw size={13} className="animate-spin" />
+                      Confirming Approval...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={13} />
+                      Confirm Approval
+                    </>
+                  )}
+                </Btn>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* Unsaved Changes Confirmation Modal */}
+        {showDiscardConfirmModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-60 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in duration-150">
+              <div className="p-5 text-center space-y-2.5">
+                <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 mx-auto flex items-center justify-center">
+                  <AlertCircle size={20} />
+                </div>
+                <h4 className="font-bold text-sm text-slate-900">Discard Calculation Changes?</h4>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  You have unsaved changes in this refund calculation. Closing now will discard your adjustments.
+                </p>
+              </div>
+              <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-center gap-2">
+                <Btn
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowDiscardConfirmModal(false)}
+                >
+                  Keep Editing
+                </Btn>
+                <Btn
+                  variant="danger"
+                  size="sm"
+                  onClick={handleConfirmDiscard}
+                >
+                  Discard &amp; Close
+                </Btn>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Denial Confirmation Modal (No gold/amber, explicit Go Back and Confirm Denial) */}
+        {denyModalRow && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-60 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in duration-150">
+              <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center font-bold">
+                    <ShieldAlert size={18} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900">Deny Refund Request</h3>
+                    <p className="text-[11px] text-slate-500">{denyModalRow.bookingRef} • {denyModalRow.customerName}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={actionLoading}
                   onClick={() => setDenyModalRow(null)}
-                  className="text-gray-400 hover:text-gray-700 p-1 rounded-lg"
+                  className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                  aria-label="Close"
                 >
                   <X size={18} />
                 </button>
               </div>
 
               <div className="p-4 sm:p-5 space-y-3.5 text-xs">
-                <div className="bg-amber-50/80 border border-amber-200/80 rounded-lg p-3 text-amber-900 space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold text-[11px]">
-                    <AlertTriangle size={13} className="text-amber-600 shrink-0" />
-                    <span>Confirmation Required</span>
+                {/* Consequential action explanation (NO warm/gold tones!) */}
+                <div className="bg-rose-50/70 border border-rose-200 rounded-xl p-3 text-rose-900 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-[11px] text-rose-700">
+                    <AlertTriangle size={13} className="shrink-0" />
+                    <span>Consequential Action</span>
                   </div>
-                  <p className="text-[11px] text-amber-800 leading-relaxed">
-                    Denying this request will mark the refund as <strong>Denied</strong> with ₱0 disbursement. The customer's original payment ({fmt(denyModalRow.totalPaid)}) will remain intact.
+                  <p className="text-[11px] text-rose-800 leading-relaxed">
+                    Denying this request will mark the refund as <strong>Denied</strong> with ₱0 disbursement. The customer's original payment ({fmt(denyModalRow.totalPaid)}) will remain intact without issuing any refund.
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-800 mb-1">
+                  <label className="block text-xs font-semibold text-slate-800 mb-1">
                     Reason for Denial <span className="text-rose-600">*</span>
                   </label>
                   <textarea
@@ -1231,27 +1674,27 @@ export default function AdminRefunds() {
                       if (denialError) setDenialError("");
                     }}
                     placeholder="Explain why this refund is denied (e.g., Non-refundable cancellation requested within 48 hours of event per policy terms)..."
-                    className={`w-full text-xs border rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-rose-500/30 ${
-                      denialError ? "border-rose-400 bg-rose-50/20" : "border-gray-200"
+                    className={`w-full text-xs border rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-rose-500/30 text-slate-800 ${
+                      denialError ? "border-rose-400 bg-rose-50/20" : "border-slate-200"
                     }`}
                   />
                   {denialError && (
                     <p className="text-[11px] text-rose-600 font-medium mt-1">{denialError}</p>
                   )}
-                  <p className="text-[10px] text-gray-400 mt-1">
+                  <p className="text-[10px] text-slate-400 mt-1">
                     This explanation will be recorded and shared with the customer so they understand the decision.
                   </p>
                 </div>
               </div>
 
-              <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-t border-gray-100 bg-gray-50/80 flex items-center justify-end gap-2">
+              <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2">
                 <Btn
                   variant="secondary"
                   size="sm"
                   onClick={() => setDenyModalRow(null)}
                   disabled={actionLoading}
                 >
-                  Cancel
+                  Go Back
                 </Btn>
                 <Btn
                   variant="danger"

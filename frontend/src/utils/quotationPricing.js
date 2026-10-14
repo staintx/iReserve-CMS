@@ -23,6 +23,11 @@ export const money = (value) => {
   return Math.round(amount * 100) / 100;
 };
 
+export const numberOf = (value) => {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0 ? amount : 0;
+};
+
 const count = (value, min = 0) => {
   const amount = Math.floor(Number(value));
   return Number.isFinite(amount) && amount > min ? amount : min;

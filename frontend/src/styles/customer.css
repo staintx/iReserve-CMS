@@ -2303,3 +2303,48 @@ textarea {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
 }
+
+/* ── Customer My Bookings: Card View Action Button ────────── */
+.booking-card-view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  height: 2rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  color: #4c81e0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: all 150ms ease;
+  outline: none;
+}
+
+.booking-card-view-btn:hover {
+  background-color: #3b6ec6 !important;
+  border-color: #3b6ec6 !important;
+  color: #ffffff !important;
+  outline: none !important;
+}
+
+.booking-card-view-btn:hover svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.booking-card-view-btn:active {
+  background-color: #2f5bb8 !important;
+  border-color: #2f5bb8 !important;
+  transform: scale(0.98);
+}
+
+.booking-card-view-btn:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(76, 129, 224, 0.35);
+  border-color: #4c81e0 !important;
+}

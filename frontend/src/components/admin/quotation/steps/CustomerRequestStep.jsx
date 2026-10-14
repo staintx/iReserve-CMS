@@ -10,7 +10,6 @@ import {
   Sparkles,
   Pencil,
   Lock,
-  ArrowRight,
   Phone,
   Mail,
   Heart,
@@ -47,7 +46,6 @@ export default function CustomerRequestStep({
   errors = {},
   isEditMode,
   setIsEditMode,
-  onProceedToPrices,
   today,
   municipalities = [],
   barangays = [],
@@ -541,21 +539,6 @@ export default function CustomerRequestStep({
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Bottom Action */}
-          <div className="flex items-center justify-between pt-2">
-            <span className="text-xs text-slate-500">
-              Review completed? Proceed to set prices for this quotation.
-            </span>
-            <button
-              type="button"
-              onClick={onProceedToPrices}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
-            >
-              <span>Proceed to Set Prices</span>
-              <ArrowRight size={13} />
-            </button>
           </div>
         </div>
       ) : (

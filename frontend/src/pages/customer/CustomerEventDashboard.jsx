@@ -590,12 +590,12 @@ export default function CustomerEventDashboard() {
   };
 
   const handlePayRemainingBalance = () => {
-    if (!booking?._id || outstandingAmount <= 0) return;
+    if (!booking?._id || outstandingAmount <= 0 || isCancelReqPending || isCancelled) return;
     setIsChoiceModalOpen(true);
   };
 
   const handlePayDeposit = async () => {
-    if (!booking?._id) return;
+    if (!booking?._id || isCancelReqPending || isCancelled) return;
     const depositPayable = Number(activeQuotation?.deposit_amount) > 0
       ? Number(activeQuotation.deposit_amount)
       : Number(booking?.deposit_amount) > 0
@@ -1218,7 +1218,9 @@ export default function CustomerEventDashboard() {
     label: booking.status,
     variant: "bg-slate-100 text-slate-700 border-slate-200 font-semibold"
   };
-  if (isOverdue && outstandingAmount > 0 && !isCancelled) {
+  if (isCancelReqPending) {
+    statusBadge = { label: "Cancellation Pending", variant: "bg-amber-50/80 text-amber-900 border-amber-300/80 font-semibold" };
+  } else if (isOverdue && outstandingAmount > 0 && !isCancelled) {
     statusBadge = { label: "Payment Overdue", variant: "bg-rose-50 text-rose-800 border-rose-200 font-bold" };
   } else if (["confirmed", "converted to booking"].includes(rawStatus)) {
     statusBadge = { label: "Confirmed & Reserved", variant: "bg-emerald-50/80 text-emerald-800 border-emerald-200/80 font-semibold" };
@@ -1238,7 +1240,7 @@ export default function CustomerEventDashboard() {
 
   // Primary Action in Header (Strictly Single State-Driven Action)
   let headerPrimaryAction = null;
-  if (isCancelled) {
+  if (isCancelled || isCancelReqPending) {
     headerPrimaryAction = null;
   } else if (booking.pending_revision && booking.pending_revision.status === "pending_customer_approval") {
     headerPrimaryAction = (
@@ -1334,6 +1336,32 @@ export default function CustomerEventDashboard() {
                     : "This booking was cancelled and is no longer active. All scheduled actions, ocular visits, and pending payments have been closed."}
                 </p>
               </div>
+            </div>
+          )}
+          {isCancelReqPending && (
+            <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-3.5 flex items-start justify-between gap-3 shadow-2xs text-xs">
+              <div className="flex items-start gap-2.5">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-amber-950">Cancellation Request Under Review</h4>
+                  <p className="text-amber-800 mt-0.5 leading-relaxed">
+                    You requested to cancel this reservation
+                    {booking.cancellation_reason || booking.cancellation_request?.reason
+                      ? `: "${booking.cancellation_reason || booking.cancellation_request?.reason}"`
+                      : ""}.
+                    Management is reviewing your request. All balance payments and scheduled actions are currently paused.
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenChat}
+                className="shrink-0 border-amber-300 text-amber-950 hover:bg-amber-100 font-semibold text-xs h-8 cursor-pointer"
+              >
+                <MessageSquare className="w-3.5 h-3.5 mr-1 text-amber-700" />
+                Message Support
+              </Button>
             </div>
           )}
           {searchParams.get("payment") === "cancelled" && (
@@ -2006,7 +2034,17 @@ export default function CustomerEventDashboard() {
                           </span>
                         </div>
 
-                        {outstandingAmount > 0 && (
+                        {isCancelReqPending ? (
+                          <div className="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200/80 text-[11px] space-y-1 mt-2">
+                            <div className="font-semibold text-amber-900 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-amber-700" />
+                              <span>Payments Paused</span>
+                            </div>
+                            <p className="text-amber-800 leading-relaxed">
+                              A cancellation request is under review. Remaining balance payments are suspended until resolution.
+                            </p>
+                          </div>
+                        ) : outstandingAmount > 0 ? (
                           <Button
                             onClick={handlePayRemainingBalance}
                             disabled={payingPaymentId !== null}
@@ -2015,7 +2053,7 @@ export default function CustomerEventDashboard() {
                             <CreditCard className="h-3.5 w-3.5" />
                             {payingPaymentId ? "Opening Checkout…" : `Pay Balance (${formatCurrency(outstandingAmount)})`}
                           </Button>
-                        )}
+                        ) : null}
                       </>
                     )}
 
@@ -2372,7 +2410,17 @@ export default function CustomerEventDashboard() {
                         </span>
                       </div>
 
-                      {outstandingAmount > 0 && (
+                      {isCancelReqPending ? (
+                        <div className="mt-2 p-2.5 rounded-lg bg-amber-50/70 border border-amber-200/80 text-[11px] space-y-1">
+                          <div className="font-semibold text-amber-900 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-700" />
+                            <span>Balance Payment Paused</span>
+                          </div>
+                          <p className="text-amber-800 leading-relaxed">
+                            Payment is suspended while your cancellation request is being processed by catering management.
+                          </p>
+                        </div>
+                      ) : outstandingAmount > 0 ? (
                         <Button
                           onClick={handlePayRemainingBalance}
                           disabled={payingPaymentId !== null}
@@ -2381,7 +2429,7 @@ export default function CustomerEventDashboard() {
                           <CreditCard className="h-3.5 w-3.5" />
                           {payingPaymentId ? "Opening checkout…" : `Pay Remaining Balance (${formatCurrency(outstandingAmount)})`}
                         </Button>
-                      )}
+                      ) : null}
                     </>
                   )}
 

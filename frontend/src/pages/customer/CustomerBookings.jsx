@@ -309,6 +309,14 @@ export default function CustomerBookings() {
   };
 
   const startCheckout = async (booking) => {
+    if (
+      booking.cancellation_request?.status === "pending" ||
+      (booking.change_request?.status === "pending" &&
+        booking.change_request?.message?.toLowerCase().includes("cancel"))
+    ) {
+      notify("Payment is paused while a cancellation request is under review.", "warning");
+      return;
+    }
     const amount = balanceOf(booking);
     if (amount <= 0) {
       notify("This booking is fully paid.", "info");
@@ -1228,6 +1236,10 @@ export default function CustomerBookings() {
               const percentPaid = totalCost > 0 ? Math.min(100, Math.round((paidAmount / totalCost) * 100)) : 100;
               const nextAction = getNextActionInfo(selectedBooking);
               const isSelectedCancelled = ["cancelled", "canceled", "rejected", "refunded"].includes((selectedBooking.status || "").toLowerCase());
+              const isSelectedCancelPending =
+                selectedBooking.cancellation_request?.status === "pending" ||
+                (selectedBooking.change_request?.status === "pending" &&
+                  selectedBooking.change_request?.message?.toLowerCase().includes("cancel"));
               const countdown = !isSelectedCancelled ? getEventCountdown(selectedBooking.event_date) : null;
               const assignedLead = selectedBooking.event_manager_id || (selectedBooking.staff_assignments && selectedBooking.staff_assignments[0]);
               const refCode = selectedBooking.reference || `CAZ-${selectedBooking._id.substring(0, 6).toUpperCase()}`;
@@ -1600,7 +1612,7 @@ export default function CustomerBookings() {
                           <FileText className="w-3.5 h-3.5" />
                           <span>View Official Invoice</span>
                         </button>
-                        {!isSelectedCancelled && bal > 0 && (
+                        {!isSelectedCancelled && !isSelectedCancelPending && bal > 0 && (
                           <button
                             type="button"
                             onClick={() => startCheckout(selectedBooking)}

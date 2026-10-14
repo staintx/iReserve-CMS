@@ -196,7 +196,15 @@ export default function CustomerPayments() {
   // Bookings with an outstanding balance due or deposit required
   const actionableBalanceBookings = useMemo(() => {
     return bookings
-      .filter((b) => !["cancelled", "refunded"].includes((b.status || "").toLowerCase()))
+      .filter((b) => {
+        const rawStatus = (b.status || "").toLowerCase();
+        const isCancelled = ["cancelled", "refunded", "canceled", "rejected"].includes(rawStatus);
+        const isCancelPending =
+          b.cancellation_request?.status === "pending" ||
+          (b.change_request?.status === "pending" &&
+            b.change_request?.message?.toLowerCase().includes("cancel"));
+        return !isCancelled && !isCancelPending;
+      })
       .map((b) => {
         const remaining = getBookingRemainingBalance(b);
         const paid = getBookingPaidAmount(b._id);
@@ -225,6 +233,14 @@ export default function CustomerPayments() {
   // Handle Pay Now for a booking balance
   const startPaymentForBooking = async (booking, amount, paymentType = "balance") => {
     if (!booking?._id) return;
+    if (
+      booking.cancellation_request?.status === "pending" ||
+      (booking.change_request?.status === "pending" &&
+        booking.change_request?.message?.toLowerCase().includes("cancel"))
+    ) {
+      notify("Payment is paused while a cancellation request is under review.", "warning");
+      return;
+    }
     const payAmount = Number(amount || 0);
     if (!Number.isFinite(payAmount) || payAmount <= 0) {
       notify("This booking does not have a valid balance amount.", "error");

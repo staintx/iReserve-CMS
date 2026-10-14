@@ -127,7 +127,15 @@ export default function CustomerDashboard() {
 
     // 1. Overdue & Balance Due Payments for Bookings
     bookings.forEach((b) => {
-      if (["cancelled", "refunded"].includes((b.status || "").toLowerCase())) return;
+      const rawStatus = (b.status || "").toLowerCase();
+      if (["cancelled", "refunded", "canceled", "rejected"].includes(rawStatus)) return;
+      if (
+        b.cancellation_request?.status === "pending" ||
+        (b.change_request?.status === "pending" &&
+          b.change_request?.message?.toLowerCase().includes("cancel"))
+      ) {
+        return;
+      }
       const total = Number(b.total_price || 0);
       const paid = payments
         .filter((p) => String(p.booking_id?._id || p.booking_id) === String(b._id) && p.status === "approved")

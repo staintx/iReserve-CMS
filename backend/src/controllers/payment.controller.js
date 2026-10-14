@@ -26,6 +26,26 @@ const { MAX_FINANCIAL_AMOUNT } = require("../validations/rules.common");
 const isSuccessfulPaymentStatus = (status) =>
 	["paid", "succeeded"].includes(String(status || "").toLowerCase());
 
+const getBookingPaymentBlockReason = (booking) => {
+	if (!booking) return "Booking not found";
+	const bStatus = String(booking.status || "").trim().toLowerCase();
+	if (bStatus === "completed") {
+		return "Cannot make payment for a completed booking.";
+	}
+	if (["cancelled", "canceled", "refunded", "rejected"].includes(bStatus)) {
+		return "Cannot make payment for a cancelled or refunded booking.";
+	}
+	if (
+		booking.cancellation_request?.status === "pending" ||
+		(booking.change_request?.status === "pending" &&
+			booking.change_request?.message?.toLowerCase().includes("cancel"))
+	) {
+		return "Cannot make payment while a cancellation request is pending review.";
+	}
+	return null;
+};
+exports.getBookingPaymentBlockReason = getBookingPaymentBlockReason;
+
 exports.cleanupStalePendingPayments = async function (bookingId, inquiryId) {
 	try {
 		if (bookingId) {
@@ -822,8 +842,15 @@ exports.setPaymentPreference = asyncHandler(async (req, res) => {
 	if (booking.payment_status === "fully_paid") {
 		return res.status(400).json({ message: "This booking is already fully paid" });
 	}
-	if (["cancelled", "refunded"].includes(booking.status)) {
+	if (["cancelled", "refunded", "canceled", "rejected"].includes(booking.status)) {
 		return res.status(400).json({ message: "Cannot change payment preference for cancelled or refunded bookings" });
+	}
+	if (
+		booking.cancellation_request?.status === "pending" ||
+		(booking.change_request?.status === "pending" &&
+			booking.change_request?.message?.toLowerCase().includes("cancel"))
+	) {
+		return res.status(400).json({ message: "Cannot change payment preference while a cancellation request is pending review" });
 	}
 
 	// Calculate remaining balance
@@ -931,8 +958,9 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 	if (booking_id) {
 		targetDoc = await Booking.findById(booking_id).populate("customer_id");
 		if (!targetDoc) return res.status(404).json({ message: "Booking not found" });
-		if (String(targetDoc.status || "").trim().toLowerCase() === "completed") {
-			return res.status(400).json({ message: "Cannot make payment for a completed booking." });
+		const blockReason = getBookingPaymentBlockReason(targetDoc);
+		if (blockReason) {
+			return res.status(400).json({ message: blockReason });
 		}
 		eventName = targetDoc.event_type;
 		customerId = targetDoc.customer_id?._id || req.user._id;
@@ -1129,8 +1157,9 @@ exports.createIntent = asyncHandler(async (req, res) => {
 	if (booking_id) {
 		targetDoc = await Booking.findById(booking_id).populate("customer_id");
 		if (!targetDoc) return res.status(404).json({ message: "Booking not found" });
-		if (String(targetDoc.status || "").trim().toLowerCase() === "completed") {
-			return res.status(400).json({ message: "Cannot make payment for a completed booking." });
+		const blockReason = getBookingPaymentBlockReason(targetDoc);
+		if (blockReason) {
+			return res.status(400).json({ message: blockReason });
 		}
 		eventName = targetDoc.event_type;
 		customerId = targetDoc.customer_id?._id || req.user._id;
@@ -1220,6 +1249,14 @@ exports.processIntent = asyncHandler(async (req, res) => {
 
 	if (localPayment.status === "approved") {
 		return res.status(400).json({ message: "This payment has already been approved and completed." });
+	}
+
+	if (localPayment.booking_id) {
+		const b = await Booking.findById(localPayment.booking_id);
+		const blockReason = getBookingPaymentBlockReason(b);
+		if (blockReason) {
+			return res.status(400).json({ message: blockReason });
+		}
 	}
 
 	const isOwner = String(localPayment.customer_id) === String(req.user._id);

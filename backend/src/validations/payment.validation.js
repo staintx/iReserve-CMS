@@ -9,6 +9,7 @@ exports.paymentSchema = Joi.object({
   payment_type: Joi.string().required(),
   method: Joi.string().required(),
   proof_url: Joi.string().allow("").optional(),
+  description: Joi.string().allow("").optional(),
   status: Joi.string().optional()
 }).unknown(true);
 
@@ -17,5 +18,6 @@ exports.paymentUpdateSchema = Joi.object({
   payment_type: Joi.string().optional(),
   method: Joi.string().optional(),
   proof_url: Joi.string().allow("").optional(),
+  description: Joi.string().allow("").optional(),
   status: Joi.string().optional()
 }).unknown(true);

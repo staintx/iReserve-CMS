@@ -555,7 +555,7 @@ export default function CustomerPayments() {
     if (t === "deposit") return "Deposit";
     if (t === "balance") return "Balance payment";
     if (t === "full") return "Full Payment";
-    if (t === "additional") return "Additional";
+    if (t === "additional") return "Additional Charge";
     return "Payment";
   };
 
@@ -1275,6 +1275,12 @@ export default function CustomerPayments() {
                                               </span>
                                               {renderPaymentStatusBadge(p.status, isRefund)}
                                             </div>
+                                            {!isRefund && (p.description || p.metadata?.reason || p.metadata?.description) && (
+                                              <div className="text-[11.5px] text-amber-900 bg-amber-50/80 px-2 py-0.5 rounded border border-amber-200/70 mt-1 max-w-md font-medium">
+                                                <span className="font-semibold text-amber-950">Reason:</span>{" "}
+                                                <span>{p.description || p.metadata?.reason || p.metadata?.description}</span>
+                                              </div>
+                                            )}
                                             <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap">
                                               <span>
                                                 {p.createdAt
@@ -1409,6 +1415,12 @@ export default function CustomerPayments() {
                                 {isRefund && reasonText && (
                                   <div className="text-[11px] text-slate-500 mt-1">
                                     Reason: {reasonText}
+                                  </div>
+                                )}
+                                {!isRefund && (p.description || p.metadata?.reason || p.metadata?.description) && (
+                                  <div className="text-xs text-amber-900 bg-amber-50/80 px-2.5 py-1 rounded-md border border-amber-200/70 mt-1.5 font-medium leading-relaxed">
+                                    <span className="font-bold text-amber-950">Reason:</span>{" "}
+                                    <span>{p.description || p.metadata?.reason || p.metadata?.description}</span>
                                   </div>
                                 )}
                               </div>
@@ -1566,9 +1578,14 @@ export default function CustomerPayments() {
                                   </td>
 
                                   <td className="py-3.5 px-4 text-xs">
-                                    <span className="font-semibold text-slate-800">
+                                    <span className="font-semibold text-slate-800 block">
                                       {renderMilestoneLabel(p.payment_type, isRefund)}
                                     </span>
+                                    {!isRefund && (p.description || p.metadata?.reason || p.metadata?.description) && (
+                                      <div className="text-[11px] text-amber-900 font-medium mt-1 max-w-[220px] bg-amber-50/80 px-1.5 py-0.5 rounded border border-amber-200/70 leading-tight" title={p.description || p.metadata?.reason || p.metadata?.description}>
+                                        <span className="font-bold text-amber-950">Reason:</span> {p.description || p.metadata?.reason || p.metadata?.description}
+                                      </div>
+                                    )}
                                   </td>
 
                                   <td className="py-3.5 px-4 text-xs">

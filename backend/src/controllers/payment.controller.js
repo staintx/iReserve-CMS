@@ -375,6 +375,29 @@ exports.create = asyncHandler(async (req, res) => {
 	}
 
 	const { booking_id, inquiry_id, payment_type, status } = req.body;
+
+	if (booking_id) {
+		const targetBooking = await Booking.findById(booking_id);
+		if (!targetBooking) {
+			return res.status(404).json({ message: "Target booking not found." });
+		}
+		const bookingStatus = String(targetBooking.status || "").trim().toLowerCase();
+		if (bookingStatus === "completed") {
+			return res.status(400).json({
+				message: "Cannot record payment or additional charges for a completed booking.",
+			});
+		}
+	} else if (inquiry_id) {
+		const inq = await Inquiry.findById(inquiry_id);
+		if (inq?.converted_booking_id) {
+			const targetBooking = await Booking.findById(inq.converted_booking_id);
+			if (targetBooking && String(targetBooking.status || "").trim().toLowerCase() === "completed") {
+				return res.status(400).json({
+					message: "Cannot record payment or additional charges for a completed booking.",
+				});
+			}
+		}
+	}
 	let payment;
 	if (status === "approved" && payment_type) {
 		const query = { status: "pending", payment_type };
@@ -908,6 +931,9 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 	if (booking_id) {
 		targetDoc = await Booking.findById(booking_id).populate("customer_id");
 		if (!targetDoc) return res.status(404).json({ message: "Booking not found" });
+		if (String(targetDoc.status || "").trim().toLowerCase() === "completed") {
+			return res.status(400).json({ message: "Cannot make payment for a completed booking." });
+		}
 		eventName = targetDoc.event_type;
 		customerId = targetDoc.customer_id?._id || req.user._id;
 	} else if (inquiry_id) {
@@ -1103,6 +1129,9 @@ exports.createIntent = asyncHandler(async (req, res) => {
 	if (booking_id) {
 		targetDoc = await Booking.findById(booking_id).populate("customer_id");
 		if (!targetDoc) return res.status(404).json({ message: "Booking not found" });
+		if (String(targetDoc.status || "").trim().toLowerCase() === "completed") {
+			return res.status(400).json({ message: "Cannot make payment for a completed booking." });
+		}
 		eventName = targetDoc.event_type;
 		customerId = targetDoc.customer_id?._id || req.user._id;
 	} else if (inquiry_id) {

@@ -129,9 +129,13 @@ export default function RecordPaymentModal({
     };
   };
 
-  // Currently selected booking
+  // Currently selected booking (must be an eligible, non-completed booking)
   const selectedBooking = useMemo(() => {
-    return bookings.find((b) => String(b._id) === String(selectedBookingId)) || null;
+    const found = bookings.find((b) => String(b._id) === String(selectedBookingId)) || null;
+    if (found && String(found.status || "").trim().toLowerCase() === "completed") {
+      return null;
+    }
+    return found;
   }, [bookings, selectedBookingId]);
 
   // Financials of the selected booking
@@ -139,12 +143,20 @@ export default function RecordPaymentModal({
     return getBookingFinancials(selectedBooking);
   }, [selectedBooking, payments, depositPercentage]);
 
+  // Only eligible, non-completed bookings should be available for selection
+  const eligibleBookings = useMemo(() => {
+    return bookings.filter((b) => {
+      const status = String(b?.status || "").trim().toLowerCase();
+      return status !== "completed" && status !== "cancelled";
+    });
+  }, [bookings]);
+
   // Filter bookings for searchable selector
   const filteredBookings = useMemo(() => {
-    if (!searchQuery.trim()) return bookings.slice(0, 15);
+    if (!searchQuery.trim()) return eligibleBookings.slice(0, 15);
     const q = searchQuery.toLowerCase().trim();
 
-    return bookings.filter((b) => {
+    return eligibleBookings.filter((b) => {
       const ref = String(b.reference || "").toLowerCase();
       const first = String(b.contact_first_name || "").toLowerCase();
       const last = String(b.contact_last_name || "").toLowerCase();
@@ -165,10 +177,15 @@ export default function RecordPaymentModal({
         rawDate.includes(q)
       );
     });
-  }, [bookings, searchQuery]);
+  }, [eligibleBookings, searchQuery]);
 
   // Selecting a booking from dropdown
   const handleSelectBooking = (booking) => {
+    if (String(booking?.status || "").trim().toLowerCase() === "completed") {
+      notify("This booking is marked as Completed and cannot accept additional payments or charges.", "error");
+      return;
+    }
+
     setSelectedBookingId(booking._id);
     setIsDropdownOpen(false);
     setSearchQuery("");
@@ -265,6 +282,11 @@ export default function RecordPaymentModal({
 
     if (!selectedBooking) {
       notify("Please select a target booking.", "error");
+      return;
+    }
+
+    if (String(selectedBooking.status || "").trim().toLowerCase() === "completed") {
+      notify("Cannot record payment or additional charges for a completed booking.", "error");
       return;
     }
 
@@ -409,7 +431,9 @@ export default function RecordPaymentModal({
                   >
                     {filteredBookings.length === 0 ? (
                       <div className="p-4 text-center text-xs text-gray-500">
-                        No bookings found matching "{searchQuery}"
+                        {searchQuery.trim()
+                          ? `No eligible bookings found matching "${searchQuery}"`
+                          : "No eligible active bookings available"}
                       </div>
                     ) : (
                       filteredBookings.map((b) => {

@@ -260,6 +260,13 @@ export default function PricingAdjustmentsStep({
     (sum, i) => sum + (Number(i.deduction) || 0),
     0
   );
+  const totalQuantityReductions = modifiedQtyInclusions
+    .filter((i) => Number(i.quantity) < Number(i.baseQuantity))
+    .reduce((sum, i) => sum + (Number(i.adjustmentAmount ?? i.unitPrice) || 0), 0);
+  const totalPackageReductions = totalDeductions + totalQuantityReductions;
+  const numericStartingPrice = Math.max(0, Number(startingPrice) || 0);
+  const isExceedingStartingPrice =
+    numericStartingPrice > 0 && totalPackageReductions > numericStartingPrice;
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto pb-6 font-sans">
@@ -380,11 +387,11 @@ export default function PricingAdjustmentsStep({
               value={startingPrice}
               onChange={setStartingPrice}
               placeholder="0.00"
-              className={errors.package_starting_price || errors.startingPrice || errors.package_name ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}
+              className={errors.package_starting_price || errors.startingPrice || errors.package_price || errors.package_name || errors.removed_inclusions ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}
             />
-            {(errors.package_starting_price || errors.startingPrice) && (
+            {(errors.package_starting_price || errors.startingPrice || errors.package_price || errors.removed_inclusions) && (
               <p className="text-[11px] text-red-600 mt-0.5 font-medium">
-                {errors.package_starting_price || errors.startingPrice}
+                {errors.package_starting_price || errors.startingPrice || errors.package_price || errors.removed_inclusions}
               </p>
             )}
             <span className="text-[10px] text-slate-500 mt-1 block">
@@ -532,6 +539,24 @@ export default function PricingAdjustmentsStep({
             </div>
           ) : null}
 
+          {/* Warning banner if reductions exceed package starting price */}
+          {(isExceedingStartingPrice || errors.removed_inclusions) && (
+            <div className="mt-2 p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2">
+              <AlertCircle size={14} className="text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block">Excessive Inclusions Reduction</span>
+                <p className="text-[11px] text-red-700 leading-snug">
+                  {errors.removed_inclusions ||
+                    `Item credits and quantity reductions take ${formatCurrency(
+                      totalPackageReductions
+                    )} off the package starting price of ${formatCurrency(
+                      numericStartingPrice
+                    )}. Lower the reduction amounts to keep the base package price positive.`}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Active Standard Inclusions Preview */}
           {inclusions.length > 0 && (
             <div className="pt-2 border-t border-slate-100 space-y-1.5">
@@ -564,6 +589,7 @@ export default function PricingAdjustmentsStep({
             open={isManageInclusionsOpen}
             onClose={() => setIsManageInclusionsOpen(false)}
             inclusions={inclusions}
+            startingPrice={startingPrice}
             handleInclusionQuantity={handleInclusionQuantity}
             handleInclusionUnitPrice={handleInclusionUnitPrice}
             handleInclusionDeduction={handleInclusionDeduction}

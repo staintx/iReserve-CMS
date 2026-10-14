@@ -491,6 +491,15 @@ exports.saveQuotationDraft = asyncHandler(async (req, res) => {
   };
 
   const totals = computeQuotationTotals(pricingInput);
+  if (totals.rawPackagePrice < 0) {
+    return res.status(400).json({
+      message: `Removed inclusions and quantity reductions take ${peso(
+        totals.inclusionDeductions - totals.inclusionAdjustments
+      )} off a starting price of ${peso(
+        totals.startingPrice
+      )}. Lower the deductions or raise the starting price.`
+    });
+  }
   if (totals.totalCost > MAX_FINANCIAL_AMOUNT) {
     return res.status(400).json({
       message: `Quotation total cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.`

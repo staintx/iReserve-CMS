@@ -1255,6 +1255,19 @@ export default function AdminBookingEditModal({
       return;
     }
 
+    if (totals.rawPackagePrice < 0) {
+      notify(
+        `Item credits and quantity reductions take ${formatCurrency(
+          totals.inclusionDeductions - totals.inclusionAdjustments
+        )} off a starting price of ${formatCurrency(
+          totals.startingPrice
+        )}. Lower the reductions or raise the starting price.`,
+        "error"
+      );
+      scrollToSection("qb-section-package");
+      return;
+    }
+
     if (totals.totalCost > MAX_FINANCIAL_AMOUNT) {
       notify("Amount cannot exceed ₱10,000,000.", "error");
       return;

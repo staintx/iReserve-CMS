@@ -167,9 +167,10 @@ function computeQuotationTotals(input = {}) {
   const inclusionAdjustments = inclusionAdjustmentsOf(input.inclusion_adjustments);
   // A quotation can never go below zero on its package line: deducting more
   // than the package is worth is a data-entry mistake, caught in validation.
-  const packagePrice = money(
-    Math.max(0, startingPrice - inclusionDeductions + inclusionAdjustments)
+  const rawPackagePrice = signedMoney(
+    startingPrice - inclusionDeductions + inclusionAdjustments
   );
+  const packagePrice = money(Math.max(0, rawPackagePrice));
 
   const isSpecial = Boolean(
     input.is_special_offer ||
@@ -194,6 +195,7 @@ function computeQuotationTotals(input = {}) {
     startingPrice,
     inclusionDeductions,
     inclusionAdjustments,
+    rawPackagePrice,
     packagePrice,
     menuSubtotal,
     addOnsSubtotal,

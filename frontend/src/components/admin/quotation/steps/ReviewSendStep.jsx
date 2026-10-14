@@ -125,6 +125,13 @@ export default function ReviewSendStep({
       failMsg: "Customer contact info or event date is missing",
     },
     {
+      label: "Package base pricing valid",
+      passed: (totals.rawPackagePrice !== undefined ? totals.rawPackagePrice >= 0 : totals.startingPrice - totals.inclusionDeductions + totals.inclusionAdjustments >= 0),
+      failMsg: `Item credits and quantity reductions take ${formatCurrency(
+        totals.inclusionDeductions - totals.inclusionAdjustments
+      )} off a starting price of ${formatCurrency(totals.startingPrice)}. Lower the reductions to proceed.`,
+    },
+    {
       label: "Package & items priced",
       passed: totals.totalCost > 0 && totals.totalCost <= MAX_FINANCIAL_AMOUNT && missingPrices.length === 0,
       failMsg:

@@ -168,9 +168,10 @@ export function computeQuotationTotals(input = {}) {
   // Signed: reducing an inclusion's quantity takes value off the package,
   // raising it adds value on.
   const inclusionAdjustments = inclusionAdjustmentsOf(input.inclusion_adjustments);
-  const packagePrice = money(
-    Math.max(0, startingPrice - inclusionDeductions + inclusionAdjustments)
+  const rawPackagePrice = signedMoney(
+    startingPrice - inclusionDeductions + inclusionAdjustments
   );
+  const packagePrice = money(Math.max(0, rawPackagePrice));
 
   const isSpecial = Boolean(
     input.is_special_offer ||
@@ -195,6 +196,7 @@ export function computeQuotationTotals(input = {}) {
     startingPrice,
     inclusionDeductions,
     inclusionAdjustments,
+    rawPackagePrice,
     packagePrice,
     menuSubtotal,
     addOnsSubtotal,

@@ -774,12 +774,26 @@ export default function AdminBookingEditModal({
         name: i.name,
         deduction: i.deduction,
       })),
-      inclusion_adjustments: adjustedInclusions.map((i) => ({
-        name: i.name,
-        base_quantity: i.baseQuantity,
-        quantity: i.quantity,
-        unit_price: i.unitPrice,
-      })),
+      inclusion_adjustments: adjustedInclusions.map((i) => {
+        const baseQty = Number(i.baseQuantity) || 0;
+        const qty = Number(i.quantity) || 0;
+        const isAdd = qty > baseQty;
+        const isLess = qty < baseQty;
+        const rawAmt = numberOf(i.unitPrice);
+        const signedAmt = isAdd ? rawAmt : isLess ? -rawAmt : 0;
+        const qtyDiff = Math.abs(qty - baseQty);
+        const perPieceRate = qtyDiff > 0 ? Math.round((rawAmt / qtyDiff) * 100) / 100 : rawAmt;
+        return {
+          name: i.name,
+          base_quantity: baseQty,
+          quantity: qty,
+          adjustment_type: isAdd ? "Add" : isLess ? "Less" : "None",
+          type: isAdd ? "Add" : isLess ? "Less" : "None",
+          adjustment_amount: rawAmt,
+          amount: signedAmt,
+          unit_price: perPieceRate,
+        };
+      }),
       menu_items: activeMenuItems,
       add_ons: activeAddOns,
       transportation_fee: transportationFee,
@@ -830,10 +844,15 @@ export default function AdminBookingEditModal({
       prev.map((item, i) => {
         if (i !== index) return item;
         const clean = nonNegative(qty);
+        const isBackToDefault =
+          clean !== "" &&
+          item.baseQuantity != null &&
+          Number(clean) === Number(item.baseQuantity);
         return {
           ...item,
           quantity: clean === "" ? "" : Number(clean),
           name: withInclusionQuantity(item.name, clean === "" ? 0 : Number(clean)),
+          ...(isBackToDefault ? { unitPrice: "" } : {}),
         };
       })
     );
@@ -2226,12 +2245,23 @@ export default function AdminBookingEditModal({
                                         </div>
 
                                         {quantityMoved && (
-                                          <div className="w-32">
+                                          <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded border ${
+                                            Number(entry.quantity) > Number(entry.baseQuantity)
+                                              ? "bg-amber-50/50 border-amber-200"
+                                              : "bg-emerald-50/50 border-emerald-200"
+                                          }`}>
+                                            <span className={`text-[10px] font-bold whitespace-nowrap ${
+                                              Number(entry.quantity) > Number(entry.baseQuantity)
+                                                ? "text-amber-800"
+                                                : "text-emerald-800"
+                                            }`}>
+                                              {Number(entry.quantity) > Number(entry.baseQuantity) ? "Add:" : "Less:"}
+                                            </span>
                                             <MoneyInput
                                               value={entry.unitPrice}
-                                              placeholder="Unit price"
+                                              placeholder="0.00"
                                               onChange={(val) => handleInclusionUnitPrice(index, val)}
-                                              className="py-1.5 text-xs"
+                                              className="w-24 py-1 text-xs"
                                             />
                                           </div>
                                         )}

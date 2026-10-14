@@ -40,16 +40,23 @@ export default function StaffEventDetails() {
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const loadEvent = async () => {
-    setLoading(true);
+  const loadEvent = async (options = {}) => {
+    const isSilent = typeof options === "boolean" ? options : Boolean(options?.silent);
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const res = await StaffAPI.getBooking(id);
       setBooking(res.data);
     } catch (err) {
       console.error(err);
-      notify("Failed to load assigned event details.", "error");
+      if (!isSilent) {
+        notify("Failed to load assigned event details.", "error");
+      }
     } finally {
-      setLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -57,7 +64,12 @@ export default function StaffEventDetails() {
     loadEvent();
   }, [id]);
 
-  useRealTimeRefresh(loadEvent, ["booking"]);
+  useRealTimeRefresh((data) => {
+    if (data?.booking_id && String(data.booking_id) !== String(id)) {
+      return;
+    }
+    loadEvent({ silent: true });
+  }, ["booking"]);
 
   const myRole = useMemo(() => {
     if (!booking) return "Crew";

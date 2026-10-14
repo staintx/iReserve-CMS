@@ -46,6 +46,7 @@ import {
   MENU_PRICING,
   menuLineTotal,
   money,
+  numberOf,
 } from "../../../utils/quotationPricing";
 import {
   eventSpaceLabel,
@@ -538,22 +539,37 @@ export default function AdminBookingEditModal({
     // Inclusions
     let rawInclusions = [];
     if (Array.isArray(booking.package_inclusions) && booking.package_inclusions.length > 0) {
-      const savedAdjustments = new Map(
-        (Array.isArray(booking.inclusion_adjustments) ? booking.inclusion_adjustments : [])
-          .filter((entry) => entry?.name)
-          .map((entry) => [String(entry.name), entry])
-      );
+      const savedAdjustments = new Map();
+      (Array.isArray(booking.inclusion_adjustments) ? booking.inclusion_adjustments : []).forEach((entry) => {
+        if (!entry?.name) return;
+        savedAdjustments.set(String(entry.name), entry);
+        const disp = inclusionDisplayName(entry.name);
+        if (disp) savedAdjustments.set(disp, entry);
+      });
       rawInclusions = [
         ...booking.package_inclusions.map((entry) => {
           const text = inclusionText(entry);
-          const adjustment = savedAdjustments.get(text);
+          const adjustment = savedAdjustments.get(text) || savedAdjustments.get(inclusionDisplayName(text));
           const row = inclusionRow(text);
           if (!adjustment) return row;
+          const adjAmt =
+            adjustment.adjustment_amount != null && adjustment.adjustment_amount !== ""
+              ? String(adjustment.adjustment_amount)
+              : adjustment.amount != null && Number(adjustment.amount) !== 0
+              ? String(Math.abs(Number(adjustment.amount)))
+              : adjustment.unit_price
+              ? String(
+                  Math.abs(
+                    (Number(adjustment.quantity) - Number(adjustment.base_quantity)) *
+                      Number(adjustment.unit_price)
+                  )
+                )
+              : "";
           return {
             ...row,
             baseQuantity: Number(adjustment.base_quantity) || row.baseQuantity,
             quantity: Number(adjustment.quantity) || row.quantity,
-            unitPrice: adjustment.unit_price ? String(adjustment.unit_price) : "",
+            unitPrice: adjAmt,
           };
         }),
         ...(Array.isArray(booking.removed_inclusions) ? booking.removed_inclusions : []).map(
@@ -565,22 +581,37 @@ export default function AdminBookingEditModal({
         ),
       ];
     } else if (booking.quotation_id && Array.isArray(booking.quotation_id.package_inclusions)) {
-      const savedAdjustments = new Map(
-        (Array.isArray(booking.quotation_id.inclusion_adjustments) ? booking.quotation_id.inclusion_adjustments : [])
-          .filter((entry) => entry?.name)
-          .map((entry) => [String(entry.name), entry])
-      );
+      const savedAdjustments = new Map();
+      (Array.isArray(booking.quotation_id.inclusion_adjustments) ? booking.quotation_id.inclusion_adjustments : []).forEach((entry) => {
+        if (!entry?.name) return;
+        savedAdjustments.set(String(entry.name), entry);
+        const disp = inclusionDisplayName(entry.name);
+        if (disp) savedAdjustments.set(disp, entry);
+      });
       rawInclusions = [
         ...booking.quotation_id.package_inclusions.map((entry) => {
           const text = inclusionText(entry);
-          const adjustment = savedAdjustments.get(text);
+          const adjustment = savedAdjustments.get(text) || savedAdjustments.get(inclusionDisplayName(text));
           const row = inclusionRow(text);
           if (!adjustment) return row;
+          const adjAmt =
+            adjustment.adjustment_amount != null && adjustment.adjustment_amount !== ""
+              ? String(adjustment.adjustment_amount)
+              : adjustment.amount != null && Number(adjustment.amount) !== 0
+              ? String(Math.abs(Number(adjustment.amount)))
+              : adjustment.unit_price
+              ? String(
+                  Math.abs(
+                    (Number(adjustment.quantity) - Number(adjustment.base_quantity)) *
+                      Number(adjustment.unit_price)
+                  )
+                )
+              : "";
           return {
             ...row,
             baseQuantity: Number(adjustment.base_quantity) || row.baseQuantity,
             quantity: Number(adjustment.quantity) || row.quantity,
-            unitPrice: adjustment.unit_price ? String(adjustment.unit_price) : "",
+            unitPrice: adjAmt,
           };
         }),
         ...(Array.isArray(booking.quotation_id.removed_inclusions) ? booking.quotation_id.removed_inclusions : []).map(
@@ -756,6 +787,8 @@ export default function AdminBookingEditModal({
         (i) =>
           i.baseQuantity !== null &&
           i.baseQuantity !== undefined &&
+          i.quantity !== "" &&
+          i.quantity !== null &&
           Number(i.quantity) !== Number(i.baseQuantity)
       ),
     [keptInclusions]
@@ -1292,17 +1325,26 @@ export default function AdminBookingEditModal({
           name: i.name,
           deduction: money(i.deduction),
         })),
-        inclusion_adjustments: adjustedInclusions.map((i) => ({
-          name: i.name,
-          base_quantity: i.baseQuantity,
-          quantity: i.quantity,
-          unit_price: money(i.unitPrice),
-          amount: inclusionAdjustmentAmount({
-            base_quantity: i.baseQuantity,
-            quantity: i.quantity,
-            unit_price: i.unitPrice,
-          }),
-        })),
+        inclusion_adjustments: adjustedInclusions.map((i) => {
+          const baseQty = Number(i.baseQuantity) || 0;
+          const qty = Number(i.quantity) || 0;
+          const isAdd = qty > baseQty;
+          const isLess = qty < baseQty;
+          const rawAmt = numberOf(i.unitPrice);
+          const signedAmt = isAdd ? rawAmt : isLess ? -rawAmt : 0;
+          const qtyDiff = Math.abs(qty - baseQty);
+          const perPieceRate = qtyDiff > 0 ? Math.round((rawAmt / qtyDiff) * 100) / 100 : rawAmt;
+          return {
+            name: i.name,
+            base_quantity: baseQty,
+            quantity: qty,
+            adjustment_type: isAdd ? "Add" : isLess ? "Less" : "None",
+            type: isAdd ? "Add" : isLess ? "Less" : "None",
+            adjustment_amount: rawAmt,
+            amount: signedAmt,
+            unit_price: perPieceRate,
+          };
+        }),
         selected_scaffold_option_id:
           isCustomScaffold || !selectedScaffoldId ? undefined : selectedScaffoldId,
         scaffold_width: scaffoldWidth ? Number(scaffoldWidth) : undefined,

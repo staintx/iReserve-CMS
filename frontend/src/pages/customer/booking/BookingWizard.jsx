@@ -1674,6 +1674,33 @@ export default function BookingWizard() {
         data?.package_name_snapshot ||
         "";
 
+      const isRegularPackage =
+        !isOffer &&
+        !form.is_custom_setup &&
+        Boolean(
+          selectedPackageId ||
+          packageDetails ||
+          data?.package_name_snapshot ||
+          data?.booking_type === "regular"
+        );
+
+      const resolvedPackageName =
+        packageDetails?.name ||
+        initialPackageName ||
+        packages.find((pkg) => String(pkg._id) === String(selectedPackageId))?.name ||
+        data?.package_name_snapshot ||
+        "";
+
+      const hasMenu =
+        form.include_food !== false &&
+        (Boolean(includeFood) ||
+          (Array.isArray(form.selected_menu) && form.selected_menu.length > 0) ||
+          (Array.isArray(data?.selected_menu) && data.selected_menu.length > 0));
+
+      const regularPackageService = resolvedPackageName
+        ? `${resolvedPackageName}${hasMenu ? " + Menu" : ""}`
+        : payload.service_type;
+
       const requestSummary = isOffer
         ? [
           { label: "Service", value: offerName || "Special Offer" },
@@ -1688,7 +1715,7 @@ export default function BookingWizard() {
           // The same one size the summary panel and the review page showed,
           // so the confirmation confirms what was actually submitted.
           { label: "Event space / scaffold size", value: estimate.eventSpace },
-          { label: "Service", value: payload.service_type },
+          { label: "Service", value: isRegularPackage ? regularPackageService : payload.service_type },
           { label: "Venue", value: payload.venue_type },
         ];
 
@@ -1699,12 +1726,16 @@ export default function BookingWizard() {
         replace: true,
         state: {
           submitted: true,
-          kind: isOffer ? "special_offer" : "package",
+          kind: isOffer ? "special_offer" : isRegularPackage ? "package" : "custom",
           isSpecialOffer: isOffer,
+          isRegularPackage,
+          packageName: resolvedPackageName,
+          hasMenu,
           offerName: isOffer ? offerName : undefined,
           reference: data?.reference || null,
           estimatedTotal: estimate.total,
           summary: requestSummary,
+          inquiry: data || null,
         },
       });
     } catch (err) {

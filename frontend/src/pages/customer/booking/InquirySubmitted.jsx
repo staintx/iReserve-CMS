@@ -129,6 +129,9 @@ export default function InquirySubmitted() {
     return isDev && !state?.submitted ? {
       submitted: true,
       kind: "package",
+      isRegularPackage: true,
+      packageName: "Birthday Package 1",
+      hasMenu: true,
       reference: "INQ-000018",
       estimatedTotal: 20000,
       summary: [
@@ -137,7 +140,7 @@ export default function InquirySubmitted() {
         { label: "Event date", value: "Sep 25, 2026" },
         { label: "Guests", value: "80" },
         { label: "Event space / scaffold size", value: "20 × 40" },
-        { label: "Service", value: "Food and Event Setup" },
+        { label: "Service", value: "Birthday Package 1 + Menu" },
         { label: "Venue", value: "Garden" },
       ],
     } : null;
@@ -153,6 +156,7 @@ export default function InquirySubmitted() {
   const estimate = Number(activeState?.estimatedTotal) || 0;
 
   const [resolvedOfferName, setResolvedOfferName] = useState(activeState?.offerName || "");
+  const [inquiryData, setInquiryData] = useState(activeState?.inquiry || null);
 
   // Detect whether this inquiry represents a Special Offer
   const isSpecialOffer =
@@ -167,40 +171,109 @@ export default function InquirySubmitted() {
           row.value?.toLowerCase().includes("special offer"))
     );
 
-  // If this is a Special Offer and we don't have the offer name yet, fetch it dynamically by reference
+  // Fetch inquiry dynamically by reference (for offer name resolution and persistent regular package/menu verification on refresh)
   useEffect(() => {
-    if (!isSpecialOffer || resolvedOfferName || !reference) return;
+    if (!reference) return;
 
     CustomerAPI.getInquiries()
       .then((res) => {
         const list = Array.isArray(res.data) ? res.data : [];
         const match = list.find((inq) => inq.reference === reference);
         if (match) {
-          const name = match.package_name_snapshot || match.package_id?.name || "";
-          if (name) setResolvedOfferName(name);
+          setInquiryData(match);
+          const isSpecial =
+            match.booking_type === "special" ||
+            match.event_type === "Special Offer Catering" ||
+            match.event_type === "Special Offer Event";
+          if (isSpecial) {
+            const name = match.package_name_snapshot || match.package_id?.name || "";
+            if (name) setResolvedOfferName(name);
+          }
         }
       })
       .catch(() => {});
-  }, [isSpecialOffer, resolvedOfferName, reference]);
+  }, [reference]);
 
   const summary = useMemo(() => {
-    if (!isSpecialOffer) return rawSummary;
+    const inq = inquiryData || activeState?.inquiry;
 
-    const eventDate = rawSummary.find((r) => r.label === "Event date")?.value || "";
-    const guests = rawSummary.find((r) => r.label === "Guests")?.value || "";
-    const dynamicOfferName =
-      resolvedOfferName ||
-      activeState?.offerName ||
-      rawSummary.find((r) => r.label === "Service type")?.value ||
-      rawSummary.find((r) => r.label === "Service")?.value ||
-      "";
+    // Detect Special Offer
+    const isSpecial =
+      isSpecialOffer ||
+      inq?.booking_type === "special" ||
+      inq?.event_type === "Special Offer Catering" ||
+      inq?.event_type === "Special Offer Event";
 
-    return [
-      { label: "Service", value: dynamicOfferName || "Special Offer" },
-      { label: "Event date", value: eventDate },
-      { label: "Guests", value: guests },
-    ].filter((row) => Boolean(row?.value));
-  }, [isSpecialOffer, rawSummary, resolvedOfferName, activeState?.offerName]);
+    if (isSpecial) {
+      const eventDate = rawSummary.find((r) => r.label === "Event date")?.value || "";
+      const guests = rawSummary.find((r) => r.label === "Guests")?.value || "";
+      const dynamicOfferName =
+        resolvedOfferName ||
+        inq?.package_name_snapshot ||
+        inq?.package_id?.name ||
+        activeState?.offerName ||
+        rawSummary.find((r) => r.label === "Service type")?.value ||
+        rawSummary.find((r) => r.label === "Service")?.value ||
+        "";
+
+      return [
+        { label: "Service", value: dynamicOfferName || "Special Offer" },
+        { label: "Event date", value: eventDate },
+        { label: "Guests", value: guests },
+      ].filter((row) => Boolean(row?.value));
+    }
+
+    // Determine if it is a Regular Package inquiry
+    const isExplicitCustom =
+      inq?.booking_type === "custom" ||
+      inq?.is_custom_setup === true ||
+      activeState?.kind === "custom";
+
+    const isRegularPackage =
+      !isExplicitCustom &&
+      (inq?.booking_type === "regular" ||
+        activeState?.isRegularPackage === true ||
+        Boolean(inq?.package_name_snapshot) ||
+        Boolean(inq?.package_id) ||
+        Boolean(activeState?.packageName));
+
+    if (isRegularPackage) {
+      const pkgName =
+        inq?.package_name_snapshot ||
+        inq?.package_id?.name ||
+        activeState?.packageName ||
+        "";
+
+      const foodExplicitlySkipped =
+        inq?.include_food === false ||
+        activeState?.hasMenu === false ||
+        activeState?.include_food === false;
+
+      const hasMenu =
+        !foodExplicitlySkipped &&
+        (inq
+          ? (inq.include_food === true || (Array.isArray(inq.selected_menu) && inq.selected_menu.length > 0))
+          : (activeState?.hasMenu ?? true));
+
+      const serviceValue = pkgName
+        ? `${pkgName}${hasMenu ? " + Menu" : ""}`
+        : rawSummary.find((r) => r.label === "Service")?.value || "";
+
+      if (serviceValue) {
+        let hasServiceRow = false;
+        const updated = rawSummary.map((row) => {
+          if (row.label === "Service") {
+            hasServiceRow = true;
+            return { ...row, value: serviceValue };
+          }
+          return row;
+        });
+        return hasServiceRow ? updated : [...updated, { label: "Service", value: serviceValue }];
+      }
+    }
+
+    return rawSummary;
+  }, [isSpecialOffer, rawSummary, resolvedOfferName, activeState, inquiryData]);
 
   useEffect(() => {
     document.title = "Inquiry Submitted · Caezelle’s Food, Catering & Services";

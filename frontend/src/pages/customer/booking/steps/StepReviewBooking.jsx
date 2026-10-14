@@ -187,9 +187,28 @@ export default function StepReviewBooking({
     form?.package_name ||
     "";
 
-  const resolvedService =
-    isSpecialOfferBooking && specialOfferName
-      ? specialOfferName
+  const isRegularPackageBooking =
+    !isSpecialOfferBooking &&
+    !form?.is_custom_setup &&
+    Boolean(packageName || (form?.package_id && form.package_id !== "none"));
+
+  const resolvedPackageName =
+    packageName ||
+    form?.package_name_snapshot ||
+    form?.package_name ||
+    "";
+
+  // Check whether menu is included or selected for this inquiry
+  const hasMenu =
+    form?.include_food !== false &&
+    (Boolean(form?.include_food) ||
+      (Array.isArray(form?.selected_menu) && form.selected_menu.length > 0) ||
+      (Array.isArray(form?.menu_items) && form.menu_items.length > 0));
+
+  const resolvedService = isSpecialOfferBooking && specialOfferName
+    ? specialOfferName
+    : isRegularPackageBooking && resolvedPackageName
+      ? `${resolvedPackageName}${hasMenu ? " + Menu" : ""}`
       : SERVICE_LABELS[serviceType] || serviceType;
 
   const showPackageSection = !isSpecialOfferBooking && Boolean(packageName || eventSpace);

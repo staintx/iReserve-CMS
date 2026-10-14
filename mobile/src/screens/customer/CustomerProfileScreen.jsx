@@ -26,6 +26,7 @@ import {
   Camera,
   Compass,
   RotateCcw,
+  CreditCard,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import AppButton from "../../components/common/AppButton";
@@ -192,7 +193,7 @@ export const CustomerProfileScreen = ({ navigation }) => {
         {/* Top Bar with Brand & Help Pill */}
         <View style={styles.headerTopRow}>
           <View style={styles.brandTitleWrap}>
-            <View style={styles.goldBrandDot} />
+            <View style={styles.brandDot} />
             <Text style={styles.headerBrandText}>iReserve • Caezelle's</Text>
           </View>
 
@@ -201,7 +202,7 @@ export const CustomerProfileScreen = ({ navigation }) => {
             onPress={() => setShowHelpModal(true)}
             activeOpacity={0.8}
           >
-            <HelpCircle size={14} color={colors.primaryDark} style={{ marginRight: 4 }} />
+            <HelpCircle size={14} color="#1E3A8A" style={{ marginRight: 4 }} />
             <Text style={styles.helpPillText}>Help</Text>
           </TouchableOpacity>
         </View>
@@ -212,7 +213,7 @@ export const CustomerProfileScreen = ({ navigation }) => {
           onPress={handleOpenEdit}
           activeOpacity={0.85}
         >
-          {/* Avatar Circle with Luxury Gold Border & Initials */}
+          {/* Avatar Circle with Crisp White/Blue Border & Initials */}
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarInitials}>{userInitials}</Text>
           </View>
@@ -244,84 +245,104 @@ export const CustomerProfileScreen = ({ navigation }) => {
           {/* Sheet Header */}
           <Text style={styles.sheetTitle}>Profile</Text>
 
-          {/* Navigation Rows List */}
-          <View style={styles.menuList}>
+          {/* ── Section 1: Account & Preferences ── */}
+          <Text style={styles.sectionHeader}>Account & Preferences</Text>
+          <View style={styles.sectionGroup}>
             {/* 1. Account */}
             <TouchableOpacity
               style={styles.menuItemRow}
               onPress={handleOpenEdit}
               activeOpacity={0.65}
             >
-              <View style={styles.menuIconWrap}>
-                <User size={20} color={colors.primary} />
+              <View style={styles.iconCol}>
+                <User size={18} color="#4C81E0" strokeWidth={2} />
               </View>
               <Text style={styles.menuItemLabel}>Account</Text>
-              <ChevronRight size={18} color={colors.textDisabled} />
+              <ChevronRight size={16} color={colors.textDisabled} />
             </TouchableOpacity>
 
-            {/* 2. Password & Security */}
+            {/* 2. Payments & Receipts */}
             <TouchableOpacity
               style={styles.menuItemRow}
+              onPress={() => navigation.navigate("CustomerPayments")}
+              activeOpacity={0.65}
+            >
+              <View style={styles.iconCol}>
+                <CreditCard size={18} color="#4C81E0" strokeWidth={2} />
+              </View>
+              <Text style={styles.menuItemLabel}>Payments & Receipts</Text>
+              <ChevronRight size={16} color={colors.textDisabled} />
+            </TouchableOpacity>
+
+            {/* 3. Password & Security */}
+            <TouchableOpacity
+              style={[styles.menuItemRow, styles.menuItemRowLast]}
               onPress={() => setShowPasswordModal(true)}
               activeOpacity={0.65}
             >
-              <View style={styles.menuIconWrap}>
-                <Lock size={20} color={colors.primary} />
+              <View style={styles.iconCol}>
+                <Lock size={18} color="#4C81E0" strokeWidth={2} />
               </View>
               <Text style={styles.menuItemLabel}>Password & Security</Text>
-              <ChevronRight size={18} color={colors.textDisabled} />
+              <ChevronRight size={16} color={colors.textDisabled} />
             </TouchableOpacity>
+          </View>
 
-            {/* 3. Customer Dashboard */}
+          {/* ── Section 2: Discover ── */}
+          <Text style={styles.sectionHeader}>Discover</Text>
+          <View style={styles.sectionGroup}>
+            {/* 4. Customer Dashboard */}
             <TouchableOpacity
               style={styles.menuItemRow}
               onPress={() => navigation.navigate("CustomerDashboard")}
               activeOpacity={0.65}
             >
-              <View style={styles.menuIconWrap}>
-                <LayoutDashboard size={20} color={colors.primary} />
+              <View style={styles.iconCol}>
+                <LayoutDashboard size={18} color="#4C81E0" strokeWidth={2} />
               </View>
               <Text style={styles.menuItemLabel}>Customer Dashboard</Text>
-              <ChevronRight size={18} color={colors.textDisabled} />
+              <ChevronRight size={16} color={colors.textDisabled} />
             </TouchableOpacity>
 
-            {/* 4. Event Gallery */}
+            {/* 5. Event Styling & Gallery */}
             <TouchableOpacity
               style={styles.menuItemRow}
               onPress={() => navigation.navigate("Gallery")}
               activeOpacity={0.65}
             >
-              <View style={styles.menuIconWrap}>
-                <Camera size={20} color={colors.primary} />
+              <View style={styles.iconCol}>
+                <Camera size={18} color="#4C81E0" strokeWidth={2} />
               </View>
               <Text style={styles.menuItemLabel}>Event Styling & Gallery</Text>
-              <ChevronRight size={18} color={colors.textDisabled} />
+              <ChevronRight size={16} color={colors.textDisabled} />
             </TouchableOpacity>
 
-            {/* 5. App Tour & Feature Guide */}
+            {/* 6. App Tour & Feature Guide */}
             <TouchableOpacity
-              style={styles.menuItemRow}
+              style={[styles.menuItemRow, styles.menuItemRowLast]}
               onPress={() => setShowHelpModal(true)}
               activeOpacity={0.65}
             >
-              <View style={styles.menuIconWrap}>
-                <Compass size={20} color={colors.primary} />
+              <View style={styles.iconCol}>
+                <Compass size={18} color="#4C81E0" strokeWidth={2} />
               </View>
               <Text style={styles.menuItemLabel}>App Tour & Feature Guide</Text>
-              <ChevronRight size={18} color={colors.textDisabled} />
+              <ChevronRight size={16} color={colors.textDisabled} />
             </TouchableOpacity>
+          </View>
 
-            {/* 6. Sign Out */}
+          {/* ── Standalone Sign Out Row ── */}
+          <View style={styles.signOutGroup}>
             <TouchableOpacity
-              style={[styles.menuItemRow, styles.logoutRow]}
+              style={styles.signOutRow}
               onPress={handleLogout}
               activeOpacity={0.65}
             >
-              <View style={[styles.menuIconWrap, styles.logoutIconWrap]}>
-                <LogOut size={20} color={colors.error} />
+              <View style={styles.iconCol}>
+                <LogOut size={18} color="#DC2626" strokeWidth={2} />
               </View>
-              <Text style={styles.logoutLabel}>Sign Out</Text>
-              <ChevronRight size={18} color={colors.error} />
+              <Text style={styles.signOutLabel}>Sign Out</Text>
+              <ChevronRight size={16} color="#DC2626" />
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -563,11 +584,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  goldBrandDot: {
+  brandDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.accentGold,
+    backgroundColor: "#60A5FA",
     marginRight: 8,
   },
   headerBrandText: {
@@ -604,17 +625,17 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   avatarCircle: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2.5,
-    borderColor: colors.accentGold,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.85)",
   },
   avatarInitials: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "800",
     color: colors.primaryDark,
@@ -626,14 +647,14 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   userNameText: {
-    fontSize: 20,
+    fontSize: 19,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "800",
     color: colors.white,
-    lineHeight: 24,
+    lineHeight: 23,
   },
   userSubtitleText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: typography.fontFamilies.regular,
     color: "rgba(255, 255, 255, 0.82)",
     marginTop: 2,
@@ -648,60 +669,86 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   scrollContent: {
-    paddingHorizontal: 22,
-    paddingTop: 24,
-    paddingBottom: 130, // Clearance for floating tab bar
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 110, // Clearance for floating tab bar and safe area
   },
   sheetTitle: {
-    fontSize: 26,
+    fontSize: 22,
     fontFamily: typography.fontFamilies.extraBold,
     fontWeight: "800",
     color: colors.foregroundDark,
-    marginBottom: 12,
+    marginBottom: 2,
+    paddingHorizontal: 2,
   },
 
-  // --- Menu Rows ---
-  menuList: {
-    marginTop: 4,
+  // --- Menu Sections & Rows ---
+  sectionHeader: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.textSubtle,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginTop: 16,
+    marginBottom: 6,
+    paddingHorizontal: 4,
+  },
+  sectionGroup: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    overflow: "hidden",
   },
   menuItemRow: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 56,
-    paddingVertical: 14,
+    minHeight: 48,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: "#F1F5F9",
   },
-  menuIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: colors.primaryLight,
+  menuItemRowLast: {
+    borderBottomWidth: 0,
+  },
+  iconCol: {
+    width: 24,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 14,
+    marginRight: 12,
   },
   menuItemLabel: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: typography.fontFamilies.medium,
     fontWeight: "500",
     color: colors.foregroundDark,
   },
-  logoutRow: {
-    borderBottomWidth: 0,
-    marginTop: 12,
-    paddingVertical: 16,
+
+  // Standalone Sign Out
+  signOutGroup: {
+    marginTop: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    overflow: "hidden",
   },
-  logoutIconWrap: {
-    backgroundColor: colors.errorLight,
+  signOutRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 48,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
-  logoutLabel: {
+  signOutLabel: {
     flex: 1,
-    fontSize: 15,
-    fontFamily: typography.fontFamilies.bold,
-    fontWeight: "700",
-    color: colors.error,
+    fontSize: 14,
+    fontFamily: typography.fontFamilies.semiBold,
+    fontWeight: "600",
+    color: "#DC2626",
   },
 
   // --- Modal Overlay & Box ---

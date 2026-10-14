@@ -192,6 +192,11 @@ export const customerApi = {
     const response = await client.post(`/payments/${id}/verify`);
     return response.data;
   },
+
+  setPaymentPreference: async (data) => {
+    const response = await client.post("/payments/preference", data);
+    return response.data;
+  },
 };
 
 export default customerApi;

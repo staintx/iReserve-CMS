@@ -886,6 +886,7 @@ const inclusionRow = (name, partial = {}) => {
     baseQuantity: parsed ? parsed.quantity : null,
     quantity: parsed ? parsed.quantity : null,
     unitPrice: "",
+    adjustmentAmount: "",
     ...partial,
   };
 };
@@ -2001,13 +2002,36 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
   const handleInclusionQuantity = (index, value) => {
     setIsQuotationDirty(true);
     setInclusions((prev) =>
-      prev.map((entry, i) => (i === index ? { ...entry, quantity: value === "" ? "" : Number(value) } : entry))
+      prev.map((entry, i) => {
+        if (i !== index) return entry;
+        const newQty = value === "" ? "" : Number(value);
+        const isBackToDefault =
+          value !== "" &&
+          entry.baseQuantity !== null &&
+          entry.baseQuantity !== undefined &&
+          Number(value) === Number(entry.baseQuantity);
+        return {
+          ...entry,
+          quantity: newQty,
+          ...(isBackToDefault ? { unitPrice: "", adjustmentAmount: "" } : {}),
+        };
+      })
     );
   };
 
   const handleInclusionUnitPrice = (index, value) => {
     setIsQuotationDirty(true);
-    setInclusions((prev) => prev.map((entry, i) => (i === index ? { ...entry, unitPrice: value } : entry)));
+    setInclusions((prev) =>
+      prev.map((entry, i) =>
+        i === index
+          ? {
+              ...entry,
+              unitPrice: value,
+              adjustmentAmount: value,
+            }
+          : entry
+      )
+    );
   };
 
   const handleInclusionDeduction = (index, value) => {
@@ -2594,14 +2618,30 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
             !entry.removed &&
             entry.baseQuantity !== null &&
             entry.baseQuantity !== undefined &&
+            entry.quantity !== "" &&
             Number(entry.quantity) !== Number(entry.baseQuantity)
         )
-        .map((entry) => ({
-          name: String(entry.name || "").trim(),
-          base_quantity: Number(entry.baseQuantity) || 0,
-          quantity: Number(entry.quantity) || 0,
-          unit_price: numberOf(entry.unitPrice),
-        }))
+        .map((entry) => {
+          const baseQty = Number(entry.baseQuantity) || 0;
+          const qty = Number(entry.quantity) || 0;
+          const isAdd = qty > baseQty;
+          const isLess = qty < baseQty;
+          const adjustmentType = isAdd ? "Add" : isLess ? "Less" : "None";
+          const rawAmt = numberOf(entry.adjustmentAmount ?? entry.unitPrice);
+          const signedAmt = isAdd ? rawAmt : isLess ? -rawAmt : 0;
+          const qtyDiff = Math.abs(qty - baseQty);
+          const perPieceRate = qtyDiff > 0 ? Math.round((rawAmt / qtyDiff) * 100) / 100 : rawAmt;
+          return {
+            name: String(entry.name || "").trim(),
+            base_quantity: baseQty,
+            quantity: qty,
+            adjustment_type: adjustmentType,
+            type: adjustmentType,
+            adjustment_amount: rawAmt,
+            amount: signedAmt,
+            unit_price: perPieceRate,
+          };
+        })
         .filter((entry) => entry.name),
     [inclusions]
   );

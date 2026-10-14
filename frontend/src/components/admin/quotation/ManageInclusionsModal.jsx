@@ -155,7 +155,10 @@ export default function ManageInclusionsModal({
         !item.removed &&
         item.baseQuantity != null &&
         item.quantity != null &&
+        item.quantity !== "" &&
         Number(item.quantity) !== Number(item.baseQuantity);
+      const isAdd = isQtyModified && Number(item.quantity) > Number(item.baseQuantity);
+      const isLess = isQtyModified && Number(item.quantity) < Number(item.baseQuantity);
 
       return {
         ...item,
@@ -165,6 +168,8 @@ export default function ManageInclusionsModal({
         defaultQty,
         unit,
         isQtyModified,
+        isAdd,
+        isLess,
       };
     });
   }, [inclusions]);
@@ -371,12 +376,26 @@ export default function ManageInclusionsModal({
                     </div>
 
                     {item.isQtyModified && (
-                      <div className="flex items-center gap-1.5 bg-white px-2 py-0.5 rounded border border-slate-200">
-                        <span className="text-[10.5px] text-slate-500 whitespace-nowrap">
-                          Rate/{item.unit}:
+                      <div
+                        className={`flex items-center gap-1.5 px-2 py-0.5 rounded border transition-colors ${
+                          item.isAdd
+                            ? "bg-amber-50/50 border-amber-200"
+                            : "bg-emerald-50/50 border-emerald-200"
+                        }`}
+                      >
+                        <span
+                          className={`text-[10.5px] font-bold whitespace-nowrap ${
+                            item.isAdd ? "text-amber-800" : "text-emerald-800"
+                          }`}
+                        >
+                          {item.isAdd ? "Add:" : "Less:"}
                         </span>
-                        <div className="relative w-20">
-                          <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-1.5 text-xs text-slate-400">
+                        <div className="relative w-24">
+                          <span
+                            className={`pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2 text-xs font-mono font-semibold ${
+                              item.isAdd ? "text-amber-600" : "text-emerald-600"
+                            }`}
+                          >
                             ₱
                           </span>
                           <input
@@ -385,20 +404,35 @@ export default function ManageInclusionsModal({
                             min="0"
                             step="0.01"
                             placeholder="0.00"
-                            value={item.unitPrice}
+                            value={item.adjustmentAmount ?? item.unitPrice ?? ""}
                             onChange={(e) =>
                               handleInclusionUnitPrice(
                                 item.originalIndex,
                                 e.target.value.replace(/[^0-9.]/g, "")
                               )
                             }
-                            className={`w-full rounded border pl-4 pr-1 py-0.5 text-xs text-right font-mono font-medium focus:outline-none focus:ring-1 focus:ring-primary ${
-                              !item.unitPrice || Number(item.unitPrice) <= 0
-                                ? "border-red-400 bg-red-50/40"
-                                : "border-slate-300 bg-white"
+                            className={`w-full rounded border pl-5 pr-1.5 py-1 text-xs text-right font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-primary ${
+                              (!item.unitPrice && !item.adjustmentAmount) ||
+                              Number(item.adjustmentAmount ?? item.unitPrice) <= 0
+                                ? item.isAdd
+                                  ? "border-amber-300 bg-white"
+                                  : "border-slate-300 bg-white"
+                                : item.isAdd
+                                ? "border-amber-300 bg-white text-slate-900"
+                                : "border-emerald-300 bg-white text-emerald-900"
                             }`}
                           />
                         </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleInclusionQuantity(item.originalIndex, item.baseQuantity)
+                          }
+                          className="text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer transition-colors"
+                          title="Reset quantity to package default"
+                        >
+                          <Undo2 size={12} />
+                        </button>
                       </div>
                     )}
                   </div>

@@ -160,20 +160,37 @@ function validateQuotationPayload(body, totals) {
         errors[`inclusion_adjustments.${index}.quantity`] =
           "An inclusion quantity cannot be negative.";
       }
-      if (negative(item?.unit_price)) {
+
+      const rawAdj =
+        item?.adjustment_amount !== undefined &&
+        item?.adjustment_amount !== null &&
+        item?.adjustment_amount !== ""
+          ? Number(item?.adjustment_amount)
+          : item?.amount !== undefined &&
+            item?.amount !== null &&
+            item?.amount !== "" &&
+            !isNaN(Number(item?.amount))
+          ? Math.abs(Number(item?.amount))
+          : Number(item?.unit_price);
+
+      if (negative(rawAdj)) {
+        errors[`inclusion_adjustments.${index}.adjustment_amount`] =
+          "An adjustment amount cannot be a negative amount.";
         errors[`inclusion_adjustments.${index}.unit_price`] =
-          "A unit price cannot be a negative amount.";
+          "An adjustment amount cannot be a negative amount.";
       } else if (Number(item?.quantity) > Number(item?.base_quantity)) {
         if (
-          item?.unit_price === undefined ||
-          item?.unit_price === null ||
-          item?.unit_price === "" ||
-          isNaN(Number(item?.unit_price)) ||
-          Number(item?.unit_price) <= 0
+          rawAdj === undefined ||
+          rawAdj === null ||
+          rawAdj === "" ||
+          isNaN(Number(rawAdj)) ||
+          Number(rawAdj) <= 0
         ) {
-          errors[`inclusion_adjustments.${index}.unit_price`] = `A unit price greater than ₱0 is required for extra "${incName || `Inclusion #${index + 1}`}".`;
-        } else if (Number(item?.unit_price) > MAX_FINANCIAL_AMOUNT) {
-          errors[`inclusion_adjustments.${index}.unit_price`] = `Unit price cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.`;
+          errors[`inclusion_adjustments.${index}.adjustment_amount`] = `An additional amount greater than ₱0 is required for extra "${incName || `Inclusion #${index + 1}`}".`;
+          errors[`inclusion_adjustments.${index}.unit_price`] = `An additional amount greater than ₱0 is required for extra "${incName || `Inclusion #${index + 1}`}".`;
+        } else if (Number(rawAdj) > MAX_FINANCIAL_AMOUNT) {
+          errors[`inclusion_adjustments.${index}.adjustment_amount`] = `Adjustment amount cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.`;
+          errors[`inclusion_adjustments.${index}.unit_price`] = `Adjustment amount cannot exceed ₱${MAX_FINANCIAL_AMOUNT.toLocaleString("en-PH")}.`;
         }
       }
     }
@@ -326,13 +343,41 @@ function buildQuotationPayload(body, totals, inquiry = null) {
     Array.isArray(body.inclusion_adjustments) ? body.inclusion_adjustments : []
   )
     .filter((entry) => entry && String(entry.name || "").trim())
-    .map((entry) => ({
-      name: String(entry.name).trim(),
-      base_quantity: Math.max(0, Math.floor(Number(entry.base_quantity)) || 0),
-      quantity: Math.max(0, Math.floor(Number(entry.quantity)) || 0),
-      unit_price: money(entry.unit_price),
-      amount: inclusionAdjustmentAmount(entry),
-    }));
+    .map((entry) => {
+      const baseQuantity = Math.max(0, Math.floor(Number(entry.base_quantity)) || 0);
+      const quantity = Math.max(0, Math.floor(Number(entry.quantity)) || 0);
+      const isAdd = quantity > baseQuantity;
+      const isLess = quantity < baseQuantity;
+      const adjustmentType = isAdd ? "Add" : isLess ? "Less" : "None";
+
+      const rawAdj =
+        entry.adjustment_amount !== undefined &&
+        entry.adjustment_amount !== null &&
+        entry.adjustment_amount !== ""
+          ? Math.abs(money(entry.adjustment_amount))
+          : entry.amount !== undefined &&
+            entry.amount !== null &&
+            entry.amount !== "" &&
+            !isNaN(Number(entry.amount))
+          ? Math.abs(money(entry.amount))
+          : Math.abs(money(entry.unit_price) * (quantity - baseQuantity));
+
+      const signedAmount = isAdd ? rawAdj : isLess ? -rawAdj : 0;
+      const qtyDiff = Math.abs(quantity - baseQuantity);
+      const unitPrice =
+        qtyDiff > 0 ? Math.round((rawAdj / qtyDiff) * 100) / 100 : rawAdj;
+
+      return {
+        name: String(entry.name).trim(),
+        base_quantity: baseQuantity,
+        quantity: quantity,
+        adjustment_type: adjustmentType,
+        type: adjustmentType,
+        adjustment_amount: rawAdj,
+        amount: signedAmount,
+        unit_price: unitPrice,
+      };
+    });
 
   // The two legacy fee fields are never written by the builder any more, and a
   // stale value carried in from the client would quietly reappear on the

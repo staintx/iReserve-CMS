@@ -1143,18 +1143,17 @@ export default function CustomerBookings() {
                             )}
 
                             {(!nextAction || nextAction?.actionType === "view") && (
-                              <Button
-                                size="sm"
-                                variant="outline"
+                              <button
+                                type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   navigate(`/customer/bookings/${bkg._id}`);
                                 }}
-                                className="border-slate-200 text-[#4C81E0] hover:border-[#4C81E0] hover:bg-[#4C81E0] hover:text-white font-bold text-xs h-8 px-3 rounded-lg shadow-2xs gap-1 cursor-pointer transition-all"
+                                className="booking-card-view-btn inline-flex items-center justify-center gap-1 h-8 px-3 rounded-lg border border-slate-200 bg-white text-[#4C81E0] font-bold text-xs shadow-2xs cursor-pointer transition-all duration-150 hover:bg-[#3B6EC6] hover:border-[#3B6EC6] hover:text-white active:bg-[#2F5BB8] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4C81E0]/40 focus-visible:border-[#4C81E0]"
                               >
                                 <span>View</span>
                                 <ChevronRight className="w-3.5 h-3.5" />
-                              </Button>
+                              </button>
                             )}
                           </div>
                         </div>

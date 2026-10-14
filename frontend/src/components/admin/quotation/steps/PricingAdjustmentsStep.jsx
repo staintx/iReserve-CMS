@@ -11,7 +11,6 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  ArrowRight,
   Sliders,
   AlertCircle,
   HelpCircle,
@@ -116,7 +115,6 @@ export default function PricingAdjustmentsStep({
   handleRemoveFee,
   handleAddFee,
   errors = {},
-  onProceedToReview,
   customerNotes = "",
   dietaryNotes = "",
   allergiesNotes = "",
@@ -1553,23 +1551,6 @@ export default function PricingAdjustmentsStep({
           )}
         </div>
       </section>
-
-
-
-      {/* Bottom Action */}
-      <div className="flex items-center justify-between pt-2">
-        <span className="text-xs text-slate-500">
-          All prices set? Proceed to review the full quotation and set deposit terms.
-        </span>
-        <button
-          type="button"
-          onClick={onProceedToReview}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
-        >
-          <span>Proceed to Review &amp; Send</span>
-          <ArrowRight size={13} />
-        </button>
-      </div>
     </div>
   );
 }

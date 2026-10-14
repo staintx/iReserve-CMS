@@ -1259,22 +1259,6 @@ export default function AdminBookingDetails() {
                       <CheckCircle2 size={13} /> Mark Delivered &amp; Completed
                     </Btn>
                   )}
-
-                  {/* Manual Status Override / Quick Select */}
-                  {!["cancelled", "completed"].includes(rawStatus) && (
-                    <Btn
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setSelectedNewStatus(booking.status);
-                        setShowStatusSelectModal(true);
-                      }}
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                      title="Manually adjust booking status"
-                    >
-                      Change Status...
-                    </Btn>
-                  )}
                 </>
               ) : (
                 /* Full Service Setup Progressive Action Buttons */
@@ -1308,21 +1292,6 @@ export default function AdminBookingDetails() {
                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
                     >
                       <CheckCircle2 size={13} /> Mark Completed
-                    </Btn>
-                  )}
-
-                  {!["cancelled", "completed"].includes(rawStatus) && (
-                    <Btn
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setSelectedNewStatus(booking.status);
-                        setShowStatusSelectModal(true);
-                      }}
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                      title="Manually adjust booking status"
-                    >
-                      Change Status...
                     </Btn>
                   )}
                 </>

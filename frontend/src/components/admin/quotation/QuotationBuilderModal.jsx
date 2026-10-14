@@ -1972,7 +1972,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               errors={errors}
               isEditMode={isCustomerEditMode}
               setIsEditMode={setIsCustomerEditMode}
-              onProceedToPrices={() => setActiveStep(2)}
               today={todayInput()}
               municipalities={municipalities}
               barangays={barangays}
@@ -2036,7 +2035,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               handleRemoveFee={handleRemoveFee}
               handleAddFee={handleAddFee}
               errors={errors}
-              onProceedToReview={handleProceedToReview}
             />
           )}
 

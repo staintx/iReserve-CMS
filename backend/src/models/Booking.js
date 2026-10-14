@@ -30,6 +30,11 @@ const BookingSchema = new mongoose.Schema(
       enum: ["regular", "special", "custom"],
       default: "custom",
     },
+    booking_source: {
+      type: String,
+      enum: ["online", "walk_in"],
+      default: "online",
+    },
     package_name_snapshot: String,
 
     event_manager_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

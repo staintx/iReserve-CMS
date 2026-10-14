@@ -23,6 +23,11 @@ const InquirySchema = new mongoose.Schema(
       enum: ["regular", "special", "custom"],
       default: "custom",
     },
+    booking_source: {
+      type: String,
+      enum: ["online", "walk_in"],
+      default: "online",
+    },
 
     // The package name as it stood when the request was sent. The relation
     // above stays the source of truth; this keeps the list readable if the

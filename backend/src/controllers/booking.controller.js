@@ -3619,6 +3619,7 @@ exports.executeInquiryConversion = async ({
   paymentMethod = null,
   paymentDoc = null,
   depositAmountOverride = null,
+  bookingSource = null,
   io = null,
 }) => {
   const inquiry = await Inquiry.findById(inquiryId).populate("package_id customer_id");
@@ -3856,8 +3857,44 @@ exports.executeInquiryConversion = async ({
     }
   }
 
+  let bookingCustomerId = inquiry.customer_id?._id || inquiry.customer_id;
+  // If the inquiry was assigned to an admin/manager/staff account, resolve/create a real customer account
+  if (inquiry.customer_id?.role && ["admin", "manager", "staff"].includes(inquiry.customer_id.role)) {
+    const email = (inquiry.contact_email || "").trim().toLowerCase();
+    let realCustomer = null;
+    if (email && email !== inquiry.customer_id.email?.toLowerCase()) {
+      realCustomer = await User.findOne({ email });
+    }
+    if (!realCustomer) {
+      const firstName = (inquiry.contact_first_name || "").trim() || "Walk-in";
+      const lastName = (inquiry.contact_last_name || "").trim() || "Customer";
+      const customerEmail = (email && email !== inquiry.customer_id.email?.toLowerCase()) ? email : `walkin_${Date.now()}@ireserve.local`;
+      realCustomer = await User.create({
+        first_name: firstName,
+        last_name: lastName,
+        full_name: `${firstName} ${lastName}`.trim(),
+        email: customerEmail,
+        phone: inquiry.contact_phone || "",
+        role: "customer",
+        is_active: true,
+        is_verified: true,
+      });
+    }
+    if (realCustomer) {
+      bookingCustomerId = realCustomer._id;
+      inquiry.customer_id = realCustomer._id;
+      await inquiry.save();
+    }
+  }
+
+  const isWalkIn =
+    inquiry.booking_source === "walk_in" ||
+    ["walk-in", "walk in", "walkin"].includes(String(inquiry.contact_method || "").toLowerCase().trim()) ||
+    ["admin", "manager", "staff"].includes(inquiry.customer_id?.role);
+
   const payload = {
-    customer_id: inquiry.customer_id?._id || inquiry.customer_id,
+    customer_id: bookingCustomerId,
+    booking_source: bookingSource || inquiry.booking_source || (isWalkIn ? "walk_in" : "online"),
     package_id: pkgId,
     inquiry_id: inquiryId,
     quotation_id: quotation?._id || null,
@@ -3915,7 +3952,7 @@ exports.executeInquiryConversion = async ({
     contact_email: inquiry.contact_email || inquiry.customer_id?.email || "N/A",
     contact_phone: inquiry.contact_phone || inquiry.customer_id?.phone || "N/A",
     contact_alt_phone: inquiry.contact_alt_phone || "",
-    contact_method: inquiry.contact_method || "Email",
+    contact_method: inquiry.contact_method || (isWalkIn ? "Walk-in" : "Email"),
 
     total_price: totalPrice,
     deposit_amount: depositAmount,
@@ -4162,6 +4199,7 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
   const paymentMethod = req.body.payment_method;
   const markDepositAsPaid = req.body.mark_deposit_as_paid === true || req.body.deposit_paid_immediately === true || req.body.bypass_deposit === true;
   const depositAmountOverride = req.body.deposit_amount ? Number(req.body.deposit_amount) : undefined;
+  const bookingSource = req.body.booking_source;
 
   try {
     const io = req.app.get("io");
@@ -4172,6 +4210,7 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
       markDepositAsPaid,
       paymentMethod,
       depositAmountOverride,
+      bookingSource,
       io,
     });
     res.status(201).json({ message: "Inquiry converted to booking successfully", booking: newBooking });

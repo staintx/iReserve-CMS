@@ -397,9 +397,13 @@ export default function AdminInquiries() {
         _id: b._id,
         id: b.reference || (b._id ? b._id.substring(b._id.length - 8).toUpperCase() : "INQ-000"),
         raw: b,
-        customer: b.customer_id?.full_name || `${b.contact_first_name || ''} ${b.contact_last_name || ''}`.trim() || "Customer",
-        email: b.customer_id?.email || b.contact_email || "",
-        phone: b.customer_id?.phone || b.contact_phone || "—",
+        customer:
+          (b.customer_id?.role === "customer" ? b.customer_id?.full_name : null) ||
+          `${b.contact_first_name || ''} ${b.contact_last_name || ''}`.trim() ||
+          b.customer_id?.full_name ||
+          "Customer",
+        email: (b.customer_id?.role === "customer" ? b.customer_id?.email : null) || b.contact_email || b.customer_id?.email || "",
+        phone: (b.customer_id?.role === "customer" ? b.customer_id?.phone : null) || b.contact_phone || b.customer_id?.phone || "—",
         booking: identity.name,
         service: resolveServiceType(b),
         bookingType: identity.type, // 'special' | 'regular' | 'custom'

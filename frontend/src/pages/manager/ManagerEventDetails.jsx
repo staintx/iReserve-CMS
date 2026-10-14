@@ -189,8 +189,11 @@ export default function ManagerEventDetails() {
   // Complete / Done State
   const [submittingDone, setSubmittingDone] = useState(false);
 
-  const loadEvent = async () => {
-    setLoading(true);
+  const loadEvent = async (options = {}) => {
+    const isSilent = typeof options === "boolean" ? options : Boolean(options?.silent);
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const res = await ManagerAPI.getBooking(id);
       const data = res.data;
@@ -199,9 +202,13 @@ export default function ManagerEventDetails() {
       setAdditionalNotes(data.equipment_notes || "");
     } catch (err) {
       console.error("Failed to load booking details:", err);
-      notify("Failed to load assigned event details.", "error");
+      if (!isSilent) {
+        notify("Failed to load assigned event details.", "error");
+      }
     } finally {
-      setLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -209,7 +216,12 @@ export default function ManagerEventDetails() {
     loadEvent();
   }, [id]);
 
-  useRealTimeRefresh(loadEvent, ["booking"]);
+  useRealTimeRefresh((data) => {
+    if (data?.booking_id && String(data.booking_id) !== String(id)) {
+      return;
+    }
+    loadEvent({ silent: true });
+  }, ["booking"]);
 
   const timing = useMemo(() => {
     return booking ? getEventTimingStatus(booking) : { isUpcoming: true, isStarted: false, isFinished: false };
@@ -283,7 +295,7 @@ export default function ManagerEventDetails() {
     } catch (err) {
       console.error("Attendance update error:", err);
       notify("Failed to update staff attendance. Please try again.", "error");
-      loadEvent();
+      loadEvent({ silent: true });
     } finally {
       setUpdatingStaffId(null);
     }
@@ -480,7 +492,7 @@ export default function ManagerEventDetails() {
     } catch (err) {
       console.error("Checklist update error:", err);
       notify(err.response?.data?.message || "Failed to save equipment notes.", "error");
-      loadEvent();
+      loadEvent({ silent: true });
     } finally {
       setSavingItemKey(null);
     }
@@ -531,7 +543,7 @@ export default function ManagerEventDetails() {
     } catch (err) {
       console.error("Error completing item inspection:", err);
       notify(err.response?.data?.message || "Failed to mark inspection as completed.", "error");
-      loadEvent();
+      loadEvent({ silent: true });
     } finally {
       setSavingItemKey(null);
     }
@@ -596,7 +608,7 @@ export default function ManagerEventDetails() {
     } catch (err) {
       console.error("Error resetting inspection status:", err);
       notify(err.response?.data?.message || "Failed to reset inspection status.", "error");
-      loadEvent();
+      loadEvent({ silent: true });
     } finally {
       setSavingItemKey(null);
     }
@@ -668,7 +680,7 @@ export default function ManagerEventDetails() {
     try {
       await ManagerAPI.markEquipmentChecklistDone(booking._id);
       notify("Equipment inspection checklist marked as Done successfully.", "success");
-      await loadEvent();
+      await loadEvent({ silent: true });
     } catch (err) {
       console.error("Mark checklist done error:", err);
       notify(err.response?.data?.message || "Failed to mark checklist as done.", "error");

@@ -94,13 +94,17 @@ export default function BookingHistoryTimeline({ booking, payments = [] }) {
       const at = p.paid_at || p.createdAt;
       if (!at) return;
       const declined = p.status === "rejected" || p.status === "failed";
+      const isAdditional = p.payment_type === "additional";
+      const desc = p.description || p.metadata?.reason || p.metadata?.description;
+      const typeLabel = isAdditional ? "Additional Charge" : p.payment_type === "deposit" ? "Deposit" : "Payment";
       list.push({
         at,
         icon: CreditCard,
         tone: p.status === "approved" ? "success" : declined ? "danger" : "warning",
-        title: `${p.payment_type === "deposit" ? "Deposit" : "Payment"} ${
+        title: `${typeLabel} ${
           p.status === "approved" ? "received" : declined ? "declined" : "pending"
         } — ${formatCurrency(p.amount)}`,
+        detail: isAdditional && desc ? `Reason: ${desc}` : undefined,
         meta: [p.payment_method || p.method || null].filter(Boolean),
       });
     });

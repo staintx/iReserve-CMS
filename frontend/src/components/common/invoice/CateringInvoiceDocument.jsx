@@ -673,6 +673,11 @@ export default function CateringInvoiceDocument({
                               Txn Ref: {p.gateway_reference}
                             </span>
                           )}
+                          {(p.description || p.metadata?.reason || p.metadata?.description) && (
+                            <span className="block text-[9.5px] text-amber-800 font-medium italic mt-0.5">
+                              Reason: {p.description || p.metadata?.reason || p.metadata?.description}
+                            </span>
+                          )}
                         </div>
                         <span className="font-mono font-semibold text-emerald-800 tabular-nums shrink-0">
                           {formatCurrency(p.amount)}
@@ -1188,6 +1193,11 @@ export default function CateringInvoiceDocument({
                                 <span className="text-[7pt] text-slate-500 ml-1 font-mono">
                                   ({p.method || p.payment_method || "Online"} · {pDate ? formatShortDate(pDate) : "Recorded"})
                                 </span>
+                                {(p.description || p.metadata?.reason || p.metadata?.description) && (
+                                  <div className="text-[6.5pt] text-amber-900 italic">
+                                    Reason: {p.description || p.metadata?.reason || p.metadata?.description}
+                                  </div>
+                                )}
                               </div>
                               <span className="font-mono font-semibold text-emerald-800 tabular-nums">
                                 {formatCurrency(p.amount)}

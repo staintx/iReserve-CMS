@@ -122,6 +122,13 @@ export default function CustomerPaymentsTable({
         </span>
       );
     }
+    if (t === "additional") {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+          Additional Charge
+        </span>
+      );
+    }
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
         Payment
@@ -309,6 +316,12 @@ export default function CustomerPaymentsTable({
                     {/* 2. Payment (Milestone) */}
                     <TableCell className="py-3 px-4">
                       {getMilestoneBadge(p.payment_type)}
+                      {(p.description || p.metadata?.reason || p.metadata?.description) && (p.payment_type || "").toLowerCase() !== "refund" && (
+                        <div className="text-[11px] text-amber-900 font-medium mt-1 max-w-[200px] leading-snug">
+                          <span className="font-bold text-amber-950">Reason:</span>{" "}
+                          <span>{p.description || p.metadata?.reason || p.metadata?.description}</span>
+                        </div>
+                      )}
                     </TableCell>
 
                     {/* 3. Method */}

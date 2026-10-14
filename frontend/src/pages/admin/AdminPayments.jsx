@@ -529,6 +529,11 @@ export default function AdminPayments() {
                 Reason: {p.metadata.reason}
               </div>
             )}
+            {!isRefund && (p.description || p.metadata?.reason || p.metadata?.description) && (
+              <div className="text-[10px] text-amber-700 truncate max-w-[170px] italic font-medium" title={p.description || p.metadata?.reason || p.metadata?.description}>
+                Reason: {p.description || p.metadata?.reason || p.metadata?.description}
+              </div>
+            )}
           </div>
         );
       },
@@ -918,6 +923,16 @@ export default function AdminPayments() {
                           <div className="col-span-2 pt-1 border-t border-border/40">
                             <span className="text-[10px] text-muted-foreground block font-medium">Refund Reason</span>
                             <span className="text-xs text-rose-700 italic block">{drawerRow.metadata.reason}</span>
+                          </div>
+                        )}
+                        {!isRefund && (drawerRow.description || drawerRow.metadata?.reason || drawerRow.metadata?.description) && (
+                          <div className="col-span-2 pt-1 border-t border-border/40">
+                            <span className="text-[10px] text-muted-foreground block font-medium">
+                              {drawerRow.payment_type === "additional" ? "Additional Charge Description / Reason" : "Payment Description / Reason"}
+                            </span>
+                            <span className="text-xs text-amber-900 bg-amber-50/70 p-2 rounded-lg border border-amber-200/70 block mt-0.5 leading-relaxed font-medium">
+                              {drawerRow.description || drawerRow.metadata?.reason || drawerRow.metadata?.description}
+                            </span>
                           </div>
                         )}
                         {(drawerRow.gateway_reference || drawerRow.gateway_checkout_id) && (

@@ -29,6 +29,7 @@ const PaymentSchema = new mongoose.Schema({
   gateway_reference: String,
   checkout_url: String,
   paid_at: Date,
+  description: { type: String, trim: true },
   metadata: mongoose.Schema.Types.Mixed
 }, { timestamps: true });
 

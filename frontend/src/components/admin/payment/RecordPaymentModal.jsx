@@ -45,6 +45,7 @@ export default function RecordPaymentModal({
   // Form inputs
   const [amount, setAmount] = useState("");
   const [paymentType, setPaymentType] = useState("deposit");
+  const [description, setDescription] = useState("");
   const [method, setMethod] = useState("cash");
   const [status, setStatus] = useState("approved");
   const [notes, setNotes] = useState("");
@@ -66,6 +67,7 @@ export default function RecordPaymentModal({
       setIsDropdownOpen(false);
       setAmount("");
       setPaymentType("deposit");
+      setDescription("");
       setMethod("cash");
       setStatus("approved");
       setNotes("");
@@ -188,6 +190,9 @@ export default function RecordPaymentModal({
   // Milestone change handler with smart amount response
   const handleMilestoneChange = (newType) => {
     setPaymentType(newType);
+    if (newType !== "additional") {
+      setDescription("");
+    }
     if (!selectedBooking) return;
 
     const { remaining, requiredDeposit, isDepositSatisfied, isFullyPaid, depositRemainder, totalPrice } = currentFinancials;
@@ -274,6 +279,14 @@ export default function RecordPaymentModal({
       return;
     }
 
+    if (paymentType === "additional") {
+      const trimmedDesc = description.trim();
+      if (!trimmedDesc) {
+        notify("Please enter a description or reason for this additional charge.", "error");
+        return;
+      }
+    }
+
     if (paymentType === "deposit" && currentFinancials.isDepositSatisfied) {
       notify("The required deposit for this booking is already satisfied. Please select 'Final Balance' or another milestone.", "error");
       return;
@@ -298,6 +311,8 @@ export default function RecordPaymentModal({
         customer_id: selectedBooking.customer_id?._id || selectedBooking.customer_id || "",
         amount: enteredAmountNum,
         payment_type: paymentType,
+        description: paymentType === "additional" ? description.trim() : undefined,
+        metadata: paymentType === "additional" ? { reason: description.trim(), description: description.trim() } : undefined,
         method: method,
         proof_url: uploadedProofUrl,
         status: status,
@@ -627,15 +642,46 @@ export default function RecordPaymentModal({
             </div>
           </div>
 
+          {/* Conditional Description / Reason Field for Additional Charge */}
+          {paymentType === "additional" && (
+            <div className="space-y-1.5 animate-in fade-in duration-150">
+              <label className="text-xs font-semibold text-gray-700 flex items-center justify-between">
+                <span>
+                  Additional Charge Description / Reason <span className="text-red-500">*</span>
+                </span>
+                <span className="text-[10px] text-amber-700 font-medium">Visible to customer</span>
+              </label>
+              <textarea
+                rows={2}
+                required
+                placeholder="Enter the reason for this additional charge (e.g. Repair or replacement of damaged equipment reported after the event, additional cleaning costs)..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                disabled={!selectedBooking || submitting}
+                className="w-full text-xs sm:text-sm border border-amber-300 rounded-xl px-3 py-2 bg-amber-50/20 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 transition-all resize-none placeholder:text-gray-400 text-slate-800"
+              />
+              <p className="text-[11px] text-gray-500">
+                Explain clearly why the customer is being charged this additional amount. This reason will appear in the customer's portal and payment receipt.
+              </p>
+            </div>
+          )}
+
           {/* 4. Live Updated Remaining Balance Banner */}
           {selectedBooking && enteredAmountNum > 0 && (
             <div className="p-2.5 rounded-xl border text-xs transition-all">
               {paymentType === "additional" ? (
-                <div className="flex items-center gap-2 text-indigo-700 bg-indigo-50/60 p-1 rounded">
-                  <AlertCircle size={14} className="shrink-0" />
-                  <span>
-                    Recording an additional charge payment of <strong>{fmt(enteredAmountNum)}</strong>. (Tracked on top of base booking).
-                  </span>
+                <div className="flex items-start gap-2 text-indigo-700 bg-indigo-50/60 p-2 rounded-lg border border-indigo-100">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <div>
+                      Recording an additional charge payment of <strong>{fmt(enteredAmountNum)}</strong>. (Tracked on top of base booking).
+                    </div>
+                    {description.trim() && (
+                      <div className="text-[11px] text-indigo-900 font-medium">
+                        Reason: <span className="italic font-normal">{description.trim()}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : enteredAmountNum > currentFinancials.remaining ? (
                 <div className="flex items-center gap-2 text-amber-800 bg-amber-50/80 p-1.5 rounded-lg border border-amber-200">

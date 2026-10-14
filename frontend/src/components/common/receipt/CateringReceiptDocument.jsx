@@ -52,10 +52,8 @@ export default function CateringReceiptDocument({
   const fmt = (val) =>
     formatCurrency ? formatCurrency(val) : formatReceiptCurrency(val, { isRefund });
 
-  // Exclude internal administrative notes on customer copy; allow legitimate reasons (e.g. refund reason)
-  const displayNote = isAdmin
-    ? (payment.metadata?.reason || payment.metadata?.notes)
-    : payment.metadata?.reason;
+  // Exclude internal administrative notes on customer copy; allow legitimate reasons (e.g. refund reason, additional charge description)
+  const displayNote = payment.description || payment.metadata?.reason || payment.metadata?.description || (isAdmin ? payment.metadata?.notes : null);
 
   // Clean customer-facing transaction reference (fallback to receipt number or payment id snippet if none)
   const transactionRef =
@@ -340,7 +338,7 @@ export default function CateringReceiptDocument({
                   {/* Notes / Reason if present */}
                   {displayNote && (
                     <div style={{ fontSize: "6.5pt", fontStyle: "italic", color: "#444444", marginTop: "0.8mm" }}>
-                      Note: {displayNote}
+                      {payment.payment_type === "additional" ? "Reason: " : "Note: "}{displayNote}
                     </div>
                   )}
                 </td>
@@ -644,8 +642,9 @@ export default function CateringReceiptDocument({
                     {bookingDetails.eventType ? ` • ${bookingDetails.eventType}` : ""}
                   </div>
                   {displayNote && (
-                    <div className="text-[10px] text-slate-500 italic mt-1 bg-slate-50 p-1.5 rounded border border-slate-200/60">
-                      Note: {displayNote}
+                    <div className="text-[10px] text-slate-700 mt-1 bg-amber-50/70 p-1.5 rounded border border-amber-200/60 leading-snug">
+                      <strong className="text-amber-950 font-semibold">{payment.payment_type === "additional" ? "Reason: " : "Note: "}</strong>
+                      <span>{displayNote}</span>
                     </div>
                   )}
                 </td>

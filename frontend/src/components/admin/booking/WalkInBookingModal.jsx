@@ -3360,6 +3360,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
       // Step 1: Create the Inquiry record
       const inquiryPayload = {
+        booking_source: "walk_in",
         customer_id: customerId || undefined,
         package_id:
           form.package_type === "existing" && form.package_id && form.package_id !== "none"
@@ -3510,6 +3511,7 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
           deposit_paid_immediately: true,
           payment_method: paymentMethod || "cash",
           deposit_amount: quotationTotals.depositAmount,
+          booking_source: "walk_in",
         });
         const createdBooking = convertRes.data?.booking;
         notify(

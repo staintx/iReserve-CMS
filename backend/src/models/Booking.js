@@ -183,6 +183,9 @@ const BookingSchema = new mongoose.Schema(
         quantity: { type: Number, default: 0 },
         unit_price: { type: Number, default: 0 },
         amount: { type: Number, default: 0 },
+        adjustment_type: { type: String, enum: ["Add", "Less", "None"], default: "None" },
+        type: { type: String, default: undefined },
+        adjustment_amount: { type: Number, default: 0 },
       },
     ],
 

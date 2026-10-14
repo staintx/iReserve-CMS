@@ -53,9 +53,35 @@ export const signedMoney = (value) => {
 export const inclusionAdjustmentAmount = (entry) => {
   const baseQuantity = count(entry?.base_quantity, 0);
   const quantity = count(entry?.quantity, 0);
-  const unitPrice = money(entry?.unit_price);
-  if (!unitPrice) return 0;
-  return signedMoney((quantity - baseQuantity) * unitPrice);
+  if (quantity === baseQuantity) return 0;
+
+  const isIncrease = quantity > baseQuantity;
+
+  let totalAdjustment = 0;
+  if (
+    entry?.adjustment_amount !== undefined &&
+    entry?.adjustment_amount !== null &&
+    entry?.adjustment_amount !== ""
+  ) {
+    totalAdjustment = Math.abs(money(entry.adjustment_amount));
+  } else if (
+    entry?.amount !== undefined &&
+    entry?.amount !== null &&
+    entry?.amount !== "" &&
+    Number(entry?.amount) !== 0
+  ) {
+    totalAdjustment = Math.abs(money(entry.amount));
+  } else if (
+    entry?.unit_price !== undefined &&
+    entry?.unit_price !== null &&
+    entry?.unit_price !== ""
+  ) {
+    const unitPrice = money(entry.unit_price);
+    totalAdjustment = Math.abs((quantity - baseQuantity) * unitPrice);
+  }
+
+  if (!totalAdjustment) return 0;
+  return signedMoney(isIncrease ? totalAdjustment : -totalAdjustment);
 };
 
 /** Every quantity change on the package's inclusions, as one signed total. */

@@ -125,6 +125,7 @@ const inclusionRow = (name, partial = {}) => {
     baseQuantity: parsed ? parsed.quantity : null,
     quantity: parsed ? parsed.quantity : null,
     unitPrice: "",
+    adjustmentAmount: "",
     ...partial,
   };
 };
@@ -657,11 +658,25 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               const adjustment = savedAdjustments.get(text);
               const row = inclusionRow(text);
               if (!adjustment) return row;
+              const adjAmt =
+                adjustment.adjustment_amount != null && adjustment.adjustment_amount !== ""
+                  ? String(adjustment.adjustment_amount)
+                  : adjustment.amount != null && Number(adjustment.amount) !== 0
+                  ? String(Math.abs(Number(adjustment.amount)))
+                  : adjustment.unit_price
+                  ? String(
+                      Math.abs(
+                        (Number(adjustment.quantity) - Number(adjustment.base_quantity)) *
+                          Number(adjustment.unit_price)
+                      )
+                    )
+                  : "";
               return {
                 ...row,
                 baseQuantity: Number(adjustment.base_quantity) || row.baseQuantity,
                 quantity: Number(adjustment.quantity) || row.quantity,
-                unitPrice: adjustment.unit_price ? String(adjustment.unit_price) : "",
+                unitPrice: adjAmt,
+                adjustmentAmount: adjAmt,
               };
             }),
             ...(Array.isArray(latest.removed_inclusions) ? latest.removed_inclusions : []).map((entry) =>
@@ -905,14 +920,30 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             !entry.removed &&
             entry.baseQuantity !== null &&
             entry.baseQuantity !== undefined &&
+            entry.quantity !== "" &&
             Number(entry.quantity) !== Number(entry.baseQuantity)
         )
-        .map((entry) => ({
-          name: String(entry.name || "").trim(),
-          base_quantity: Number(entry.baseQuantity) || 0,
-          quantity: Number(entry.quantity) || 0,
-          unit_price: numberOf(entry.unitPrice),
-        }))
+        .map((entry) => {
+          const baseQty = Number(entry.baseQuantity) || 0;
+          const qty = Number(entry.quantity) || 0;
+          const isAdd = qty > baseQty;
+          const isLess = qty < baseQty;
+          const adjustmentType = isAdd ? "Add" : isLess ? "Less" : "None";
+          const rawAmt = numberOf(entry.adjustmentAmount ?? entry.unitPrice);
+          const signedAmt = isAdd ? rawAmt : isLess ? -rawAmt : 0;
+          const qtyDiff = Math.abs(qty - baseQty);
+          const perPieceRate = qtyDiff > 0 ? Math.round((rawAmt / qtyDiff) * 100) / 100 : rawAmt;
+          return {
+            name: String(entry.name || "").trim(),
+            base_quantity: baseQty,
+            quantity: qty,
+            adjustment_type: adjustmentType,
+            type: adjustmentType,
+            adjustment_amount: rawAmt,
+            amount: signedAmt,
+            unit_price: perPieceRate,
+          };
+        })
         .filter((entry) => entry.name),
     [inclusions]
   );
@@ -1194,11 +1225,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         inc.baseQuantity !== undefined &&
         Number(inc.quantity) > Number(inc.baseQuantity)
       ) {
-        if (!numberOf(inc.unitPrice) || money(inc.unitPrice) <= 0) {
+        const amt = numberOf(inc.adjustmentAmount ?? inc.unitPrice);
+        if (!amt || amt <= 0) {
           missing.push({
-            name: `${inc.name || "Inclusion"} (Extra Quantity Price)`,
+            name: `${inc.name || "Inclusion"} (Additional Amount)`,
             id: `qb-inclusion-price-${idx}`,
-            errorKey: `inclusion_adjustments.${idx}.unit_price`,
+            errorKey: `inclusion_adjustments.${idx}.adjustment_amount`,
           });
         }
       }
@@ -1287,12 +1319,35 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   /* --- Inclusions Handlers --- */
   const handleInclusionQuantity = (index, value) => {
     setInclusions((prev) =>
-      prev.map((entry, i) => (i === index ? { ...entry, quantity: value === "" ? "" : Number(value) } : entry))
+      prev.map((entry, i) => {
+        if (i !== index) return entry;
+        const newQty = value === "" ? "" : Number(value);
+        const isBackToDefault =
+          value !== "" &&
+          entry.baseQuantity !== null &&
+          entry.baseQuantity !== undefined &&
+          Number(value) === Number(entry.baseQuantity);
+        return {
+          ...entry,
+          quantity: newQty,
+          ...(isBackToDefault ? { unitPrice: "", adjustmentAmount: "" } : {}),
+        };
+      })
     );
   };
 
   const handleInclusionUnitPrice = (index, value) => {
-    setInclusions((prev) => prev.map((entry, i) => (i === index ? { ...entry, unitPrice: value } : entry)));
+    setInclusions((prev) =>
+      prev.map((entry, i) =>
+        i === index
+          ? {
+              ...entry,
+              unitPrice: value,
+              adjustmentAmount: value,
+            }
+          : entry
+      )
+    );
   };
 
   const handleInclusionDeduction = (index, value) => {

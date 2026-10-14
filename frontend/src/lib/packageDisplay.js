@@ -455,6 +455,19 @@ export function eventTypeForPackage(pkg) {
  */
 export function isWalkInRecord(item) {
   if (!item) return false;
+
+  const source = String(
+    item.booking_source ||
+    item.bookingSource ||
+    item.source ||
+    item.raw?.booking_source ||
+    item.rawInquiry?.booking_source ||
+    item.rawBooking?.booking_source ||
+    item.inquiry_id?.booking_source ||
+    ""
+  ).trim().toLowerCase();
+  if (source === "walk_in" || source === "walk-in" || source === "walkin") return true;
+
   const method = String(
     item.contact_method ||
     item.contactMethod ||
@@ -484,6 +497,17 @@ export function isWalkInRecord(item) {
     ""
   ).trim().toLowerCase();
   if (email.startsWith("walkin_") || email.includes("@ireserve.local")) return true;
+
+  // Bookings or inquiries registered under admin/manager/staff account were created internally
+  const custRole = String(
+    item.customer_id?.role ||
+    item.raw?.customer_id?.role ||
+    item.rawInquiry?.customer_id?.role ||
+    item.rawBooking?.customer_id?.role ||
+    item.inquiry_id?.customer_id?.role ||
+    ""
+  ).trim().toLowerCase();
+  if (["admin", "manager", "staff"].includes(custRole)) return true;
 
   return false;
 }

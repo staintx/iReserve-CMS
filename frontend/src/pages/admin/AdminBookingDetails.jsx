@@ -851,7 +851,12 @@ export default function AdminBookingDetails() {
   }
 
   const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const customerName = booking.customer_id?.full_name || `${booking.contact_first_name || ""} ${booking.contact_last_name || ""}`.trim() || "Customer";
+  const contactName = `${booking.contact_first_name || ""} ${booking.contact_last_name || ""}`.trim();
+  const customerName =
+    (booking.customer_id?.role === "customer" ? booking.customer_id?.full_name : null) ||
+    contactName ||
+    booking.customer_id?.full_name ||
+    "Customer";
 
   const totalPaid = payments.filter(p => p.status === "approved").reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   const remainingBalance = Math.max(0, (booking.total_price || 0) - totalPaid);
@@ -2485,7 +2490,7 @@ export default function AdminBookingDetails() {
                           </div>
                           <div className="flex items-center justify-between">
                             <span>Phone Number:</span>
-                            <span className="font-semibold text-foreground">{booking.customer_id?.phone || booking.contact_phone || "N/A"}</span>
+                            <span className="font-semibold text-foreground">{booking.contact_phone || booking.customer_id?.phone || "N/A"}</span>
                           </div>
                           <div className="flex items-center justify-between">
                             <span>Target Dispatch Time:</span>

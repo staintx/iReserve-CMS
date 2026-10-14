@@ -4,6 +4,7 @@ const Package = require("../models/Package");
 const BlockedDate = require("../models/BlockedDate");
 const Payment = require("../models/Payment");
 const Booking = require("../models/Booking");
+const User = require("../models/User");
 const asyncHandler = require("../utils/asyncHandler");
 const { checkDateBlocked, BLOCKED_DATE_MESSAGE } = require("../utils/blockedDates");
 const { checkMaxBookingsLimit } = require("../utils/bookingCapacity");
@@ -51,9 +52,40 @@ exports.createInquiry = asyncHandler(async (req, res) => {
     }
   }
 
+  let effectiveCustomerId = req.user?._id;
+  if (isStaffOrAdmin) {
+    if (req.body.customer_id) {
+      effectiveCustomerId = req.body.customer_id;
+    } else {
+      const email = (req.body.contact_email || "").trim().toLowerCase();
+      let customer = null;
+      if (email) {
+        customer = await User.findOne({ email });
+      }
+      if (!customer) {
+        const firstName = (req.body.contact_first_name || "").trim() || "Walk-in";
+        const lastName = (req.body.contact_last_name || "").trim() || "Customer";
+        const customerEmail = email || `walkin_${Date.now()}@ireserve.local`;
+        customer = await User.create({
+          first_name: firstName,
+          last_name: lastName,
+          full_name: `${firstName} ${lastName}`.trim(),
+          email: customerEmail,
+          phone: req.body.contact_phone || "",
+          role: "customer",
+          is_active: true,
+          is_verified: true,
+        });
+      }
+      effectiveCustomerId = customer._id;
+    }
+  }
+
   const payload = {
     ...req.body,
-    customer_id: isStaffOrAdmin ? (req.body.customer_id || req.user?._id) : req.user?._id,
+    customer_id: effectiveCustomerId,
+    booking_source: req.body.booking_source || (isStaffOrAdmin ? "walk_in" : "online"),
+    contact_method: req.body.contact_method || (isStaffOrAdmin ? "Walk-in" : "Email"),
     payment_method: req.body.payment_method || "cash",
     status: "Pending Review",
   };

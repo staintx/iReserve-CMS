@@ -361,6 +361,19 @@ exports.create = asyncHandler(async (req, res) => {
 	}
 	req.body.amount = Math.round(numAmount * 100) / 100;
 
+	if (req.body.payment_type === "additional") {
+		const desc = typeof req.body.description === "string" ? req.body.description.trim() : "";
+		if (!desc) {
+			return res.status(400).json({ message: "A description or reason is required when recording an additional charge." });
+		}
+		req.body.description = desc;
+		if (!req.body.metadata || typeof req.body.metadata !== "object") {
+			req.body.metadata = {};
+		}
+		req.body.metadata.reason = desc;
+		req.body.metadata.description = desc;
+	}
+
 	const { booking_id, inquiry_id, payment_type, status } = req.body;
 	let payment;
 	if (status === "approved" && payment_type) {
@@ -386,6 +399,33 @@ exports.create = asyncHandler(async (req, res) => {
 	
 	const io = req.app.get("io");
 	if (io) io.emit("system:refresh", { type: "payment", action: "create" });
+
+	if (payment.customer_id && io) {
+		let refText = "";
+		if (payment.booking_id) {
+			const b = await Booking.findById(payment.booking_id).select("reference");
+			if (b?.reference) refText = `booking #${b.reference}`;
+		}
+		const isAdditional = payment.payment_type === "additional";
+		const reasonStr = payment.description || payment.metadata?.reason || payment.metadata?.description || "";
+		const title = isAdditional ? "Additional Charge Recorded" : "Payment Recorded";
+		const notifBody = isAdditional
+			? `An additional charge of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} has been recorded.${reasonStr ? ` Reason: ${reasonStr}` : ""}`
+			: `A payment of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} has been recorded.`;
+
+		try {
+			await createNotification({
+				userId: payment.customer_id,
+				title,
+				body: notifBody,
+				type: isAdditional ? "info" : "success",
+				link: "/customer/payments",
+				meta: { payment_id: payment._id, booking_id: payment.booking_id }
+			}, io);
+		} catch (e) {
+			// Non-blocking notification failure
+		}
+	}
 	
 	res.status(201).json(payment);
 });
@@ -409,6 +449,7 @@ function sanitizeCustomerPayment(paymentDoc) {
 		const safeMeta = {};
 		if (p.metadata.reference_number) safeMeta.reference_number = p.metadata.reference_number;
 		if (p.metadata.reason) safeMeta.reason = p.metadata.reason;
+		if (p.metadata.description) safeMeta.description = p.metadata.description;
 		if (p.metadata.preference) safeMeta.preference = p.metadata.preference;
 		p.metadata = safeMeta;
 	} else {
@@ -574,12 +615,22 @@ exports.update = asyncHandler(async (req, res) => {
 				const inq = await Inquiry.findById(payment.inquiry_id).select("reference");
 				if (inq?.reference) refText = `inquiry #${inq.reference}`;
 			}
-			const statusLabel = payment.status === "approved" ? "Payment Approved" : payment.status === "rejected" ? "Payment Failed" : "Payment Update";
-			const body = payment.status === "approved"
-				? `Your payment of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} has been approved.`
-				: payment.status === "rejected"
-					? `Your payment of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} failed. Please try again.`
-					: `Your payment of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} is being processed.`;
+			const isAdditional = payment.payment_type === "additional";
+			const reasonStr = payment.description || payment.metadata?.reason || payment.metadata?.description || "";
+			const statusLabel = isAdditional
+				? (payment.status === "approved" ? "Additional Charge Approved" : payment.status === "rejected" ? "Additional Charge Rejected" : "Additional Charge Update")
+				: (payment.status === "approved" ? "Payment Approved" : payment.status === "rejected" ? "Payment Failed" : "Payment Update");
+			const body = isAdditional
+				? (payment.status === "approved"
+					? `An additional charge of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} was approved.${reasonStr ? ` Reason: ${reasonStr}` : ""}`
+					: payment.status === "rejected"
+						? `The additional charge of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} was rejected.`
+						: `An additional charge of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} is being processed.${reasonStr ? ` Reason: ${reasonStr}` : ""}`)
+				: (payment.status === "approved"
+					? `Your payment of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} has been approved.`
+					: payment.status === "rejected"
+						? `Your payment of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} failed. Please try again.`
+						: `Your payment of ₱${Number(payment.amount).toLocaleString()}${refText ? ` for ${refText}` : ""} is being processed.`);
 			await createNotification({
 				userId: payment.customer_id,
 				title: statusLabel,

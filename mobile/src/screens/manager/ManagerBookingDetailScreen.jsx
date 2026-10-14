@@ -9,38 +9,55 @@ import {
   Alert,
   TextInput,
   RefreshControl,
-  Modal,
+  ActivityIndicator,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  Calendar,
+  Calendar as CalendarIcon,
   Clock,
   MapPin,
   Users,
   Phone,
   Mail,
-  UserPlus,
-  PackageCheck,
   CheckCircle2,
-  AlertTriangle,
-  Send,
-  Navigation,
+  PackageCheck,
+  Check,
   FileText,
   ShieldCheck,
-  MessageSquare,
+  ChevronDown,
+  ChevronUp,
+  UserCheck,
+  CreditCard,
+  Receipt,
   Utensils,
-  X,
+  Layers,
+  Banknote,
+  ExternalLink,
+  Lock,
+  ArrowLeft,
   Sparkles,
+  AlertCircle,
+  MessageSquare,
+  XCircle,
 } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import managerApi from "../../api/manager";
-import messagesApi from "../../api/messages";
-import Header from "../../components/common/Header";
 import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
 import AppButton from "../../components/common/AppButton";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
-import { formatCurrency, formatDate, formatTime } from "../../utils/format";
+import {
+  formatCurrency,
+  formatDate,
+  formatDateTime,
+  formatEventStartTime,
+  getBookingVenueLocation,
+  getEventTimingStatus,
+  initialsOf,
+  parseInclusion,
+  buildDynamicChecklist,
+} from "../../utils/format";
 
 export const ManagerBookingDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -49,22 +66,37 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [newNote, setNewNote] = useState("");
-  const [addingNote, setAddingNote] = useState(false);
-  const [completing, setCompleting] = useState(false);
 
-  // Equipment Return Verification Modal State
-  const [showVerifyModal, setShowVerifyModal] = useState(false);
-  const [verifyNotes, setVerifyNotes] = useState("");
-  const [submittingVerification, setSubmittingVerification] = useState(false);
+  // Specifications Expand Toggle
+  const [isSpecsExpanded, setIsSpecsExpanded] = useState(false);
+
+  // Staff Attendance Section Expand Toggle
+  const [isAttendanceOpen, setIsAttendanceOpen] = useState(true);
+  const [updatingStaffId, setUpdatingStaffId] = useState(null);
+
+  // Financial History See More Toggle
+  const [isPaymentHistoryOpen, setIsPaymentHistoryOpen] = useState(false);
+
+  // Equipment Checklist Section Expand Toggle
+  const [isEquipmentOpen, setIsEquipmentOpen] = useState(true);
+  const [checklist, setChecklist] = useState([]);
+  const [additionalNotes, setAdditionalNotes] = useState("");
+  const [savingAdditionalNotes, setSavingAdditionalNotes] = useState(false);
+
+  // Inline Issue Notes State per Item
+  const [openInlineNotes, setOpenInlineNotes] = useState({});
+  const [inlineDrafts, setInlineDrafts] = useState({});
+  const [savingItemKey, setSavingItemKey] = useState(null);
+
+  // Inspection Done State
+  const [submittingDone, setSubmittingDone] = useState(false);
 
   const loadBooking = useCallback(async () => {
     try {
       const data = await managerApi.getBooking(bookingId);
       setBooking(data);
-      if (data?.equipment_manager_verified?.additional_notes) {
-        setVerifyNotes(data.equipment_manager_verified.additional_notes);
-      }
+      setChecklist(buildDynamicChecklist(data));
+      setAdditionalNotes(data?.equipment_notes || "");
     } catch (error) {
       console.error("Failed to load manager booking detail:", error);
       Alert.alert("Error", "Could not load booking details.");
@@ -83,6 +115,14 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
     loadBooking();
   };
 
+  const timing = useMemo(() => {
+    return booking ? getEventTimingStatus(booking) : { isUpcoming: true, isStarted: false, isFinished: false };
+  }, [booking]);
+
+  const isCompleted = useMemo(() => {
+    return Boolean(booking && ["completed", "Completed"].includes(booking.status));
+  }, [booking]);
+
   const handleCall = (phoneNumber) => {
     if (!phoneNumber) return;
     Linking.openURL(`tel:${phoneNumber}`).catch(() =>
@@ -93,7 +133,7 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
   const handleEmail = (emailAddress) => {
     if (!emailAddress) return;
     Linking.openURL(`mailto:${emailAddress}`).catch(() =>
-      Alert.alert("Error", "Unable to open mail app.")
+      Alert.alert("Error", "Unable to open mail client.")
     );
   };
 
@@ -103,109 +143,182 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
       booking.street,
       booking.barangay,
       booking.municipality,
-      "Batangas, Philippines",
+      booking.province || "Batangas",
     ]
       .filter(Boolean)
-      .join(", ");
+      .join(", ") || getBookingVenueLocation(booking);
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressQuery)}`;
     Linking.openURL(url).catch(() =>
       Alert.alert("Error", "Could not open map directions.")
     );
   };
 
-  const handleChatWithCustomer = async () => {
-    const customer = booking.customer_id;
-    if (!customer?._id && !customer) {
-      Alert.alert("Customer info unavailable", "Customer profile record is missing.");
+  // Staff Attendance Handlers
+  const staffAssignments = booking?.staff_assignments || [];
+  const markedStaffCount = staffAssignments.filter((s) => s.attendance_status === "present").length;
+  const totalStaffCount = staffAssignments.length;
+
+  const handleToggleAttendance = async (staffMember) => {
+    if (isCompleted) {
+      Alert.alert("Read-Only", "Completed bookings are read-only.");
       return;
     }
 
-    const customerId = customer._id || customer;
-    try {
-      const conv = await messagesApi.createConversation({
-        participant_id: customerId,
-        booking_id: booking._id,
-      });
+    const currentStatus = staffMember.attendance_status;
+    const isPresent = currentStatus === "present";
+    const nextStatus = isPresent ? "not_recorded" : "present";
+    const targetUserId = staffMember.user_id?._id || staffMember.user_id;
 
-      navigation.navigate("CustomerChatThread", {
-        conversationId: conv?._id || conv?.id,
-        title: customer.full_name || "Client",
-      });
-    } catch (err) {
-      // Fallback: search conversations list
-      try {
-        const convList = await messagesApi.listConversations();
-        const existing = Array.isArray(convList)
-          ? convList.find((c) => String(c.booking_id) === String(booking._id))
-          : null;
-        if (existing) {
-          navigation.navigate("CustomerChatThread", {
-            conversationId: existing._id,
-            title: customer.full_name || "Client",
-          });
-          return;
+    setUpdatingStaffId(targetUserId || staffMember._id);
+
+    // Optimistic UI update
+    setBooking((prev) => {
+      if (!prev) return prev;
+      const updatedAssignments = (prev.staff_assignments || []).map((sa) => {
+        const match =
+          (targetUserId && String(sa.user_id?._id || sa.user_id) === String(targetUserId)) ||
+          String(sa._id) === String(staffMember._id);
+        if (match) {
+          return {
+            ...sa,
+            attendance_status: nextStatus,
+            marked_at: isPresent ? null : new Date(),
+          };
         }
-      } catch {
-        // Ignored
-      }
-      Alert.alert("Chat Unavailable", "Could not start in-app chat. Please call or email the customer directly.");
-    }
-  };
-
-  const handleAddNote = async () => {
-    if (!newNote.trim()) return;
-    try {
-      setAddingNote(true);
-      const updatedNotes = await managerApi.addNote(bookingId, newNote.trim());
-      setBooking((prev) => ({
-        ...prev,
-        event_manager_notes: updatedNotes,
-      }));
-      setNewNote("");
-      Alert.alert("Success", "Operational note recorded.");
-    } catch (error) {
-      Alert.alert("Error", error.response?.data?.message || "Failed to add note.");
-    } finally {
-      setAddingNote(false);
-    }
-  };
-
-  const handleConfirmEquipmentReturns = async () => {
-    try {
-      setSubmittingVerification(true);
-      await managerApi.verifyEquipment(bookingId, {
-        confirmed: true,
-        additional_notes: verifyNotes.trim(),
+        return sa;
       });
-      setShowVerifyModal(false);
-      Alert.alert("Verification Saved", "Equipment returns have been reconciled and verified.");
-      loadBooking();
+      return { ...prev, staff_assignments: updatedAssignments };
+    });
+
+    try {
+      const payload = [
+        {
+          user_id: targetUserId,
+          _id: staffMember._id,
+          attendance_status: nextStatus,
+        },
+      ];
+      await managerApi.updateStaffAttendance(booking._id, { attendance: payload });
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || "Failed to verify equipment.");
+      Alert.alert("Error", "Failed to update staff attendance. Please try again.");
+      loadBooking();
     } finally {
-      setSubmittingVerification(false);
+      setUpdatingStaffId(null);
     }
   };
 
-  const handleMarkCompleted = () => {
+  // Equipment Checklist Handlers
+  const isChecklistDone = Boolean(booking?.equipment_checklist_done);
+  const totalChecklistCount = checklist.length;
+  const inspectedItemsCount = checklist.filter(
+    (item) => item.is_inspected && item.status !== "not_inspected"
+  ).length;
+
+  const handleMarkItemStatus = async (itemKey, status) => {
+    if (isCompleted || isChecklistDone) {
+      Alert.alert("Locked", "Equipment inspection has been finalized or booking is completed.");
+      return;
+    }
+
+    const nextInspected = status !== "not_inspected";
+    const draftNote = inlineDrafts[itemKey] || "";
+
+    // If marking incomplete and notes open, don't finalize until saved
+    if (status === "incomplete") {
+      setOpenInlineNotes((prev) => ({ ...prev, [itemKey]: true }));
+    }
+
+    const updatedChecklist = checklist.map((item) => {
+      if (item.item_key === itemKey) {
+        return {
+          ...item,
+          status,
+          is_inspected: nextInspected,
+          notes: draftNote || item.notes,
+        };
+      }
+      return item;
+    });
+
+    setChecklist(updatedChecklist);
+
+    try {
+      setSavingItemKey(itemKey);
+      await managerApi.updateEquipmentChecklist(booking._id, updatedChecklist);
+    } catch (err) {
+      Alert.alert("Error", "Failed to save equipment inspection status.");
+      loadBooking();
+    } finally {
+      setSavingItemKey(null);
+    }
+  };
+
+  const handleSaveInlineNotes = async (itemKey) => {
+    const draft = inlineDrafts[itemKey] || "";
+    const updatedChecklist = checklist.map((item) => {
+      if (item.item_key === itemKey) {
+        return {
+          ...item,
+          notes: draft.trim(),
+        };
+      }
+      return item;
+    });
+
+    setChecklist(updatedChecklist);
+    setOpenInlineNotes((prev) => ({ ...prev, [itemKey]: false }));
+
+    try {
+      setSavingItemKey(itemKey);
+      await managerApi.updateEquipmentChecklist(booking._id, updatedChecklist);
+    } catch (err) {
+      Alert.alert("Error", "Failed to save equipment notes.");
+    } finally {
+      setSavingItemKey(null);
+    }
+  };
+
+  const handleSaveAdditionalNotes = async () => {
+    try {
+      setSavingAdditionalNotes(true);
+      await managerApi.updateEquipmentNotes(booking._id, {
+        equipment_notes: additionalNotes.trim(),
+      });
+      Alert.alert("Saved", "Additional equipment inspection notes saved.");
+    } catch (err) {
+      Alert.alert("Error", "Failed to save additional equipment notes.");
+    } finally {
+      setSavingAdditionalNotes(false);
+    }
+  };
+
+  const handleMarkInspectionDone = () => {
+    if (inspectedItemsCount < totalChecklistCount) {
+      Alert.alert(
+        "Incomplete Inspection",
+        `Only ${inspectedItemsCount} of ${totalChecklistCount} items have been inspected. Please inspect all items before marking as complete.`
+      );
+      return;
+    }
+
     Alert.alert(
-      "Complete Event",
-      "Are you sure you want to mark this event as completed? This confirms all services were rendered.",
+      "Finalize Equipment Inspection",
+      "Are you sure all equipment has been verified on-site? This will officially record your inspection.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Confirm Completed",
+          text: "Confirm Complete",
           style: "default",
           onPress: async () => {
             try {
-              setCompleting(true);
-              const response = await managerApi.markCompleted(bookingId);
-              setBooking(response.booking || { ...booking, status: "Completed" });
-              Alert.alert("Event Completed", "The event has been successfully marked as completed.");
-            } catch (error) {
-              Alert.alert("Error", error.response?.data?.message || "Failed to complete event.");
+              setSubmittingDone(true);
+              await managerApi.markEquipmentChecklistDone(booking._id);
+              setBooking((prev) => ({ ...prev, equipment_checklist_done: true }));
+              Alert.alert("Success", "Equipment inspection marked as complete.");
+            } catch (err) {
+              Alert.alert("Error", "Failed to finalize equipment inspection.");
             } finally {
-              setCompleting(false);
+              setSubmittingDone(false);
             }
           },
         },
@@ -216,11 +329,16 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
   if (loading) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <Header title="Booking Details" onBack={() => navigation.goBack()} />
-        <View style={{ padding: spacing.base }}>
-          <SkeletonLoader height={160} style={{ marginBottom: spacing.md, borderRadius: radius.lg }} />
-          <SkeletonLoader height={140} style={{ marginBottom: spacing.md, borderRadius: radius.lg }} />
-          <SkeletonLoader height={180} style={{ borderRadius: radius.lg }} />
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <ArrowLeft size={20} color={colors.foregroundDark} />
+          </TouchableOpacity>
+          <Text style={styles.topBarTitle}>Event Details</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <SkeletonLoader height={160} style={{ borderRadius: radius.xl }} />
+          <SkeletonLoader height={200} style={{ borderRadius: radius.xl }} />
+          <SkeletonLoader height={220} style={{ borderRadius: radius.xl }} />
         </View>
       </View>
     );
@@ -229,47 +347,61 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
   if (!booking) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <Header title="Booking Details" onBack={() => navigation.goBack()} />
-        <View style={styles.errorCenter}>
-          <AlertTriangle size={48} color={colors.error} />
-          <Text style={styles.errorTitle}>Booking Not Found</Text>
-          <AppButton title="Go Back" onPress={() => navigation.goBack()} style={{ marginTop: spacing.md }} />
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <ArrowLeft size={20} color={colors.foregroundDark} />
+          </TouchableOpacity>
+          <Text style={styles.topBarTitle}>Event Details</Text>
         </View>
+        <Card style={styles.emptyCard} variant="flat">
+          <AlertCircle size={32} color={colors.textDisabled} />
+          <Text style={styles.emptyTitle}>Event Not Found</Text>
+          <Text style={styles.emptySubtitle}>The assigned event could not be loaded.</Text>
+          <AppButton
+            title="Back to Bookings"
+            variant="outline"
+            onPress={() => navigation.goBack()}
+            style={{ marginTop: spacing.md }}
+          />
+        </Card>
       </View>
     );
   }
 
-  const customer = booking.customer_id || {};
-  const customerName =
-    customer.full_name ||
-    `${booking.contact_first_name || ""} ${booking.contact_last_name || ""}`.trim() ||
-    "Client";
-  const customerPhone = customer.phone || booking.contact_phone;
-  const customerEmail = customer.email || booking.contact_email;
-
-  const staffAssignments = booking.staff_assignments || [];
-  const inventoryItems = booking.inventory_items || [];
-  const equipmentReturns = booking.equipment_returns || [];
-  const staffReports = booking.staff_reports || [];
-
-  const isDispatchVerified = booking.equipment_manager_verified?.confirmed;
-  const isCompleted = ["Completed", "completed"].includes(booking.status);
-
-  const menuItems = Array.isArray(booking.menu_items) ? booking.menu_items : [];
-  const selectedDishes = Array.isArray(booking.selected_dishes) ? booking.selected_dishes : [];
-  const displayDishes = menuItems.length > 0 ? menuItems : selectedDishes;
+  const clientName = booking.customer_id?.full_name || "Valued Client";
+  const refCode = booking.reference || booking._id?.slice(-6).toUpperCase();
+  const venueAddress = getBookingVenueLocation(booking);
+  const isDepositPending =
+    booking.payment_status === "deposit_pending" || booking.status === "Deposit Pending";
 
   return (
-    <View style={styles.screen}>
-      <Header
-        title={`#${booking.reference || booking._id?.slice(-6).toUpperCase()}`}
-        subtitle={booking.event_type || "Catering Event"}
-        onBack={() => navigation.goBack()}
-      />
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+      {/* Top Bar */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+          activeOpacity={0.7}
+          accessibilityLabel="Back"
+        >
+          <ArrowLeft size={20} color={colors.foregroundDark} />
+        </TouchableOpacity>
+        <View style={{ flex: 1, marginHorizontal: spacing.xs }}>
+          <Text style={styles.topBarTitle} numberOfLines={1}>
+            {booking.event_type || "Catering Event"}
+          </Text>
+          <Text style={styles.topBarSubtitle}>Ref: #{refCode}</Text>
+        </View>
+        {isDepositPending ? (
+          <StatusBadge status="Deposit Pending" />
+        ) : (
+          <StatusBadge status={booking.status} />
+        )}
+      </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.xxl }]}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -279,441 +411,697 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
           />
         }
       >
-        {/* Overview Card */}
-        <Card style={styles.card}>
+        {/* TOP BANNER: Overview & Identity */}
+        <Card style={styles.overviewCard}>
           <View style={styles.overviewHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.eventTypeTitle}>{booking.event_type || "Catering Event"}</Text>
-              <Text style={styles.packageSubtitle}>
-                {booking.package_id?.name || "Custom Package"}
+              <Text style={styles.kickerText}>Assigned Catering Event</Text>
+              <Text style={styles.overviewTitle}>{booking.event_type || "Catering Event"}</Text>
+              <Text style={styles.overviewClient}>
+                Client: <Text style={styles.boldText}>{clientName}</Text>
               </Text>
             </View>
-            <StatusBadge status={booking.status} />
+            {timing.isStarted && !timing.isFinished && (
+              <View style={styles.inProgressBadge}>
+                <Sparkles size={11} color="#059669" />
+                <Text style={styles.inProgressText}>In Progress</Text>
+              </View>
+            )}
+          </View>
+        </Card>
+
+        {/* ========================================================= */}
+        {/* SECTION 1: BOOKING SPECIFICATIONS (Quick + Expandable)   */}
+        {/* ========================================================= */}
+        <Card style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionTitleWithIcon}>
+              <View style={[styles.secIconBox, { backgroundColor: "#EFF6FF" }]}>
+                <FileText size={16} color="#4C81E0" />
+              </View>
+              <Text style={styles.sectionHeading}>Booking Specifications</Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => setIsSpecsExpanded(!isSpecsExpanded)}
+              style={styles.expandToggleBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.expandToggleText}>
+                {isSpecsExpanded ? "Hide Specs" : "View All"}
+              </Text>
+              {isSpecsExpanded ? (
+                <ChevronUp size={15} color="#4C81E0" />
+              ) : (
+                <ChevronDown size={15} color="#4C81E0" />
+              )}
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.divider} />
-
-          <View style={styles.infoGrid}>
-            <View style={styles.infoCol}>
-              <View style={styles.infoRow}>
-                <Calendar size={15} color={colors.foregroundMuted} />
-                <Text style={styles.infoText}>{formatDate(booking.event_date)}</Text>
+          {/* Quick Summary Grid (Always Visible) */}
+          <View style={styles.specQuickGrid}>
+            {/* Category 1: Event & Schedule */}
+            <View style={styles.specBox}>
+              <Text style={styles.specBoxTitle}>Event & Schedule</Text>
+              <View style={styles.specItemRow}>
+                <CalendarIcon size={13} color="#4C81E0" />
+                <Text style={styles.specItemText}>{formatDate(booking.event_date)}</Text>
               </View>
-              {booking.start_time && (
-                <View style={styles.infoRow}>
-                  <Clock size={15} color={colors.foregroundMuted} />
-                  <Text style={styles.infoText}>
-                    {formatTime(booking.start_time)} ({booking.duration_hours || 4}h)
-                  </Text>
+              <View style={styles.specItemRow}>
+                <Clock size={13} color={colors.textSubtle} />
+                <Text style={styles.specItemText}>
+                  {formatEventStartTime(booking.start_time)}
+                </Text>
+              </View>
+              {booking.guest_count > 0 && (
+                <View style={styles.specItemRow}>
+                  <Users size={13} color={colors.textSubtle} />
+                  <Text style={styles.specItemText}>{booking.guest_count} Expected Guests</Text>
                 </View>
               )}
             </View>
 
-            <View style={styles.infoCol}>
-              <View style={styles.infoRow}>
-                <Users size={15} color={colors.foregroundMuted} />
-                <Text style={styles.infoText}>{booking.guest_count || booking.guests || 0} Guests</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <FileText size={15} color={colors.foregroundMuted} />
-                <Text style={styles.infoText}>
-                  {formatCurrency(booking.total_price || booking.package_price || 0)}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </Card>
-
-        {/* Client & Venue Contact Card */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionHeading}>Client Contact</Text>
-          <View style={styles.clientInfoBlock}>
-            <Text style={styles.clientDetailName}>{customerName}</Text>
-            {customerPhone ? (
-              <View style={styles.contactActionRow}>
-                <TouchableOpacity
-                  style={styles.quickContactBtn}
-                  onPress={() => handleCall(customerPhone)}
-                  activeOpacity={0.7}
-                >
-                  <Phone size={15} color={colors.primary} />
-                  <Text style={styles.quickContactText}>{customerPhone}</Text>
+            {/* Category 2: Venue Location */}
+            <View style={styles.specBox}>
+              <View style={styles.specBoxTitleRow}>
+                <Text style={styles.specBoxTitle}>Venue Location</Text>
+                <TouchableOpacity onPress={handleOpenMaps} activeOpacity={0.7}>
+                  <Text style={styles.openMapsLink}>Open Maps</Text>
                 </TouchableOpacity>
               </View>
-            ) : null}
-            {customerEmail ? (
-              <TouchableOpacity
-                style={styles.quickContactBtn}
-                onPress={() => handleEmail(customerEmail)}
-                activeOpacity={0.7}
-              >
-                <Mail size={15} color={colors.primary} />
-                <Text style={styles.quickContactText}>{customerEmail}</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
+              <View style={styles.specItemRow}>
+                <MapPin size={13} color="#4C81E0" />
+                <Text style={styles.specItemText} numberOfLines={2}>
+                  {venueAddress}
+                </Text>
+              </View>
+              {booking.venue_type && (
+                <Text style={styles.specItemSub}>Venue Type: {booking.venue_type}</Text>
+              )}
+            </View>
 
-          {/* Chat with Client Action Button */}
-          <AppButton
-            title="Message Client in App"
-            icon={MessageSquare}
-            variant="outline"
-            size="sm"
-            onPress={handleChatWithCustomer}
-            style={{ marginTop: spacing.sm }}
-          />
+            {/* Category 3: Customer Details & Contact */}
+            <View style={[styles.specBox, { width: "100%" }]}>
+              <Text style={styles.specBoxTitle}>Customer Contact</Text>
+              <View style={styles.contactRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.contactName}>{clientName}</Text>
+                  {booking.customer_id?.email && (
+                    <Text style={styles.contactEmail}>{booking.customer_id.email}</Text>
+                  )}
+                </View>
 
-          <View style={styles.divider} />
-
-          <Text style={styles.sectionHeading}>Venue Location</Text>
-          <View style={styles.venueRow}>
-            <MapPin size={16} color={colors.foregroundMuted} style={{ marginTop: 2 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.venueAddress}>
-                {[booking.street, booking.barangay, booking.municipality, "Batangas"]
-                  .filter(Boolean)
-                  .join(", ")}
-              </Text>
-              {booking.landmark ? (
-                <Text style={styles.landmarkText}>Landmark: {booking.landmark}</Text>
-              ) : null}
+                <View style={styles.contactBtnsRow}>
+                  {booking.customer_id?.phone && (
+                    <TouchableOpacity
+                      style={styles.contactActionBtn}
+                      onPress={() => handleCall(booking.customer_id.phone)}
+                      activeOpacity={0.8}
+                    >
+                      <Phone size={13} color="#4C81E0" />
+                      <Text style={styles.contactActionBtnText}>Call</Text>
+                    </TouchableOpacity>
+                  )}
+                  {booking.customer_id?.email && (
+                    <TouchableOpacity
+                      style={styles.contactActionBtn}
+                      onPress={() => handleEmail(booking.customer_id.email)}
+                      activeOpacity={0.8}
+                    >
+                      <Mail size={13} color="#4C81E0" />
+                      <Text style={styles.contactActionBtnText}>Email</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
             </View>
           </View>
 
-          <AppButton
-            title="Open Venue in Maps"
-            variant="outline"
-            size="sm"
-            icon={Navigation}
-            onPress={handleOpenMaps}
-            style={{ marginTop: spacing.sm }}
-          />
-        </Card>
+          {/* EXPANDED VIEW: Complete Specifications */}
+          {isSpecsExpanded && (
+            <View style={styles.expandedSpecsContainer}>
+              {/* Package Inclusions Breakdown */}
+              {Array.isArray(booking.package_inclusions) && booking.package_inclusions.length > 0 && (
+                <View style={styles.expandedSectionBlock}>
+                  <Text style={styles.expandedSectionHeading}>Package Inclusions</Text>
+                  <View style={styles.inclusionsList}>
+                    {booking.package_inclusions.map((inc, idx) => {
+                      const parsed = parseInclusion(inc);
+                      return (
+                        <View key={idx} style={styles.inclusionItem}>
+                          <CheckCircle2 size={13} color="#059669" />
+                          <Text style={styles.inclusionText}>
+                            {parsed ? `${parsed.name}${parsed.qty ? ` (${parsed.qty})` : ""}` : String(inc)}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
 
-        {/* Catering Menu & Food Selections Card */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionHeading}>Catering Menu & Course Inclusions</Text>
-          {displayDishes.length === 0 ? (
-            <Text style={styles.emptySubtext}>Menu items pending selection or standard banquet package spread.</Text>
-          ) : (
-            <View style={styles.dishesGrid}>
-              {displayDishes.map((dish, idx) => {
-                const dishName = dish.name || dish.item_name || (typeof dish === "string" ? dish : `Dish #${idx + 1}`);
-                const course = dish.category || dish.course || "";
-                return (
-                  <View key={idx} style={styles.dishBadge}>
-                    <Utensils size={12} color={colors.primary} />
-                    <Text style={styles.dishBadgeText} numberOfLines={1}>
-                      {dishName} {course ? `(${course})` : ""}
+              {/* Food Menu Dishes */}
+              {Array.isArray(booking.menu_items) && booking.menu_items.length > 0 && (
+                <View style={styles.expandedSectionBlock}>
+                  <View style={styles.subHeadingRow}>
+                    <Utensils size={14} color="#4C81E0" />
+                    <Text style={styles.expandedSectionHeading}>
+                      Food Menu ({booking.menu_items.length} Dishes)
                     </Text>
                   </View>
-                );
-              })}
-            </View>
-          )}
+                  <View style={styles.menuItemsGrid}>
+                    {booking.menu_items.map((dish, idx) => (
+                      <View key={idx} style={styles.dishCard}>
+                        <View style={styles.dishTopRow}>
+                          <Text style={styles.dishName}>
+                            {dish.name || dish.dish_id?.name || "Catering Dish"}
+                          </Text>
+                          <Text style={styles.dishCategory}>
+                            {dish.category || dish.dish_id?.category || "Main"}
+                          </Text>
+                        </View>
+                        {dish.special_instructions && (
+                          <View style={styles.dishNoteBox}>
+                            <Text style={styles.dishNoteText}>{dish.special_instructions}</Text>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
 
-          {Boolean(booking.dietary_notes || booking.allergies) && (
-            <View style={styles.allergyAlertCard}>
-              <AlertTriangle size={16} color="#b45309" />
-              <View style={{ marginLeft: spacing.xs, flex: 1 }}>
-                <Text style={styles.allergyAlertTitle}>Dietary & Allergen Notice</Text>
-                <Text style={styles.allergyAlertDesc}>{booking.dietary_notes || booking.allergies}</Text>
-              </View>
-            </View>
-          )}
-        </Card>
+              {/* Add-ons & Extra Services */}
+              {((Array.isArray(booking.service_items) && booking.service_items.length > 0) ||
+                (Array.isArray(booking.additional_charges) && booking.additional_charges.length > 0)) && (
+                <View style={styles.expandedSectionBlock}>
+                  <View style={styles.subHeadingRow}>
+                    <Layers size={14} color="#4C81E0" />
+                    <Text style={styles.expandedSectionHeading}>Add-ons & Extra Services</Text>
+                  </View>
+                  <View style={styles.servicesGrid}>
+                    {(booking.service_items || []).map((srv, idx) => (
+                      <View key={`srv-${idx}`} style={styles.serviceCard}>
+                        <Text style={styles.serviceName}>{srv.name}</Text>
+                        {srv.quantity > 1 && (
+                          <Text style={styles.serviceQty}>Qty: {srv.quantity}</Text>
+                        )}
+                      </View>
+                    ))}
+                    {(booking.additional_charges || []).map((chg, idx) => (
+                      <View key={`chg-${idx}`} style={styles.serviceCard}>
+                        <Text style={styles.serviceName}>{chg.label}</Text>
+                        {chg.reason && <Text style={styles.serviceNote}>{chg.reason}</Text>}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
 
-        {/* Staff Assignments Section */}
-        <Card style={styles.card}>
-          <View style={styles.cardHeaderAction}>
-            <View>
-              <Text style={styles.sectionHeading}>Assigned Staff</Text>
-              <Text style={styles.sectionSubtext}>
-                {staffAssignments.length} member{staffAssignments.length === 1 ? "" : "s"} deployed
-              </Text>
-            </View>
-            <AppButton
-              title={staffAssignments.length === 0 ? "Assign Staff" : "Modify Staff"}
-              size="sm"
-              variant={staffAssignments.length === 0 ? "primary" : "outline"}
-              icon={UserPlus}
-              onPress={() =>
-                navigation.navigate("AssignStaffModal", {
-                  bookingId: booking._id,
-                  eventDate: booking.event_date,
-                  existingAssignments: staffAssignments,
-                  onSuccess: loadBooking,
-                })
-              }
-            />
-          </View>
+              {/* Adjustments & Logistics */}
+              <View style={styles.expandedSectionBlock}>
+                <Text style={styles.expandedSectionHeading}>Adjustments & Logistics</Text>
+                <View style={styles.logisticsBox}>
+                  {booking.dietary_restrictions ? (
+                    <Text style={styles.logisticsItem}>
+                      <Text style={styles.boldText}>Dietary:</Text> {booking.dietary_restrictions}
+                    </Text>
+                  ) : null}
+                  {booking.allergies ? (
+                    <Text style={styles.logisticsItem}>
+                      <Text style={styles.boldText}>Allergies:</Text> {booking.allergies}
+                    </Text>
+                  ) : null}
+                  {booking.special_requests ? (
+                    <Text style={styles.logisticsItem}>
+                      <Text style={styles.boldText}>Special Requests:</Text> {booking.special_requests}
+                    </Text>
+                  ) : null}
+                  {!booking.dietary_restrictions && !booking.allergies && !booking.special_requests && (
+                    <Text style={styles.logisticsItem}>
+                      Standard catering protocol applies. No special restrictions noted.
+                    </Text>
+                  )}
+                </View>
 
-          {staffAssignments.length === 0 ? (
-            <View style={styles.unassignedBanner}>
-              <AlertTriangle size={20} color={colors.warning} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.unassignedTitle}>Staff Required</Text>
-                <Text style={styles.unassignedSub}>
-                  No staff members are assigned yet. Tap "Assign Staff" to check availability and assign roles.
-                </Text>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.staffList}>
-              {staffAssignments.map((assignment, index) => {
-                const member = assignment.user_id || {};
-                const name = member.full_name || assignment.name || "Staff Member";
-                const roleTitle = assignment.role || member.position || "Catering Staff";
-                return (
-                  <View key={index} style={styles.staffItem}>
-                    <View style={styles.staffAvatar}>
-                      <Text style={styles.staffInitials}>
-                        {name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .slice(0, 2)
-                          .toUpperCase()}
+                {Number(booking.remaining_balance || 0) > 0 &&
+                  booking.balance_payment_preference === "in_person" && (
+                    <View style={styles.cashNoticeBox}>
+                      <Banknote size={15} color="#D97706" />
+                      <Text style={styles.cashNoticeText}>
+                        Cash Collection: Client elected to settle remaining balance of{" "}
+                        <Text style={styles.boldText}>
+                          {formatCurrency(booking.remaining_balance)}
+                        </Text>{" "}
+                        in cash on-site to event lead.
                       </Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.staffName}>{name}</Text>
-                      <Text style={styles.staffRole}>{roleTitle}</Text>
-                    </View>
-                    {member.phone ? (
-                      <TouchableOpacity
-                        style={styles.iconCircle}
-                        onPress={() => handleCall(member.phone)}
-                      >
-                        <Phone size={14} color={colors.primary} />
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                );
-              })}
+                  )}
+              </View>
             </View>
           )}
         </Card>
 
-        {/* Equipment Dispatch & Outgoing Inventory Section */}
-        <Card style={styles.card}>
-          <View style={styles.cardHeaderAction}>
-            <View>
-              <Text style={styles.sectionHeading}>Equipment Dispatch</Text>
-              <Text style={styles.sectionSubtext}>
-                {inventoryItems.length} inventory items booked
-              </Text>
-            </View>
-            <AppButton
-              title={isDispatchVerified ? "Re-verify Dispatch" : "Verify Dispatch"}
-              size="sm"
-              variant={isDispatchVerified ? "outline" : "primary"}
-              icon={ShieldCheck}
-              onPress={() =>
-                navigation.navigate("EquipmentDispatchModal", {
-                  bookingId: booking._id,
-                  inventoryItems,
-                  alreadyVerified: isDispatchVerified,
-                  onSuccess: loadBooking,
-                })
-              }
-            />
-          </View>
-
-          <View
-            style={[
-              styles.verificationStatusBanner,
-              { backgroundColor: isDispatchVerified ? colors.successLight : colors.warningLight },
-            ]}
-          >
-            {isDispatchVerified ? (
-              <CheckCircle2 size={18} color={colors.success} />
-            ) : (
-              <AlertTriangle size={18} color={colors.warning} />
-            )}
-            <View style={{ flex: 1 }}>
-              <Text
-                style={[
-                  styles.verificationStatusTitle,
-                  { color: isDispatchVerified ? colors.success : colors.warning },
-                ]}
-              >
-                {isDispatchVerified ? "Dispatched & Confirmed" : "Dispatch Verification Pending"}
-              </Text>
-              {booking.equipment_manager_verified?.confirmed_at ? (
-                <Text style={styles.verificationMeta}>
-                  Confirmed on {formatDate(booking.equipment_manager_verified.confirmed_at)}
+        {/* ========================================================= */}
+        {/* SECTION 2: STAFF ATTENDANCE (Toggle Present / Absent)      */}
+        {/* ========================================================= */}
+        <Card style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionTitleWithIcon}>
+              <View style={[styles.secIconBox, { backgroundColor: "#FEF3C7" }]}>
+                <UserCheck size={16} color="#D97706" />
+              </View>
+              <View>
+                <Text style={styles.sectionHeading}>Staff Attendance</Text>
+                <Text style={styles.sectionSubHeading}>
+                  {markedStaffCount} of {totalStaffCount} crew marked present
                 </Text>
-              ) : null}
+              </View>
             </View>
-          </View>
-        </Card>
 
-        {/* Equipment Returns & Post-Event Reconciliation Section */}
-        <Card style={styles.card}>
-          <View style={styles.cardHeaderAction}>
-            <View>
-              <Text style={styles.sectionHeading}>Post-Event Equipment Returns</Text>
-              <Text style={styles.sectionSubtext}>
-                {equipmentReturns.length > 0 ? `${equipmentReturns.length} items logged by staff` : "Awaiting staff checklist return"}
-              </Text>
-            </View>
-            <AppButton
-              title="Verify Returns"
-              size="sm"
-              variant="outline"
-              icon={ShieldCheck}
-              onPress={() => setShowVerifyModal(true)}
-            />
-          </View>
-
-          {equipmentReturns.length === 0 ? (
-            <Text style={styles.emptySubtext}>
-              Once catering staff complete on-site packing, returned, damaged, and missing gear counts will appear here for verification.
-            </Text>
-          ) : (
-            <View style={styles.returnsTable}>
-              {equipmentReturns.map((ret, i) => {
-                const booked = Number(ret.quantity_booked || 1);
-                const returned = Number(ret.quantity_returned || 0);
-                const damaged = Number(ret.quantity_damaged || 0);
-                const missing = Math.max(0, booked - (returned + damaged));
-                const name = ret.name || ret.inventory_id?.item_name || ret.inventory_id?.name || "Equipment Item";
-
-                return (
-                  <View key={i} style={styles.returnRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.returnItemName}>{name}</Text>
-                      {ret.notes ? <Text style={styles.returnItemNote}>"{ret.notes}"</Text> : null}
-                    </View>
-                    <View style={styles.returnCountsRow}>
-                      <Text style={styles.countRet}>Ret: {returned}</Text>
-                      {damaged > 0 && <Text style={styles.countDam}>Dam: {damaged}</Text>}
-                      {missing > 0 && <Text style={styles.countMis}>Mis: {missing}</Text>}
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </Card>
-
-        {/* Staff Incident & Shift Reports Section */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionHeading}>Staff Field Incident & Service Reports</Text>
-          <Text style={styles.sectionSubtext}>
-            Operational logs and remarks submitted by catering personnel on site.
-          </Text>
-
-          {staffReports.length === 0 ? (
-            <Text style={styles.emptySubtext}>No on-site incident reports filed by crew.</Text>
-          ) : (
-            <View style={styles.reportsList}>
-              {staffReports.map((r, i) => (
-                <View key={i} style={styles.reportItemCard}>
-                  <View style={styles.reportHeader}>
-                    <Text style={styles.reportRoleBadge}>{r.role || "Catering Crew"}</Text>
-                    <Text style={styles.reportTime}>{r.created_at ? formatDate(r.created_at) : "Shift"}</Text>
-                  </View>
-                  <Text style={styles.reportContentText}>{r.note}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </Card>
-
-        {/* Manager Operational Notes Section */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionHeading}>Manager Event Notes</Text>
-          <Text style={styles.sectionSubtext}>
-            Log logistical updates, special client requests, or operational instructions.
-          </Text>
-
-          <View style={styles.noteInputRow}>
-            <TextInput
-              style={styles.noteInput}
-              placeholder="Type operational note..."
-              placeholderTextColor={colors.textDisabled}
-              value={newNote}
-              onChangeText={setNewNote}
-              multiline
-            />
             <TouchableOpacity
-              style={[
-                styles.sendNoteBtn,
-                (!newNote.trim() || addingNote) && styles.sendNoteBtnDisabled,
-              ]}
-              onPress={handleAddNote}
-              disabled={!newNote.trim() || addingNote}
+              onPress={() => setIsAttendanceOpen(!isAttendanceOpen)}
+              style={styles.expandToggleBtn}
+              activeOpacity={0.7}
             >
-              <Send size={16} color={colors.white} />
+              {isAttendanceOpen ? (
+                <ChevronUp size={16} color="#4C81E0" />
+              ) : (
+                <ChevronDown size={16} color="#4C81E0" />
+              )}
             </TouchableOpacity>
           </View>
 
-          {booking.event_manager_notes && booking.event_manager_notes.length > 0 ? (
-            <View style={styles.notesList}>
-              {booking.event_manager_notes.map((n, i) => (
-                <View key={i} style={styles.noteItem}>
-                  <Text style={styles.noteText}>{n.note}</Text>
-                  <Text style={styles.noteDate}>
-                    {n.created_at ? formatDate(n.created_at) : "Note"}
+          {isAttendanceOpen && (
+            <View style={styles.attendanceBody}>
+              {staffAssignments.length === 0 ? (
+                <View style={styles.emptyAttendanceBox}>
+                  <Text style={styles.emptyAttendanceText}>
+                    No crew members assigned to this event yet.
                   </Text>
                 </View>
-              ))}
+              ) : (
+                staffAssignments.map((member, idx) => {
+                  const staffName =
+                    member.name ||
+                    member.user_id?.full_name ||
+                    member.user_id?.name ||
+                    `Staff Crew #${idx + 1}`;
+                  const isPresent = member.attendance_status === "present";
+                  const isUpdating = updatingStaffId === (member.user_id?._id || member.user_id || member._id);
+
+                  return (
+                    <View key={member._id || idx} style={styles.staffMemberRow}>
+                      {/* Attendance Toggle Checkbox */}
+                      <TouchableOpacity
+                        style={[
+                          styles.attendanceCheckbox,
+                          isPresent && styles.attendanceCheckboxActive,
+                        ]}
+                        onPress={() => handleToggleAttendance(member)}
+                        disabled={isUpdating || isCompleted}
+                        activeOpacity={0.7}
+                      >
+                        {isUpdating ? (
+                          <ActivityIndicator size="small" color={isPresent ? "#FFFFFF" : "#4C81E0"} />
+                        ) : isPresent ? (
+                          <Check size={14} color="#FFFFFF" />
+                        ) : null}
+                      </TouchableOpacity>
+
+                      {/* Staff Avatar */}
+                      <View style={styles.staffAvatar}>
+                        <Text style={styles.staffAvatarText}>{initialsOf(staffName, "ST")}</Text>
+                      </View>
+
+                      {/* Info */}
+                      <View style={{ flex: 1, marginRight: spacing.xs }}>
+                        <Text style={styles.staffMemberName} numberOfLines={1}>
+                          {staffName}
+                        </Text>
+                        <Text style={styles.staffMemberRole}>
+                          Role: {member.role || member.user_id?.position || "Catering Crew"}
+                        </Text>
+                      </View>
+
+                      {/* Phone call button */}
+                      {member.phone && (
+                        <TouchableOpacity
+                          style={styles.staffPhoneBtn}
+                          onPress={() => handleCall(member.phone)}
+                          activeOpacity={0.8}
+                        >
+                          <Phone size={13} color="#4C81E0" />
+                        </TouchableOpacity>
+                      )}
+
+                      {/* Status indicator */}
+                      <View
+                        style={[
+                          styles.staffStatusTag,
+                          isPresent ? styles.staffStatusTagPresent : styles.staffStatusTagNotRecorded,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.staffStatusTagText,
+                            isPresent ? styles.staffStatusTagTextPresent : styles.staffStatusTagTextNotRecorded,
+                          ]}
+                        >
+                          {isPresent ? "Present" : "Not Recorded"}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
             </View>
-          ) : (
-            <Text style={styles.emptyNotesText}>No operational notes recorded yet.</Text>
           )}
         </Card>
 
-        {/* Complete Event Button */}
-        {!isCompleted && (
-          <AppButton
-            title="Mark Event Completed"
-            variant="primary"
-            size="lg"
-            loading={completing}
-            icon={CheckCircle2}
-            onPress={handleMarkCompleted}
-            style={styles.completeBtn}
-          />
-        )}
-      </ScrollView>
-
-      {/* Verify Equipment Modal */}
-      <Modal visible={showVerifyModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Verify Equipment Returns</Text>
-              <TouchableOpacity onPress={() => setShowVerifyModal(false)}>
-                <X size={20} color={colors.foreground} />
-              </TouchableOpacity>
+        {/* ========================================================= */}
+        {/* SECTION 3: FINANCIAL & HISTORY (Read-Only for Manager)    */}
+        {/* ========================================================= */}
+        <Card style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionTitleWithIcon}>
+              <View style={[styles.secIconBox, { backgroundColor: "#F0FDF4" }]}>
+                <CreditCard size={16} color="#059669" />
+              </View>
+              <View>
+                <Text style={styles.sectionHeading}>Financial Overview</Text>
+                <Text style={styles.sectionSubHeading}>Payment transactions (Read-Only)</Text>
+              </View>
             </View>
 
-            <Text style={styles.modalSub}>
-              Confirm that returned items, breakages, and missing tableware match the warehouse inspection.
-            </Text>
-
-            <Text style={styles.inputLabel}>Manager Verification Notes</Text>
-            <TextInput
-              style={[styles.modalInput, { height: 80 }]}
-              placeholder="e.g. All 12 chafing dishes returned clean. 2 glasses chipped."
-              placeholderTextColor={colors.textDisabled}
-              multiline
-              value={verifyNotes}
-              onChangeText={setVerifyNotes}
-            />
-
-            <AppButton
-              title="Confirm & Save Verification"
-              loading={submittingVerification}
-              onPress={handleConfirmEquipmentReturns}
-              style={{ marginTop: spacing.md }}
-            />
+            <TouchableOpacity
+              onPress={() => setIsPaymentHistoryOpen(!isPaymentHistoryOpen)}
+              style={styles.expandToggleBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.expandToggleText}>
+                {isPaymentHistoryOpen ? "Hide History" : "See More"}
+              </Text>
+              {isPaymentHistoryOpen ? (
+                <ChevronUp size={15} color="#4C81E0" />
+              ) : (
+                <ChevronDown size={15} color="#4C81E0" />
+              )}
+            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+
+          {/* Summary Banner */}
+          <View style={styles.financialBanner}>
+            <View style={styles.financialCol}>
+              <Text style={styles.financialLabel}>Total Amount</Text>
+              <Text style={styles.financialAmount}>
+                {formatCurrency(booking.total_amount)}
+              </Text>
+            </View>
+            <View style={styles.financialDivider} />
+            <View style={styles.financialCol}>
+              <Text style={styles.financialLabel}>Balance Due</Text>
+              <Text style={styles.financialAmountDue}>
+                {formatCurrency(booking.remaining_balance || 0)}
+              </Text>
+            </View>
+            <View style={styles.financialDivider} />
+            <View style={styles.financialCol}>
+              <Text style={styles.financialLabel}>Payment Status</Text>
+              <Text style={styles.financialStatusText}>
+                {booking.payment_status?.replace(/_/g, " ").toUpperCase() || "PENDING"}
+              </Text>
+            </View>
+          </View>
+
+          {/* Expandable Payment Transaction History */}
+          {isPaymentHistoryOpen && (
+            <View style={styles.paymentHistoryContainer}>
+              <Text style={styles.paymentHistoryTitle}>Payment Transaction History</Text>
+              {!Array.isArray(booking.payments) || booking.payments.length === 0 ? (
+                <Text style={styles.emptyHistoryText}>
+                  No payment transaction records logged for this booking.
+                </Text>
+              ) : (
+                booking.payments.map((p, idx) => (
+                  <View key={p._id || idx} style={styles.paymentRow}>
+                    <Receipt size={14} color={colors.textSubtle} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.paymentMethod}>
+                        {p.payment_method?.toUpperCase() || "ONLINE / CASH"}
+                      </Text>
+                      <Text style={styles.paymentDate}>{formatDateTime(p.created_at || p.payment_date)}</Text>
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={styles.paymentAmount}>{formatCurrency(p.amount)}</Text>
+                      <Text style={styles.paymentStatusBadge}>{p.status || "Completed"}</Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          )}
+        </Card>
+
+        {/* ========================================================= */}
+        {/* SECTION 4: EQUIPMENT CHECK (Expandable, Item-by-Item)      */}
+        {/* ========================================================= */}
+        <Card style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionTitleWithIcon}>
+              <View style={[styles.secIconBox, { backgroundColor: "#EFF6FF" }]}>
+                <PackageCheck size={16} color="#4C81E0" />
+              </View>
+              <View>
+                <Text style={styles.sectionHeading}>Equipment & Setup Check</Text>
+                <Text style={styles.sectionSubHeading}>
+                  {inspectedItemsCount} of {totalChecklistCount} items inspected
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => setIsEquipmentOpen(!isEquipmentOpen)}
+              style={styles.expandToggleBtn}
+              activeOpacity={0.7}
+            >
+              {isEquipmentOpen ? (
+                <ChevronUp size={16} color="#4C81E0" />
+              ) : (
+                <ChevronDown size={16} color="#4C81E0" />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {isEquipmentOpen && (
+            <View style={styles.equipmentBody}>
+              {/* Checklist Done Banner */}
+              {isChecklistDone && (
+                <View style={styles.inspectionDoneBanner}>
+                  <CheckCircle2 size={16} color="#059669" />
+                  <Text style={styles.inspectionDoneBannerText}>
+                    Equipment inspection verified on-site by Event Lead coordinator.
+                  </Text>
+                </View>
+              )}
+
+              {checklist.length === 0 ? (
+                <View style={styles.emptyChecklistBox}>
+                  <Text style={styles.emptyChecklistText}>
+                    No physical package equipment or setup inclusions registered.
+                  </Text>
+                </View>
+              ) : (
+                checklist.map((item) => {
+                  const isComplete = item.status === "complete";
+                  const isIncomplete = item.status === "incomplete";
+                  const isNotesOpen = openInlineNotes[item.item_key];
+                  const draftNote = inlineDrafts[item.item_key] ?? item.notes ?? "";
+
+                  return (
+                    <View key={item.item_key} style={styles.checkItemCard}>
+                      <View style={styles.checkItemTopRow}>
+                        <View style={{ flex: 1, marginRight: spacing.xs }}>
+                          <Text style={styles.checkItemCategory}>{item.category}</Text>
+                          <Text style={styles.checkItemName}>{item.name}</Text>
+                          {item.quantity != null && (
+                            <Text style={styles.checkItemQuantity}>
+                              Dispatched: {item.quantity} {item.unit || "pcs"}
+                            </Text>
+                          )}
+                        </View>
+
+                        {/* Status badge */}
+                        <View
+                          style={[
+                            styles.itemStatusBadge,
+                            isComplete
+                              ? styles.itemStatusComplete
+                              : isIncomplete
+                              ? styles.itemStatusIncomplete
+                              : styles.itemStatusNotInspected,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.itemStatusBadgeText,
+                              isComplete
+                                ? styles.itemStatusTextComplete
+                                : isIncomplete
+                                ? styles.itemStatusTextIncomplete
+                                : styles.itemStatusTextNotInspected,
+                            ]}
+                          >
+                            {isComplete
+                              ? "Complete"
+                              : isIncomplete
+                              ? "Issue / Incomplete"
+                              : "Not Inspected"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Display saved note snippet if any */}
+                      {item.notes && !isNotesOpen && (
+                        <View style={styles.itemSavedNoteBox}>
+                          <Text style={styles.itemSavedNoteText}>Note: {item.notes}</Text>
+                        </View>
+                      )}
+
+                      {/* Actions: Complete vs Incomplete & Add Note */}
+                      {!isChecklistDone && !isCompleted && (
+                        <View style={styles.checkItemActionsRow}>
+                          <TouchableOpacity
+                            style={[
+                              styles.actionToggleBtn,
+                              isComplete && styles.actionToggleBtnCompleteActive,
+                            ]}
+                            onPress={() => handleMarkItemStatus(item.item_key, "complete")}
+                            activeOpacity={0.8}
+                          >
+                            <Check size={13} color={isComplete ? "#FFFFFF" : "#059669"} />
+                            <Text
+                              style={[
+                                styles.actionToggleBtnText,
+                                isComplete && styles.actionToggleBtnTextActive,
+                              ]}
+                            >
+                              Complete
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[
+                              styles.actionToggleBtn,
+                              isIncomplete && styles.actionToggleBtnIncompleteActive,
+                            ]}
+                            onPress={() => handleMarkItemStatus(item.item_key, "incomplete")}
+                            activeOpacity={0.8}
+                          >
+                            <AlertCircle size={13} color={isIncomplete ? "#FFFFFF" : "#DC2626"} />
+                            <Text
+                              style={[
+                                styles.actionToggleBtnText,
+                                isIncomplete && styles.actionToggleBtnTextActive,
+                              ]}
+                            >
+                              Incomplete
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.notesToggleBtn}
+                            onPress={() =>
+                              setOpenInlineNotes((prev) => ({
+                                ...prev,
+                                [item.item_key]: !prev[item.item_key],
+                              }))
+                            }
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.notesToggleBtnText}>
+                              {isNotesOpen ? "Close Note" : item.notes ? "Edit Note" : "Add Note"}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {/* Inline Note Editor */}
+                      {isNotesOpen && !isChecklistDone && !isCompleted && (
+                        <View style={styles.inlineNoteEditor}>
+                          <TextInput
+                            style={styles.inlineNoteInput}
+                            placeholder="Specify issue (e.g. 2 damaged, missing on arrival)..."
+                            placeholderTextColor={colors.textDisabled}
+                            value={draftNote}
+                            onChangeText={(val) =>
+                              setInlineDrafts((prev) => ({ ...prev, [item.item_key]: val }))
+                            }
+                          />
+                          <TouchableOpacity
+                            style={styles.inlineNoteSaveBtn}
+                            onPress={() => handleSaveInlineNotes(item.item_key)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.inlineNoteSaveBtnText}>Save</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })
+              )}
+
+              {/* Additional Notes Box */}
+              <View style={styles.additionalNotesSection}>
+                <Text style={styles.additionalNotesLabel}>Additional Equipment / Shift Notes</Text>
+                <TextInput
+                  style={styles.additionalNotesInput}
+                  placeholder="Record general equipment conditions, delivery notes, or logistical updates..."
+                  placeholderTextColor={colors.textDisabled}
+                  multiline
+                  numberOfLines={3}
+                  value={additionalNotes}
+                  onChangeText={setAdditionalNotes}
+                  editable={!isChecklistDone && !isCompleted}
+                />
+                {!isChecklistDone && !isCompleted && (
+                  <TouchableOpacity
+                    style={styles.saveAdditionalNotesBtn}
+                    onPress={handleSaveAdditionalNotes}
+                    disabled={savingAdditionalNotes}
+                    activeOpacity={0.8}
+                  >
+                    {savingAdditionalNotes ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.saveAdditionalNotesBtnText}>Save Shift Notes</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Final Inspection Footer Button */}
+              {!isChecklistDone && !isCompleted && (
+                <View style={styles.inspectionFooter}>
+                  <AppButton
+                    title={submittingDone ? "Finalizing Inspection..." : "Mark Inspection Complete"}
+                    variant="primary"
+                    icon={CheckCircle2}
+                    disabled={submittingDone || inspectedItemsCount < totalChecklistCount}
+                    onPress={handleMarkInspectionDone}
+                  />
+                  {inspectedItemsCount < totalChecklistCount && (
+                    <Text style={styles.inspectionHint}>
+                      Inspect all {totalChecklistCount} items above before completing inspection.
+                    </Text>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+        </Card>
+      </ScrollView>
     </View>
   );
 };
@@ -721,417 +1109,777 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.background,
+  },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    gap: spacing.xs,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.powder,
+  },
+  topBarTitle: {
+    fontSize: typography.sizes.base,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+  },
+  topBarSubtitle: {
+    fontSize: typography.sizes.micro,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
   },
   scrollContent: {
-    padding: spacing.base,
+    padding: spacing.md,
+    paddingBottom: 40,
+    gap: spacing.md,
   },
-  card: {
-    marginBottom: spacing.md,
+  loadingContainer: {
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  emptyCard: {
+    padding: spacing.xxl,
+    alignItems: "center",
+    justifyContent: "center",
+    margin: spacing.md,
+  },
+  emptyTitle: {
+    fontSize: typography.sizes.base,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+    marginTop: spacing.xs,
+  },
+  emptySubtitle: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    marginTop: 2,
+  },
+  overviewCard: {
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   overviewHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "flex-start",
+    justifyContent: "space-between",
   },
-  eventTypeTitle: {
-    fontSize: typography.sizes.lg,
-    fontWeight: "700",
-    color: colors.foreground,
-  },
-  packageSubtitle: {
-    fontSize: typography.sizes.xs,
+  kickerText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.foregroundMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  overviewTitle: {
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
     marginTop: 2,
   },
-  divider: {
-    height: 1,
-    backgroundColor: colors.borderLight,
-    marginVertical: spacing.md,
+  overviewClient: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    marginTop: 3,
   },
-  infoGrid: {
+  boldText: {
+    fontFamily: typography.fontFamilies.semiBold,
+    color: colors.foregroundDark,
+  },
+  inProgressBadge: {
     flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.xs,
+    backgroundColor: "#ECFDF5",
+  },
+  inProgressText: {
+    fontSize: 10.5,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#059669",
+  },
+  sectionCard: {
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
+    paddingBottom: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
   },
-  infoCol: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  infoRow: {
+  sectionTitleWithIcon: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
+    flex: 1,
   },
-  infoText: {
-    fontSize: typography.sizes.xs,
-    color: colors.foreground,
-    fontWeight: "600",
+  secIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
   },
   sectionHeading: {
     fontSize: typography.sizes.sm,
-    fontWeight: "700",
-    color: colors.foreground,
-    marginBottom: 4,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
   },
-  sectionSubtext: {
-    fontSize: typography.sizes.xs,
+  sectionSubHeading: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
-    marginBottom: spacing.sm,
+    marginTop: 1,
   },
-  emptySubtext: {
-    fontSize: typography.sizes.xs,
-    color: colors.foregroundMuted,
-    fontStyle: "italic",
-    paddingVertical: spacing.xs,
-  },
-  clientInfoBlock: {
-    gap: spacing.xs,
-  },
-  clientDetailName: {
-    fontSize: typography.sizes.base,
-    fontWeight: "700",
-    color: colors.foreground,
-  },
-  contactActionRow: {
-    flexDirection: "row",
-    gap: spacing.md,
-  },
-  quickContactBtn: {
+  expandToggleBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: colors.surfaceAlt,
-    paddingHorizontal: spacing.sm,
+    gap: 3,
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: radius.full,
+    borderRadius: radius.sm,
+    backgroundColor: colors.powder,
   },
-  quickContactText: {
-    fontSize: typography.sizes.xs,
-    color: colors.primary,
-    fontWeight: "600",
-  },
-  venueRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.xs,
-  },
-  venueAddress: {
-    fontSize: typography.sizes.xs,
-    color: colors.foreground,
-    fontWeight: "600",
-    lineHeight: 18,
-  },
-  landmarkText: {
+  expandToggleText: {
     fontSize: 11,
-    color: colors.foregroundMuted,
-    fontStyle: "italic",
-    marginTop: 2,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#4C81E0",
   },
-  dishesGrid: {
+  specQuickGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.xs,
-    marginVertical: spacing.xs,
   },
-  dishBadge: {
+  specBox: {
+    width: "48.5%",
+    padding: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: colors.powder,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 4,
+  },
+  specBoxTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  specBoxTitle: {
+    fontSize: 10.5,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundMuted,
+    textTransform: "uppercase",
+  },
+  openMapsLink: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#4C81E0",
+  },
+  specItemRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: colors.surfaceAlt,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radius.sm,
   },
-  dishBadgeText: {
-    fontSize: 11,
-    color: colors.foreground,
-    fontWeight: "500",
+  specItemText: {
+    fontSize: 11.5,
+    fontFamily: typography.fontFamilies.semiBold,
+    color: colors.foregroundDark,
+    flex: 1,
   },
-  allergyAlertCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#fef3c7",
-    padding: spacing.sm,
-    borderRadius: radius.md,
-    marginTop: spacing.sm,
-  },
-  allergyAlertTitle: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#b45309",
-  },
-  allergyAlertDesc: {
-    fontSize: 11,
-    color: "#b45309",
+  specItemSub: {
+    fontSize: 10.5,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
     marginTop: 2,
   },
-  cardHeaderAction: {
+  contactRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: spacing.xs,
-  },
-  unassignedBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: "#fffbeb",
-    padding: spacing.md,
-    borderRadius: radius.md,
-  },
-  unassignedTitle: {
-    fontSize: typography.sizes.xs,
-    fontWeight: "700",
-    color: "#b45309",
-  },
-  unassignedSub: {
-    fontSize: 11,
-    color: "#b45309",
     marginTop: 2,
   },
-  staffList: {
-    gap: spacing.xs,
-    marginTop: spacing.xs,
+  contactName: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
   },
-  staffItem: {
+  contactEmail: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+  },
+  contactBtnsRow: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  contactActionBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.surfaceAlt,
-    padding: spacing.sm,
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     borderRadius: radius.md,
-    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  contactActionBtnText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#4C81E0",
+  },
+  expandedSpecsContainer: {
+    paddingTop: spacing.xs,
+    gap: spacing.md,
+  },
+  expandedSectionBlock: {
+    gap: spacing.xs,
+  },
+  expandedSectionHeading: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+  },
+  subHeadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  inclusionsList: {
+    gap: 4,
+  },
+  inclusionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 2,
+  },
+  inclusionText: {
+    fontSize: 11.5,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundDark,
+    flex: 1,
+  },
+  menuItemsGrid: {
+    gap: 4,
+  },
+  dishCard: {
+    padding: spacing.sm,
+    backgroundColor: colors.powder,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 2,
+  },
+  dishTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dishName: {
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+    flex: 1,
+  },
+  dishCategory: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.semiBold,
+    color: colors.foregroundMuted,
+    textTransform: "uppercase",
+  },
+  dishNoteBox: {
+    backgroundColor: "#FEF3C7",
+    padding: 4,
+    borderRadius: radius.xs,
+    marginTop: 2,
+  },
+  dishNoteText: {
+    fontSize: 10.5,
+    fontFamily: typography.fontFamilies.medium,
+    color: "#92400E",
+  },
+  servicesGrid: {
+    gap: 4,
+  },
+  serviceCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: spacing.sm,
+    backgroundColor: colors.powder,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  serviceName: {
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+    flex: 1,
+  },
+  serviceQty: {
+    fontSize: 10.5,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#2563EB",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.xs,
+  },
+  serviceNote: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+  },
+  logisticsBox: {
+    padding: spacing.sm,
+    backgroundColor: colors.powder,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 4,
+  },
+  logisticsItem: {
+    fontSize: 11.5,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundDark,
+    lineHeight: 16,
+  },
+  cashNoticeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    padding: spacing.sm,
+    backgroundColor: "#FFFBEB",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+    marginTop: 4,
+  },
+  cashNoticeText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
+    color: "#92400E",
+    flex: 1,
+    lineHeight: 16,
+  },
+  attendanceBody: {
+    gap: spacing.xs,
+    paddingTop: spacing.xs,
+  },
+  emptyAttendanceBox: {
+    padding: spacing.md,
+    alignItems: "center",
+  },
+  emptyAttendanceText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+  },
+  staffMemberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.sm,
+    backgroundColor: colors.powder,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.xs,
+  },
+  attendanceCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: radius.xs,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  attendanceCheckboxActive: {
+    backgroundColor: "#059669",
+    borderColor: "#059669",
   },
   staffAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primaryLight,
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
     alignItems: "center",
     justifyContent: "center",
   },
-  staffInitials: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.primary,
+  staffAvatarText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#4C81E0",
   },
-  staffName: {
+  staffMemberName: {
     fontSize: typography.sizes.xs,
-    fontWeight: "700",
-    color: colors.foreground,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
   },
-  staffRole: {
-    fontSize: 11,
+  staffMemberRole: {
+    fontSize: 10.5,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
   },
-  iconCircle: {
+  staffPhoneBtn: {
     padding: 6,
-  },
-  verificationStatusBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    marginTop: spacing.xs,
-  },
-  verificationStatusTitle: {
-    fontSize: typography.sizes.xs,
-    fontWeight: "700",
-  },
-  verificationMeta: {
-    fontSize: 10,
-    color: colors.foregroundMuted,
-    marginTop: 2,
-  },
-  returnsTable: {
-    marginTop: spacing.xs,
-    gap: spacing.xs,
-  },
-  returnRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.surfaceAlt,
-    padding: spacing.sm,
-    borderRadius: radius.md,
-  },
-  returnItemName: {
-    fontSize: typography.sizes.xs,
-    fontWeight: "700",
-    color: colors.foreground,
-  },
-  returnItemNote: {
-    fontSize: 10,
-    fontStyle: "italic",
-    color: colors.foregroundMuted,
-  },
-  returnCountsRow: {
-    flexDirection: "row",
-    gap: 6,
-  },
-  countRet: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: colors.success,
-    backgroundColor: colors.successLight,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 3,
-  },
-  countDam: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: colors.error,
-    backgroundColor: "#fee2e2",
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 3,
-  },
-  countMis: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: colors.warning,
-    backgroundColor: colors.warningLight,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 3,
-  },
-  reportsList: {
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  },
-  reportItemCard: {
-    backgroundColor: colors.surfaceAlt,
-    padding: spacing.sm,
-    borderRadius: radius.md,
-  },
-  reportHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  reportRoleBadge: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: colors.primary,
-  },
-  reportTime: {
-    fontSize: 10,
-    color: colors.foregroundMuted,
-  },
-  reportContentText: {
-    fontSize: typography.sizes.xs,
-    color: colors.foreground,
-  },
-  noteInputRow: {
-    flexDirection: "row",
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  },
-  noteInput: {
-    flex: 1,
-    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    fontSize: typography.sizes.xs,
-    color: colors.foreground,
-    minHeight: 44,
-  },
-  sendNoteBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sendNoteBtnDisabled: {
-    opacity: 0.5,
-  },
-  notesList: {
-    marginTop: spacing.sm,
-    gap: spacing.xs,
-  },
-  noteItem: {
-    backgroundColor: colors.surfaceAlt,
-    padding: spacing.sm,
-    borderRadius: radius.md,
-  },
-  noteText: {
-    fontSize: typography.sizes.xs,
-    color: colors.foreground,
-  },
-  noteDate: {
-    fontSize: 10,
-    color: colors.foregroundMuted,
-    marginTop: 2,
-  },
-  emptyNotesText: {
-    fontSize: typography.sizes.xs,
-    color: colors.foregroundMuted,
-    fontStyle: "italic",
-    marginTop: spacing.xs,
-  },
-  completeBtn: {
-    marginTop: spacing.sm,
-  },
-  errorCenter: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  errorTitle: {
-    fontSize: typography.sizes.base,
-    fontWeight: "700",
-    color: colors.foreground,
-    marginTop: spacing.md,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    padding: spacing.lg,
-  },
-  modalContainer: {
+    borderColor: colors.border,
     backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    ...shadows.lg,
   },
-  modalHeader: {
+  staffStatusTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.xs,
+  },
+  staffStatusTagPresent: {
+    backgroundColor: "#ECFDF5",
+  },
+  staffStatusTagNotRecorded: {
+    backgroundColor: colors.borderLight,
+  },
+  staffStatusTagText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.semiBold,
+  },
+  staffStatusTagTextPresent: {
+    color: "#059669",
+  },
+  staffStatusTagTextNotRecorded: {
+    color: colors.foregroundMuted,
+  },
+  financialBanner: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.sm,
-  },
-  modalTitle: {
-    fontSize: typography.sizes.base,
-    fontWeight: "800",
-    color: colors.foreground,
-  },
-  modalSub: {
-    fontSize: typography.sizes.xs,
-    color: colors.foregroundMuted,
-    marginBottom: spacing.md,
-  },
-  inputLabel: {
-    fontSize: typography.sizes.xs,
-    fontWeight: "600",
-    color: colors.foregroundMuted,
-    marginBottom: 4,
-  },
-  modalInput: {
-    backgroundColor: colors.surfaceAlt,
+    padding: spacing.sm,
+    backgroundColor: colors.powder,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  financialCol: {
+    flex: 1,
+    alignItems: "center",
+  },
+  financialDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: colors.border,
+  },
+  financialLabel: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundMuted,
+    textTransform: "uppercase",
+  },
+  financialAmount: {
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+    marginTop: 2,
+  },
+  financialAmountDue: {
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#DC2626",
+    marginTop: 2,
+  },
+  financialStatusText: {
+    fontSize: 10.5,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#059669",
+    marginTop: 2,
+  },
+  paymentHistoryContainer: {
+    paddingTop: spacing.xs,
+    gap: spacing.xs,
+  },
+  paymentHistoryTitle: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+  },
+  emptyHistoryText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+  },
+  paymentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.sm,
+    backgroundColor: colors.powder,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.xs,
+  },
+  paymentMethod: {
+    fontSize: 11.5,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+  },
+  paymentDate: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+  },
+  paymentAmount: {
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+  },
+  paymentStatusBadge: {
+    fontSize: 9.5,
+    fontFamily: typography.fontFamilies.semiBold,
+    color: "#059669",
+  },
+  equipmentBody: {
+    gap: spacing.sm,
+    paddingTop: spacing.xs,
+  },
+  inspectionDoneBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    padding: spacing.sm,
+    backgroundColor: "#ECFDF5",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  inspectionDoneBannerText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#059669",
+    flex: 1,
+  },
+  emptyChecklistBox: {
+    padding: spacing.md,
+    alignItems: "center",
+  },
+  emptyChecklistText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+  },
+  checkItemCard: {
+    padding: spacing.sm,
+    backgroundColor: colors.powder,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.xs,
+  },
+  checkItemTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  checkItemCategory: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundMuted,
+    textTransform: "uppercase",
+  },
+  checkItemName: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+    marginTop: 1,
+  },
+  checkItemQuantity: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundMuted,
+  },
+  itemStatusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.xs,
+  },
+  itemStatusComplete: {
+    backgroundColor: "#ECFDF5",
+  },
+  itemStatusIncomplete: {
+    backgroundColor: "#FEF2F2",
+  },
+  itemStatusNotInspected: {
+    backgroundColor: colors.border,
+  },
+  itemStatusBadgeText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.semiBold,
+  },
+  itemStatusTextComplete: {
+    color: "#059669",
+  },
+  itemStatusTextIncomplete: {
+    color: "#DC2626",
+  },
+  itemStatusTextNotInspected: {
+    color: colors.foregroundMuted,
+  },
+  itemSavedNoteBox: {
+    backgroundColor: "#FFFBEB",
+    padding: 4,
+    borderRadius: radius.xs,
+  },
+  itemSavedNoteText: {
+    fontSize: 10.5,
+    fontFamily: typography.fontFamilies.medium,
+    color: "#92400E",
+  },
+  checkItemActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 2,
+  },
+  actionToggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  actionToggleBtnCompleteActive: {
+    backgroundColor: "#059669",
+    borderColor: "#059669",
+  },
+  actionToggleBtnIncompleteActive: {
+    backgroundColor: "#DC2626",
+    borderColor: "#DC2626",
+  },
+  actionToggleBtnText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+  },
+  actionToggleBtnTextActive: {
+    color: "#FFFFFF",
+  },
+  notesToggleBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginLeft: "auto",
+  },
+  notesToggleBtnText: {
+    fontSize: 10.5,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#4C81E0",
+  },
+  inlineNoteEditor: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  inlineNoteInput: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    fontSize: 11.5,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundDark,
+  },
+  inlineNoteSaveBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    backgroundColor: "#4C81E0",
+  },
+  inlineNoteSaveBtnText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#FFFFFF",
+  },
+  additionalNotesSection: {
+    gap: 4,
+    marginTop: spacing.xs,
+  },
+  additionalNotesLabel: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+  },
+  additionalNotesInput: {
+    backgroundColor: colors.powder,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.sm,
-    fontSize: typography.sizes.sm,
-    color: colors.foreground,
+    fontSize: 11.5,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundDark,
+    minHeight: 60,
     textAlignVertical: "top",
+  },
+  saveAdditionalNotesBtn: {
+    alignSelf: "flex-end",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    backgroundColor: "#4C81E0",
+    marginTop: 2,
+  },
+  saveAdditionalNotesBtnText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#FFFFFF",
+  },
+  inspectionFooter: {
+    marginTop: spacing.xs,
+    gap: 4,
+  },
+  inspectionHint: {
+    fontSize: 10.5,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    textAlign: "center",
   },
 });
 

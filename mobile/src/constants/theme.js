@@ -6,12 +6,12 @@
 import { Platform } from "react-native";
 
 export const colors = {
-  // Brand Palette (White & Royal Blue)
-  primary: "#2563EB",
-  primaryHover: "#1D4ED8",
-  primaryDark: "#1E40AF",
+  // Brand Palette (iReserve Blue & Slate)
+  primary: "#4C81E0",
+  primaryHover: "#3B6BC4",
+  primaryDark: "#2B5BAE",
   primaryLight: "#EFF6FF",
-  primaryBorder: "#BFDBFE",
+  primaryBorder: "#93B5F5",
 
   secondary: "#1E3A8A",
   secondaryLight: "#F0F7FF",

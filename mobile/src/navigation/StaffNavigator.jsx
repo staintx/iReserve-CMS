@@ -3,19 +3,19 @@ import { View, Platform, StyleSheet } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import {
-  Sun,
-  Calendar,
+  LayoutDashboard,
+  CalendarCheck,
   User,
 } from "lucide-react-native";
 import { colors } from "../constants/theme";
 import FloatingTabBar from "../components/common/FloatingTabBar";
 
 // Screens
-import StaffTodayScreen from "../screens/staff/StaffTodayScreen";
-import StaffAvailabilityScreen from "../screens/staff/StaffAvailabilityScreen";
+import StaffDashboardScreen from "../screens/staff/StaffDashboardScreen";
+import StaffBookingsScreen from "../screens/staff/StaffBookingsScreen";
 import StaffProfileScreen from "../screens/staff/StaffProfileScreen";
 import StaffEventDetailScreen from "../screens/staff/StaffEventDetailScreen";
-import EquipmentChecklistScreen from "../screens/staff/EquipmentChecklistScreen";
+import StaffAvailabilityScreen from "../screens/staff/StaffAvailabilityScreen";
 import NotificationsScreen from "../screens/customer/NotificationsScreen";
 import CustomerChatThreadScreen from "../screens/customer/CustomerChatThreadScreen";
 
@@ -25,27 +25,29 @@ const Stack = createNativeStackNavigator();
 const StaffTabs = () => {
   return (
     <Tab.Navigator
-      initialRouteName="StaffToday"
+      initialRouteName="StaffDashboard"
       tabBar={(props) => <FloatingTabBar {...props} />}
       screenOptions={{
         headerShown: false,
       }}
     >
       <Tab.Screen
-        name="StaffToday"
-        component={StaffTodayScreen}
+        name="StaffDashboard"
+        component={StaffDashboardScreen}
         options={{
-          tabBarLabel: "Today's Shift",
-          tabBarIcon: ({ color, size }) => <Sun size={size || 22} color={color} />,
+          tabBarLabel: "Dashboard",
+          tabBarIcon: ({ color, size }) => (
+            <LayoutDashboard size={size || 22} color={color} />
+          ),
         }}
       />
       <Tab.Screen
-        name="StaffAvailability"
-        component={StaffAvailabilityScreen}
+        name="StaffBookings"
+        component={StaffBookingsScreen}
         options={{
-          tabBarLabel: "Availability",
+          tabBarLabel: "Bookings",
           tabBarIcon: ({ color, size }) => (
-            <Calendar size={size || 22} color={color} />
+            <CalendarCheck size={size || 22} color={color} />
           ),
         }}
       />
@@ -54,7 +56,9 @@ const StaffTabs = () => {
         component={StaffProfileScreen}
         options={{
           tabBarLabel: "Profile",
-          tabBarIcon: ({ color, size }) => <User size={size || 22} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <User size={size || 22} color={color} />
+          ),
         }}
       />
     </Tab.Navigator>
@@ -73,11 +77,7 @@ export const StaffNavigator = () => {
       <Stack.Screen name="StaffTabs" component={StaffTabs} />
       <Stack.Screen name="StaffEventDetail" component={StaffEventDetailScreen} />
       <Stack.Screen name="BookingDetail" component={StaffEventDetailScreen} />
-      <Stack.Screen
-        name="EquipmentChecklist"
-        component={EquipmentChecklistScreen}
-        options={{ presentation: "modal" }}
-      />
+      <Stack.Screen name="StaffAvailability" component={StaffAvailabilityScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="CustomerChatThread" component={CustomerChatThreadScreen} />
     </Stack.Navigator>

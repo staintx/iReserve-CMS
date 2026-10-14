@@ -11,53 +11,53 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Search,
-  Calendar,
-  Users,
-  MapPin,
+  Calendar as CalendarIcon,
   Clock,
-  Filter,
-  UserPlus,
+  MapPin,
   CheckCircle2,
-  ChevronRight,
   Sparkles,
+  Eye,
+  ShieldCheck,
+  X,
 } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import managerApi from "../../api/manager";
 import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
-import EmptyState from "../../components/common/EmptyState";
-import PillFilter from "../../components/common/PillFilter";
-import { formatDate, formatTime } from "../../utils/format";
-
-const TABS = [
-  { key: "pending", label: "Needs Staff" },
-  { key: "upcoming", label: "Upcoming" },
-  { key: "completed", label: "Completed" },
-  { key: "all", label: "All Bookings" },
-];
+import AppButton from "../../components/common/AppButton";
+import {
+  formatDate,
+  formatEventStartTime,
+  getBookingVenueLocation,
+  getEventTimingStatus,
+} from "../../utils/format";
 
 export const ManagerBookingsScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
-  const initialTab = route?.params?.tab || "pending";
+  const initialTab = route?.params?.tab === "completed" ? "completed" : "upcoming";
 
   const [activeTab, setActiveTab] = useState(initialTab);
   const [searchQuery, setSearchQuery] = useState("");
-  const [bookings, setBookings] = useState([]);
+  const [upcomingBookings, setUpcomingBookings] = useState([]);
+  const [completedBookings, setCompletedBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (route?.params?.tab) {
-      setActiveTab(route.params.tab);
+      setActiveTab(route.params.tab === "completed" ? "completed" : "upcoming");
     }
   }, [route?.params?.tab]);
 
-  const loadBookings = useCallback(async (tabKey) => {
+  const loadBookings = useCallback(async () => {
     try {
-      const statusParam = tabKey === "all" ? null : tabKey;
-      const data = await managerApi.getBookings(statusParam);
-      setBookings(Array.isArray(data) ? data : []);
+      const [upcomingRes, completedRes] = await Promise.all([
+        managerApi.getBookings("upcoming").catch(() => []),
+        managerApi.getBookings("completed").catch(() => []),
+      ]);
+      setUpcomingBookings(Array.isArray(upcomingRes) ? upcomingRes : []);
+      setCompletedBookings(Array.isArray(completedRes) ? completedRes : []);
     } catch (error) {
       console.error("Failed to load manager bookings:", error);
     } finally {
@@ -67,37 +67,33 @@ export const ManagerBookingsScreen = ({ navigation, route }) => {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
-    loadBookings(activeTab);
-  }, [activeTab, loadBookings]);
+    loadBookings();
+  }, [loadBookings]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadBookings(activeTab);
+    loadBookings();
   };
 
+  const currentList = activeTab === "completed" ? completedBookings : upcomingBookings;
+
   const filteredBookings = useMemo(() => {
-    if (!searchQuery.trim()) return bookings;
+    if (!searchQuery.trim()) return currentList;
     const q = searchQuery.toLowerCase().trim();
-    return bookings.filter((b) => {
+    return currentList.filter((b) => {
       const ref = (b.reference || b._id || "").toLowerCase();
       const type = (b.event_type || "").toLowerCase();
-      const customer = (
-        b.customer_id?.full_name ||
-        `${b.contact_first_name || ""} ${b.contact_last_name || ""}`
-      ).toLowerCase();
-      const mun = (b.municipality || "").toLowerCase();
-      return ref.includes(q) || type.includes(q) || customer.includes(q) || mun.includes(q);
+      const client = (b.customer_id?.full_name || "").toLowerCase();
+      const venue = getBookingVenueLocation(b).toLowerCase();
+      return ref.includes(q) || type.includes(q) || client.includes(q) || venue.includes(q);
     });
-  }, [bookings, searchQuery]);
+  }, [currentList, searchQuery]);
 
   const renderItem = ({ item }) => {
-    const customerName =
-      item.customer_id?.full_name ||
-      `${item.contact_first_name || ""} ${item.contact_last_name || ""}`.trim() ||
-      "Customer";
-    const staffCount = (item.staff_assignments || []).length;
-    const hasStaff = staffCount > 0;
+    const timing = getEventTimingStatus(item);
+    const venue = getBookingVenueLocation(item);
+    const isDepositPending =
+      item.payment_status === "deposit_pending" || item.status === "Deposit Pending";
 
     return (
       <Card
@@ -107,60 +103,70 @@ export const ManagerBookingsScreen = ({ navigation, route }) => {
         }
       >
         <View style={styles.cardHeader}>
-          <View style={{ flex: 1, marginRight: spacing.sm }}>
+          <View style={{ flex: 1, marginRight: spacing.xs }}>
+            <Text style={styles.kickerText}>Assigned Event</Text>
             <Text style={styles.eventTitle}>{item.event_type || "Catering Event"}</Text>
-            <Text style={styles.referenceText}>
-              Ref: #{item.reference || item._id?.slice(-6).toUpperCase()}
+            <Text style={styles.clientRefText}>
+              Client: <Text style={styles.boldText}>{item.customer_id?.full_name || "Valued Client"}</Text> · Ref:{" "}
+              <Text style={styles.monoText}>
+                {item.reference || item._id?.slice(-6).toUpperCase()}
+              </Text>
             </Text>
           </View>
-          <StatusBadge status={item.status} />
-        </View>
-
-        <View style={styles.clientRow}>
-          <Text style={styles.clientName}>{customerName}</Text>
-          <Text style={styles.guestCount}>{item.guests || item.pax || 0} guests</Text>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.metaGrid}>
-          <View style={styles.metaItem}>
-            <Calendar size={14} color={colors.foregroundMuted} />
-            <Text style={styles.metaText}>{formatDate(item.event_date)}</Text>
-          </View>
-          {item.start_time && (
-            <View style={styles.metaItem}>
-              <Clock size={14} color={colors.foregroundMuted} />
-              <Text style={styles.metaText}>{formatTime(item.start_time)}</Text>
-            </View>
+          {isDepositPending ? (
+            <StatusBadge status="Deposit Pending" />
+          ) : (
+            <StatusBadge status={item.status} />
           )}
         </View>
 
-        <View style={styles.metaItem}>
-          <MapPin size={14} color={colors.foregroundMuted} />
-          <Text style={styles.metaText} numberOfLines={1}>
-            {item.barangay ? `${item.barangay}, ` : ""}{item.municipality || "Batangas"}
-          </Text>
+        <View style={styles.cardDivider} />
+
+        <View style={styles.cardBody}>
+          <View style={styles.cardCol}>
+            <View style={styles.metaRow}>
+              <CalendarIcon size={14} color="#4C81E0" />
+              <Text style={styles.metaDateText}>{formatDate(item.event_date)}</Text>
+            </View>
+            <View style={styles.metaSubRow}>
+              <Clock size={12} color={colors.textSubtle} />
+              <Text style={styles.metaSubText}>{formatEventStartTime(item.start_time)}</Text>
+            </View>
+          </View>
+
+          <View style={styles.cardCol}>
+            <View style={styles.metaRow}>
+              <MapPin size={14} color="#4C81E0" />
+              <Text style={styles.metaVenueText} numberOfLines={2}>
+                {venue}
+              </Text>
+            </View>
+            <View style={styles.metaSubRow}>
+              <ShieldCheck size={12} color="#D97706" />
+              <Text style={styles.metaSubText}>Lead Coordinator</Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.cardFooter}>
-          <View
-            style={[
-              styles.staffBadge,
-              { backgroundColor: hasStaff ? colors.successLight : colors.warningLight },
-            ]}
-          >
-            <Users size={12} color={hasStaff ? colors.success : colors.warning} />
-            <Text
-              style={[
-                styles.staffBadgeText,
-                { color: hasStaff ? colors.success : colors.warning },
-              ]}
-            >
-              {hasStaff ? `${staffCount} Staff Assigned` : "No Staff Assigned"}
-            </Text>
+          <View style={styles.statusSlot}>
+            {timing.isStarted && !timing.isFinished && (
+              <View style={styles.inProgressBadge}>
+                <Sparkles size={11} color="#059669" />
+                <Text style={styles.inProgressText}>In Progress</Text>
+              </View>
+            )}
           </View>
-          <ChevronRight size={18} color={colors.textSubtle} />
+
+          <AppButton
+            title="View Details"
+            size="sm"
+            variant="primary"
+            icon={Eye}
+            onPress={() =>
+              navigation.navigate("ManagerBookingDetail", { bookingId: item._id })
+            }
+          />
         </View>
       </Card>
     );
@@ -168,37 +174,113 @@ export const ManagerBookingsScreen = ({ navigation, route }) => {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      {/* Search Header */}
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Event Operations</Text>
-        <View style={styles.searchBar}>
-          <Search size={18} color={colors.foregroundMuted} />
+        <Text style={styles.headerTitle}>Assigned Bookings</Text>
+        <Text style={styles.headerSubtitle}>
+          Coordinate assigned catering operations, inspect equipment, and log event reports
+        </Text>
+      </View>
+
+      {/* Segmented Controls & Search Toolbar */}
+      <View style={styles.toolbar}>
+        {/* Tab switcher */}
+        <View style={styles.segmentedContainer}>
+          <TouchableOpacity
+            style={[styles.segmentBtn, activeTab === "upcoming" && styles.segmentBtnActive]}
+            onPress={() => setActiveTab("upcoming")}
+            activeOpacity={0.8}
+          >
+            <CalendarIcon
+              size={14}
+              color={activeTab === "upcoming" ? "#4C81E0" : colors.textSubtle}
+            />
+            <Text
+              style={[
+                styles.segmentBtnText,
+                activeTab === "upcoming" && styles.segmentBtnTextActive,
+              ]}
+            >
+              Upcoming
+            </Text>
+            <View
+              style={[
+                styles.countBadge,
+                activeTab === "upcoming" ? styles.countBadgeActive : styles.countBadgeInactive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.countBadgeText,
+                  activeTab === "upcoming" && styles.countBadgeTextActive,
+                ]}
+              >
+                {upcomingBookings.length}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.segmentBtn, activeTab === "completed" && styles.segmentBtnActive]}
+            onPress={() => setActiveTab("completed")}
+            activeOpacity={0.8}
+          >
+            <CheckCircle2
+              size={14}
+              color={activeTab === "completed" ? "#059669" : colors.textSubtle}
+            />
+            <Text
+              style={[
+                styles.segmentBtnText,
+                activeTab === "completed" && styles.segmentBtnTextActive,
+              ]}
+            >
+              Completed
+            </Text>
+            <View
+              style={[
+                styles.countBadge,
+                activeTab === "completed"
+                  ? styles.countBadgeCompleted
+                  : styles.countBadgeInactive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.countBadgeText,
+                  activeTab === "completed" && styles.countBadgeTextCompleted,
+                ]}
+              >
+                {completedBookings.length}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Search input */}
+        <View style={styles.searchWrap}>
+          <Search size={15} color={colors.textDisabled} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search bookings by client, ref, or type..."
+            placeholder="Search by client, event or ref..."
             placeholderTextColor={colors.textDisabled}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            clearButtonMode="while-editing"
           />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")} activeOpacity={0.7}>
+              <X size={15} color={colors.textSubtle} />
+            </TouchableOpacity>
+          )}
         </View>
-
-        {/* Tab Filters */}
-        <PillFilter
-          items={TABS}
-          selectedKey={activeTab}
-          onSelect={setActiveTab}
-          contentContainerStyle={{ paddingHorizontal: 0 }}
-          style={{ marginTop: spacing.sm }}
-        />
       </View>
 
-      {/* List / Content */}
+      {/* Bookings List */}
       {loading ? (
-        <View style={styles.loadingWrapper}>
-          <SkeletonLoader height={140} style={{ marginBottom: spacing.md, borderRadius: radius.lg }} />
-          <SkeletonLoader height={140} style={{ marginBottom: spacing.md, borderRadius: radius.lg }} />
-          <SkeletonLoader height={140} style={{ borderRadius: radius.lg }} />
+        <View style={styles.loaderContainer}>
+          <SkeletonLoader height={140} style={{ marginBottom: spacing.sm, borderRadius: radius.xl }} />
+          <SkeletonLoader height={140} style={{ marginBottom: spacing.sm, borderRadius: radius.xl }} />
+          <SkeletonLoader height={140} style={{ borderRadius: radius.xl }} />
         </View>
       ) : (
         <FlatList
@@ -216,21 +298,19 @@ export const ManagerBookingsScreen = ({ navigation, route }) => {
             />
           }
           ListEmptyComponent={
-            <EmptyState
-              icon={Calendar}
-              title={
-                activeTab === "pending"
-                  ? "No Unassigned Bookings"
-                  : activeTab === "upcoming"
-                  ? "No Upcoming Events"
-                  : "No Bookings Found"
-              }
-              message={
-                activeTab === "pending"
-                  ? "Every upcoming booking currently has service staff assigned."
-                  : "Check other tabs or search terms."
-              }
-            />
+            <Card style={styles.emptyCard} variant="flat">
+              <CalendarIcon size={32} color={colors.textDisabled} />
+              <Text style={styles.emptyTitle}>
+                {activeTab === "completed" ? "No completed events found" : "No upcoming events found"}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {searchQuery
+                  ? "Try clearing your search query to see more events."
+                  : activeTab === "completed"
+                  ? "Completed catering celebrations will be archived here."
+                  : "You have no upcoming catering assignments at the moment."}
+              </Text>
+            </Card>
           }
         />
       )}
@@ -241,151 +321,242 @@ export const ManagerBookingsScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.background,
   },
   header: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.base,
+    paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    paddingBottom: spacing.xs,
+    backgroundColor: colors.surface,
   },
   headerTitle: {
-    fontSize: typography.sizes.xl,
-    fontFamily: typography.fontFamily.extraBold,
-    color: colors.foreground,
-    marginBottom: spacing.sm,
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
   },
-  searchBar: {
+  headerSubtitle: {
+    fontSize: typography.sizes.micro,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    marginTop: 2,
+  },
+  toolbar: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    gap: spacing.sm,
+  },
+  segmentedContainer: {
+    flexDirection: "row",
+    backgroundColor: colors.powder,
+    padding: 3,
+    borderRadius: radius.lg,
+    gap: 4,
+  },
+  segmentBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    minHeight: 48,
+    justifyContent: "center",
+    paddingVertical: 7,
+    borderRadius: radius.md,
+    gap: 6,
+  },
+  segmentBtnActive: {
+    backgroundColor: colors.surface,
+    ...shadows.xs,
+  },
+  segmentBtnText: {
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundMuted,
+  },
+  segmentBtnTextActive: {
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+  },
+  countBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: radius.full,
+  },
+  countBadgeInactive: {
+    backgroundColor: colors.border,
+  },
+  countBadgeActive: {
+    backgroundColor: "#DBEAFE",
+  },
+  countBadgeCompleted: {
+    backgroundColor: "#D1FAE5",
+  },
+  countBadgeText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundMuted,
+  },
+  countBadgeTextActive: {
+    color: "#2563EB",
+  },
+  countBadgeTextCompleted: {
+    color: "#059669",
+  },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.powder,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    height: 38,
+    gap: spacing.xs,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    marginBottom: spacing.sm,
-    gap: spacing.sm,
+    borderColor: colors.border,
   },
   searchInput: {
     flex: 1,
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamily.regular,
-    color: colors.foreground,
-  },
-  tabsContainer: {
-    flexDirection: "row",
-    gap: spacing.xs,
-    paddingVertical: spacing.xs,
-  },
-  tabBtn: {
-    paddingVertical: 7,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  activeTabBtn: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  tabText: {
     fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.medium,
-    color: colors.foregroundMuted,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundDark,
+    paddingVertical: 0,
   },
-  activeTabText: {
-    color: colors.white,
-    fontFamily: typography.fontFamily.bold,
+  loaderContainer: {
+    padding: spacing.md,
+    gap: spacing.sm,
   },
   listContent: {
-    padding: spacing.base,
-    paddingBottom: 130,
-  },
-  loadingWrapper: {
-    padding: spacing.base,
+    padding: spacing.md,
+    paddingBottom: 100, // floating dock clearance
+    gap: spacing.sm,
   },
   card: {
-    marginBottom: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.border,
+    gap: spacing.xs,
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
   },
-  eventTitle: {
-    fontSize: typography.sizes.base,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.foreground,
+  kickerText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  referenceText: {
+  eventTitle: {
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+    marginTop: 1,
+  },
+  clientRefText: {
     fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.medium,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     marginTop: 2,
   },
-  clientRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: spacing.xs,
+  boldText: {
+    fontFamily: typography.fontFamilies.semiBold,
+    color: colors.foregroundDark,
   },
-  clientName: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.foreground,
+  monoText: {
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
   },
-  guestCount: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.regular,
-    color: colors.foregroundMuted,
-  },
-  divider: {
+  cardDivider: {
     height: 1,
     backgroundColor: colors.borderLight,
-    marginVertical: spacing.sm,
+    marginVertical: 4,
   },
-  metaGrid: {
+  cardBody: {
     flexDirection: "row",
-    gap: spacing.md,
-    marginBottom: 4,
+    gap: spacing.sm,
   },
-  metaItem: {
+  cardCol: {
+    flex: 1,
+    gap: 2,
+  },
+  metaRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginBottom: 4,
   },
-  metaText: {
+  metaSubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingLeft: 18,
+  },
+  metaDateText: {
     fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.regular,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+  },
+  metaSubText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.foregroundMuted,
+  },
+  metaVenueText: {
+    fontSize: 11.5,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundDark,
     flex: 1,
   },
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: spacing.sm,
     paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+    marginTop: 2,
   },
-  staffBadge: {
+  statusSlot: {
+    minHeight: 24,
+    justifyContent: "center",
+  },
+  inProgressBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 4,
-    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.xs,
+    backgroundColor: "#ECFDF5",
   },
-  staffBadgeText: {
+  inProgressText: {
+    fontSize: 10.5,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#059669",
+  },
+  emptyCard: {
+    padding: spacing.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  emptyTitle: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
+    marginTop: spacing.xs,
+  },
+  emptySubtitle: {
     fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.bold,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    textAlign: "center",
+    lineHeight: 18,
+    maxWidth: 280,
   },
 });
 

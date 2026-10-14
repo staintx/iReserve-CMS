@@ -17,15 +17,38 @@ export const managerApi = {
     return response.data;
   },
 
-  assignStaff: async (id, staff_assignments) => {
-    const response = await client.put(`/manager/bookings/${id}/assign-staff`, {
-      staff_assignments,
-    });
+  updateStaffAttendance: async (id, data) => {
+    const response = await client.put(`/manager/bookings/${id}/staff-attendance`, data);
+    return response.data;
+  },
+
+  updateEquipmentChecklist: async (id, data) => {
+    const response = await client.put(`/manager/bookings/${id}/equipment-checklist`, data);
+    return response.data;
+  },
+
+  markEquipmentChecklistDone: async (id) => {
+    const response = await client.put(`/manager/bookings/${id}/equipment-checklist/done`);
+    return response.data;
+  },
+
+  updateEquipmentNotes: async (id, data) => {
+    const response = await client.put(`/manager/bookings/${id}/equipment-notes`, data);
+    return response.data;
+  },
+
+  submitEquipmentReturns: async (id, data) => {
+    const response = await client.put(`/manager/bookings/${id}/equipment-returns`, data);
+    return response.data;
+  },
+
+  submitReport: async (id, data) => {
+    const response = await client.put(`/manager/bookings/${id}/report`, data);
     return response.data;
   },
 
   addNote: async (id, note) => {
-    const response = await client.put(`/manager/bookings/${id}/notes`, { note });
+    const response = await client.put(`/manager/bookings/${id}/notes`, typeof note === "string" ? { note } : note);
     return response.data;
   },
 
@@ -44,11 +67,6 @@ export const managerApi = {
     return response.data;
   },
 
-  markCompleted: async (id) => {
-    const response = await client.put(`/manager/bookings/${id}/complete`);
-    return response.data;
-  },
-
   getStaff: async (params = {}) => {
     const response = await client.get("/manager/staff", { params });
     return response.data;
@@ -61,29 +79,25 @@ export const managerApi = {
     return response.data;
   },
 
-  getAvailability: async (month) => {
+  getAvailability: async (month = "", params = {}) => {
     const response = await client.get("/manager/me/availability", {
-      params: { month },
+      params: { month, ...params },
     });
     return response.data;
   },
 
-  setAvailability: async (month, dates) => {
-    const response = await client.put("/manager/me/availability", {
-      month,
-      dates,
-    });
+  setAvailability: async (payload, dates) => {
+    const body =
+      typeof payload === "string" && Array.isArray(dates)
+        ? { month: payload, dates }
+        : payload;
+    const response = await client.put("/manager/me/availability", body);
     return response.data;
   },
 
-  // Quotation operations
-  getAllQuotations: async () => {
-    const response = await client.get("/quotations");
-    return response.data;
-  },
-
-  createQuotation: async (data) => {
-    const response = await client.post("/quotations", data);
+  removeAvailability: async (id) => {
+    const url = id ? `/manager/me/availability/${id}` : "/manager/me/availability";
+    const response = await client.delete(url);
     return response.data;
   },
 };

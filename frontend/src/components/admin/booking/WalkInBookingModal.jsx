@@ -3233,7 +3233,17 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
       }
 
       case "Quotation": {
-        if (!quotationTotals || quotationTotals.totalCost <= 0) {
+        const netPackage = quotationTotals
+          ? quotationTotals.startingPrice - quotationTotals.inclusionDeductions + quotationTotals.inclusionAdjustments
+          : 0;
+        if (netPackage < 0) {
+          errs.quotation = `Total deductions and reductions (${formatCurrency(
+            quotationTotals.inclusionDeductions - quotationTotals.inclusionAdjustments
+          )}) exceed starting price (${formatCurrency(quotationTotals.startingPrice)}).`;
+          msg = `Item deductions and quantity reductions take ${formatCurrency(
+            quotationTotals.inclusionDeductions - quotationTotals.inclusionAdjustments
+          )} off a starting price of ${formatCurrency(quotationTotals.startingPrice)}. Lower the reductions or raise the starting price.`;
+        } else if (!quotationTotals || quotationTotals.totalCost <= 0) {
           errs.quotation = "Quotation total must be greater than zero.";
           msg = "Quotation total must be greater than zero. Please review package and item prices.";
         }

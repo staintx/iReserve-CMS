@@ -1252,6 +1252,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     if (!details.start_time) found.start_time = "Start time is required.";
     if (!Number(details.guest_count) || Number(details.guest_count) < 1) found.guest_count = "Guest count is required.";
 
+    if (totals.rawPackagePrice < 0) {
+      found.removed_inclusions = `Removed inclusions and quantity reductions take ${formatCurrency(
+        totals.inclusionDeductions - totals.inclusionAdjustments
+      )} off a starting price of ${formatCurrency(
+        totals.startingPrice
+      )}. Lower the deductions or raise the starting price.`;
+    }
+
     if (totals.totalCost <= 0) found.total_cost = "Quotation total must be greater than zero.";
     else if (totals.totalCost > MAX_FINANCIAL_AMOUNT) found.total_cost = "Quotation total cannot exceed ₱10,000,000.";
 
@@ -1318,6 +1326,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   /* --- Inclusions Handlers --- */
   const handleInclusionQuantity = (index, value) => {
+    clearError("removed_inclusions");
+    clearError("package_price");
     setInclusions((prev) =>
       prev.map((entry, i) => {
         if (i !== index) return entry;
@@ -1337,6 +1347,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   };
 
   const handleInclusionUnitPrice = (index, value) => {
+    clearError("removed_inclusions");
+    clearError("package_price");
     setInclusions((prev) =>
       prev.map((entry, i) =>
         i === index
@@ -1351,10 +1363,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   };
 
   const handleInclusionDeduction = (index, value) => {
+    clearError("removed_inclusions");
+    clearError("package_price");
     setInclusions((prev) => prev.map((entry, i) => (i === index ? { ...entry, deduction: value } : entry)));
   };
 
   const toggleInclusionRemoved = (index) => {
+    clearError("removed_inclusions");
+    clearError("package_price");
     setInclusions((prev) =>
       prev.map((entry, i) =>
         i === index
@@ -1894,6 +1910,21 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     );
   }
 
+  const handleProceedToReview = () => {
+    if (totals.rawPackagePrice < 0) {
+      setErrors((prev) => ({
+        ...prev,
+        removed_inclusions: `Removed inclusions and quantity reductions take ${formatCurrency(
+          totals.inclusionDeductions - totals.inclusionAdjustments
+        )} off a starting price of ${formatCurrency(
+          totals.startingPrice
+        )}. Lower the deductions or raise the starting price.`,
+      }));
+      return;
+    }
+    setActiveStep(3);
+  };
+
   return (
     <Modal
       title={modalTitle}
@@ -1953,7 +1984,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             <PricingAdjustmentsStep
               packageName={packageName}
               startingPrice={startingPrice}
-              setStartingPrice={setStartingPrice}
+              setStartingPrice={(val) => {
+                setStartingPrice(val);
+                clearError("package_starting_price");
+                clearError("startingPrice");
+                clearError("removed_inclusions");
+                clearError("package_price");
+              }}
               inclusions={inclusions}
               setInclusions={setInclusions}
               handleInclusionQuantity={handleInclusionQuantity}
@@ -1999,7 +2036,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               handleRemoveFee={handleRemoveFee}
               handleAddFee={handleAddFee}
               errors={errors}
-              onProceedToReview={() => setActiveStep(3)}
+              onProceedToReview={handleProceedToReview}
             />
           )}
 
@@ -2050,7 +2087,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           activeStep={activeStep}
           onNextStep={() => {
             if (activeStep === 1) setActiveStep(2);
-            else if (activeStep === 2) setActiveStep(3);
+            else if (activeStep === 2) handleProceedToReview();
             else handleSubmit();
           }}
           onPrevStep={() => {

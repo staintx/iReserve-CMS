@@ -129,6 +129,7 @@ export default function ManageInclusionsModal({
   open,
   onClose,
   inclusions = [],
+  startingPrice = 0,
   handleInclusionQuantity,
   handleInclusionUnitPrice,
   handleInclusionDeduction,
@@ -185,9 +186,25 @@ export default function ManageInclusionsModal({
   const modifiedQtyCount = itemsWithMeta.filter((i) => i.isQtyModified).length;
   const totalModifications = excludedCount + modifiedQtyCount;
 
-  const totalDeductions = inclusions
+  const numericStartingPrice = Math.max(0, Number(startingPrice) || 0);
+
+  const totalRemovedDeductions = inclusions
     .filter((i) => i.removed && Number(i.deduction) > 0)
     .reduce((sum, i) => sum + Number(i.deduction), 0);
+
+  const totalQuantityReductions = inclusions
+    .filter(
+      (i) =>
+        !i.removed &&
+        i.baseQuantity != null &&
+        Number(i.quantity) < Number(i.baseQuantity) &&
+        Number(i.adjustmentAmount ?? i.unitPrice) > 0
+    )
+    .reduce((sum, i) => sum + Number(i.adjustmentAmount ?? i.unitPrice), 0);
+
+  const totalPackageReductions = totalRemovedDeductions + totalQuantityReductions;
+  const isExceedingStartingPrice =
+    numericStartingPrice > 0 && totalPackageReductions > numericStartingPrice;
 
   if (!open) return null;
 
@@ -200,16 +217,27 @@ export default function ManageInclusionsModal({
       footer={
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <span className="text-xs text-slate-500">
-            {totalModifications > 0
-              ? `${totalModifications} item modifications active.`
-              : "All standard package inclusions are active with standard pricing."}
+            {isExceedingStartingPrice ? (
+              <span className="text-red-600 font-semibold flex items-center gap-1">
+                <AlertCircle size={13} />
+                Total reductions ({formatCurrency(totalPackageReductions)}) exceed package base rate ({formatCurrency(numericStartingPrice)}).
+              </span>
+            ) : totalModifications > 0 ? (
+              `${totalModifications} item modifications active.`
+            ) : (
+              "All standard package inclusions are active with standard pricing."
+            )}
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors cursor-pointer self-end sm:self-auto shadow-xs"
+            className={`px-4 py-2 rounded-md text-white text-xs font-semibold transition-colors cursor-pointer self-end sm:self-auto shadow-xs ${
+              isExceedingStartingPrice
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-slate-900 hover:bg-slate-800"
+            }`}
           >
-            Save &amp; Close
+            {isExceedingStartingPrice ? "Close & Adjust Price" : "Save & Close"}
           </button>
         </div>
       }
@@ -233,17 +261,43 @@ export default function ManageInclusionsModal({
             )}
           </div>
 
-          {totalDeductions > 0 && (
+          {totalPackageReductions > 0 && (
             <div className="text-right">
               <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">
-                Price Reduction
+                Total Price Reduction
               </span>
-              <span className="font-mono font-bold text-emerald-700">
-                -{formatCurrency(totalDeductions)}
+              <span
+                className={`font-mono font-bold ${
+                  isExceedingStartingPrice ? "text-red-600" : "text-emerald-700"
+                }`}
+              >
+                -{formatCurrency(totalPackageReductions)}
               </span>
+              {numericStartingPrice > 0 && (
+                <span className="text-[10px] text-slate-400 block font-mono">
+                  (Pkg base: {formatCurrency(numericStartingPrice)})
+                </span>
+              )}
             </div>
           )}
         </div>
+
+        {/* Warning Banner if deductions exceed starting price */}
+        {isExceedingStartingPrice && (
+          <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2">
+            <AlertCircle size={15} className="text-red-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <span className="font-bold block">
+                Item reductions exceed package starting price
+              </span>
+              <p className="text-[11px] text-red-700 leading-snug">
+                Item credits and quantity reductions take {formatCurrency(totalPackageReductions)} off
+                the package starting price of {formatCurrency(numericStartingPrice)}. Lower the
+                deductions or quantity reductions so the package base price does not become negative.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Category Filter Tabs */}
         <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-slate-200 text-xs no-scrollbar">
@@ -333,29 +387,40 @@ export default function ManageInclusionsModal({
 
                 {/* Right: Pricing impact or Quantity Adjustment */}
                 {isExcluded ? (
-                  <div className="flex items-center gap-1.5 self-end sm:self-auto bg-white px-2.5 py-1 rounded border border-slate-200">
-                    <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">
-                      Price Reduction (₱):
-                    </span>
-                    <div className="relative w-24">
-                      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2 text-xs text-slate-400">
-                        ₱
+                  <div className="flex flex-col items-end self-end sm:self-auto">
+                    <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded border border-slate-200">
+                      <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">
+                        Price Reduction (₱):
                       </span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={item.deduction}
-                        onChange={(e) =>
-                          handleInclusionDeduction(
-                            item.originalIndex,
-                            e.target.value.replace(/[^0-9.]/g, "")
-                          )
-                        }
-                        className="w-full rounded border border-slate-300 bg-white pl-5 pr-1.5 py-1 text-xs text-right font-mono font-medium focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
+                      <div className="relative w-24">
+                        <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2 text-xs text-slate-400">
+                          ₱
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={item.deduction}
+                          onChange={(e) =>
+                            handleInclusionDeduction(
+                              item.originalIndex,
+                              e.target.value.replace(/[^0-9.]/g, "")
+                            )
+                          }
+                          className={`w-full rounded border pl-5 pr-1.5 py-1 text-xs text-right font-mono font-medium focus:outline-none focus:ring-1 focus:ring-primary ${
+                            numericStartingPrice > 0 && Number(item.deduction) > numericStartingPrice
+                              ? "border-red-400 bg-red-50/50 text-red-900"
+                              : "border-slate-300 bg-white"
+                          }`}
+                        />
+                      </div>
                     </div>
+                    {numericStartingPrice > 0 && Number(item.deduction) > numericStartingPrice && (
+                      <span className="text-[10px] text-red-600 font-medium mt-0.5">
+                        Exceeds package base price
+                      </span>
+                    )}
                   </div>
                 ) : item.baseQuantity != null ? (
                   <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -375,66 +440,96 @@ export default function ManageInclusionsModal({
                       </span>
                     </div>
 
-                    {item.isQtyModified && (
-                      <div
-                        className={`flex items-center gap-1.5 px-2 py-0.5 rounded border transition-colors ${
-                          item.isAdd
-                            ? "bg-amber-50/50 border-amber-200"
-                            : "bg-emerald-50/50 border-emerald-200"
-                        }`}
-                      >
-                        <span
-                          className={`text-[10.5px] font-bold whitespace-nowrap ${
-                            item.isAdd ? "text-amber-800" : "text-emerald-800"
-                          }`}
-                        >
-                          {item.isAdd ? "Add:" : "Less:"}
-                        </span>
-                        <div className="relative w-24">
-                          <span
-                            className={`pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2 text-xs font-mono font-semibold ${
-                              item.isAdd ? "text-amber-600" : "text-emerald-600"
+                    {item.isQtyModified && (() => {
+                      const qtyDiff = Math.abs(Number(item.quantity) - Number(item.baseQuantity));
+                      const rawAmt = Number(item.adjustmentAmount ?? item.unitPrice) || 0;
+                      const perPiece = qtyDiff > 0 && rawAmt > 0 ? Math.round((rawAmt / qtyDiff) * 100) / 100 : 0;
+                      const isExceeding = item.isLess && numericStartingPrice > 0 && rawAmt > numericStartingPrice;
+
+                      return (
+                        <div className="flex flex-col items-end">
+                          <div
+                            className={`flex items-center gap-1.5 px-2 py-0.5 rounded border transition-colors ${
+                              isExceeding
+                                ? "bg-red-50 border-red-300"
+                                : item.isAdd
+                                ? "bg-amber-50/50 border-amber-200"
+                                : "bg-emerald-50/50 border-emerald-200"
                             }`}
                           >
-                            ₱
-                          </span>
-                          <input
-                            id={`qb-inclusion-price-${item.originalIndex}`}
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={item.adjustmentAmount ?? item.unitPrice ?? ""}
-                            onChange={(e) =>
-                              handleInclusionUnitPrice(
-                                item.originalIndex,
-                                e.target.value.replace(/[^0-9.]/g, "")
-                              )
-                            }
-                            className={`w-full rounded border pl-5 pr-1.5 py-1 text-xs text-right font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-primary ${
-                              (!item.unitPrice && !item.adjustmentAmount) ||
-                              Number(item.adjustmentAmount ?? item.unitPrice) <= 0
-                                ? item.isAdd
-                                  ? "border-amber-300 bg-white"
-                                  : "border-slate-300 bg-white"
-                                : item.isAdd
-                                ? "border-amber-300 bg-white text-slate-900"
-                                : "border-emerald-300 bg-white text-emerald-900"
-                            }`}
-                          />
+                            <span
+                              className={`text-[10.5px] font-bold whitespace-nowrap ${
+                                isExceeding
+                                  ? "text-red-700"
+                                  : item.isAdd
+                                  ? "text-amber-800"
+                                  : "text-emerald-800"
+                              }`}
+                            >
+                              {item.isAdd ? "Add:" : "Less:"}
+                            </span>
+                            <div className="relative w-24">
+                              <span
+                                className={`pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2 text-xs font-mono font-semibold ${
+                                  isExceeding
+                                    ? "text-red-600"
+                                    : item.isAdd
+                                    ? "text-amber-600"
+                                    : "text-emerald-600"
+                                }`}
+                              >
+                                ₱
+                              </span>
+                              <input
+                                id={`qb-inclusion-price-${item.originalIndex}`}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={item.adjustmentAmount ?? item.unitPrice ?? ""}
+                                onChange={(e) =>
+                                  handleInclusionUnitPrice(
+                                    item.originalIndex,
+                                    e.target.value.replace(/[^0-9.]/g, "")
+                                  )
+                                }
+                                className={`w-full rounded border pl-5 pr-1.5 py-1 text-xs text-right font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-primary ${
+                                  isExceeding
+                                    ? "border-red-400 bg-white text-red-900 focus:ring-red-400"
+                                    : (!item.unitPrice && !item.adjustmentAmount) ||
+                                      Number(item.adjustmentAmount ?? item.unitPrice) <= 0
+                                    ? item.isAdd
+                                      ? "border-amber-300 bg-white"
+                                      : "border-slate-300 bg-white"
+                                    : item.isAdd
+                                    ? "border-amber-300 bg-white text-slate-900"
+                                    : "border-emerald-300 bg-white text-emerald-900"
+                                }`}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleInclusionQuantity(item.originalIndex, item.baseQuantity)
+                              }
+                              className="text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer transition-colors"
+                              title="Reset quantity to package default"
+                            >
+                              <Undo2 size={12} />
+                            </button>
+                          </div>
+                          {isExceeding ? (
+                            <span className="text-[10px] text-red-600 font-medium mt-0.5">
+                              Exceeds package base price
+                            </span>
+                          ) : perPiece > 0 ? (
+                            <span className="text-[10px] text-slate-500 font-mono mt-0.5">
+                              (≈ {formatCurrency(perPiece)}/{item.unit || "unit"})
+                            </span>
+                          ) : null}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleInclusionQuantity(item.originalIndex, item.baseQuantity)
-                          }
-                          className="text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer transition-colors"
-                          title="Reset quantity to package default"
-                        >
-                          <Undo2 size={12} />
-                        </button>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 ) : null}
               </div>

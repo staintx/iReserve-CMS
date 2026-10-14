@@ -4,8 +4,6 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import {
   LayoutDashboard,
-  CalendarCheck,
-  Users,
   Calendar,
   User,
 } from "lucide-react-native";
@@ -15,12 +13,9 @@ import FloatingTabBar from "../components/common/FloatingTabBar";
 // Screens
 import ManagerDashboardScreen from "../screens/manager/ManagerDashboardScreen";
 import ManagerBookingsScreen from "../screens/manager/ManagerBookingsScreen";
-import ManagerStaffScreen from "../screens/manager/ManagerStaffScreen";
-import ManagerCalendarScreen from "../screens/manager/ManagerCalendarScreen";
 import ManagerProfileScreen from "../screens/manager/ManagerProfileScreen";
 import ManagerBookingDetailScreen from "../screens/manager/ManagerBookingDetailScreen";
-import AssignStaffModal from "../screens/manager/AssignStaffModal";
-import EquipmentDispatchModal from "../screens/manager/EquipmentDispatchModal";
+import ManagerCalendarScreen from "../screens/manager/ManagerCalendarScreen";
 import NotificationsScreen from "../screens/customer/NotificationsScreen";
 import CustomerChatThreadScreen from "../screens/customer/CustomerChatThreadScreen";
 
@@ -50,27 +45,7 @@ const ManagerTabs = () => {
         name="ManagerBookings"
         component={ManagerBookingsScreen}
         options={{
-          tabBarLabel: "Operations",
-          tabBarIcon: ({ color, size }) => (
-            <CalendarCheck size={size || 22} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="ManagerStaff"
-        component={ManagerStaffScreen}
-        options={{
-          tabBarLabel: "Staff",
-          tabBarIcon: ({ color, size }) => (
-            <Users size={size || 22} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="ManagerCalendar"
-        component={ManagerCalendarScreen}
-        options={{
-          tabBarLabel: "Calendar",
+          tabBarLabel: "Bookings",
           tabBarIcon: ({ color, size }) => (
             <Calendar size={size || 22} color={color} />
           ),
@@ -100,35 +75,11 @@ export const ManagerNavigator = () => {
       <Stack.Screen name="ManagerTabs" component={ManagerTabs} />
       <Stack.Screen name="ManagerBookingDetail" component={ManagerBookingDetailScreen} />
       <Stack.Screen name="BookingDetail" component={ManagerBookingDetailScreen} />
-      <Stack.Screen
-        name="AssignStaffModal"
-        component={AssignStaffModal}
-        options={{ presentation: "modal" }}
-      />
-      <Stack.Screen
-        name="EquipmentDispatchModal"
-        component={EquipmentDispatchModal}
-        options={{ presentation: "modal" }}
-      />
+      <Stack.Screen name="ManagerCalendar" component={ManagerCalendarScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="CustomerChatThread" component={CustomerChatThreadScreen} />
     </Stack.Navigator>
   );
 };
-
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-    height: Platform.OS === "ios" ? 84 : 64,
-    paddingTop: 6,
-    paddingBottom: Platform.OS === "ios" ? 24 : 8,
-  },
-  tabBarLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-});
 
 export default ManagerNavigator;

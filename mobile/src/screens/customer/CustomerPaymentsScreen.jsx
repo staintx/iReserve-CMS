@@ -11,6 +11,7 @@ import {
   Alert,
   Platform,
   StatusBar,
+  BackHandler,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -75,6 +76,24 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
 
   const [choiceBooking, setChoiceBooking] = useState(null);
   const [choiceModalVisible, setChoiceModalVisible] = useState(false);
+
+  // Intercept Android hardware back button when either receipt or payment choice modal is open
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const onBackPress = () => {
+      if (receiptModalVisible) {
+        setReceiptModalVisible(false);
+        return true;
+      }
+      if (choiceModalVisible) {
+        setChoiceModalVisible(false);
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => sub.remove();
+  }, [receiptModalVisible, choiceModalVisible]);
 
   // Fetch Payments & Bookings
   const loadData = useCallback(async () => {
@@ -414,7 +433,13 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
         ]}
       >
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate("CustomerTabs", { screen: "CustomerProfile" });
+            }
+          }}
           style={styles.backButton}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           accessibilityLabel="Back to Profile"

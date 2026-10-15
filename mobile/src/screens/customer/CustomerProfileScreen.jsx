@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Dimensions,
   StatusBar,
+  BackHandler,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -62,6 +63,28 @@ export const CustomerProfileScreen = ({ navigation }) => {
 
   // Help Modal State
   const [showHelpModal, setShowHelpModal] = useState(false);
+
+  // Intercept Android hardware back button when any modal is open
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const onBackPress = () => {
+      if (showEditModal) {
+        setShowEditModal(false);
+        return true;
+      }
+      if (showPasswordModal) {
+        setShowPasswordModal(false);
+        return true;
+      }
+      if (showHelpModal) {
+        setShowHelpModal(false);
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => sub.remove();
+  }, [showEditModal, showPasswordModal, showHelpModal]);
 
   // User Initials Calculation
   const userInitials = React.useMemo(() => {
@@ -510,7 +533,7 @@ export const CustomerProfileScreen = ({ navigation }) => {
               style={styles.helpActionCard}
               onPress={() => {
                 setShowHelpModal(false);
-                navigation.navigate("CustomerMessages");
+                navigation.navigate("CustomerTabs", { screen: "CustomerMessages" });
               }}
             >
               <View style={[styles.helpIconCircle, { backgroundColor: colors.primaryLight }]}>

@@ -196,10 +196,11 @@ export const AppDialog = ({
 
   const dialogContent = (
     <TouchableWithoutFeedback onPress={handleBackdropPress}>
-      <View style={[styles.backdrop, inline && styles.inlineBackdrop]}>
+      <View style={styles.backdrop}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.keyboardContainer}
+          enabled={false}
         >
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation?.()}>
             <View style={styles.dialogCard}>
@@ -285,7 +286,7 @@ export const AppDialog = ({
 
   if (inline) {
     return (
-      <View style={styles.inlineOverlayRoot} pointerEvents="auto">
+      <View style={styles.inlineOverlayRoot} pointerEvents="box-none">
         {dialogContent}
       </View>
     );
@@ -310,19 +311,14 @@ const styles = StyleSheet.create({
     zIndex: 99999,
     elevation: 999,
   },
-  inlineBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 99999,
-    elevation: 999,
-  },
   backdrop: {
-    flex: 1,
-    width: "100%",
-    height: "100%",
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(15, 23, 42, 0.65)",
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.md,
+    zIndex: 99999,
+    elevation: 999,
   },
   keyboardContainer: {
     width: "100%",

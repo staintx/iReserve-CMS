@@ -214,7 +214,13 @@ export const NotificationsScreen = ({ navigation }) => {
       >
         <TouchableOpacity
           style={styles.backBtn}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate("CustomerTabs", { screen: "CustomerHome" });
+            }
+          }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <ChevronLeft size={24} color="#0F172A" />

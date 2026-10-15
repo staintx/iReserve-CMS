@@ -92,7 +92,13 @@ export const MenuScreen = ({ navigation }) => {
       <Header
         title="Banquet Menu"
         subtitle="Explore our handcrafted catering dishes & courses"
-        onBack={() => navigation.goBack()}
+        onBack={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate("CustomerTabs", { screen: "CustomerHome" });
+          }
+        }}
       />
 
       {/* Search Bar */}

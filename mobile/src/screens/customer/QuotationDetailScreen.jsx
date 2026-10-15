@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  BackHandler,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -66,6 +67,28 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
     "Update Event Time",
     "Modify Setup / Equipment",
   ];
+
+  const handleGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("CustomerTabs", { screen: "InquiriesList" });
+    }
+  };
+
+  // Intercept Android hardware back button when revision modal is open
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const onBackPress = () => {
+      if (showRevisionModal) {
+        setShowRevisionModal(false);
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => sub.remove();
+  }, [showRevisionModal]);
 
   const handleOpenChat = async () => {
     const targetInquiryId =
@@ -229,7 +252,7 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
           tone: "info",
           confirmText: "View Bookings",
         });
-        navigation.navigate("BookingsList");
+        navigation.navigate("CustomerTabs", { screen: "BookingsList" });
       }
     } catch (err) {
       console.error("Payment initiation error:", err);
@@ -295,7 +318,7 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <Header title="Quotation Document" onBack={() => navigation.goBack()} />
+        <Header title="Quotation Document" onBack={handleGoBack} />
         <LoadingState message="Loading quotation details..." />
       </View>
     );
@@ -304,7 +327,7 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
   if (error) {
     return (
       <View style={styles.container}>
-        <Header title="Quotation Document" onBack={() => navigation.goBack()} />
+        <Header title="Quotation Document" onBack={handleGoBack} />
         <ErrorState message={error} onRetry={loadQuotation} />
       </View>
     );
@@ -313,7 +336,7 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
   if (!quotation) {
     return (
       <View style={styles.container}>
-        <Header title="Quotation Document" onBack={() => navigation.goBack()} />
+        <Header title="Quotation Document" onBack={handleGoBack} />
         <View style={styles.emptyContainer}>
           <AlertCircle size={44} color={colors.secondary} />
           <Text style={styles.emptyTitle}>Quotation In Preparation</Text>
@@ -407,7 +430,7 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
       <Header
         title={`Quotation #${quotation.quotation_number || String(quotation._id).slice(-6).toUpperCase()}`}
         subtitle={`Version ${Number(quotation.version_number) || 1}.0`}
-        onBack={() => navigation.goBack()}
+        onBack={handleGoBack}
         rightElement={
           <TouchableOpacity
             onPress={handleOpenChat}
@@ -940,7 +963,12 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
       )}
 
       {/* Revision Modal (Modern Bottom Sheet with Quick Suggestions) */}
-      <Modal visible={showRevisionModal} animationType="slide" transparent>
+      <Modal
+        visible={showRevisionModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowRevisionModal(false)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalBackdrop}

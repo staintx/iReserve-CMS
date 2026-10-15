@@ -32,8 +32,6 @@ import managerApi from "../../api/manager";
 import staffApi from "../../api/staff";
 import AppButton from "./AppButton";
 import Card from "./Card";
-import AppDialog from "./AppDialog";
-import { confirmAction, showAlertDialog } from "../../context/DialogContext";
 import InAppNotificationBanner, { showInAppNotification } from "./InAppNotificationBanner";
 
 const toDateKey = (date) => {
@@ -100,7 +98,7 @@ export const AvailabilityModal = ({
   const [records, setRecords] = useState([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  const [dialogConfig, setDialogConfig] = useState(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const initialUnavailableRef = useRef(initialUnavailable);
@@ -176,6 +174,7 @@ export const AvailabilityModal = ({
       setSelectedDates([]);
       setReason("");
       setActiveTab("form");
+      setConfirmingDeleteId(null);
       if (initialMonth) {
         const d = new Date(initialMonth);
         if (!isNaN(d.getTime())) {
@@ -191,9 +190,9 @@ export const AvailabilityModal = ({
     if (!visible) return;
 
     const onBackPress = () => {
-      if (dialogConfig?.visible) {
+      if (confirmingDeleteId) {
         if (!isDeleting) {
-          setDialogConfig(null);
+          setConfirmingDeleteId(null);
         }
         return true;
       }
@@ -206,7 +205,7 @@ export const AvailabilityModal = ({
 
     const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
     return () => sub.remove();
-  }, [visible, dialogConfig, isDeleting, onClose]);
+  }, [visible, confirmingDeleteId, isDeleting, onClose]);
 
   // Assigned dates lookup
   const assignedDatesSet = useMemo(() => {
@@ -257,15 +256,11 @@ export const AvailabilityModal = ({
 
     // 1. Check if date has a confirmed shift assignment
     if (assignedDatesSet.has(dateKey)) {
-      setDialogConfig({
-        visible: true,
+      showInAppNotification({
         title: "Confirmed Shift Assigned",
         message:
           "You have a confirmed event assigned on this day. Please contact your manager if you have an emergency.",
-        tone: "warning",
-        icon: Clock,
-        confirmText: "Understood",
-        cancelText: null,
+        type: "warning",
       });
       return;
     }
@@ -273,15 +268,11 @@ export const AvailabilityModal = ({
     // 2. Check if date is already marked as unavailable in saved records
     if (savedUnavailableDatesSet.has(dateKey)) {
       const existing = records.find((r) => toDateKey(r.date) === dateKey);
-      const reasonDetail = existing?.reason ? ` (Reason: ${existing.reason})` : "";
-      setDialogConfig({
-        visible: true,
+      const reasonDetail = existing?.reason ? ` (${existing.reason})` : "";
+      showInAppNotification({
         title: "Date Already Unavailable",
-        message: `${formatDateDisplay(dateKey)} is already marked as unavailable in your saved off-duty schedule${reasonDetail}.`,
-        tone: "info",
-        icon: CalendarOff,
-        confirmText: "Understood",
-        cancelText: null,
+        message: `${formatDateDisplay(dateKey)} is already marked off-duty${reasonDetail}.`,
+        type: "warning",
       });
       return;
     }
@@ -300,14 +291,10 @@ export const AvailabilityModal = ({
     if (submitting) return;
 
     if (selectedDates.length === 0) {
-      setDialogConfig({
-        visible: true,
+      showInAppNotification({
         title: "No Dates Selected",
         message: "Please tap one or more calendar dates to mark as off-duty before saving.",
-        tone: "info",
-        icon: CalendarOff,
-        confirmText: "Got It",
-        cancelText: null,
+        type: "info",
       });
       return;
     }
@@ -317,14 +304,10 @@ export const AvailabilityModal = ({
     const freshDates = uniqueSelectedDates.filter((d) => !savedUnavailableDatesSet.has(d));
 
     if (freshDates.length === 0) {
-      setDialogConfig({
-        visible: true,
+      showInAppNotification({
         title: "Dates Already Saved",
         message: "All selected dates are already marked as unavailable in your saved off-duty schedule.",
-        tone: "info",
-        icon: CalendarOff,
-        confirmText: "Understood",
-        cancelText: null,
+        type: "warning",
       });
       setSelectedDates([]);
       return;
@@ -351,95 +334,71 @@ export const AvailabilityModal = ({
       setReason("");
       setActiveTab("saved");
     } catch (err) {
-      setDialogConfig({
-        visible: true,
+      showInAppNotification({
         title: "Update Failed",
         message: err.response?.data?.message || "Failed to update availability schedule. Please try again.",
-        tone: "destructive",
-        confirmText: "Dismiss",
-        cancelText: null,
+        type: "error",
       });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDeleteRecord = (record) => {
-    if (!record || deletingId || isDeleting) return;
+  const executeDeleteRecord = async (record) => {
+    if (!record || isDeleting) return;
 
     const formattedDate = formatDateDisplay(record.date);
 
-    setDialogConfig({
-      visible: true,
-      title: "Remove Off-Duty Date",
-      message: `Are you sure you want to remove off-duty status for ${formattedDate} and mark this day as available again?`,
-      tone: "destructive",
-      icon: Trash2,
-      confirmText: "Remove Date",
-      cancelText: "Keep Date",
-      loading: false,
-      onConfirm: async () => {
-        try {
-          setIsDeleting(true);
-          setDeletingId(record._id || record.date);
+    try {
+      setIsDeleting(true);
+      setDeletingId(record._id || record.date);
 
-          const hasValidId =
-            record._id &&
-            !String(record._id).startsWith("temp-") &&
-            !String(record._id).startsWith("init-");
+      const hasValidId =
+        record._id &&
+        !String(record._id).startsWith("temp-") &&
+        !String(record._id).startsWith("init-");
 
-          if (hasValidId) {
-            await api.removeAvailability(record._id, { params: { date: record.date } });
-          } else {
-            await api.removeAvailability("", { params: { date: record.date } });
-          }
+      if (hasValidId) {
+        await api.removeAvailability(record._id, { params: { date: record.date } });
+      } else {
+        await api.removeAvailability("", { params: { date: record.date } });
+      }
 
-          // Successfully removed from backend: remove from local state
-          setRecords((prev) =>
-            prev.filter((r) => {
-              if (hasValidId && r._id === record._id) return false;
-              return toDateKey(r.date) !== toDateKey(record.date);
-            })
-          );
+      // Successfully removed from backend: remove from local state
+      setRecords((prev) =>
+        prev.filter((r) => {
+          if (hasValidId && r._id === record._id) return false;
+          return toDateKey(r.date) !== toDateKey(record.date);
+        })
+      );
 
-          if (onSave) {
-            onSave({ refreshOnly: true });
-          }
+      setConfirmingDeleteId(null);
 
-          // Close confirmation dialog
-          setDialogConfig(null);
+      if (onSave) {
+        onSave({ refreshOnly: true });
+      }
 
-          // Success notification feedback
-          showInAppNotification({
-            title: "Off-Duty Date Removed",
-            message: `${formattedDate} is now marked as available.`,
-            type: "success",
-          });
+      // Success notification feedback
+      showInAppNotification({
+        title: "Off-Duty Date Removed",
+        message: `${formattedDate} is now marked as available.`,
+        type: "success",
+      });
 
-          // Refresh in background
-          loadSavedRecords();
-        } catch (err) {
-          setDialogConfig({
-            visible: true,
-            title: "Could Not Remove Date",
-            message:
-              err.response?.data?.message ||
-              "Failed to remove availability record. Please try again.",
-            tone: "destructive",
-            confirmText: "Dismiss",
-            cancelText: null,
-            onConfirm: () => setDialogConfig(null),
-          });
-        } finally {
-          setIsDeleting(false);
-          setDeletingId(null);
-        }
-      },
-      onCancel: () => {
-        // Canceling leaves saved date unchanged
-        setDialogConfig(null);
-      },
-    });
+      // Refresh in background
+      loadSavedRecords();
+    } catch (err) {
+      showInAppNotification({
+        title: "Could Not Remove Date",
+        message:
+          err.response?.data?.message ||
+          "Failed to remove availability record. Please try again.",
+        type: "error",
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeletingId(null);
+    }
   };
 
   if (!visible) return null;
@@ -487,7 +446,10 @@ export const AvailabilityModal = ({
           <View style={styles.tabsContainer}>
             <TouchableOpacity
               style={[styles.tabBtn, activeTab === "form" && styles.tabBtnActive]}
-              onPress={() => setActiveTab("form")}
+              onPress={() => {
+                setConfirmingDeleteId(null);
+                setActiveTab("form");
+              }}
               activeOpacity={0.8}
             >
               <CalendarOff size={15} color={activeTab === "form" ? colors.primary : colors.textSubtle} />
@@ -498,7 +460,10 @@ export const AvailabilityModal = ({
 
             <TouchableOpacity
               style={[styles.tabBtn, activeTab === "saved" && styles.tabBtnActive]}
-              onPress={() => setActiveTab("saved")}
+              onPress={() => {
+                setConfirmingDeleteId(null);
+                setActiveTab("saved");
+              }}
               activeOpacity={0.8}
             >
               <Clock size={15} color={activeTab === "saved" ? colors.primary : colors.textSubtle} />
@@ -658,31 +623,90 @@ export const AvailabilityModal = ({
                   </Card>
                 ) : (
                   <View style={styles.recordsList}>
-                    {records.map((r, idx) => (
-                      <View key={r._id || idx} style={styles.recordCard}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.recordDateText}>{formatDateDisplay(r.date)}</Text>
-                          <Text style={styles.recordReasonText}>
-                            {r.reason ? `Reason: ${r.reason}` : "Marked Unavailable"}
-                          </Text>
-                        </View>
-                        <TouchableOpacity
-                          style={styles.deleteBtn}
-                          onPress={() => handleDeleteRecord(r)}
-                          disabled={isDeleting || deletingId === (r._id || r.date)}
-                          activeOpacity={0.7}
-                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Remove off-duty date for ${formatDateDisplay(r.date)}`}
-                        >
-                          {deletingId === (r._id || r.date) ? (
-                            <ActivityIndicator size="small" color={colors.error} />
-                          ) : (
+                    {records.map((r, idx) => {
+                      const recordKey = r._id || r.date || `rec-${idx}`;
+                      const isConfirming = confirmingDeleteId === recordKey;
+                      const isItemDeleting = isDeleting && deletingId === recordKey;
+
+                      if (isConfirming) {
+                        return (
+                          <View key={recordKey} style={[styles.recordCard, styles.recordCardConfirming]}>
+                            <View style={styles.confirmHeader}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.recordDateText}>{formatDateDisplay(r.date)}</Text>
+                                <Text style={styles.recordReasonText}>
+                                  {r.reason ? `Reason: ${r.reason}` : "Marked Unavailable"}
+                                </Text>
+                              </View>
+                              <View style={styles.confirmBadge}>
+                                <AlertTriangle size={13} color={colors.error || "#DC2626"} />
+                                <Text style={styles.confirmBadgeText}>Confirm</Text>
+                              </View>
+                            </View>
+
+                            <Text style={styles.confirmPromptText}>
+                              Remove off-duty status for this day and mark as available again?
+                            </Text>
+
+                            <View style={styles.confirmActionsRow}>
+                              <TouchableOpacity
+                                style={[
+                                  styles.confirmRemoveBtn,
+                                  isItemDeleting && styles.btnDisabled,
+                                ]}
+                                onPress={() => executeDeleteRecord(r)}
+                                disabled={isDeleting}
+                                activeOpacity={0.8}
+                                accessibilityRole="button"
+                                accessibilityLabel="Remove Date"
+                              >
+                                {isItemDeleting ? (
+                                  <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                  <>
+                                    <Trash2 size={14} color="#FFFFFF" />
+                                    <Text style={styles.confirmRemoveBtnText}>Remove Date</Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={styles.confirmKeepBtn}
+                                onPress={() => setConfirmingDeleteId(null)}
+                                disabled={isDeleting}
+                                activeOpacity={0.7}
+                                accessibilityRole="button"
+                                accessibilityLabel="Keep Date"
+                              >
+                                <Text style={styles.confirmKeepBtnText}>Keep Date</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        );
+                      }
+
+                      return (
+                        <View key={recordKey} style={styles.recordCard}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.recordDateText}>{formatDateDisplay(r.date)}</Text>
+                            <Text style={styles.recordReasonText}>
+                              {r.reason ? `Reason: ${r.reason}` : "Marked Unavailable"}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.deleteBtn}
+                            onPress={() => setConfirmingDeleteId(recordKey)}
+                            disabled={isDeleting}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Remove off-duty date for ${formatDateDisplay(r.date)}`}
+                          >
                             <Trash2 size={16} color={colors.error} />
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    ))}
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
                   </View>
                 )}
               </View>
@@ -692,28 +716,6 @@ export const AvailabilityModal = ({
 
         {/* In-Modal Notification Banner (Above bottom sheet and backdrop) */}
         <InAppNotificationBanner inModal />
-
-        {/* In-Modal Dialog Overlay Layer (Independent of bottom sheet layout) */}
-        {dialogConfig?.visible ? (
-          <AppDialog
-            inline
-            visible={Boolean(dialogConfig?.visible)}
-            title={dialogConfig.title}
-            message={dialogConfig.message}
-            tone={dialogConfig.tone || "primary"}
-            icon={dialogConfig.icon}
-            highlight={dialogConfig.highlight}
-            confirmText={dialogConfig.confirmText || "Confirm"}
-            cancelText={dialogConfig.cancelText}
-            loading={dialogConfig.loading || isDeleting}
-            dismissOnBackdrop={dialogConfig.dismissOnBackdrop !== false && !isDeleting}
-            onConfirm={dialogConfig.onConfirm || (() => setDialogConfig(null))}
-            onCancel={dialogConfig.onCancel || (() => setDialogConfig(null))}
-            onClose={() => setDialogConfig(null)}
-          >
-            {dialogConfig.children}
-          </AppDialog>
-        ) : null}
       </View>
     </Modal>
   );
@@ -736,7 +738,6 @@ const styles = StyleSheet.create({
     minHeight: 520,
     overflow: "hidden",
     ...shadows.xl,
-    zIndex: 10,
   },
   header: {
     flexDirection: "row",
@@ -1054,6 +1055,84 @@ const styles = StyleSheet.create({
     borderColor: colors.errorBorder,
     alignItems: "center",
     justifyContent: "center",
+  },
+  recordCardConfirming: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    borderColor: colors.errorBorder || "#FECACA",
+    backgroundColor: "#FEF2F235",
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+  },
+  confirmHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.xs,
+  },
+  confirmBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+  },
+  confirmBadgeText: {
+    fontSize: typography.sizes.micro || 11,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.error || "#DC2626",
+  },
+  confirmPromptText: {
+    fontSize: typography.sizes.xs || 12,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted || "#64748B",
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+    lineHeight: 17,
+  },
+  confirmActionsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "center",
+  },
+  confirmRemoveBtn: {
+    flex: 1,
+    height: 38,
+    borderRadius: radius.md,
+    backgroundColor: colors.error || "#DC2626",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+  },
+  confirmRemoveBtnText: {
+    fontSize: typography.sizes.xs || 12,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  confirmKeepBtn: {
+    flex: 1,
+    height: 38,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt || "#F8FAFC",
+    borderWidth: 1,
+    borderColor: colors.border || "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmKeepBtnText: {
+    fontSize: typography.sizes.xs || 12,
+    fontFamily: typography.fontFamilies.semiBold,
+    fontWeight: "600",
+    color: colors.foregroundDark || "#0F172A",
+  },
+  btnDisabled: {
+    opacity: 0.6,
   },
 });
 

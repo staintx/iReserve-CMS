@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  BackHandler,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -82,6 +83,40 @@ export const BookingDetailScreen = ({ route, navigation }) => {
 
   // Add Guests State
   const [extraGuests, setExtraGuests] = useState("10");
+
+  const handleGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("CustomerTabs", { screen: "BookingsList" });
+    }
+  };
+
+  // Intercept Android hardware back button when any modal is open
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const onBackPress = () => {
+      if (showChangeModal) {
+        setShowChangeModal(false);
+        return true;
+      }
+      if (showAddGuestsModal) {
+        setShowAddGuestsModal(false);
+        return true;
+      }
+      if (showUpgradeModal) {
+        setShowUpgradeModal(false);
+        return true;
+      }
+      if (showRejectRevisionModal) {
+        setShowRejectRevisionModal(false);
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => sub.remove();
+  }, [showChangeModal, showAddGuestsModal, showUpgradeModal, showRejectRevisionModal]);
 
   // Upgrade Package State
   const [selectedUpgradePkg, setSelectedUpgradePkg] = useState(null);
@@ -743,7 +778,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <Header title="Booking Details" onBack={() => navigation.goBack()} />
+        <Header title="Booking Details" onBack={handleGoBack} />
         <LoadingState message="Loading reservation details..." />
       </View>
     );
@@ -752,7 +787,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   if (error || !booking) {
     return (
       <View style={styles.container}>
-        <Header title="Booking Details" onBack={() => navigation.goBack()} />
+        <Header title="Booking Details" onBack={handleGoBack} />
         <ErrorState message={error} onRetry={loadBooking} />
       </View>
     );
@@ -778,7 +813,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
       <Header
         title="Booking Details"
         subtitle={`#${refCode}`}
-        onBack={() => navigation.goBack()}
+        onBack={handleGoBack}
       />
 
       <ScrollView
@@ -1464,7 +1499,12 @@ export const BookingDetailScreen = ({ route, navigation }) => {
       </ScrollView>
 
       {/* ── MODAL 1: Propose Revision / Change Request ── */}
-      <Modal visible={showChangeModal} animationType="slide" transparent>
+      <Modal
+        visible={showChangeModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowChangeModal(false)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
@@ -1540,7 +1580,12 @@ export const BookingDetailScreen = ({ route, navigation }) => {
       </Modal>
 
       {/* ── MODAL 2: Add Extra Guests ── */}
-      <Modal visible={showAddGuestsModal} animationType="fade" transparent>
+      <Modal
+        visible={showAddGuestsModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowAddGuestsModal(false)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
@@ -1581,7 +1626,12 @@ export const BookingDetailScreen = ({ route, navigation }) => {
       </Modal>
 
       {/* ── MODAL 3: Upgrade Package ── */}
-      <Modal visible={showUpgradeModal} animationType="slide" transparent>
+      <Modal
+        visible={showUpgradeModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowUpgradeModal(false)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
@@ -1641,7 +1691,12 @@ export const BookingDetailScreen = ({ route, navigation }) => {
       </Modal>
 
       {/* ── MODAL 4: Reject Revision ── */}
-      <Modal visible={showRejectRevisionModal} animationType="fade" transparent>
+      <Modal
+        visible={showRejectRevisionModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowRejectRevisionModal(false)}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}

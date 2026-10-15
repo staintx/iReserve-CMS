@@ -211,7 +211,7 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
           if (params.bookingId) {
             navigation.navigate("BookingDetail", { id: params.bookingId });
           } else {
-            navigation.navigate("InquiriesList");
+            navigation.navigate("CustomerTabs", { screen: "InquiriesList" });
           }
         },
       });
@@ -230,20 +230,48 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
     });
 
     if (shouldExit) {
-      navigation.goBack();
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else if (params.bookingId) {
+        navigation.navigate("BookingDetail", { id: params.bookingId });
+      } else {
+        navigation.navigate("CustomerTabs", { screen: "InquiriesList" });
+      }
     }
-  }, [navigation]);
+  }, [navigation, params.bookingId]);
+
+  const handleSuccessDone = useCallback(() => {
+    const targetId = confirmedBookingId || params.bookingId;
+    if (targetId) {
+      navigation.reset({
+        index: 1,
+        routes: [
+          { name: "CustomerTabs", params: { screen: "BookingsList" } },
+          { name: "BookingDetail", params: { id: targetId } },
+        ],
+      });
+    } else {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "CustomerTabs", params: { screen: "BookingsList" } }],
+      });
+    }
+  }, [confirmedBookingId, params.bookingId, navigation]);
 
   // Intercept Android hardware back button to prevent accidental exit
   useEffect(() => {
     if (Platform.OS !== "android") return;
     const onBackPress = () => {
+      if (success) {
+        handleSuccessDone();
+        return true;
+      }
       handleExit();
       return true;
     };
     const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
     return () => subscription.remove();
-  }, [handleExit]);
+  }, [handleExit, handleSuccessDone, success]);
 
   if (loadingSession) {
     return (
@@ -265,7 +293,15 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
         <Text style={styles.verifyingDesc}>{initError}</Text>
         <AppButton
           title="Go Back"
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else if (params.bookingId) {
+              navigation.navigate("BookingDetail", { id: params.bookingId });
+            } else {
+              navigation.navigate("CustomerTabs", { screen: "InquiriesList" });
+            }
+          }}
           style={{ marginTop: spacing.lg, minWidth: 160 }}
         />
       </View>
@@ -297,13 +333,7 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
 
         <AppButton
           title="View Confirmed Booking"
-          onPress={() => {
-            if (confirmedBookingId) {
-              navigation.navigate("BookingDetail", { id: confirmedBookingId });
-            } else {
-              navigation.navigate("BookingsList");
-            }
-          }}
+          onPress={handleSuccessDone}
           size="lg"
           style={styles.doneBtn}
         />

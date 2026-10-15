@@ -99,7 +99,13 @@ export const GalleryScreen = ({ navigation }) => {
       <Header
         title="Event Gallery"
         subtitle="Real catering setups, tablescapes & past celebrations"
-        onBack={() => navigation.goBack()}
+        onBack={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate("CustomerTabs", { screen: "CustomerHome" });
+          }
+        }}
       />
 
       {/* Search Bar */}

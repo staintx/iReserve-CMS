@@ -111,7 +111,10 @@ export const InquiryDetailScreen = ({ route, navigation }) => {
           icon: MessageSquare,
         });
         if (confirmed) {
-          navigation.navigate("CustomerMessages", { initialTab: "messages" });
+          navigation.navigate("CustomerTabs", {
+            screen: "CustomerMessages",
+            params: { initialTab: "messages" },
+          });
         }
       }
     } catch (err) {
@@ -135,7 +138,7 @@ export const InquiryDetailScreen = ({ route, navigation }) => {
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              navigation.navigate("InquiriesList");
+              navigation.navigate("CustomerTabs", { screen: "InquiriesList" });
             }
           }}
         />
@@ -153,7 +156,7 @@ export const InquiryDetailScreen = ({ route, navigation }) => {
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              navigation.navigate("InquiriesList");
+              navigation.navigate("CustomerTabs", { screen: "InquiriesList" });
             }
           }}
         />
@@ -192,7 +195,7 @@ export const InquiryDetailScreen = ({ route, navigation }) => {
           if (navigation.canGoBack()) {
             navigation.goBack();
           } else {
-            navigation.navigate("InquiriesList");
+            navigation.navigate("CustomerTabs", { screen: "InquiriesList" });
           }
         }}
         rightElement={
@@ -478,7 +481,7 @@ export const InquiryDetailScreen = ({ route, navigation }) => {
         <View style={styles.bottomActions}>
           <TouchableOpacity
             style={styles.allInquiriesBtn}
-            onPress={() => navigation.navigate("InquiriesList")}
+            onPress={() => navigation.navigate("CustomerTabs", { screen: "InquiriesList" })}
             activeOpacity={0.8}
           >
             <FileText size={16} color={colors.primary} style={{ marginRight: 8 }} />

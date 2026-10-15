@@ -75,6 +75,14 @@ export const PackageDetailScreen = ({ route, navigation }) => {
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [selectedScaffoldId, setSelectedScaffoldId] = useState(null);
 
+  const handleGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("Packages");
+    }
+  };
+
   useEffect(() => {
     if (!id) {
       setError("Package reference is missing.");
@@ -187,7 +195,7 @@ export const PackageDetailScreen = ({ route, navigation }) => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <Header title="Package Details" onBack={() => navigation.goBack()} />
+        <Header title="Package Details" onBack={handleGoBack} />
         <LoadingState message="Loading package details..." />
       </View>
     );
@@ -196,8 +204,8 @@ export const PackageDetailScreen = ({ route, navigation }) => {
   if (error || !packageData) {
     return (
       <View style={styles.container}>
-        <Header title="Package Details" onBack={() => navigation.goBack()} />
-        <ErrorState message={error} onRetry={() => navigation.goBack()} />
+        <Header title="Package Details" onBack={handleGoBack} />
+        <ErrorState message={error} onRetry={handleGoBack} />
       </View>
     );
   }
@@ -234,7 +242,7 @@ export const PackageDetailScreen = ({ route, navigation }) => {
     <View style={styles.container}>
       <Header
         title={isCombo ? "Combo Pack Details" : "Package Details"}
-        onBack={() => navigation.goBack()}
+        onBack={handleGoBack}
       />
 
       <ScrollView

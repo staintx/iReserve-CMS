@@ -676,6 +676,11 @@ exports.update = asyncHandler(async (req, res) => {
   }
 
   if (req.body.status && ["completed", "Completed"].includes(req.body.status) && !["completed", "Completed"].includes(current.status)) {
+    if (current.cancellation_request?.status === "pending") {
+      return res.status(400).json({
+        message: "Cannot mark booking as completed while a customer cancellation request is pending review. Please resolve or decline the cancellation request first."
+      });
+    }
     const Payment = require("../models/Payment");
     const approvedPayments = await Payment.find({ booking_id: current._id, status: "approved" });
     const totalPaid = approvedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);

@@ -83,8 +83,13 @@ export default function ManagerEventDetailsModal({
     return booking ? getEventTimingStatus(booking) : { isUpcoming: true, isStarted: false, isFinished: false };
   }, [booking]);
 
+  const isCancellationPending =
+    booking?.cancellation_request?.status === "pending" ||
+    (booking?.change_request?.status === "pending" &&
+      booking?.change_request?.message?.toLowerCase().includes("cancel"));
+
   const isUpcoming = timing.isUpcoming && !isCompleted;
-  const isActionable = !isUpcoming && !isCompleted;
+  const isActionable = !isUpcoming && !isCompleted && !isCancellationPending;
 
   // Initialize state when booking changes
   useEffect(() => {
@@ -576,6 +581,10 @@ export default function ManagerEventDetailsModal({
 
   const handleCompleteEvent = async () => {
     if (!booking) return;
+    if (isCancellationPending) {
+      notify("Cannot complete event while a customer cancellation request is pending review.", "warning");
+      return;
+    }
     const remainingBal = Number(booking.remaining_balance ?? 0);
     const isCashElected = booking.balance_payment_preference === "in_person";
 
@@ -834,6 +843,16 @@ export default function ManagerEventDetailsModal({
             </span>
           </div>
         </div>
+
+        {/* Cancellation Pending Review Banner */}
+        {isCancellationPending && (
+          <div className="p-2.5 rounded-xl border border-rose-200 bg-rose-50/80 text-xs flex items-center gap-2 text-rose-900 shadow-2xs">
+            <AlertTriangle size={15} className="text-rose-600 shrink-0" />
+            <div className="min-w-0">
+              <span className="font-bold">Cancellation Request Pending:</span> Customer requested booking cancellation. Event completion is suspended pending administrator review.
+            </div>
+          </div>
+        )}
 
         {/* Outstanding Balance Banner if Applicable */}
         {remainingBalance > 0 && (

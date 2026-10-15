@@ -16,8 +16,6 @@ import {
   MapPin,
   Navigation,
   CheckCircle2,
-  Lock,
-  Unlock,
   PackageCheck,
   ChevronRight,
   ShieldCheck,
@@ -36,11 +34,13 @@ import AppButton from "../../components/common/AppButton";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
 import NotificationBadge from "../../components/common/NotificationBadge";
 import CoachMarkSequence from "../../components/common/CoachMarkSequence";
+import { useAppDialog } from "../../context/DialogContext";
 import { cacheData, getCachedData, CACHE_KEYS } from "../../utils/offlineStorage";
 import { formatDate, formatTime } from "../../utils/format";
 
 export const StaffTodayScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { showAlertDialog } = useAppDialog();
   const { user } = useAuth();
   const { unreadCount } = useSocket();
 
@@ -126,26 +126,6 @@ export const StaffTodayScreen = ({ navigation }) => {
 
   const currentDisplayEvent = todayEvent || nextEvent;
 
-  // Check if event has started (for unlocking equipment verification and complete shift)
-  const isEventStarted = (event) => {
-    if (!event) return false;
-    if (["completed", "Completed", "ongoing"].includes(event.status)) return true;
-    if (!event.event_date) return true;
-
-    const d = new Date(event.event_date);
-    let hours = 0;
-    let minutes = 0;
-    if (event.start_time) {
-      const match = String(event.start_time).trim().match(/^(\d{1,2}):(\d{2})/);
-      if (match) {
-        hours = parseInt(match[1], 10);
-        minutes = parseInt(match[2], 10);
-      }
-    }
-    const startDateTime = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hours, minutes);
-    return now >= startDateTime;
-  };
-
   const handleOpenMaps = (event) => {
     if (!event) return;
     const addressQuery = [
@@ -158,11 +138,14 @@ export const StaffTodayScreen = ({ navigation }) => {
       .join(", ");
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressQuery)}`;
     Linking.openURL(url).catch(() =>
-      Alert.alert("Error", "Could not open map navigation.")
+      showAlertDialog({
+        title: "Navigation Unavailable",
+        message: "Could not open map navigation. Please ensure Google Maps or Apple Maps is installed.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      })
     );
   };
-
-  const unlocked = currentDisplayEvent ? isEventStarted(currentDisplayEvent) : false;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -290,10 +273,10 @@ export const StaffTodayScreen = ({ navigation }) => {
                   />
 
                   {/* Operational Actions */}
-                  <View ref={actionsRef} collapsable={false} style={styles.actionGrid}>
+                  <View ref={actionsRef} collapsable={false} style={{ marginTop: spacing.sm }}>
                     <AppButton
-                      title="Event Details"
-                      variant="secondary"
+                      title="View Shift & Event Details"
+                      variant="primary"
                       size="md"
                       icon={FileText}
                       onPress={() =>
@@ -301,27 +284,6 @@ export const StaffTodayScreen = ({ navigation }) => {
                           bookingId: currentDisplayEvent._id,
                         })
                       }
-                      style={{ flex: 1 }}
-                    />
-
-                    <AppButton
-                      title={unlocked ? "Equipment Returns" : "Returns Locked"}
-                      variant={unlocked ? "primary" : "ghost"}
-                      size="md"
-                      icon={unlocked ? Unlock : Lock}
-                      onPress={() => {
-                        if (!unlocked) {
-                          Alert.alert(
-                            "Equipment Returns Locked",
-                            `Equipment returns can only be filed once the event begins at ${formatTime(currentDisplayEvent.start_time) || "the scheduled time"}.`
-                          );
-                        } else {
-                          navigation.navigate("EquipmentChecklist", {
-                            bookingId: currentDisplayEvent._id,
-                          });
-                        }
-                      }}
-                      style={{ flex: 1 }}
                     />
                   </View>
                 </Card>

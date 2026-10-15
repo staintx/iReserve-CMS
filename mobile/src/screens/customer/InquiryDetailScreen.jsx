@@ -39,6 +39,7 @@ import ErrorState from "../../components/common/ErrorState";
 import { formatDate, formatTime } from "../../utils/format";
 
 import useRealTimeRefresh from "../../utils/useRealTimeRefresh";
+import { confirmAction, showAlertDialog } from "../../context/DialogContext";
 
 export const InquiryDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -100,24 +101,26 @@ export const InquiryDetailScreen = ({ route, navigation }) => {
           conversation: existing,
         });
       } else {
-        Alert.alert(
-          "Chat with Banquet Team",
-          "You can connect directly with our banquet manager regarding this inquiry.",
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Open Messages",
-              onPress: () =>
-                navigation.navigate("CustomerMessages", { initialTab: "messages" }),
-            },
-          ]
-        );
+        const confirmed = await confirmAction({
+          title: "Chat with Banquet Team",
+          message:
+            "Connect directly with our banquet manager regarding this inquiry in your Messages hub.",
+          confirmText: "Open Messages",
+          cancelText: "Stay on Details",
+          tone: "primary",
+          icon: MessageSquare,
+        });
+        if (confirmed) {
+          navigation.navigate("CustomerMessages", { initialTab: "messages" });
+        }
       }
     } catch (err) {
-      Alert.alert(
-        "Direct Support",
-        "Please visit the Messages tab to start a conversation with our banquet team."
-      );
+      showAlertDialog({
+        title: "Direct Support",
+        message:
+          "Please visit the Messages tab to start a conversation with our banquet team.",
+        tone: "info",
+      });
     } finally {
       setChatLoading(false);
     }

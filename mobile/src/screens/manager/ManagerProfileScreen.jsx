@@ -29,6 +29,7 @@ import Card from "../../components/common/Card";
 import SignOutConfirmModal from "../../components/common/SignOutConfirmModal";
 import AvailabilityModal from "../../components/common/AvailabilityModal";
 import { initialsOf } from "../../utils/format";
+import { showAlertDialog } from "../../context/DialogContext";
 
 export const ManagerProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -49,7 +50,13 @@ export const ManagerProfileScreen = ({ navigation }) => {
 
   const handleResetCoachMarks = async () => {
     await resetCoachMarks();
-    Alert.alert("Guides Reset", "First-time coach mark tips will be displayed again as you navigate.");
+    showAlertDialog({
+      title: "Feature Guides Reset",
+      message:
+        "First-time coach mark tips and guidance will be displayed again as you navigate manager operations.",
+      tone: "info",
+      confirmText: "Got It",
+    });
   };
 
   return (

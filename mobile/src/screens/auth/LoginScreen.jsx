@@ -11,11 +11,12 @@ import {
   Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Mail, Lock } from "lucide-react-native";
+import { Mail, Lock, Monitor } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import AppInput from "../../components/common/AppInput";
 import AppButton from "../../components/common/AppButton";
 import { useAuth } from "../../context/AuthContext";
+import { confirmAction, showAlertDialog } from "../../context/DialogContext";
 
 export const LoginScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -52,24 +53,26 @@ export const LoginScreen = ({ navigation }) => {
         "Unable to sign in. Please verify your credentials.";
       setError(msg);
       if (msg.toLowerCase().includes("verify your email")) {
-        Alert.alert(
-          "Verification Required",
-          "Please verify your email address before logging in.",
-          [
-            {
-              text: "Verify Now",
-              onPress: () =>
-                navigation.navigate("OtpVerification", { email: email.trim() }),
-            },
-            { text: "Cancel", style: "cancel" },
-          ]
-        );
+        confirmAction({
+          title: "Verification Required",
+          message: "Please verify your email address to access your Caezelle's Catering account.",
+          tone: "primary",
+          icon: Mail,
+          confirmText: "Verify Now",
+          cancelText: "Later",
+        }).then((confirmed) => {
+          if (confirmed) {
+            navigation.navigate("OtpVerification", { email: email.trim() });
+          }
+        });
       } else if (msg.toLowerCase().includes("admin portal") || msg.toLowerCase().includes("desktop browser")) {
-        Alert.alert(
-          "Admin Portal on Web",
-          "The Admin Portal is available exclusively on the web. Please sign in via your desktop browser.",
-          [{ text: "OK" }]
-        );
+        showAlertDialog({
+          title: "Admin Portal on Web",
+          message: "The Admin Portal is available exclusively on the web dashboard. Please sign in via your desktop browser.",
+          tone: "info",
+          icon: Monitor,
+          confirmText: "Understood",
+        });
       }
     } finally {
       setLoading(false);

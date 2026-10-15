@@ -35,6 +35,7 @@ import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
 import AppButton from "../../components/common/AppButton";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
+import { useAppDialog } from "../../context/DialogContext";
 import {
   formatDate,
   formatCurrency,
@@ -46,6 +47,7 @@ import {
 
 export const StaffEventDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
+  const { showAlertDialog } = useAppDialog();
   const { user } = useAuth();
   const bookingId = route?.params?.bookingId || route?.params?.id;
 
@@ -59,7 +61,12 @@ export const StaffEventDetailScreen = ({ route, navigation }) => {
       setBooking(data);
     } catch (error) {
       console.error("Failed to load staff event detail:", error);
-      Alert.alert("Error", "Could not load assigned event details.");
+      showAlertDialog({
+        title: "Event Unavailable",
+        message: "Could not load assigned event details. Please check your connection and try again.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -109,14 +116,24 @@ export const StaffEventDetailScreen = ({ route, navigation }) => {
   const handleCall = (phoneNumber) => {
     if (!phoneNumber) return;
     Linking.openURL(`tel:${phoneNumber}`).catch(() =>
-      Alert.alert("Error", "Unable to open phone dialer.")
+      showAlertDialog({
+        title: "Dialer Unavailable",
+        message: "Unable to open phone dialer on this device.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      })
     );
   };
 
   const handleEmail = (emailAddress) => {
     if (!emailAddress) return;
     Linking.openURL(`mailto:${emailAddress}`).catch(() =>
-      Alert.alert("Error", "Unable to open email client.")
+      showAlertDialog({
+        title: "Email Unavailable",
+        message: "Unable to open email client on this device.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      })
     );
   };
 
@@ -132,7 +149,12 @@ export const StaffEventDetailScreen = ({ route, navigation }) => {
       .join(", ") || getBookingVenueLocation(booking);
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressQuery)}`;
     Linking.openURL(url).catch(() =>
-      Alert.alert("Error", "Could not open map directions.")
+      showAlertDialog({
+        title: "Navigation Unavailable",
+        message: "Could not open map directions. Please check your map application.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      })
     );
   };
 

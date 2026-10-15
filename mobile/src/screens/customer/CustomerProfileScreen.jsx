@@ -36,6 +36,7 @@ import { useOnboarding } from "../../context/OnboardingContext";
 import authApi from "../../api/auth";
 import { evaluatePassword, describePasswordGap } from "../../utils/passwordPolicy";
 import SignOutConfirmModal from "../../components/common/SignOutConfirmModal";
+import { showAlertDialog } from "../../context/DialogContext";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -96,7 +97,11 @@ export const CustomerProfileScreen = ({ navigation }) => {
 
   const handleSaveProfile = async () => {
     if (!firstName.trim()) {
-      Alert.alert("Validation", "First name is required.");
+      showAlertDialog({
+        title: "Validation Error",
+        message: "First name is required.",
+        tone: "warning",
+      });
       return;
     }
 
@@ -113,12 +118,17 @@ export const CustomerProfileScreen = ({ navigation }) => {
       const updated = await authApi.updateProfile(payload);
       updateUser(updated);
       setShowEditModal(false);
-      Alert.alert("Success", "Your profile details have been updated.");
+      showAlertDialog({
+        title: "Profile Updated",
+        message: "Your profile details have been saved successfully.",
+        tone: "success",
+      });
     } catch (err) {
-      Alert.alert(
-        "Error",
-        err.response?.data?.message || "Failed to update profile details."
-      );
+      showAlertDialog({
+        title: "Update Failed",
+        message: err.response?.data?.message || "Failed to update profile details.",
+        tone: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -126,16 +136,28 @@ export const CustomerProfileScreen = ({ navigation }) => {
 
   const handleChangePassword = async () => {
     if (!currentPassword) {
-      Alert.alert("Validation", "Please enter your current password.");
+      showAlertDialog({
+        title: "Validation Error",
+        message: "Please enter your current password.",
+        tone: "warning",
+      });
       return;
     }
     const { isValid } = evaluatePassword(newPassword);
     if (!isValid) {
-      Alert.alert("Password Policy", describePasswordGap(newPassword));
+      showAlertDialog({
+        title: "Password Policy",
+        message: describePasswordGap(newPassword),
+        tone: "warning",
+      });
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert("Validation", "New passwords do not match.");
+      showAlertDialog({
+        title: "Validation Error",
+        message: "New passwords do not match.",
+        tone: "warning",
+      });
       return;
     }
 
@@ -149,12 +171,17 @@ export const CustomerProfileScreen = ({ navigation }) => {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      Alert.alert("Password Updated", "Your password has been changed successfully.");
+      showAlertDialog({
+        title: "Password Updated",
+        message: "Your password has been changed successfully.",
+        tone: "success",
+      });
     } catch (err) {
-      Alert.alert(
-        "Error",
-        err.response?.data?.message || "Failed to change password."
-      );
+      showAlertDialog({
+        title: "Change Failed",
+        message: err.response?.data?.message || "Failed to change password.",
+        tone: "destructive",
+      });
     } finally {
       setPasswordSaving(false);
     }
@@ -172,11 +199,13 @@ export const CustomerProfileScreen = ({ navigation }) => {
   const handleResetCoachMarks = async () => {
     setShowHelpModal(false);
     await resetCoachMarks("customer_home");
-    Alert.alert(
-      "Feature Tour Ready",
-      "Interactive tips have been restored. They will appear next time you visit the Home screen.",
-      [{ text: "OK" }]
-    );
+    showAlertDialog({
+      title: "Feature Tour Restored",
+      message:
+        "Interactive tips have been restored. They will appear next time you visit the Home screen.",
+      tone: "info",
+      confirmText: "Got It",
+    });
   };
 
   return (

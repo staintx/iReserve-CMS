@@ -43,6 +43,7 @@ import {
   isCancelledInquiry,
   isPastDay,
 } from "../../utils/statusMeta";
+import { confirmAction, showAlertDialog } from "../../context/DialogContext";
 
 const CUSTOM_QUOTE_OPTIONS = [
   "Custom Quote - Food Only",
@@ -104,29 +105,30 @@ export const InquiriesListScreen = ({ navigation }) => {
     loadData();
   };
 
-  const handleCancelInquiry = (inquiryId) => {
-    Alert.alert(
-      "Cancel Inquiry",
-      "Are you sure you want to cancel this event request?",
-      [
-        { text: "No, Keep It", style: "cancel" },
-        {
-          text: "Yes, Cancel",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await customerApi.cancelInquiry(inquiryId);
-              loadData();
-            } catch (err) {
-              Alert.alert(
-                "Error",
-                err.response?.data?.message || "Failed to cancel inquiry."
-              );
-            }
-          },
-        },
-      ]
-    );
+  const handleCancelInquiry = async (inquiryId) => {
+    const shouldCancel = await confirmAction({
+      title: "Cancel Event Inquiry?",
+      message:
+        "Are you sure you want to cancel this event request? This inquiry and its custom selections will be closed.",
+      confirmText: "Cancel Inquiry",
+      cancelText: "Keep Inquiry",
+      tone: "destructive",
+      icon: AlertCircle,
+    });
+
+    if (shouldCancel) {
+      try {
+        await customerApi.cancelInquiry(inquiryId);
+        loadData();
+      } catch (err) {
+        showAlertDialog({
+          title: "Cancellation Failed",
+          message: err.response?.data?.message || "Failed to cancel inquiry.",
+          tone: "destructive",
+          confirmText: "Got It",
+        });
+      }
+    }
   };
 
   // Derive configured Combo Pack names matching website

@@ -26,10 +26,12 @@ import { useOnboarding } from "../../context/OnboardingContext";
 import Card from "../../components/common/Card";
 import SignOutConfirmModal from "../../components/common/SignOutConfirmModal";
 import AvailabilityModal from "../../components/common/AvailabilityModal";
+import { useAppDialog } from "../../context/DialogContext";
 import { initialsOf } from "../../utils/format";
 
 export const StaffProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { showAlertDialog } = useAppDialog();
   const { user, logout } = useAuth();
   const { replayOnboarding, resetCoachMarks } = useOnboarding();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -47,7 +49,13 @@ export const StaffProfileScreen = ({ navigation }) => {
 
   const handleResetCoachMarks = async () => {
     await resetCoachMarks();
-    Alert.alert("Guides Reset", "First-time coach mark tips will be displayed again as you navigate.");
+    showAlertDialog({
+      title: "Guides Reset",
+      message: "First-time coach mark tips and feature tours will be displayed again as you navigate.",
+      tone: "info",
+      icon: RotateCcw,
+      confirmText: "Understood",
+    });
   };
 
   return (

@@ -10,15 +10,17 @@ import {
   Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { KeyRound, Lock, Key, ChevronLeft } from "lucide-react-native";
+import { KeyRound, Lock, Key, ChevronLeft, CheckCircle2 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import AppInput from "../../components/common/AppInput";
 import AppButton from "../../components/common/AppButton";
 import authApi from "../../api/auth";
 import { evaluatePassword, describePasswordGap } from "../../utils/passwordPolicy";
+import { useAppDialog } from "../../context/DialogContext";
 
 export const ResetPasswordScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
+  const { showAlertDialog } = useAppDialog();
   const initialToken = route?.params?.token || "";
 
   const [token, setToken] = useState(initialToken);
@@ -63,16 +65,14 @@ export const ResetPasswordScreen = ({ route, navigation }) => {
         password,
       });
 
-      Alert.alert(
-        "Password Reset Complete! 🎉",
-        "Your password has been updated. You can now sign in with your new credentials.",
-        [
-          {
-            text: "Sign In",
-            onPress: () => navigation.navigate("Login"),
-          },
-        ]
-      );
+      showAlertDialog({
+        title: "Password Reset Complete!",
+        message: "Your password has been updated. You can now sign in with your new credentials.",
+        tone: "success",
+        icon: CheckCircle2,
+        confirmText: "Sign In",
+        onConfirm: () => navigation.navigate("Login"),
+      });
     } catch (err) {
       setError(
         err.response?.data?.message ||

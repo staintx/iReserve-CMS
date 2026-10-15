@@ -46,13 +46,13 @@ export const StaffScheduleModal = ({ visible, onClose, staffMember }) => {
     } finally {
       setLoading(false);
     }
-  }, [staffMember, monthString]);
+  }, [staffMember?._id, monthString]);
 
   useEffect(() => {
-    if (visible && staffMember) {
+    if (visible && staffMember?._id) {
       loadSchedule();
     }
-  }, [visible, staffMember, loadSchedule]);
+  }, [visible, staffMember?._id, loadSchedule]);
 
   const handlePrevMonth = () => {
     setCurrentDate(new Date(currentYear, currentMonth - 1, 1));

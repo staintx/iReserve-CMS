@@ -3,6 +3,7 @@ const Booking = require("../models/Booking");
 const Payment = require("../models/Payment");
 const StaffAvailability = require("../models/StaffAvailability");
 const asyncHandler = require("../utils/asyncHandler");
+const mongoose = require("mongoose");
 
 const parseMonth = (month) => {
   if (!month || !/^\d{4}-\d{2}$/.test(month)) return null;
@@ -260,8 +261,12 @@ exports.setAvailability = asyncHandler(async (req, res) => {
 });
 
 exports.removeAvailability = asyncHandler(async (req, res) => {
-  const id = req.params?.id || req.body?.id;
-  const date = req.query?.date || req.body?.date;
+  const rawId = req.params?.id || req.body?.id;
+  const rawDate = req.query?.date || req.body?.date;
+  const isDateStr = (str) => typeof str === "string" && /^\d{4}-\d{2}-\d{2}$/.test(str);
+
+  const date = isDateStr(rawDate) ? rawDate : (isDateStr(rawId) ? rawId : null);
+  const id = (!isDateStr(rawId) && mongoose.Types.ObjectId.isValid(rawId)) ? rawId : null;
 
   if (id) {
     const deleted = await StaffAvailability.findOneAndDelete({
@@ -274,7 +279,7 @@ exports.removeAvailability = asyncHandler(async (req, res) => {
     return res.json({ message: "Availability record removed successfully" });
   }
 
-  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (date) {
     const parsed = parseDateKey(date);
     if (parsed) {
       const dayStart = new Date(parsed);
@@ -290,7 +295,7 @@ exports.removeAvailability = asyncHandler(async (req, res) => {
     }
   }
 
-  return res.status(400).json({ message: "Please provide a record ID or date to remove" });
+  return res.status(400).json({ message: "Please provide a valid record ID or date to remove" });
 });
 
 exports.getBookings = asyncHandler(async (req, res) => {

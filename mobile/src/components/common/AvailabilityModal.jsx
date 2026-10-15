@@ -1,16 +1,19 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   Modal,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   ScrollView,
   TextInput,
   ActivityIndicator,
   Alert,
   Platform,
+  BackHandler,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   X,
   Calendar as CalendarIcon,
@@ -29,9 +32,18 @@ import managerApi from "../../api/manager";
 import staffApi from "../../api/staff";
 import AppButton from "./AppButton";
 import Card from "./Card";
+import AppDialog from "./AppDialog";
+import { confirmAction, showAlertDialog } from "../../context/DialogContext";
+import InAppNotificationBanner, { showInAppNotification } from "./InAppNotificationBanner";
 
 const toDateKey = (date) => {
   if (!date) return "";
+  if (typeof date === "string") {
+    const match = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[1]}-${match[2]}-${match[3]}`;
+    }
+  }
   const d = new Date(date);
   if (isNaN(d.getTime())) return "";
   const yr = d.getFullYear();
@@ -42,8 +54,9 @@ const toDateKey = (date) => {
 
 const formatDateDisplay = (dateStr) => {
   if (!dateStr) return "";
-  const [year, month, day] = String(dateStr).split("-").map(Number);
-  if (!year || !month || !day) return dateStr;
+  const key = toDateKey(dateStr);
+  const [year, month, day] = key.split("-").map(Number);
+  if (!year || !month || !day) return String(dateStr);
   const d = new Date(year, month - 1, day);
   return d.toLocaleDateString("en-US", {
     weekday: "short",
@@ -61,20 +74,24 @@ const QUICK_PRESETS = [
 ];
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const EMPTY_ARRAY = Object.freeze([]);
 
 export const AvailabilityModal = ({
   visible,
   onClose,
-  initialMonth = new Date(),
-  initialUnavailable = [],
-  assignments = [],
+  initialMonth,
+  initialUnavailable = EMPTY_ARRAY,
+  assignments = EMPTY_ARRAY,
   onSave,
   userRole = "staff",
 }) => {
+  const insets = useSafeAreaInsets();
   const api = userRole === "manager" ? managerApi : staffApi;
 
   const [activeTab, setActiveTab] = useState("form"); // "form" | "saved"
-  const [calendarMonth, setCalendarMonth] = useState(() => new Date(initialMonth));
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    return initialMonth ? new Date(initialMonth) : new Date();
+  });
   const [selectedDates, setSelectedDates] = useState([]);
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -83,6 +100,13 @@ export const AvailabilityModal = ({
   const [records, setRecords] = useState([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [dialogConfig, setDialogConfig] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const initialUnavailableRef = useRef(initialUnavailable);
+  useEffect(() => {
+    initialUnavailableRef.current = initialUnavailable;
+  }, [initialUnavailable]);
 
   const monthString = useMemo(() => {
     const yr = calendarMonth.getFullYear();
@@ -100,22 +124,31 @@ export const AvailabilityModal = ({
     try {
       const data = await api.getAvailability("", { upcoming: "true" });
       if (data?.records && Array.isArray(data.records)) {
-        setRecords(data.records);
+        setRecords(
+          data.records
+            .filter((r) => Boolean(r && (r.date || r._id)))
+            .map((r, idx) => ({
+              _id: r._id || `temp-${idx}`,
+              date: toDateKey(r.date),
+              reason: r.reason || "",
+            }))
+        );
       } else if (data?.unavailable && Array.isArray(data.unavailable)) {
         setRecords(
           data.unavailable.map((d, idx) => ({
-            _id: `temp-${idx}`,
-            date: d,
-            reason: "",
+            _id: typeof d === "object" ? d._id || `temp-${idx}` : `temp-${idx}`,
+            date: toDateKey(typeof d === "string" ? d : d.date || ""),
+            reason: typeof d === "object" ? d.reason || "" : "",
           }))
         );
       }
     } catch {
-      if (Array.isArray(initialUnavailable)) {
+      const fallback = initialUnavailableRef.current;
+      if (Array.isArray(fallback)) {
         setRecords(
-          initialUnavailable.map((d, idx) => ({
-            _id: `init-${idx}`,
-            date: typeof d === "string" ? d : d.date || "",
+          fallback.map((d, idx) => ({
+            _id: typeof d === "object" ? d._id || `init-${idx}` : `init-${idx}`,
+            date: toDateKey(typeof d === "string" ? d : d.date || ""),
             reason: typeof d === "object" ? d.reason || "" : "",
           }))
         );
@@ -123,16 +156,57 @@ export const AvailabilityModal = ({
     } finally {
       setLoadingRecords(false);
     }
-  }, [api, initialUnavailable]);
+  }, [api]);
+
+  // Set of dates already saved as unavailable in normalized YYYY-MM-DD
+  const savedUnavailableDatesSet = useMemo(() => {
+    const set = new Set();
+    records.forEach((r) => {
+      const k = toDateKey(r.date);
+      if (k) set.add(k);
+    });
+    return set;
+  }, [records]);
+
+  const prevVisibleRef = useRef(false);
 
   useEffect(() => {
-    if (visible) {
+    if (visible && !prevVisibleRef.current) {
       loadSavedRecords();
       setSelectedDates([]);
       setReason("");
       setActiveTab("form");
+      if (initialMonth) {
+        const d = new Date(initialMonth);
+        if (!isNaN(d.getTime())) {
+          setCalendarMonth(d);
+        }
+      }
     }
-  }, [visible, loadSavedRecords]);
+    prevVisibleRef.current = visible;
+  }, [visible, loadSavedRecords, initialMonth]);
+
+  // Android hardware back-button handling
+  useEffect(() => {
+    if (!visible) return;
+
+    const onBackPress = () => {
+      if (dialogConfig?.visible) {
+        if (!isDeleting) {
+          setDialogConfig(null);
+        }
+        return true;
+      }
+      if (onClose) {
+        onClose();
+        return true;
+      }
+      return false;
+    };
+
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => sub.remove();
+  }, [visible, dialogConfig, isDeleting, onClose]);
 
   // Assigned dates lookup
   const assignedDatesSet = useMemo(() => {
@@ -179,14 +253,40 @@ export const AvailabilityModal = ({
   };
 
   const handleToggleDate = (dateKey) => {
+    if (!dateKey) return;
+
+    // 1. Check if date has a confirmed shift assignment
     if (assignedDatesSet.has(dateKey)) {
-      Alert.alert(
-        "Confirmed Shift Assigned",
-        "You have a confirmed event assigned on this day. Please contact administrator if you have an emergency."
-      );
+      setDialogConfig({
+        visible: true,
+        title: "Confirmed Shift Assigned",
+        message:
+          "You have a confirmed event assigned on this day. Please contact your manager if you have an emergency.",
+        tone: "warning",
+        icon: Clock,
+        confirmText: "Understood",
+        cancelText: null,
+      });
       return;
     }
 
+    // 2. Check if date is already marked as unavailable in saved records
+    if (savedUnavailableDatesSet.has(dateKey)) {
+      const existing = records.find((r) => toDateKey(r.date) === dateKey);
+      const reasonDetail = existing?.reason ? ` (Reason: ${existing.reason})` : "";
+      setDialogConfig({
+        visible: true,
+        title: "Date Already Unavailable",
+        message: `${formatDateDisplay(dateKey)} is already marked as unavailable in your saved off-duty schedule${reasonDetail}.`,
+        tone: "info",
+        icon: CalendarOff,
+        confirmText: "Understood",
+        cancelText: null,
+      });
+      return;
+    }
+
+    // 3. Toggle date selection for current session (prevents duplicates)
     setSelectedDates((prev) => {
       if (prev.includes(dateKey)) {
         return prev.filter((d) => d !== dateKey);
@@ -197,60 +297,149 @@ export const AvailabilityModal = ({
   };
 
   const handleSave = async () => {
+    if (submitting) return;
+
     if (selectedDates.length === 0) {
-      Alert.alert("No Dates Selected", "Please tap one or more calendar dates to mark as off-duty.");
+      setDialogConfig({
+        visible: true,
+        title: "No Dates Selected",
+        message: "Please tap one or more calendar dates to mark as off-duty before saving.",
+        tone: "info",
+        icon: CalendarOff,
+        confirmText: "Got It",
+        cancelText: null,
+      });
+      return;
+    }
+
+    // Deduplicate and filter out any dates already in saved records
+    const uniqueSelectedDates = Array.from(new Set(selectedDates.map(toDateKey).filter(Boolean)));
+    const freshDates = uniqueSelectedDates.filter((d) => !savedUnavailableDatesSet.has(d));
+
+    if (freshDates.length === 0) {
+      setDialogConfig({
+        visible: true,
+        title: "Dates Already Saved",
+        message: "All selected dates are already marked as unavailable in your saved off-duty schedule.",
+        tone: "info",
+        icon: CalendarOff,
+        confirmText: "Understood",
+        cancelText: null,
+      });
+      setSelectedDates([]);
       return;
     }
 
     try {
       setSubmitting(true);
       const payload = {
-        dates: selectedDates,
+        dates: freshDates,
         reason: reason.trim() || "Day Off",
       };
 
       await api.setAvailability(payload);
-      Alert.alert("Success", "Your availability schedule has been updated.");
+      showInAppNotification({
+        title: "Availability Saved",
+        message: `${freshDates.length} off-duty ${freshDates.length === 1 ? "date" : "dates"} saved successfully.`,
+        type: "success",
+      });
       if (onSave) {
-        onSave(payload, selectedDates);
+        onSave(payload, freshDates);
       }
-      loadSavedRecords();
+      await loadSavedRecords();
       setSelectedDates([]);
       setReason("");
       setActiveTab("saved");
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || "Failed to update availability.");
+      setDialogConfig({
+        visible: true,
+        title: "Update Failed",
+        message: err.response?.data?.message || "Failed to update availability schedule. Please try again.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+        cancelText: null,
+      });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDeleteRecord = async (record) => {
-    Alert.alert(
-      "Remove Off-Duty Date",
-      `Are you sure you want to mark ${formatDateDisplay(record.date)} as available again?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setDeletingId(record._id || record.date);
-              await api.removeAvailability(record._id || record.date);
-              setRecords((prev) => prev.filter((r) => r._id !== record._id && r.date !== record.date));
-              if (onSave) {
-                onSave({ refreshOnly: true });
-              }
-            } catch (err) {
-              Alert.alert("Error", "Failed to remove availability record.");
-            } finally {
-              setDeletingId(null);
-            }
-          },
-        },
-      ]
-    );
+  const handleDeleteRecord = (record) => {
+    if (!record || deletingId || isDeleting) return;
+
+    const formattedDate = formatDateDisplay(record.date);
+
+    setDialogConfig({
+      visible: true,
+      title: "Remove Off-Duty Date",
+      message: `Are you sure you want to remove off-duty status for ${formattedDate} and mark this day as available again?`,
+      tone: "destructive",
+      icon: Trash2,
+      confirmText: "Remove Date",
+      cancelText: "Keep Date",
+      loading: false,
+      onConfirm: async () => {
+        try {
+          setIsDeleting(true);
+          setDeletingId(record._id || record.date);
+
+          const hasValidId =
+            record._id &&
+            !String(record._id).startsWith("temp-") &&
+            !String(record._id).startsWith("init-");
+
+          if (hasValidId) {
+            await api.removeAvailability(record._id, { params: { date: record.date } });
+          } else {
+            await api.removeAvailability("", { params: { date: record.date } });
+          }
+
+          // Successfully removed from backend: remove from local state
+          setRecords((prev) =>
+            prev.filter((r) => {
+              if (hasValidId && r._id === record._id) return false;
+              return toDateKey(r.date) !== toDateKey(record.date);
+            })
+          );
+
+          if (onSave) {
+            onSave({ refreshOnly: true });
+          }
+
+          // Close confirmation dialog
+          setDialogConfig(null);
+
+          // Success notification feedback
+          showInAppNotification({
+            title: "Off-Duty Date Removed",
+            message: `${formattedDate} is now marked as available.`,
+            type: "success",
+          });
+
+          // Refresh in background
+          loadSavedRecords();
+        } catch (err) {
+          setDialogConfig({
+            visible: true,
+            title: "Could Not Remove Date",
+            message:
+              err.response?.data?.message ||
+              "Failed to remove availability record. Please try again.",
+            tone: "destructive",
+            confirmText: "Dismiss",
+            cancelText: null,
+            onConfirm: () => setDialogConfig(null),
+          });
+        } finally {
+          setIsDeleting(false);
+          setDeletingId(null);
+        }
+      },
+      onCancel: () => {
+        // Canceling leaves saved date unchanged
+        setDialogConfig(null);
+      },
+    });
   };
 
   if (!visible) return null;
@@ -261,9 +450,21 @@ export const AvailabilityModal = ({
       animationType="slide"
       transparent
       onRequestClose={onClose}
+      statusBarTranslucent
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
+      <View style={styles.modalRoot}>
+        {/* Backdrop dismiss tap area */}
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={styles.backdropTapArea} />
+        </TouchableWithoutFeedback>
+
+        {/* Bottom sheet card */}
+        <View
+          style={[
+            styles.modalContainer,
+            { paddingBottom: Math.max(insets.bottom, spacing.md) },
+          ]}
+        >
           {/* Header */}
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
@@ -343,7 +544,7 @@ export const AvailabilityModal = ({
 
                     const isSelected = selectedDates.includes(d.dateKey);
                     const isAssigned = assignedDatesSet.has(d.dateKey);
-                    const isSavedOff = records.some((r) => r.date === d.dateKey);
+                    const isSavedOff = savedUnavailableDatesSet.has(d.dateKey);
                     const isToday = toDateKey(new Date()) === d.dateKey;
 
                     return (
@@ -468,8 +669,11 @@ export const AvailabilityModal = ({
                         <TouchableOpacity
                           style={styles.deleteBtn}
                           onPress={() => handleDeleteRecord(r)}
-                          disabled={deletingId === (r._id || r.date)}
+                          disabled={isDeleting || deletingId === (r._id || r.date)}
                           activeOpacity={0.7}
+                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove off-duty date for ${formatDateDisplay(r.date)}`}
                         >
                           {deletingId === (r._id || r.date) ? (
                             <ActivityIndicator size="small" color={colors.error} />
@@ -485,16 +689,44 @@ export const AvailabilityModal = ({
             )}
           </ScrollView>
         </View>
+
+        {/* In-Modal Notification Banner (Above bottom sheet and backdrop) */}
+        <InAppNotificationBanner inModal />
+
+        {/* In-Modal Dialog Overlay Layer (Independent of bottom sheet layout) */}
+        {dialogConfig?.visible ? (
+          <AppDialog
+            inline
+            visible={Boolean(dialogConfig?.visible)}
+            title={dialogConfig.title}
+            message={dialogConfig.message}
+            tone={dialogConfig.tone || "primary"}
+            icon={dialogConfig.icon}
+            highlight={dialogConfig.highlight}
+            confirmText={dialogConfig.confirmText || "Confirm"}
+            cancelText={dialogConfig.cancelText}
+            loading={dialogConfig.loading || isDeleting}
+            dismissOnBackdrop={dialogConfig.dismissOnBackdrop !== false && !isDeleting}
+            onConfirm={dialogConfig.onConfirm || (() => setDialogConfig(null))}
+            onCancel={dialogConfig.onCancel || (() => setDialogConfig(null))}
+            onClose={() => setDialogConfig(null)}
+          >
+            {dialogConfig.children}
+          </AppDialog>
+        ) : null}
       </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
+  modalRoot: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.6)",
     justifyContent: "flex-end",
+  },
+  backdropTapArea: {
+    ...StyleSheet.absoluteFillObject,
   },
   modalContainer: {
     backgroundColor: colors.surface,
@@ -504,6 +736,7 @@ const styles = StyleSheet.create({
     minHeight: 520,
     overflow: "hidden",
     ...shadows.xl,
+    zIndex: 10,
   },
   header: {
     flexDirection: "row",
@@ -799,6 +1032,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
+    gap: spacing.sm,
   },
   recordDateText: {
     fontSize: typography.sizes.sm,
@@ -812,11 +1046,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   deleteBtn: {
-    padding: 8,
+    width: 40,
+    height: 40,
     borderRadius: radius.md,
     backgroundColor: colors.errorLight,
     borderWidth: 1,
     borderColor: colors.errorBorder,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 

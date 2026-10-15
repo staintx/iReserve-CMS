@@ -1089,6 +1089,10 @@ export default function AdminBookingDetails() {
   };
 
   const handleUpdateStatus = async (newStatus, successMsg) => {
+    if (isCancellationPending) {
+      notify("Cannot update booking status while a customer cancellation request is pending review. Please resolve the cancellation request first.", "warning");
+      return;
+    }
     setUpdatingStatus(true);
     try {
       if (newStatus === "completed" || newStatus === "delivered") {
@@ -1117,6 +1121,10 @@ export default function AdminBookingDetails() {
   };
 
   const handleMarkCompleted = async () => {
+    if (isCancellationPending) {
+      notify("Cannot mark event as completed while a customer cancellation request is pending review. Please resolve the cancellation request first.", "warning");
+      return;
+    }
     if (!window.confirm("Are you sure you want to mark this event as Completed? This will finalize the event and allow the customer to leave a review.")) return;
     try {
       await AdminAPI.markBookingCompleted(booking._id);
@@ -1194,113 +1202,122 @@ export default function AdminBookingDetails() {
                 <MessageSquare size={13} /> Message
               </Btn>
 
-              {/* Food-Only Lifecycle Progressive Actions */}
-              {isFoodOnlyService ? (
+              {/* Progressive Lifecycle Actions (Locked when cancellation is pending) */}
+              {!isCancellationPending ? (
                 <>
-                  {["pending deposit", "Deposit Pending"].includes(rawStatus) && (
-                    <Btn size="sm" variant="primary" onClick={handleApprove}>
-                      <Check size={13} /> Confirm Booking
-                    </Btn>
+                  {isFoodOnlyService ? (
+                    <>
+                      {["pending deposit", "Deposit Pending"].includes(rawStatus) && (
+                        <Btn size="sm" variant="primary" onClick={handleApprove}>
+                          <Check size={13} /> Confirm Booking
+                        </Btn>
+                      )}
+
+                      {["confirmed", "converted to booking"].includes(rawStatus) && (
+                        <Btn
+                          size="sm"
+                          variant="primary"
+                          disabled={updatingStatus}
+                          onClick={() => setStatusConfirmTarget({
+                            status: "preparing",
+                            title: "Start Food Preparation?",
+                            message: "Are you sure you want to update this booking to 'Food Prep'? This will notify the customer that the kitchen is actively preparing and packing their party trays.",
+                            confirmText: "Yes, Start Food Prep",
+                            successMsg: "Food preparation started! Customer tracker updated to Food Prep."
+                          })}
+                          className="bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
+                          title="Mark as Food Prep (Step 6)"
+                        >
+                          <Utensils size={13} /> Start Food Prep
+                        </Btn>
+                      )}
+
+                      {["preparing", "food preparation", "food prep", "ongoing"].includes(rawStatus) && (
+                        <Btn
+                          size="sm"
+                          variant="primary"
+                          disabled={updatingStatus}
+                          onClick={() => setStatusConfirmTarget({
+                            status: "out for delivery",
+                            title: "Dispatch Out for Delivery?",
+                            message: "Are you sure you want to dispatch this order? This will update the customer tracker to 'Out for Delivery' with the delivery courier on the way.",
+                            confirmText: "Yes, Dispatch Order",
+                            successMsg: "Dispatched out for delivery! Customer tracker updated to Out for Delivery."
+                          })}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
+                          title="Mark as Out for Delivery (Step 7)"
+                        >
+                          <Truck size={13} /> Dispatch Out for Delivery
+                        </Btn>
+                      )}
+
+                      {["out for delivery", "in transit", "ready for delivery"].includes(rawStatus) && remainingBalance <= 0 && (
+                        <Btn
+                          size="sm"
+                          variant="primary"
+                          disabled={updatingStatus}
+                          onClick={() => setStatusConfirmTarget({
+                            status: "completed",
+                            title: "Mark as Delivered & Completed?",
+                            message: "Are you sure you want to finalize this food delivery as Completed? This will conclude the booking lifecycle and invite the customer to leave a review.",
+                            confirmText: "Yes, Mark Completed",
+                            successMsg: "Event marked as Completed successfully!"
+                          })}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
+                          title="Finalize delivery as Completed (Step 8)"
+                        >
+                          <CheckCircle2 size={13} /> Mark Delivered &amp; Completed
+                        </Btn>
+                      )}
+                    </>
+                  ) : (
+                    /* Full Service Setup Progressive Action Buttons */
+                    <>
+                      {booking.status === "inquiry" && (
+                        <Btn size="sm" variant="primary" onClick={() => setShowQuoteModal(true)}>
+                          <Send size={13} /> Send Official Quote
+                        </Btn>
+                      )}
+
+                      {["pending deposit", "Deposit Pending"].includes(booking.status) && (
+                        <Btn size="sm" variant="primary" onClick={handleApprove}>
+                          <Check size={13} /> Confirm Booking
+                        </Btn>
+                      )}
+
+                      {["confirmed", "Confirmed", "preparing", "Ready for Event", "ready for event", "ongoing", "Pending Completion", "pending completion"].includes(booking.status) && (
+                        <Btn
+                          size="sm"
+                          variant="primary"
+                          disabled={updatingStatus}
+                          onClick={() => setStatusConfirmTarget({
+                            status: "completed",
+                            title: "Mark Event as Completed?",
+                            message: remainingBalance > 0
+                              ? `Are you sure you want to mark this event as Completed? There is an outstanding balance of ₱${remainingBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })} which will be recorded as collected in cash on-site.`
+                              : "Are you sure you want to mark this event as Completed? This will finalize the event and allow the customer to leave a review.",
+                            confirmText: "Yes, Mark Completed",
+                            successMsg: "Event marked as Completed successfully!"
+                          })}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
+                        >
+                          <CheckCircle2 size={13} /> Mark Completed
+                        </Btn>
+                      )}
+                    </>
                   )}
 
-                  {["confirmed", "converted to booking"].includes(rawStatus) && (
-                    <Btn
-                      size="sm"
-                      variant="primary"
-                      disabled={updatingStatus}
-                      onClick={() => setStatusConfirmTarget({
-                        status: "preparing",
-                        title: "Start Food Preparation?",
-                        message: "Are you sure you want to update this booking to 'Food Prep'? This will notify the customer that the kitchen is actively preparing and packing their party trays.",
-                        confirmText: "Yes, Start Food Prep",
-                        successMsg: "Food preparation started! Customer tracker updated to Food Prep."
-                      })}
-                      className="bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
-                      title="Mark as Food Prep (Step 6)"
-                    >
-                      <Utensils size={13} /> Start Food Prep
-                    </Btn>
-                  )}
-
-                  {["preparing", "food preparation", "food prep", "ongoing"].includes(rawStatus) && (
-                    <Btn
-                      size="sm"
-                      variant="primary"
-                      disabled={updatingStatus}
-                      onClick={() => setStatusConfirmTarget({
-                        status: "out for delivery",
-                        title: "Dispatch Out for Delivery?",
-                        message: "Are you sure you want to dispatch this order? This will update the customer tracker to 'Out for Delivery' with the delivery courier on the way.",
-                        confirmText: "Yes, Dispatch Order",
-                        successMsg: "Dispatched out for delivery! Customer tracker updated to Out for Delivery."
-                      })}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
-                      title="Mark as Out for Delivery (Step 7)"
-                    >
-                      <Truck size={13} /> Dispatch Out for Delivery
-                    </Btn>
-                  )}
-
-                  {["out for delivery", "in transit", "ready for delivery"].includes(rawStatus) && remainingBalance <= 0 && (
-                    <Btn
-                      size="sm"
-                      variant="primary"
-                      disabled={updatingStatus}
-                      onClick={() => setStatusConfirmTarget({
-                        status: "completed",
-                        title: "Mark as Delivered & Completed?",
-                        message: "Are you sure you want to finalize this food delivery as Completed? This will conclude the booking lifecycle and invite the customer to leave a review.",
-                        confirmText: "Yes, Mark Completed",
-                        successMsg: "Event marked as Completed successfully!"
-                      })}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
-                      title="Finalize delivery as Completed (Step 8)"
-                    >
-                      <CheckCircle2 size={13} /> Mark Delivered &amp; Completed
+                  {!["cancelled", "completed"].includes(rawStatus) && (
+                    <Btn size="sm" variant="secondary" onClick={handleOpenEditModal}>
+                      <Edit size={13} /> Edit Booking
                     </Btn>
                   )}
                 </>
               ) : (
-                /* Full Service Setup Progressive Action Buttons */
-                <>
-                  {booking.status === "inquiry" && (
-                    <Btn size="sm" variant="primary" onClick={() => setShowQuoteModal(true)}>
-                      <Send size={13} /> Send Official Quote
-                    </Btn>
-                  )}
-
-                  {["pending deposit", "Deposit Pending"].includes(booking.status) && (
-                    <Btn size="sm" variant="primary" onClick={handleApprove}>
-                      <Check size={13} /> Confirm Booking
-                    </Btn>
-                  )}
-
-                  {["confirmed", "Confirmed", "preparing", "Ready for Event", "ready for event", "ongoing", "Pending Completion", "pending completion"].includes(booking.status) && (
-                    <Btn
-                      size="sm"
-                      variant="primary"
-                      disabled={updatingStatus}
-                      onClick={() => setStatusConfirmTarget({
-                        status: "completed",
-                        title: "Mark Event as Completed?",
-                        message: remainingBalance > 0
-                          ? `Are you sure you want to mark this event as Completed? There is an outstanding balance of ₱${remainingBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })} which will be recorded as collected in cash on-site.`
-                          : "Are you sure you want to mark this event as Completed? This will finalize the event and allow the customer to leave a review.",
-                        confirmText: "Yes, Mark Completed",
-                        successMsg: "Event marked as Completed successfully!"
-                      })}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      <CheckCircle2 size={13} /> Mark Completed
-                    </Btn>
-                  )}
-                </>
-              )}
-
-              {!["cancelled", "completed"].includes(rawStatus) && (
-                <Btn size="sm" variant="secondary" onClick={handleOpenEditModal}>
-                  <Edit size={13} /> Edit Booking
-                </Btn>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200 select-none shadow-2xs">
+                  <AlertTriangle size={13} className="text-rose-600 shrink-0" />
+                  <span>Cancellation Review Pending</span>
+                </div>
               )}
             </div>
           </div>

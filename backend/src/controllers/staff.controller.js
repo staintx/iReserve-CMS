@@ -376,6 +376,16 @@ exports.completeEvent = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Assigned event not found" });
   }
 
+  if (["completed", "Completed"].includes(booking.status)) {
+    return res.status(400).json({ message: "This booking is already completed." });
+  }
+
+  if (booking.cancellation_request?.status === "pending") {
+    return res.status(400).json({
+      message: "Cannot mark event as completed while a customer cancellation request is pending review. Please resolve or decline the cancellation request first."
+    });
+  }
+
   if (!isBookingStartedOrFinished(booking)) {
     return res.status(400).json({
       message: `Shift cannot be marked completed before the event starts (${formatBookingEventSchedule(booking.event_date, booking.start_time)}).`

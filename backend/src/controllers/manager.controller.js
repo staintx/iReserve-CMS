@@ -1212,6 +1212,12 @@ exports.markCompleted = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "This booking is already completed and read-only." });
   }
 
+  if (booking.cancellation_request?.status === "pending") {
+    return res.status(400).json({
+      message: "Cannot mark booking as completed while a customer cancellation request is pending review. Please resolve or decline the cancellation request first."
+    });
+  }
+
   // Validate Equipment Checklist: all applicable items must be inspected before completion
   const applicableKeys = new Set();
   const inclusions = Array.isArray(booking.package_inclusions) ? booking.package_inclusions : [];

@@ -15,12 +15,14 @@ import { colors, radius, spacing, typography } from "../../constants/theme";
 import AppInput from "../../components/common/AppInput";
 import AppButton from "../../components/common/AppButton";
 import { useAuth } from "../../context/AuthContext";
+import { useAppDialog } from "../../context/DialogContext";
 
 import { evaluatePassword, describePasswordGap } from "../../utils/passwordPolicy";
 import { validateName } from "../../utils/validationRules";
 
 export const RegisterScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { showAlertDialog } = useAppDialog();
   const { register } = useAuth();
 
   const [firstName, setFirstName] = useState("");
@@ -76,17 +78,15 @@ export const RegisterScreen = ({ navigation }) => {
         password,
       });
 
-      Alert.alert(
-        "Verification Code Sent",
-        `We've sent a 6-digit verification code to ${email.trim()}.`,
-        [
-          {
-            text: "Enter Code",
-            onPress: () =>
-              navigation.navigate("OtpVerification", { email: email.trim().toLowerCase() }),
-          },
-        ]
-      );
+      showAlertDialog({
+        title: "Verification Code Sent",
+        message: `We've sent a 6-digit verification code to ${email.trim()}. Please enter it to activate your account.`,
+        tone: "primary",
+        icon: Mail,
+        confirmText: "Enter Code",
+        onConfirm: () =>
+          navigation.navigate("OtpVerification", { email: email.trim().toLowerCase() }),
+      });
     } catch (err) {
       setError(
         err.response?.data?.message ||

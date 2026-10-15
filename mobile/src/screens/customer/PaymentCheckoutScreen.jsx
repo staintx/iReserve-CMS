@@ -17,6 +17,7 @@ import Header from "../../components/common/Header";
 import AppButton from "../../components/common/AppButton";
 import customerApi from "../../api/customer";
 import { formatCurrency } from "../../utils/format";
+import { confirmAction, showAlertDialog } from "../../context/DialogContext";
 
 export const PaymentCheckoutScreen = ({ route, navigation }) => {
   const params = route.params || {};
@@ -90,11 +91,16 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
   }, [params.bookingId, params.inquiryId, params.amount, currentCheckoutUrl]);
 
   const showNotice = (title, message) => {
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.alert(`${title}: ${message}`);
-    } else {
-      Alert.alert(title, message);
-    }
+    const isError =
+      title.toLowerCase().includes("failed") ||
+      title.toLowerCase().includes("error") ||
+      title.toLowerCase().includes("rejected");
+    showAlertDialog({
+      title,
+      message,
+      tone: isError ? "destructive" : "info",
+      confirmText: "Got It",
+    });
   };
 
   const handleManualVerify = async () => {
@@ -196,52 +202,35 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
     } else if (url.includes("payment=cancelled") || url.includes("status=cancelled")) {
       const returnButtonText = params.bookingId ? "Return to Booking" : "Return to Inquiries";
 
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        window.alert("Your payment transaction was cancelled. You can retry paying at any time.");
-        if (params.bookingId) {
-          navigation.navigate("BookingDetail", { id: params.bookingId });
-        } else {
-          navigation.navigate("InquiriesList");
-        }
-      } else {
-        Alert.alert(
-          "Payment Cancelled",
-          "Your payment transaction was cancelled. You can retry paying at any time.",
-          [
-            {
-              text: returnButtonText,
-              onPress: () => {
-                if (params.bookingId) {
-                  navigation.navigate("BookingDetail", { id: params.bookingId });
-                } else {
-                  navigation.navigate("InquiriesList");
-                }
-              },
-            },
-          ]
-        );
-      }
+      showAlertDialog({
+        title: "Payment Cancelled",
+        message: "Your payment transaction was cancelled. You can retry paying at any time from your bookings list.",
+        tone: "info",
+        confirmText: returnButtonText,
+        onConfirm: () => {
+          if (params.bookingId) {
+            navigation.navigate("BookingDetail", { id: params.bookingId });
+          } else {
+            navigation.navigate("InquiriesList");
+          }
+        },
+      });
     }
   };
 
-  const handleExit = useCallback(() => {
-    if (Platform.OS === "web") {
-      if (typeof window !== "undefined" && window.confirm) {
-        if (window.confirm("Exit Checkout? Your payment transaction will not be completed.")) {
-          navigation.goBack();
-        }
-      } else {
-        navigation.goBack();
-      }
-    } else {
-      Alert.alert(
-        "Exit Checkout?",
-        "Are you sure you want to leave? Your payment transaction will not be completed.",
-        [
-          { text: "Continue Paying", style: "cancel" },
-          { text: "Exit", style: "destructive", onPress: () => navigation.goBack() },
-        ]
-      );
+  const handleExit = useCallback(async () => {
+    const shouldExit = await confirmAction({
+      title: "Exit Checkout?",
+      message:
+        "Your payment transaction is not completed. If you exit now, your reservation or balance payment will remain pending until settled.",
+      confirmText: "Exit Checkout",
+      cancelText: "Continue Paying",
+      tone: "warning",
+      icon: AlertTriangle,
+    });
+
+    if (shouldExit) {
+      navigation.goBack();
     }
   }, [navigation]);
 

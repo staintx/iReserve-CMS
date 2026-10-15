@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Sparkles,
   X,
+  CheckCircle2,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography, shadows } from "../../constants/theme";
 import { navigateGlobal } from "../../navigation/navigationRef";
@@ -23,12 +24,13 @@ import { useAuth } from "../../context/AuthContext";
 
 // Event bus for app-wide notification toast triggers
 const listeners = new Set();
+let activeModalBannerCount = 0;
 
 export const showInAppNotification = (notification) => {
   listeners.forEach((listener) => listener(notification));
 };
 
-export const InAppNotificationBanner = () => {
+export const InAppNotificationBanner = ({ inModal = false }) => {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [currentNotif, setCurrentNotif] = useState(null);
@@ -56,8 +58,16 @@ export const InAppNotificationBanner = () => {
   };
 
   useEffect(() => {
+    if (inModal) {
+      activeModalBannerCount++;
+    }
+
     const handleNotification = (notif) => {
       if (!notif) return;
+      // If this is the root banner and a modal banner is currently active in the foreground,
+      // suppress the root banner to avoid duplicate or dimmed notifications behind the modal.
+      if (!inModal && activeModalBannerCount > 0) return;
+
       if (dismissTimer.current) clearTimeout(dismissTimer.current);
 
       setCurrentNotif(notif);
@@ -87,8 +97,11 @@ export const InAppNotificationBanner = () => {
     return () => {
       listeners.delete(handleNotification);
       if (dismissTimer.current) clearTimeout(dismissTimer.current);
+      if (inModal) {
+        activeModalBannerCount = Math.max(0, activeModalBannerCount - 1);
+      }
     };
-  }, []);
+  }, [inModal]);
 
   if (!currentNotif) return null;
 
@@ -128,6 +141,16 @@ export const InAppNotificationBanner = () => {
     const type = (currentNotif.type || "").toLowerCase();
     const title = (currentNotif.title || "").toLowerCase();
 
+    if (
+      type.includes("success") ||
+      title.includes("success") ||
+      title.includes("saved") ||
+      title.includes("removed") ||
+      title.includes("updated") ||
+      title.includes("done")
+    ) {
+      return <CheckCircle2 size={18} color={colors.success} />;
+    }
     if (type.includes("payment") || title.includes("payment") || title.includes("deposit")) {
       return <CreditCard size={18} color={colors.success} />;
     }
@@ -187,7 +210,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: spacing.md,
     right: spacing.md,
-    zIndex: 9998,
+    zIndex: 99998,
+    elevation: 998,
   },
   card: {
     flexDirection: "row",

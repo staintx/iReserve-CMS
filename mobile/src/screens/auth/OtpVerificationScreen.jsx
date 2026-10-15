@@ -11,13 +11,15 @@ import {
   Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ShieldCheck, ChevronLeft, RotateCcw } from "lucide-react-native";
+import { ShieldCheck, ChevronLeft, RotateCcw, CheckCircle2, Mail } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import AppButton from "../../components/common/AppButton";
 import authApi from "../../api/auth";
+import { useAppDialog } from "../../context/DialogContext";
 
 export const OtpVerificationScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
+  const { showAlertDialog } = useAppDialog();
   const initialEmail = route?.params?.email || "";
 
   const [email, setEmail] = useState(initialEmail);
@@ -75,16 +77,14 @@ export const OtpVerificationScreen = ({ route, navigation }) => {
 
     try {
       await authApi.verifyOtp({ email, otp: code });
-      Alert.alert(
-        "Email Verified! 🎉",
-        "Your account is now activated. You may now sign in.",
-        [
-          {
-            text: "Sign In",
-            onPress: () => navigation.navigate("Login"),
-          },
-        ]
-      );
+      showAlertDialog({
+        title: "Email Verified!",
+        message: "Your account is now activated. You may now sign in.",
+        tone: "success",
+        icon: CheckCircle2,
+        confirmText: "Sign In",
+        onConfirm: () => navigation.navigate("Login"),
+      });
     } catch (err) {
       setError(
         err.response?.data?.message || "Invalid or expired verification code."
@@ -102,7 +102,13 @@ export const OtpVerificationScreen = ({ route, navigation }) => {
     try {
       await authApi.resendOtp({ email });
       setCountdown(60);
-      Alert.alert("Code Sent", "A new 6-digit code has been sent to your email.");
+      showAlertDialog({
+        title: "Code Sent",
+        message: "A new 6-digit code has been sent to your email.",
+        tone: "info",
+        icon: Mail,
+        confirmText: "Got It",
+      });
     } catch (err) {
       setError(err.response?.data?.message || "Failed to resend code.");
     } finally {

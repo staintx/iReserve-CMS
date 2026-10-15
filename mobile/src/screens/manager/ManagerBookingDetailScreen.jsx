@@ -40,6 +40,7 @@ import {
   AlertCircle,
   MessageSquare,
   XCircle,
+  Info,
 } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import managerApi from "../../api/manager";
@@ -57,7 +58,10 @@ import {
   initialsOf,
   parseInclusion,
   buildDynamicChecklist,
+  parseLocalDate,
 } from "../../utils/format";
+import { confirmAction, showAlertDialog } from "../../context/DialogContext";
+import { showInAppNotification } from "../../components/common/InAppNotificationBanner";
 
 export const ManagerBookingDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -99,7 +103,12 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
       setAdditionalNotes(data?.equipment_notes || "");
     } catch (error) {
       console.error("Failed to load manager booking detail:", error);
-      Alert.alert("Error", "Could not load booking details.");
+      showAlertDialog({
+        title: "Booking Unavailable",
+        message: "Could not load booking details. Please check your connection and try again.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -123,17 +132,36 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
     return Boolean(booking && ["completed", "Completed"].includes(booking.status));
   }, [booking]);
 
+  const isBeforeEventDate = useMemo(() => {
+    if (!booking?.event_date) return false;
+    const eventDateObj = parseLocalDate(booking.event_date);
+    if (!eventDateObj) return false;
+    const today = parseLocalDate(new Date());
+    if (!today) return false;
+    return today.getTime() < eventDateObj.getTime();
+  }, [booking?.event_date]);
+
   const handleCall = (phoneNumber) => {
     if (!phoneNumber) return;
     Linking.openURL(`tel:${phoneNumber}`).catch(() =>
-      Alert.alert("Error", "Unable to open phone dialer.")
+      showAlertDialog({
+        title: "Dialer Unavailable",
+        message: "Unable to open phone dialer on this device.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      })
     );
   };
 
   const handleEmail = (emailAddress) => {
     if (!emailAddress) return;
     Linking.openURL(`mailto:${emailAddress}`).catch(() =>
-      Alert.alert("Error", "Unable to open mail client.")
+      showAlertDialog({
+        title: "Email Unavailable",
+        message: "Unable to open mail client on this device.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      })
     );
   };
 
@@ -149,7 +177,12 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
       .join(", ") || getBookingVenueLocation(booking);
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressQuery)}`;
     Linking.openURL(url).catch(() =>
-      Alert.alert("Error", "Could not open map directions.")
+      showAlertDialog({
+        title: "Navigation Unavailable",
+        message: "Could not open map directions. Please check your map application.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      })
     );
   };
 
@@ -160,9 +193,24 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
 
   const handleToggleAttendance = async (staffMember) => {
     if (isCompleted) {
-      Alert.alert("Read-Only", "Completed bookings are read-only.");
+      showAlertDialog({
+        title: "Booking Completed",
+        message: "Completed bookings are in read-only mode and staff attendance cannot be edited.",
+        tone: "info",
+      });
       return;
     }
+
+    if (isBeforeEventDate) {
+      showAlertDialog({
+        title: "Attendance Locked",
+        message: `Staff attendance verification is available on the event date (${formatDate(booking?.event_date)}).`,
+        tone: "info",
+      });
+      return;
+    }
+
+    if (updatingStaffId) return;
 
     const currentStatus = staffMember.attendance_status;
     const isPresent = currentStatus === "present";
@@ -199,8 +247,17 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
         },
       ];
       await managerApi.updateStaffAttendance(booking._id, { attendance: payload });
+      showInAppNotification({
+        title: "Attendance Updated",
+        message: `${staffMember.name || staffMember.user_id?.full_name || "Crew member"} marked as ${nextStatus === "present" ? "Present" : "Not Recorded"}.`,
+        type: "success",
+      });
     } catch (err) {
-      Alert.alert("Error", "Failed to update staff attendance. Please try again.");
+      showAlertDialog({
+        title: "Attendance Error",
+        message: "Failed to update staff attendance. Please try again.",
+        tone: "destructive",
+      });
       loadBooking();
     } finally {
       setUpdatingStaffId(null);
@@ -216,9 +273,24 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
 
   const handleMarkItemStatus = async (itemKey, status) => {
     if (isCompleted || isChecklistDone) {
-      Alert.alert("Locked", "Equipment inspection has been finalized or booking is completed.");
+      showAlertDialog({
+        title: "Inspection Locked",
+        message: "Equipment inspection has been finalized or booking is completed.",
+        tone: "info",
+      });
       return;
     }
+
+    if (isBeforeEventDate) {
+      showAlertDialog({
+        title: "Checklist Locked",
+        message: `Equipment checklist inspection is available on the event date (${formatDate(booking?.event_date)}).`,
+        tone: "info",
+      });
+      return;
+    }
+
+    if (savingItemKey) return;
 
     const nextInspected = status !== "not_inspected";
     const draftNote = inlineDrafts[itemKey] || "";
@@ -228,6 +300,7 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
       setOpenInlineNotes((prev) => ({ ...prev, [itemKey]: true }));
     }
 
+    const targetItem = checklist.find((i) => i.item_key === itemKey);
     const updatedChecklist = checklist.map((item) => {
       if (item.item_key === itemKey) {
         return {
@@ -245,8 +318,17 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
     try {
       setSavingItemKey(itemKey);
       await managerApi.updateEquipmentChecklist(booking._id, updatedChecklist);
+      showInAppNotification({
+        title: "Checklist Updated",
+        message: `Inspection status updated for ${targetItem?.name || "item"}.`,
+        type: "success",
+      });
     } catch (err) {
-      Alert.alert("Error", "Failed to save equipment inspection status.");
+      showAlertDialog({
+        title: "Inspection Error",
+        message: "Failed to save equipment inspection status.",
+        tone: "destructive",
+      });
       loadBooking();
     } finally {
       setSavingItemKey(null);
@@ -254,6 +336,26 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
   };
 
   const handleSaveInlineNotes = async (itemKey) => {
+    if (isBeforeEventDate) {
+      showAlertDialog({
+        title: "Checklist Locked",
+        message: `Equipment checklist inspection is available on the event date (${formatDate(booking?.event_date)}).`,
+        tone: "info",
+      });
+      return;
+    }
+
+    if (isCompleted || isChecklistDone) {
+      showAlertDialog({
+        title: "Inspection Locked",
+        message: "Equipment inspection has been finalized or booking is completed.",
+        tone: "info",
+      });
+      return;
+    }
+
+    if (savingItemKey) return;
+
     const draft = inlineDrafts[itemKey] || "";
     const updatedChecklist = checklist.map((item) => {
       if (item.item_key === itemKey) {
@@ -271,59 +373,131 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
     try {
       setSavingItemKey(itemKey);
       await managerApi.updateEquipmentChecklist(booking._id, updatedChecklist);
+      showInAppNotification({
+        title: "Notes Saved",
+        message: "Equipment issue note saved successfully.",
+        type: "success",
+      });
     } catch (err) {
-      Alert.alert("Error", "Failed to save equipment notes.");
+      showAlertDialog({
+        title: "Save Error",
+        message: "Failed to save equipment notes.",
+        tone: "destructive",
+      });
     } finally {
       setSavingItemKey(null);
     }
   };
 
   const handleSaveAdditionalNotes = async () => {
+    if (isBeforeEventDate) {
+      showAlertDialog({
+        title: "Checklist Locked",
+        message: `Equipment inspection notes can only be saved on the event date (${formatDate(booking?.event_date)}).`,
+        tone: "info",
+      });
+      return;
+    }
+
+    if (isCompleted || isChecklistDone) {
+      showAlertDialog({
+        title: "Inspection Locked",
+        message: "Equipment inspection has been finalized or booking is completed.",
+        tone: "info",
+      });
+      return;
+    }
+
+    if (savingAdditionalNotes) return;
+
     try {
       setSavingAdditionalNotes(true);
       await managerApi.updateEquipmentNotes(booking._id, {
         equipment_notes: additionalNotes.trim(),
       });
-      Alert.alert("Saved", "Additional equipment inspection notes saved.");
+      showInAppNotification({
+        title: "Notes Saved",
+        message: "Additional equipment inspection notes saved successfully.",
+        type: "success",
+      });
     } catch (err) {
-      Alert.alert("Error", "Failed to save additional equipment notes.");
+      showAlertDialog({
+        title: "Save Error",
+        message: "Failed to save additional equipment notes.",
+        tone: "destructive",
+      });
     } finally {
       setSavingAdditionalNotes(false);
     }
   };
 
-  const handleMarkInspectionDone = () => {
-    if (inspectedItemsCount < totalChecklistCount) {
-      Alert.alert(
-        "Incomplete Inspection",
-        `Only ${inspectedItemsCount} of ${totalChecklistCount} items have been inspected. Please inspect all items before marking as complete.`
-      );
+  const handleMarkInspectionDone = async () => {
+    if (isBeforeEventDate) {
+      showAlertDialog({
+        title: "Inspection Unavailable",
+        message: `Equipment inspection can only be finalized on the event date (${formatDate(booking?.event_date)}).`,
+        tone: "info",
+      });
       return;
     }
 
-    Alert.alert(
-      "Finalize Equipment Inspection",
-      "Are you sure all equipment has been verified on-site? This will officially record your inspection.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Confirm Complete",
-          style: "default",
-          onPress: async () => {
-            try {
-              setSubmittingDone(true);
-              await managerApi.markEquipmentChecklistDone(booking._id);
-              setBooking((prev) => ({ ...prev, equipment_checklist_done: true }));
-              Alert.alert("Success", "Equipment inspection marked as complete.");
-            } catch (err) {
-              Alert.alert("Error", "Failed to finalize equipment inspection.");
-            } finally {
-              setSubmittingDone(false);
-            }
-          },
-        },
-      ]
-    );
+    if (isCompleted || isChecklistDone) {
+      showAlertDialog({
+        title: "Inspection Locked",
+        message: "Equipment inspection has already been finalized or booking is completed.",
+        tone: "info",
+      });
+      return;
+    }
+
+    if (submittingDone) return;
+
+    if (inspectedItemsCount < totalChecklistCount) {
+      showAlertDialog({
+        title: "Incomplete Inspection",
+        message: `Only ${inspectedItemsCount} of ${totalChecklistCount} items have been inspected. Please inspect all items before marking as complete.`,
+        tone: "warning",
+        confirmText: "Review Items",
+      });
+      return;
+    }
+
+    const confirmed = await confirmAction({
+      title: "Finalize Equipment Inspection?",
+      message:
+        "Are you sure all equipment has been verified on-site? This will officially lock and record your inspection.",
+      confirmText: "Finalize Inspection",
+      cancelText: "Review Checklist",
+      tone: "primary",
+      icon: CheckCircle2,
+      highlight: {
+        badge: "Official Inspection Record",
+        label: "Verified Inventory",
+        value: `${inspectedItemsCount} of ${totalChecklistCount} Items Completed`,
+      },
+    });
+
+    if (!confirmed) return;
+
+    try {
+      setSubmittingDone(true);
+      await managerApi.markEquipmentChecklistDone(booking._id);
+      setBooking((prev) => ({ ...prev, equipment_checklist_done: true }));
+      showAlertDialog({
+        title: "Inspection Finalized",
+        message: "Equipment inspection has been officially marked as complete.",
+        tone: "success",
+        confirmText: "Done",
+      });
+    } catch (err) {
+      showAlertDialog({
+        title: "Action Failed",
+        message: "Failed to finalize equipment inspection.",
+        tone: "destructive",
+      });
+    } finally {
+      setSubmittingDone(false);
+    }
   };
 
   if (loading) {
@@ -694,6 +868,19 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
 
           {isAttendanceOpen && (
             <View style={styles.attendanceBody}>
+              {/* Read-Only Notice Before Event Date */}
+              {isBeforeEventDate && (
+                <View style={styles.readOnlyNoticeBox}>
+                  <Info size={15} color="#2563EB" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.readOnlyNoticeTitle}>Available on the event date</Text>
+                    <Text style={styles.readOnlyNoticeText}>
+                      Staff attendance check-in unlocks on the event date ({formatDate(booking.event_date)}). Attendance is currently read-only.
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {staffAssignments.length === 0 ? (
                 <View style={styles.emptyAttendanceBox}>
                   <Text style={styles.emptyAttendanceText}>
@@ -717,9 +904,10 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
                         style={[
                           styles.attendanceCheckbox,
                           isPresent && styles.attendanceCheckboxActive,
+                          (isBeforeEventDate || isCompleted) && styles.attendanceCheckboxDisabled,
                         ]}
                         onPress={() => handleToggleAttendance(member)}
-                        disabled={isUpdating || isCompleted}
+                        disabled={isUpdating || isCompleted || isBeforeEventDate}
                         activeOpacity={0.7}
                       >
                         {isUpdating ? (
@@ -895,6 +1083,19 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
 
           {isEquipmentOpen && (
             <View style={styles.equipmentBody}>
+              {/* Read-Only Notice Before Event Date */}
+              {isBeforeEventDate && (
+                <View style={styles.readOnlyNoticeBox}>
+                  <Info size={15} color="#2563EB" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.readOnlyNoticeTitle}>Available on the event date</Text>
+                    <Text style={styles.readOnlyNoticeText}>
+                      Equipment verification and checklist inspection unlock on the event date ({formatDate(booking.event_date)}). Dispatched items are currently read-only.
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {/* Checklist Done Banner */}
               {isChecklistDone && (
                 <View style={styles.inspectionDoneBanner}>
@@ -969,7 +1170,7 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
                       )}
 
                       {/* Actions: Complete vs Incomplete & Add Note */}
-                      {!isChecklistDone && !isCompleted && (
+                      {!isChecklistDone && !isCompleted && !isBeforeEventDate && (
                         <View style={styles.checkItemActionsRow}>
                           <TouchableOpacity
                             style={[
@@ -1027,7 +1228,7 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
                       )}
 
                       {/* Inline Note Editor */}
-                      {isNotesOpen && !isChecklistDone && !isCompleted && (
+                      {isNotesOpen && !isChecklistDone && !isCompleted && !isBeforeEventDate && (
                         <View style={styles.inlineNoteEditor}>
                           <TextInput
                             style={styles.inlineNoteInput}
@@ -1063,9 +1264,9 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
                   numberOfLines={3}
                   value={additionalNotes}
                   onChangeText={setAdditionalNotes}
-                  editable={!isChecklistDone && !isCompleted}
+                  editable={!isChecklistDone && !isCompleted && !isBeforeEventDate}
                 />
-                {!isChecklistDone && !isCompleted && (
+                {!isChecklistDone && !isCompleted && !isBeforeEventDate && (
                   <TouchableOpacity
                     style={styles.saveAdditionalNotesBtn}
                     onPress={handleSaveAdditionalNotes}
@@ -1082,7 +1283,7 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
               </View>
 
               {/* Final Inspection Footer Button */}
-              {!isChecklistDone && !isCompleted && (
+              {!isChecklistDone && !isCompleted && !isBeforeEventDate && (
                 <View style={styles.inspectionFooter}>
                   <AppButton
                     title={submittingDone ? "Finalizing Inspection..." : "Mark Inspection Complete"}
@@ -1524,6 +1725,35 @@ const styles = StyleSheet.create({
   attendanceCheckboxActive: {
     backgroundColor: "#059669",
     borderColor: "#059669",
+  },
+  attendanceCheckboxDisabled: {
+    opacity: 0.45,
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.cardBorder,
+  },
+  readOnlyNoticeBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  readOnlyNoticeTitle: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#1E40AF",
+    marginBottom: 2,
+  },
+  readOnlyNoticeText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: "#2563EB",
+    lineHeight: 16,
   },
   staffAvatar: {
     width: 28,

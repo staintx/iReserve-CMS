@@ -29,9 +29,11 @@ import Header from "../../components/common/Header";
 import Card from "../../components/common/Card";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
 import StaffScheduleModal from "./StaffScheduleModal";
+import { useAppDialog } from "../../context/DialogContext";
 
 export const ManagerStaffScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { showAlertDialog } = useAppDialog();
 
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,12 @@ export const ManagerStaffScreen = ({ navigation }) => {
       setStaffList(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to load staff list:", error);
-      Alert.alert("Error", "Could not load staff directory.");
+      showAlertDialog({
+        title: "Staff Directory Unavailable",
+        message: "Could not load staff directory. Please check your connection and try again.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -68,14 +75,24 @@ export const ManagerStaffScreen = ({ navigation }) => {
   const handleCall = (phone) => {
     if (!phone) return;
     Linking.openURL(`tel:${phone}`).catch(() =>
-      Alert.alert("Error", "Unable to launch phone dialer.")
+      showAlertDialog({
+        title: "Dialer Unavailable",
+        message: "Unable to launch phone dialer on this device.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      })
     );
   };
 
   const handleEmail = (email) => {
     if (!email) return;
     Linking.openURL(`mailto:${email}`).catch(() =>
-      Alert.alert("Error", "Unable to launch email app.")
+      showAlertDialog({
+        title: "Email Unavailable",
+        message: "Unable to launch email app on this device.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      })
     );
   };
 

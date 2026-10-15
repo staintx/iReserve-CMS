@@ -45,6 +45,7 @@ import ErrorState from "../../components/common/ErrorState";
 import { formatCurrency, formatDate, formatShortDate, formatTime } from "../../utils/format";
 import useRealTimeRefresh from "../../utils/useRealTimeRefresh";
 import { groupInclusions } from "../../utils/packageDisplay";
+import { confirmAction, showAlertDialog } from "../../context/DialogContext";
 
 export const QuotationDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -104,10 +105,11 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
           return;
         }
       } catch {}
-      Alert.alert(
-        "Chat Unavailable",
-        "Could not start chat session for this inquiry."
-      );
+      showAlertDialog({
+        title: "Chat Unavailable",
+        message: "Could not start chat session for this inquiry. Please try again or visit Messages.",
+        tone: "warning",
+      });
     } finally {
       setActionLoading(false);
     }
@@ -149,31 +151,23 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
   const handleAcceptAndPay = async () => {
     if (!quotation) return;
 
-    const proceed = () => {
+    const confirmed = await confirmAction({
+      title: "Accept Quotation & Pay Deposit",
+      message:
+        "Accept this official quotation and proceed to pay the initial deposit via PayMongo (GCash, Maya, or Card)? Once settled, your event date is secured.",
+      confirmText: "Proceed to Payment",
+      cancelText: "Review More",
+      tone: "primary",
+      icon: CreditCard,
+      highlight: {
+        badge: "PayMongo Secure Checkout",
+        label: "Required Initial Deposit",
+        value: formatCurrency(quotation.deposit_amount),
+      },
+    });
+
+    if (confirmed) {
       executePaymentFlow();
-    };
-
-    const confirmMsg = `Accept this quotation and proceed to pay the initial deposit of ${formatCurrency(
-      quotation.deposit_amount
-    )} via PayMongo (GCash / Maya / Card)? Once paid, your event date is secured.`;
-
-    if (Platform.OS === "web") {
-      if (typeof window !== "undefined" && window.confirm) {
-        if (window.confirm(confirmMsg)) {
-          proceed();
-        }
-      } else {
-        proceed();
-      }
-    } else {
-      Alert.alert(
-        "Accept Quotation & Pay Deposit",
-        confirmMsg,
-        [
-          { text: "Review More", style: "cancel" },
-          { text: "Proceed to Payment", onPress: proceed },
-        ]
-      );
     }
   };
 
@@ -227,12 +221,14 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
           depositAmount: quotation.deposit_amount,
         });
       } else {
-        const infoMsg = "Quotation accepted. Please check payment status in your bookings list.";
-        if (Platform.OS === "web" && typeof window !== "undefined") {
-          window.alert(infoMsg);
-        } else {
-          Alert.alert("Checkout Initiated", infoMsg);
-        }
+        const infoMsg =
+          "Quotation accepted. Please check payment status in your bookings list.";
+        showAlertDialog({
+          title: "Checkout Initiated",
+          message: infoMsg,
+          tone: "info",
+          confirmText: "View Bookings",
+        });
         navigation.navigate("BookingsList");
       }
     } catch (err) {
@@ -241,11 +237,12 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
         err.response?.data?.message ||
         err.message ||
         "Failed to process quotation payment.";
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        window.alert(`Payment Notice: ${errorMsg}`);
-      } else {
-        Alert.alert("Payment Notice", errorMsg);
-      }
+      showAlertDialog({
+        title: "Payment Checkout Notice",
+        message: errorMsg,
+        tone: "destructive",
+        confirmText: "Got It",
+      });
     } finally {
       setActionLoading(false);
     }
@@ -253,12 +250,13 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
 
   const handleRequestRevision = async () => {
     if (!revisionNote.trim()) {
-      const msg = "Please describe the adjustments or revisions you would like our team to make.";
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        window.alert(msg);
-      } else {
-        Alert.alert("Note Required", msg);
-      }
+      showAlertDialog({
+        title: "Revision Details Required",
+        message:
+          "Please describe the adjustments or revisions you would like our catering team to make.",
+        tone: "warning",
+        confirmText: "Continue Editing",
+      });
       return;
     }
 
@@ -267,20 +265,23 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
       await customerApi.requestQuotationRevision(quotation._id, revisionNote.trim());
       setShowRevisionModal(false);
       setRevisionNote("");
-      const successMsg = "Our banquet manager has received your feedback and will update the quotation.";
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        window.alert(successMsg);
-      } else {
-        Alert.alert("Revision Requested", successMsg);
-      }
+      showAlertDialog({
+        title: "Revision Requested",
+        message:
+          "Our banquet manager has received your feedback and will update the quotation according to your requested changes.",
+        tone: "success",
+        confirmText: "Done",
+      });
       loadQuotation();
     } catch (err) {
-      const errMsg = err.response?.data?.message || "Failed to submit revision request.";
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        window.alert(errMsg);
-      } else {
-        Alert.alert("Error", errMsg);
-      }
+      const errMsg =
+        err.response?.data?.message || "Failed to submit revision request.";
+      showAlertDialog({
+        title: "Revision Request Failed",
+        message: errMsg,
+        tone: "destructive",
+        confirmText: "Try Again",
+      });
     } finally {
       setActionLoading(false);
     }

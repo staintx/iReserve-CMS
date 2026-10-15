@@ -95,9 +95,12 @@ export const managerApi = {
     return response.data;
   },
 
-  removeAvailability: async (id) => {
-    const url = id ? `/manager/me/availability/${id}` : "/manager/me/availability";
-    const response = await client.delete(url);
+  removeAvailability: async (id, config = {}) => {
+    let url = "/manager/me/availability";
+    if (id && !String(id).startsWith("temp-") && !String(id).startsWith("init-")) {
+      url = `/manager/me/availability/${id}`;
+    }
+    const response = await client.delete(url, config);
     return response.data;
   },
 };

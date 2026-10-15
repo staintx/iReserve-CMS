@@ -27,6 +27,7 @@ import Card from "../../components/common/Card";
 import AppButton from "../../components/common/AppButton";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
 import { formatDate } from "../../utils/format";
+import { confirmAction, showAlertDialog } from "../../context/DialogContext";
 
 const COMMON_ROLES = [
   "Head Waiter / Captain",
@@ -69,7 +70,12 @@ export const AssignStaffModal = ({ route, navigation }) => {
       setAllStaff(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to load staff list:", error);
-      Alert.alert("Error", "Could not load staff list.");
+      showAlertDialog({
+        title: "Staff List Unavailable",
+        message: "Could not load staff members for this event date. Please try again.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      });
     } finally {
       setLoading(false);
     }
@@ -83,26 +89,24 @@ export const AssignStaffModal = ({ route, navigation }) => {
     return assignments.some((a) => String(a.user_id) === String(staffId));
   };
 
-  const handleToggleStaff = (staffMember) => {
+  const handleToggleStaff = async (staffMember) => {
     const staffId = staffMember._id;
     if (isAssigned(staffId)) {
       setAssignments((prev) => prev.filter((a) => String(a.user_id) !== String(staffId)));
     } else {
       if (!staffMember.is_available) {
-        Alert.alert(
-          "Schedule Conflict Warning",
-          `${staffMember.full_name} is marked as ${staffMember.availability_status} on ${formatDate(eventDate)}. Are you sure you want to assign them anyway?`,
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Assign Anyway",
-              onPress: () => {
-                setSelectedStaffForRole(staffMember);
-                setRoleModalVisible(true);
-              },
-            },
-          ]
-        );
+        const proceed = await confirmAction({
+          title: "Staff Schedule Conflict",
+          message: `${staffMember.full_name} is marked as ${staffMember.availability_status} on ${formatDate(eventDate)}. Are you sure you want to assign them anyway?`,
+          confirmText: "Assign Despite Conflict",
+          cancelText: "Choose Another Staff",
+          tone: "warning",
+          icon: AlertCircle,
+        });
+        if (proceed) {
+          setSelectedStaffForRole(staffMember);
+          setRoleModalVisible(true);
+        }
       } else {
         setSelectedStaffForRole(staffMember);
         setRoleModalVisible(true);
@@ -135,6 +139,7 @@ export const AssignStaffModal = ({ route, navigation }) => {
   };
 
   const handleSave = async () => {
+    if (saving) return;
     try {
       setSaving(true);
       const payload = assignments.map((a) => ({
@@ -144,11 +149,22 @@ export const AssignStaffModal = ({ route, navigation }) => {
       }));
 
       await managerApi.assignStaff(bookingId, payload);
-      Alert.alert("Success", "Staff assignments saved successfully.");
-      if (onSuccess) onSuccess();
-      navigation.goBack();
+      showAlertDialog({
+        title: "Staff Assigned",
+        message: "Staff assignments saved successfully and team shifts updated.",
+        tone: "success",
+        confirmText: "Done",
+        onConfirm: () => {
+          if (onSuccess) onSuccess();
+          navigation.goBack();
+        },
+      });
     } catch (error) {
-      Alert.alert("Error", error.response?.data?.message || "Failed to update staff assignments.");
+      showAlertDialog({
+        title: "Assignment Error",
+        message: error.response?.data?.message || "Failed to update staff assignments.",
+        tone: "destructive",
+      });
     } finally {
       setSaving(false);
     }

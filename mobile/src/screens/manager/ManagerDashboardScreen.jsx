@@ -553,8 +553,8 @@ export const ManagerDashboardScreen = ({ navigation }) => {
         visible={showAvailabilityModal}
         onClose={() => setShowAvailabilityModal(false)}
         initialMonth={calendarMonth}
-        initialUnavailable={availabilityData.unavailable || []}
-        assignments={availabilityData.assignments || []}
+        initialUnavailable={availabilityData.unavailable}
+        assignments={availabilityData.assignments}
         onSave={handleSaveAvailability}
         userRole="manager"
       />

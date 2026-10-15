@@ -18,17 +18,22 @@ import {
   CheckCircle2,
   Info,
   CalendarCheck,
+  Clock,
+  Trash2,
 } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import staffApi from "../../api/staff";
 import Card from "../../components/common/Card";
 import AppButton from "../../components/common/AppButton";
+import { confirmAction, useAppDialog } from "../../context/DialogContext";
+import { showInAppNotification } from "../../components/common/InAppNotificationBanner";
 import { formatDate } from "../../utils/format";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export const StaffAvailabilityScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { showAlertDialog } = useAppDialog();
 
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [unavailableDates, setUnavailableDates] = useState([]);
@@ -36,6 +41,7 @@ export const StaffAvailabilityScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const initialSavedDatesRef = React.useRef(new Set());
 
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth();
@@ -45,7 +51,9 @@ export const StaffAvailabilityScreen = ({ navigation }) => {
     try {
       setLoading(true);
       const data = await staffApi.getMyAvailability(monthString);
-      setUnavailableDates(data?.unavailable || []);
+      const savedList = data?.unavailable || [];
+      setUnavailableDates(savedList);
+      initialSavedDatesRef.current = new Set(savedList);
       setAssignments(data?.assignments || []);
       setHasUnsavedChanges(false);
     } catch (error) {
@@ -99,13 +107,31 @@ export const StaffAvailabilityScreen = ({ navigation }) => {
     return set;
   }, [assignments]);
 
-  const handleToggleDay = (dateKey) => {
+  const handleToggleDay = async (dateKey) => {
     if (assignedDatesSet.has(dateKey)) {
-      Alert.alert(
-        "Shift Already Assigned",
-        "You already have a confirmed event shift on this day. Please contact your Event Operations Manager if you have a scheduling emergency."
-      );
+      showAlertDialog({
+        title: "Shift Already Assigned",
+        message: "You already have a confirmed event shift on this day. Please contact your Event Operations Manager if you have a scheduling emergency.",
+        tone: "warning",
+        icon: Clock,
+        confirmText: "Understood",
+      });
       return;
+    }
+
+    const isAlreadyUnavailable = unavailableDates.includes(dateKey);
+    const wasPreviouslySaved = initialSavedDatesRef.current.has(dateKey);
+
+    if (isAlreadyUnavailable && wasPreviouslySaved) {
+      const confirmed = await confirmAction({
+        title: "Remove Off-Duty Date",
+        message: `Are you sure you want to remove off-duty status for ${formatDate(dateKey)} and mark this day as available?`,
+        tone: "destructive",
+        icon: Trash2,
+        confirmText: "Remove Date",
+        cancelText: "Keep Date",
+      });
+      if (!confirmed) return;
     }
 
     setUnavailableDates((prev) => {
@@ -121,13 +147,25 @@ export const StaffAvailabilityScreen = ({ navigation }) => {
   };
 
   const handleSave = async () => {
+    if (saving) return;
+
     try {
       setSaving(true);
       await staffApi.setMyAvailability(monthString, unavailableDates);
+      initialSavedDatesRef.current = new Set(unavailableDates);
       setHasUnsavedChanges(false);
-      Alert.alert("Saved", "Your availability schedule for this month has been updated.");
+      showInAppNotification({
+        title: "Availability Saved",
+        message: "Your off-duty blackout dates for this month have been saved successfully.",
+        type: "success",
+      });
     } catch (error) {
-      Alert.alert("Error", error.response?.data?.message || "Failed to save availability.");
+      showAlertDialog({
+        title: "Could Not Save Schedule",
+        message: error.response?.data?.message || "Failed to save availability. Please try again.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      });
     } finally {
       setSaving(false);
     }

@@ -26,6 +26,7 @@ import { AuthProvider } from "./src/context/AuthContext";
 import { OnboardingProvider } from "./src/context/OnboardingContext";
 import { SocketProvider } from "./src/context/SocketContext";
 import { NetworkProvider } from "./src/context/NetworkContext";
+import { DialogProvider } from "./src/context/DialogContext";
 import OfflineBanner from "./src/components/common/OfflineBanner";
 import InAppNotificationBanner from "./src/components/common/InAppNotificationBanner";
 import RootNavigator from "./src/navigation/RootNavigator";
@@ -78,10 +79,12 @@ export default function App() {
         <AuthProvider>
           <OnboardingProvider>
             <SocketProvider>
-              <StatusBar style="dark" />
-              <OfflineBanner />
-              <InAppNotificationBanner />
-              <RootNavigator fontsLoaded={fontsLoaded} />
+              <DialogProvider>
+                <StatusBar style="dark" />
+                <RootNavigator fontsLoaded={fontsLoaded} />
+                <OfflineBanner />
+                <InAppNotificationBanner />
+              </DialogProvider>
             </SocketProvider>
           </OnboardingProvider>
         </AuthProvider>

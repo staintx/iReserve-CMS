@@ -53,6 +53,8 @@ import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import AppButton from "../../components/common/AppButton";
 import { formatCurrency, formatDate, formatTime, formatShortDate } from "../../utils/format";
+import { confirmAction, showAlertDialog } from "../../context/DialogContext";
+import { showInAppNotification } from "../../components/common/InAppNotificationBanner";
 
 export const BookingDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -277,58 +279,74 @@ export const BookingDetailScreen = ({ route, navigation }) => {
     }
     setCopiedRef(true);
     setTimeout(() => setCopiedRef(false), 2000);
-    Alert.alert("Reference Copied", `Booking reference #${refCode} copied to clipboard.`);
+    showInAppNotification({
+      title: "Reference Copied",
+      message: `Booking reference #${refCode} copied to clipboard.`,
+    });
   };
 
   // Pay Remaining Balance via PayMongo
   const handlePayBalance = async () => {
-    Alert.alert(
-      "Pay Remaining Balance",
-      `Proceed to pay the remaining balance of ${formatCurrency(
-        remainingBalance
-      )} via PayMongo (GCash / Maya / Card)?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Proceed to Checkout",
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              const res = await customerApi.createCheckoutSession({
-                booking_id: booking._id,
-                amount: remainingBalance,
-                payment_type: "balance",
-                payment_method_types: ["gcash", "paymaya", "card"],
-              });
+    const confirmed = await confirmAction({
+      title: "Pay Remaining Balance",
+      message:
+        "Proceed to pay the remaining balance via PayMongo (GCash, Maya, or Card)? Once paid, your booking is fully settled.",
+      confirmText: "Proceed to Payment",
+      cancelText: "Review Details",
+      tone: "primary",
+      icon: CreditCard,
+      highlight: {
+        badge: "PayMongo Secure Checkout",
+        label: "Remaining Balance Due",
+        value: formatCurrency(remainingBalance),
+      },
+    });
 
-              if (res?.checkout_url) {
-                navigation.navigate("PaymentCheckout", {
-                  checkoutUrl: res.checkout_url,
-                  paymentId: res.payment?._id,
-                  depositAmount: remainingBalance,
-                });
-              } else {
-                Alert.alert("Checkout Initiated", "Check payment confirmation shortly.");
-                loadBooking();
-              }
-            } catch (err) {
-              Alert.alert(
-                "Payment Error",
-                err.response?.data?.message || "Failed to initialize balance checkout."
-              );
-            } finally {
-              setActionLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    if (!confirmed) return;
+
+    setActionLoading(true);
+    try {
+      const res = await customerApi.createCheckoutSession({
+        booking_id: booking._id,
+        amount: remainingBalance,
+        payment_type: "balance",
+        payment_method_types: ["gcash", "paymaya", "card"],
+      });
+
+      if (res?.checkout_url) {
+        navigation.navigate("PaymentCheckout", {
+          checkoutUrl: res.checkout_url,
+          paymentId: res.payment?._id,
+          depositAmount: remainingBalance,
+          bookingId: booking._id,
+        });
+      } else {
+        showAlertDialog({
+          title: "Checkout Initiated",
+          message: "Balance payment checkout initialized. Please check confirmation status.",
+          tone: "info",
+        });
+        loadBooking();
+      }
+    } catch (err) {
+      showAlertDialog({
+        title: "Payment Error",
+        message: err.response?.data?.message || "Failed to initialize balance checkout.",
+        tone: "destructive",
+      });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Submit Change Proposal
   const handleSubmitChangeRequest = async () => {
     if (!changeNote.trim() && !changeDate && !changeGuests && !changeTime && !changeVenue) {
-      Alert.alert("Information Required", "Please describe the changes you want to propose.");
+      showAlertDialog({
+        title: "Information Required",
+        message: "Please specify the changes you want to propose (date, time, guests, or notes).",
+        tone: "warning",
+      });
       return;
     }
 
@@ -343,19 +361,25 @@ export const BookingDetailScreen = ({ route, navigation }) => {
       if (changeVenue) payload.venue_type = changeVenue;
 
       await customerApi.proposeRevision(booking._id, payload);
-      Alert.alert(
-        "Revisions Submitted",
-        "Your proposed revisions were submitted for manager review."
-      );
       setShowChangeModal(false);
       setChangeNote("");
       setChangeDate("");
       setChangeTime("");
       setChangeGuests("");
       setChangeVenue("");
+      showAlertDialog({
+        title: "Revisions Submitted",
+        message: "Your proposed revisions were submitted for manager review.",
+        tone: "success",
+        confirmText: "Done",
+      });
       loadBooking();
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || "Failed to submit revision proposal.");
+      showAlertDialog({
+        title: "Submission Error",
+        message: err.response?.data?.message || "Failed to submit revision proposal.",
+        tone: "destructive",
+      });
     } finally {
       setActionLoading(false);
     }
@@ -363,28 +387,37 @@ export const BookingDetailScreen = ({ route, navigation }) => {
 
   // Accept Management Revision Proposal
   const handleAcceptRevision = async () => {
-    Alert.alert(
-      "Accept Proposed Revision",
-      "Confirm accepting the revised event schedule, guest count, and pricing?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Accept Revisions",
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              await customerApi.acceptRevision(booking._id);
-              Alert.alert("Accepted", "The revised booking details are now official.");
-              loadBooking();
-            } catch (err) {
-              Alert.alert("Error", err.response?.data?.message || "Failed to accept revision.");
-            } finally {
-              setActionLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await confirmAction({
+      title: "Accept Proposed Revision",
+      message:
+        "Confirm accepting the revised event schedule, guest count, and pricing? These will become the official terms for your event booking.",
+      confirmText: "Accept Revision",
+      cancelText: "Review Details",
+      tone: "primary",
+      icon: CheckCircle2,
+    });
+
+    if (!confirmed) return;
+
+    setActionLoading(true);
+    try {
+      await customerApi.acceptRevision(booking._id);
+      showAlertDialog({
+        title: "Revision Accepted",
+        message: "The revised booking details are now official.",
+        tone: "success",
+        confirmText: "Got It",
+      });
+      loadBooking();
+    } catch (err) {
+      showAlertDialog({
+        title: "Error",
+        message: err.response?.data?.message || "Failed to accept revision.",
+        tone: "destructive",
+      });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Reject Management Revision Proposal (Cross-platform modal)
@@ -400,12 +433,21 @@ export const BookingDetailScreen = ({ route, navigation }) => {
         booking._id,
         rejectRevisionReason.trim() || "Customer declined revision"
       );
-      Alert.alert("Declined", "The revision proposal has been declined.");
       setShowRejectRevisionModal(false);
       setRejectRevisionReason("");
+      showAlertDialog({
+        title: "Revision Declined",
+        message: "The revision proposal has been declined. Our team will review your comments.",
+        tone: "info",
+        confirmText: "Understood",
+      });
       loadBooking();
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || "Failed to decline revision.");
+      showAlertDialog({
+        title: "Action Failed",
+        message: err.response?.data?.message || "Failed to decline revision.",
+        tone: "destructive",
+      });
     } finally {
       setActionLoading(false);
     }
@@ -415,18 +457,43 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   const handleAddGuests = async () => {
     const count = parseInt(extraGuests, 10);
     if (!count || count <= 0) {
-      Alert.alert("Invalid Input", "Please enter a valid number of additional guests.");
+      showAlertDialog({
+        title: "Invalid Guest Count",
+        message: "Please enter a valid number of additional guests (at least 1).",
+        tone: "warning",
+      });
       return;
     }
+
+    const confirmed = await confirmAction({
+      title: "Add Additional Guests?",
+      message: `Confirm adding ${count} additional guests to this event? Per-pax pricing and catering allocations will be updated accordingly.`,
+      confirmText: `Add ${count} Guests`,
+      cancelText: "Cancel",
+      tone: "primary",
+      icon: Users,
+    });
+
+    if (!confirmed) return;
 
     setActionLoading(true);
     try {
       await customerApi.addGuests(booking._id, count);
-      Alert.alert("Guests Added", `Successfully added ${count} additional guests to your event.`);
       setShowAddGuestsModal(false);
+      setExtraGuests("");
+      showAlertDialog({
+        title: "Guests Added",
+        message: `Successfully added ${count} additional guests to your event.`,
+        tone: "success",
+        confirmText: "Done",
+      });
       loadBooking();
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || "Failed to add guests.");
+      showAlertDialog({
+        title: "Failed to Add Guests",
+        message: err.response?.data?.message || "Failed to add guests.",
+        tone: "destructive",
+      });
     } finally {
       setActionLoading(false);
     }
@@ -435,21 +502,42 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   // Upgrade Package
   const handleUpgradePackage = async () => {
     if (!selectedUpgradePkg) {
-      Alert.alert("Selection Required", "Please select a package to upgrade to.");
+      showAlertDialog({
+        title: "Selection Required",
+        message: "Please select a package to upgrade to.",
+        tone: "warning",
+      });
       return;
     }
+
+    const confirmed = await confirmAction({
+      title: "Request Package Upgrade?",
+      message: `Submit request to upgrade package to "${selectedUpgradePkg.name}"? Our catering manager will adjust the quotation inclusions and pricing.`,
+      confirmText: "Request Upgrade",
+      cancelText: "Keep Current Package",
+      tone: "primary",
+      icon: Sparkles,
+    });
+
+    if (!confirmed) return;
 
     setActionLoading(true);
     try {
       await customerApi.upgradeBooking(booking._id, selectedUpgradePkg._id);
-      Alert.alert(
-        "Upgrade Submitted",
-        `Your upgrade request to ${selectedUpgradePkg.name} has been submitted.`
-      );
       setShowUpgradeModal(false);
+      showAlertDialog({
+        title: "Upgrade Submitted",
+        message: `Your upgrade request to ${selectedUpgradePkg.name} has been submitted for manager review.`,
+        tone: "success",
+        confirmText: "Got It",
+      });
       loadBooking();
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || "Failed to upgrade package.");
+      showAlertDialog({
+        title: "Upgrade Failed",
+        message: err.response?.data?.message || "Failed to upgrade package.",
+        tone: "destructive",
+      });
     } finally {
       setActionLoading(false);
     }
@@ -458,7 +546,11 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   // Submit Star Rating & Review
   const handleSubmitRating = async () => {
     if (!ratingReview.trim()) {
-      Alert.alert("Review Required", "Please write a short review sharing your experience.");
+      showAlertDialog({
+        title: "Review Required",
+        message: "Please write a short review sharing your event catering experience.",
+        tone: "warning",
+      });
       return;
     }
 
@@ -470,10 +562,19 @@ export const BookingDetailScreen = ({ route, navigation }) => {
         review: ratingReview.trim(),
       };
       await customerApi.submitRating(payload);
-      Alert.alert("Thank You!", "Your rating and feedback have been shared.");
       setBookingRating({ rating: ratingStars, review: ratingReview.trim() });
+      showAlertDialog({
+        title: "Thank You! 🎉",
+        message: "Your rating and feedback have been shared with our banquet team.",
+        tone: "success",
+        confirmText: "Done",
+      });
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || "Failed to submit review.");
+      showAlertDialog({
+        title: "Review Failed",
+        message: err.response?.data?.message || "Failed to submit review.",
+        tone: "destructive",
+      });
     } finally {
       setSubmittingRating(false);
     }
@@ -482,7 +583,11 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   // Open Chat with Assigned Manager
   const handleChatWithManager = async () => {
     if (!booking.event_manager_id) {
-      Alert.alert("Manager Not Assigned", "An event manager will be assigned to your booking shortly.");
+      showAlertDialog({
+        title: "Manager Not Assigned",
+        message: "An event operations manager will be assigned to your booking shortly.",
+        tone: "info",
+      });
       return;
     }
 
@@ -514,104 +619,125 @@ export const BookingDetailScreen = ({ route, navigation }) => {
       } catch {
         // Ignored
       }
-      Alert.alert(
-        "Chat Unavailable",
-        "Could not start chat session. Please call or message the manager directly."
-      );
+      showAlertDialog({
+        title: "Chat Unavailable",
+        message: "Could not start chat session. Please call or email the manager directly.",
+        tone: "warning",
+      });
     } finally {
       setActionLoading(false);
     }
   };
 
   // Request Ocular
-  const handleRequestOcular = () => {
-    Alert.alert(
-      "Request Ocular Inspection",
-      "Would you like to request an on-site venue inspection by our team? We will coordinate with you to confirm the date.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Request Ocular",
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              const d = new Date();
-              d.setDate(d.getDate() + 3);
-              await customerApi.requestOcular(booking._id, {
-                scheduled_date: d.toISOString().split("T")[0],
-                notes: "Customer requested ocular inspection via mobile app.",
-              });
-              Alert.alert("Ocular Requested", "Our team will contact you to confirm the site visit schedule.");
-              loadBooking();
-            } catch (err) {
-              Alert.alert("Error", err.response?.data?.message || "Failed to request ocular.");
-            } finally {
-              setActionLoading(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleRequestOcular = async () => {
+    const confirmed = await confirmAction({
+      title: "Request Ocular Inspection",
+      message:
+        "Would you like to request an on-site venue inspection by our team? We will coordinate with you to confirm the date and time.",
+      confirmText: "Request Inspection",
+      cancelText: "Not Now",
+      tone: "primary",
+      icon: Calendar,
+    });
+
+    if (!confirmed) return;
+
+    setActionLoading(true);
+    try {
+      const d = new Date();
+      d.setDate(d.getDate() + 3);
+      await customerApi.requestOcular(booking._id, {
+        scheduled_date: d.toISOString().split("T")[0],
+        notes: "Customer requested ocular inspection via mobile app.",
+      });
+      showAlertDialog({
+        title: "Ocular Requested",
+        message: "Our team will contact you to confirm the site visit schedule.",
+        tone: "success",
+        confirmText: "Understood",
+      });
+      loadBooking();
+    } catch (err) {
+      showAlertDialog({
+        title: "Request Failed",
+        message: err.response?.data?.message || "Failed to request ocular.",
+        tone: "destructive",
+      });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Skip Ocular
-  const handleSkipOcular = () => {
-    Alert.alert(
-      "Skip Ocular Inspection",
-      "Are you confident with your venue setup without an on-site inspection?",
-      [
-        { text: "Keep Ocular", style: "cancel" },
-        {
-          text: "Skip Ocular",
-          style: "destructive",
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              await customerApi.skipOcular(booking._id);
-              Alert.alert("Ocular Skipped", "Proceeding directly to event preparation.");
-              loadBooking();
-            } catch (err) {
-              Alert.alert("Error", err.response?.data?.message || "Failed to skip ocular.");
-            } finally {
-              setActionLoading(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleSkipOcular = async () => {
+    const confirmed = await confirmAction({
+      title: "Skip Ocular Inspection?",
+      message:
+        "Are you confident with your venue setup without an on-site inspection? Event preparation will proceed directly based on your submitted venue specifications.",
+      confirmText: "Skip Ocular",
+      cancelText: "Keep Ocular",
+      tone: "warning",
+      icon: AlertTriangle,
+    });
+
+    if (!confirmed) return;
+
+    setActionLoading(true);
+    try {
+      await customerApi.skipOcular(booking._id);
+      showAlertDialog({
+        title: "Ocular Skipped",
+        message: "Proceeding directly to event preparation based on venue specifications.",
+        tone: "info",
+        confirmText: "Done",
+      });
+      loadBooking();
+    } catch (err) {
+      showAlertDialog({
+        title: "Action Failed",
+        message: err.response?.data?.message || "Failed to skip ocular.",
+        tone: "destructive",
+      });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Request Cancellation
-  const handleRequestCancellation = () => {
-    Alert.alert(
-      "Request Cancellation / Refund",
-      "Are you sure you want to request cancellation for this booking? A formal request will be submitted to management.",
-      [
-        { text: "Keep Booking", style: "cancel" },
-        {
-          text: "Submit Cancellation Request",
-          style: "destructive",
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              await customerApi.requestCancellation(booking._id);
-              Alert.alert(
-                "Request Submitted",
-                "Your cancellation request has been submitted for administrative review."
-              );
-              loadBooking();
-            } catch (err) {
-              Alert.alert(
-                "Error",
-                err.response?.data?.message || "Failed to submit cancellation request."
-              );
-            } finally {
-              setActionLoading(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleRequestCancellation = async () => {
+    const confirmed = await confirmAction({
+      title: "Request Booking Cancellation?",
+      message:
+        "Are you sure you want to request cancellation for this booking? A formal cancellation request will be submitted to management for administrative review subject to the cancellation policy.",
+      confirmText: "Submit Cancellation Request",
+      cancelText: "Keep Booking",
+      tone: "destructive",
+      icon: AlertTriangle,
+    });
+
+    if (!confirmed) return;
+
+    setActionLoading(true);
+    try {
+      await customerApi.requestCancellation(booking._id);
+      showAlertDialog({
+        title: "Cancellation Request Submitted",
+        message:
+          "Your cancellation request has been submitted for administrative review. Our management team will contact you.",
+        tone: "info",
+        confirmText: "Done",
+      });
+      loadBooking();
+    } catch (err) {
+      showAlertDialog({
+        title: "Cancellation Failed",
+        message: err.response?.data?.message || "Failed to submit cancellation request.",
+        tone: "destructive",
+      });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   if (loading) {
@@ -1547,13 +1673,13 @@ export const BookingDetailScreen = ({ route, navigation }) => {
 
             <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg }}>
               <AppButton
-                title="Cancel"
+                title="Keep Revision"
                 variant="outline"
                 onPress={() => setShowRejectRevisionModal(false)}
                 style={{ flex: 1 }}
               />
               <AppButton
-                title="Decline"
+                title="Decline Revision"
                 variant="danger"
                 loading={actionLoading}
                 onPress={confirmRejectRevision}

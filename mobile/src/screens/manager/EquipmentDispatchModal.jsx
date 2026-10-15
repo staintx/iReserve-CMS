@@ -17,12 +17,14 @@ import {
   ShieldCheck,
   AlertCircle,
   FileText,
+  Truck,
 } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import managerApi from "../../api/manager";
 import Header from "../../components/common/Header";
 import Card from "../../components/common/Card";
 import AppButton from "../../components/common/AppButton";
+import { confirmAction, showAlertDialog } from "../../context/DialogContext";
 
 export const EquipmentDispatchModal = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -60,6 +62,27 @@ export const EquipmentDispatchModal = ({ route, navigation }) => {
     inventoryItems.every((_, idx) => Boolean(checkedMap[idx]));
 
   const handleConfirmVerification = async () => {
+    if (submitting) return;
+    const checkedCount = Object.values(checkedMap).filter(Boolean).length;
+    const totalCount = inventoryItems.length;
+
+    const confirmed = await confirmAction({
+      title: "Verify & Dispatch Equipment?",
+      message:
+        "Confirm that all selected logistics and inventory items have been physically checked and are ready for event dispatch?",
+      confirmText: "Confirm Dispatch",
+      cancelText: "Review Items",
+      tone: "primary",
+      icon: Truck,
+      highlight: {
+        badge: "Dispatch Verification",
+        label: "Checked Inventory",
+        value: `${checkedCount} of ${totalCount} Items Verified`,
+      },
+    });
+
+    if (!confirmed) return;
+
     try {
       setSubmitting(true);
       await managerApi.verifyEquipment(bookingId, {
@@ -67,17 +90,22 @@ export const EquipmentDispatchModal = ({ route, navigation }) => {
         additional_notes: notes.trim(),
       });
 
-      Alert.alert(
-        "Equipment Verified",
-        "The inventory items and equipment have been officially verified for dispatch."
-      );
-      if (onSuccess) onSuccess();
-      navigation.goBack();
+      showAlertDialog({
+        title: "Equipment Dispatched",
+        message: "The inventory items and equipment have been officially verified for dispatch.",
+        tone: "success",
+        confirmText: "Done",
+        onConfirm: () => {
+          if (onSuccess) onSuccess();
+          navigation.goBack();
+        },
+      });
     } catch (error) {
-      Alert.alert(
-        "Verification Failed",
-        error.response?.data?.message || "Failed to submit verification."
-      );
+      showAlertDialog({
+        title: "Verification Failed",
+        message: error.response?.data?.message || "Failed to submit verification.",
+        tone: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }

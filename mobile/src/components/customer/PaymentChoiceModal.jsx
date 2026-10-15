@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import {
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import customerApi from "../../api/customer";
+import { useAppDialog } from "../../context/DialogContext";
 import { formatCurrency, formatDate } from "../../utils/format";
 import { getPaymentDueDate } from "../../utils/receiptHelpers";
 
@@ -32,18 +33,22 @@ export const PaymentChoiceModal = ({
   onSuccess,
   onSelectOnline,
 }) => {
+  const { showAlertDialog } = useAppDialog();
   const [selectedMethod, setSelectedMethod] = useState("online");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const prevVisibleRef = useRef(false);
+
   useEffect(() => {
-    if (visible && booking) {
+    if (visible && !prevVisibleRef.current && booking) {
       setSelectedMethod(
         booking?.balance_payment_preference === "in_person" ? "in_person" : "online"
       );
       setNotes(booking?.balance_payment_notes || "");
       setSubmitting(false);
     }
+    prevVisibleRef.current = visible;
   }, [visible, booking]);
 
   if (!visible || !booking) return null;
@@ -54,7 +59,12 @@ export const PaymentChoiceModal = ({
 
   const handleProceed = async () => {
     if (payable <= 0) {
-      Alert.alert("Balance Settled", "No remaining balance found for this booking.");
+      showAlertDialog({
+        title: "Balance Settled",
+        message: "No remaining balance found for this booking. All dues have been completed.",
+        tone: "success",
+        confirmText: "Close",
+      });
       onClose();
       return;
     }
@@ -74,19 +84,23 @@ export const PaymentChoiceModal = ({
         notes: notes.trim(),
       });
 
-      Alert.alert(
-        "Cash Payment Confirmed",
-        `In-person payment preference saved. Please prepare ${formatCurrency(
+      showAlertDialog({
+        title: "Cash Payment Confirmed",
+        message: `In-person payment preference saved. Please prepare ${formatCurrency(
           payable
         )} in cash for your Event Manager after event completion.`,
-        [{ text: "OK", onPress: () => onSuccess?.() }]
-      );
+        tone: "success",
+        confirmText: "Done",
+        onConfirm: () => onSuccess?.(),
+      });
       onClose();
     } catch (err) {
-      Alert.alert(
-        "Payment Preference",
-        err.response?.data?.message || "Failed to save payment preference."
-      );
+      showAlertDialog({
+        title: "Payment Preference Error",
+        message: err.response?.data?.message || "Failed to save payment preference. Please try again.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      });
     } finally {
       setSubmitting(false);
     }

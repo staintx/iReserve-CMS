@@ -57,6 +57,7 @@ import { useAuth } from "../../context/AuthContext";
 import customerApi from "../../api/customer";
 import SerratedDivider from "../../components/common/SerratedDivider";
 import CalendarDatePicker from "../../components/common/CalendarDatePicker";
+import { showAlertDialog } from "../../context/DialogContext";
 import {
   BATANGAS_PROVINCE,
   getBatangasMunicipalities,
@@ -1119,10 +1120,15 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
         setFieldErrors(stepValidation.errors);
         setStepError(stepValidation.message || "Please complete all required fields.");
         scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-        Alert.alert(
-          "Incomplete Booking Details",
-          stepValidation.message || Object.values(stepValidation.errors)[0] || "Please complete all required fields on this step."
-        );
+        showAlertDialog({
+          title: "Incomplete Booking Details",
+          message:
+            stepValidation.message ||
+            Object.values(stepValidation.errors)[0] ||
+            "Please complete all required fields on this step before proceeding.",
+          tone: "warning",
+          confirmText: "Review Fields",
+        });
         return;
       }
     }
@@ -1214,7 +1220,12 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
     } catch (err) {
       const errorMsg =
         err.response?.data?.message || "Unable to submit your inquiry. Please verify your entries.";
-      Alert.alert("Submission Failed", errorMsg);
+      showAlertDialog({
+        title: "Submission Failed",
+        message: errorMsg,
+        tone: "destructive",
+        confirmText: "Check Details",
+      });
     } finally {
       setSubmitting(false);
     }

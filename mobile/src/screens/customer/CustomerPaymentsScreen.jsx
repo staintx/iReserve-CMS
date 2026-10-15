@@ -40,6 +40,7 @@ import {
 } from "../../utils/receiptHelpers";
 import CustomerReceiptModal from "../../components/customer/CustomerReceiptModal";
 import PaymentChoiceModal from "../../components/customer/PaymentChoiceModal";
+import { showAlertDialog } from "../../context/DialogContext";
 
 const BRAND_BLUE = "#4C81E0";
 
@@ -287,13 +288,18 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
           bookingId: booking._id,
         });
       } else {
-        Alert.alert("Checkout Notice", "Could not generate checkout link. Please try again.");
+        showAlertDialog({
+          title: "Checkout Notice",
+          message: "Could not generate checkout link. Please try again in a few moments.",
+          tone: "warning",
+        });
       }
     } catch (err) {
-      Alert.alert(
-        "Payment Error",
-        err.response?.data?.message || "Failed to initialize payment checkout."
-      );
+      showAlertDialog({
+        title: "Payment Error",
+        message: err.response?.data?.message || "Failed to initialize payment checkout.",
+        tone: "destructive",
+      });
     } finally {
       setPayingTargetId(null);
     }
@@ -318,13 +324,18 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
           bookingId: choiceBooking._id,
         });
       } else {
-        Alert.alert("Checkout Notice", "Could not generate checkout link. Please try again.");
+        showAlertDialog({
+          title: "Checkout Notice",
+          message: "Could not generate checkout link. Please try again in a few moments.",
+          tone: "warning",
+        });
       }
     } catch (err) {
-      Alert.alert(
-        "Payment Error",
-        err.response?.data?.message || "Failed to initialize balance checkout."
-      );
+      showAlertDialog({
+        title: "Payment Error",
+        message: err.response?.data?.message || "Failed to initialize balance checkout.",
+        tone: "destructive",
+      });
     } finally {
       setPayingTargetId(null);
     }

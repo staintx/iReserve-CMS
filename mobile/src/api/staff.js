@@ -51,9 +51,12 @@ export const staffApi = {
     return response.data;
   },
 
-  removeAvailability: async (id) => {
-    const url = id ? `/staff/me/availability/${id}` : "/staff/me/availability";
-    const response = await client.delete(url);
+  removeAvailability: async (id, config = {}) => {
+    let url = "/staff/me/availability";
+    if (id && !String(id).startsWith("temp-") && !String(id).startsWith("init-")) {
+      url = `/staff/me/availability/${id}`;
+    }
+    const response = await client.delete(url, config);
     return response.data;
   },
 };

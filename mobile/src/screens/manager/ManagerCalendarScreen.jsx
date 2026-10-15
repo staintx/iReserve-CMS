@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   CalendarOff,
   Sparkles,
+  Trash2,
 } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import managerApi from "../../api/manager";
@@ -25,6 +26,8 @@ import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
 import AppButton from "../../components/common/AppButton";
 import { formatDate, formatTime } from "../../utils/format";
+import { confirmAction, showAlertDialog } from "../../context/DialogContext";
+import { showInAppNotification } from "../../components/common/InAppNotificationBanner";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -116,6 +119,20 @@ export const ManagerCalendarScreen = ({ navigation }) => {
   const selectedDayEvents = eventsByDate[selectedDateKey] || [];
 
   const handleToggleDateAvailability = async () => {
+    if (savingAvailability) return;
+
+    if (isSelectedUnavailable) {
+      const confirmed = await confirmAction({
+        title: "Remove Unavailable Date",
+        message: `Are you sure you want to remove the off-duty restriction for ${formatDate(selectedDateKey)} and mark this day as available for bookings?`,
+        tone: "destructive",
+        icon: Trash2,
+        confirmText: "Remove Date",
+        cancelText: "Keep Date",
+      });
+      if (!confirmed) return;
+    }
+
     try {
       setSavingAvailability(true);
       let updatedList = [];
@@ -129,14 +146,20 @@ export const ManagerCalendarScreen = ({ navigation }) => {
 
       await managerApi.setAvailability(monthString, updatedList);
       setUnavailableDates(updatedList);
-      Alert.alert(
-        "Availability Updated",
-        isSelectedUnavailable
-          ? `Date marked as Available.`
-          : `Date marked as Unavailable.`
-      );
+      showInAppNotification({
+        title: isSelectedUnavailable ? "Off-Duty Date Removed" : "Date Marked Off-Duty",
+        message: isSelectedUnavailable
+          ? `${formatDate(selectedDateKey)} is now marked as available for event bookings.`
+          : `${formatDate(selectedDateKey)} is now marked as unavailable for bookings.`,
+        type: "success",
+      });
     } catch (error) {
-      Alert.alert("Error", error.response?.data?.message || "Failed to update availability.");
+      showAlertDialog({
+        title: isSelectedUnavailable ? "Could Not Remove Date" : "Update Failed",
+        message: error.response?.data?.message || "Failed to update availability. Please try again.",
+        tone: "destructive",
+        confirmText: "Dismiss",
+      });
     } finally {
       setSavingAvailability(false);
     }

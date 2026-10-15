@@ -13,6 +13,7 @@ import {
   Keyboard,
   Platform,
   ActivityIndicator,
+  BackHandler,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -1084,9 +1085,46 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
     if (stepIndex > 0) {
       setStepIndex(stepIndex - 1);
     } else {
-      navigation.goBack();
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate("CustomerTabs", { screen: "CustomerHome" });
+      }
     }
   };
+
+  // Intercept Android hardware back button: close active picker modals, or step back one step in wizard
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const onBackPress = () => {
+      if (showMunicipalityPicker) {
+        setShowMunicipalityPicker(false);
+        setMunicipalityQuery("");
+        return true;
+      }
+      if (showBarangayPicker) {
+        setShowBarangayPicker(false);
+        setBarangayQuery("");
+        return true;
+      }
+      if (showEditModal) {
+        setShowEditModal(false);
+        return true;
+      }
+      if (stepIndex > 0) {
+        handleBack();
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => sub.remove();
+  }, [
+    showMunicipalityPicker,
+    showBarangayPicker,
+    showEditModal,
+    stepIndex,
+  ]);
 
   const toggleDishSelection = (dish) => {
     const exists = selectedDishes.some((d) => d._id === dish._id);
@@ -1215,7 +1253,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
           isNewSubmission: true,
         });
       } else {
-        navigation.replace("InquiriesList");
+        navigation.navigate("CustomerTabs", { screen: "InquiriesList" });
       }
     } catch (err) {
       const errorMsg =
@@ -2786,7 +2824,15 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
       </View>
 
       {/* Municipality Modal */}
-      <Modal visible={showMunicipalityPicker} animationType="slide" transparent>
+      <Modal
+        visible={showMunicipalityPicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          setShowMunicipalityPicker(false);
+          setMunicipalityQuery("");
+        }}
+      >
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
             <View style={styles.modalHeader}>
@@ -2843,7 +2889,15 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
       </Modal>
 
       {/* Barangay Modal */}
-      <Modal visible={showBarangayPicker} animationType="slide" transparent>
+      <Modal
+        visible={showBarangayPicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          setShowBarangayPicker(false);
+          setBarangayQuery("");
+        }}
+      >
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
             <View style={styles.modalHeader}>
@@ -2898,7 +2952,12 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
       </Modal>
 
       {/* Edit Inquiry Sections Modal Sheet */}
-      <Modal visible={showEditModal} animationType="slide" transparent>
+      <Modal
+        visible={showEditModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowEditModal(false)}
+      >
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md, maxHeight: "85%" }]}>
             <View style={styles.modalHeader}>

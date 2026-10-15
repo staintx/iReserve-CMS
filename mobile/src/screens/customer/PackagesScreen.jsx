@@ -220,8 +220,13 @@ export const PackagesScreen = ({ navigation }) => {
       <Header
         title="Catering Packages"
         subtitle="All curated event packages & inclusions"
-        showBack={navigation?.canGoBack ? navigation.canGoBack() : true}
-        onBack={() => navigation.goBack()}
+        onBack={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate("CustomerTabs", { screen: "CustomerHome" });
+          }
+        }}
       />
 
       {/* Filter Tabs */}

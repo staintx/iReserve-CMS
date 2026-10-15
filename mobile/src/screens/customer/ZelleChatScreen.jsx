@@ -135,7 +135,13 @@ export const ZelleChatScreen = ({ navigation }) => {
       {/* Header (Glovo Circular Back Button) */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate("CustomerTabs", { screen: "CustomerHome" });
+            }
+          }}
           style={styles.backBtn}
           activeOpacity={0.7}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 import { ChevronLeft } from "lucide-react-native";
 import { colors, spacing, typography } from "../../constants/theme";
 
@@ -13,17 +14,32 @@ export const Header = ({
   style,
 }) => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (navigation?.canGoBack && navigation.canGoBack()) {
+      navigation.goBack();
+    }
+  };
+
+  const shouldShowBack =
+    showBack &&
+    (Boolean(onBack) || Boolean(navigation?.canGoBack && navigation.canGoBack()));
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.sm }, style]}>
       <View style={styles.contentRow}>
         <View style={styles.left}>
-          {showBack && onBack ? (
+          {shouldShowBack ? (
             <TouchableOpacity
-              onPress={onBack}
+              onPress={handleBack}
               style={styles.backButton}
               activeOpacity={0.7}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
             >
               <ChevronLeft size={24} color={colors.foreground} />
             </TouchableOpacity>

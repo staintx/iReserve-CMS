@@ -8,7 +8,6 @@ import useRevealOnScroll from "../../hooks/useRevealOnScroll";
 import { useOverduePayment } from "../../context/OverduePaymentContext";
 import {
   capacityLabel,
-  eventTypeForPackage,
   packagePriceParts,
   priceLabel,
 } from "../../lib/packageDisplay";
@@ -464,7 +463,6 @@ export default function Landing() {
 
                 const capacity = capacityLabel(pkg);
                 const priceInfo = packagePriceParts(pkg);
-                const eventTag = eventTypeForPackage(pkg) || pkg.event_type || "Package";
 
                 return (
                   <article className="ls-pkg ls-pkg--standard" key={pkg._id || pkg.name}>
@@ -476,7 +474,6 @@ export default function Landing() {
                           <Package size={34} strokeWidth={1.5} className="ls-pkg-empty-icon" aria-hidden="true" />
                         </div>
                       )}
-                      <span className="ls-pkg-tag">{eventTag}</span>
                     </div>
 
                     <div className="ls-pkg-body">
@@ -1044,7 +1041,6 @@ function LandingComboCard({ pkg, perPax, peso, navigate }) {
             <Package size={34} strokeWidth={1.5} className="ls-pkg-empty-icon" aria-hidden="true" />
           </div>
         )}
-        <span className="ls-pkg-tag ls-pkg-tag--combo">Combo Pack</span>
       </div>
 
       <div className="ls-pkg-body">

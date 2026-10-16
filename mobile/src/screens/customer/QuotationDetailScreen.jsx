@@ -246,14 +246,16 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
         });
       } else {
         const infoMsg =
-          "Quotation accepted. Please check payment status in your bookings list.";
+          "Quotation accepted. Your inquiry is awaiting final admin confirmation. You can review your deposit status and event details here.";
         showAlertDialog({
-          title: "Checkout Initiated",
+          title: "Quotation Accepted",
           message: infoMsg,
           tone: "info",
-          confirmText: "View Bookings",
+          confirmText: "View Inquiry Details",
+          onConfirm: () => {
+            loadQuotation();
+          },
         });
-        navigation.navigate("CustomerTabs", { screen: "BookingsList" });
       }
     } catch (err) {
       console.error("Payment initiation error:", err);

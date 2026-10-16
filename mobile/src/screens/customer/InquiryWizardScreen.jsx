@@ -45,6 +45,9 @@ import {
   CheckCircle2,
   Search,
   X,
+  CreditCard,
+  Banknote,
+  Heart,
 } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import Header from "../../components/common/Header";
@@ -255,6 +258,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   // Event specifics
   const [eventType, setEventType] = useState(prefillEventType || "Birthday");
   const [eventTypeOther, setEventTypeOther] = useState("");
+  const [bookingFor, setBookingFor] = useState("myself");
   const [celebrantName, setCelebrantName] = useState("");
   const [eventTheme, setEventTheme] = useState(stylingNotes || "");
   const [selectedPalette, setSelectedPalette] = useState(CURATED_PALETTES[0].label);
@@ -317,13 +321,17 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   const [barangay, setBarangay] = useState("");
   const [street, setStreet] = useState("");
   const [landmark, setLandmark] = useState("");
+  const [zipCode, setZipCode] = useState("");
+  const [deliveryInstructions, setDeliveryInstructions] = useState("");
 
   // Dishes & Dining
   const [selectedDishes, setSelectedDishes] = useState([]);
   const [activeMenuCat, setActiveMenuCat] = useState("All");
   const [menuSearchQuery, setMenuSearchQuery] = useState("");
   const [allergies, setAllergies] = useState("");
+  const [dietaryRestrictions, setDietaryRestrictions] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash"); // "cash" | "online"
 
   // Add-ons (Optional Selections)
   const [selectedAddons, setSelectedAddons] = useState({}); // { [addonId]: boolean }
@@ -704,6 +712,19 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               if (!message) message = lmErr;
             }
           }
+          if (zipCode && zipCode.trim()) {
+            if (!/^\d{4}$/.test(zipCode.trim())) {
+              errors.zipCode = "ZIP code must be 4 digits.";
+              if (!message) message = "ZIP code must be 4 digits.";
+            }
+          }
+          if (deliveryInstructions && deliveryInstructions.trim()) {
+            const diErr = validateSafeText(deliveryInstructions, "Delivery instructions", { max: 250, required: false });
+            if (diErr) {
+              errors.deliveryInstructions = diErr;
+              if (!message) message = diErr;
+            }
+          }
         }
         break;
       }
@@ -725,11 +746,16 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
           }
         }
 
-        if (celebrantName && celebrantName.trim()) {
-          const celErr = validateName(celebrantName, "Celebrant name", { min: 2, max: 80, required: false });
-          if (celErr) {
-            errors.celebrantName = celErr;
-            if (!message) message = celErr;
+        if (bookingFor === "someone_else") {
+          if (!celebrantName || !celebrantName.trim()) {
+            errors.celebrantName = "Please enter the celebrant or honoree name.";
+            if (!message) message = "Please enter the celebrant or honoree name.";
+          } else {
+            const celErr = validateName(celebrantName, "Celebrant name", { min: 2, max: 80, required: true });
+            if (celErr) {
+              errors.celebrantName = celErr;
+              if (!message) message = celErr;
+            }
           }
         }
 
@@ -808,6 +834,13 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
           if (alErr) {
             errors.allergies = alErr;
             if (!message) message = alErr;
+          }
+        }
+        if (dietaryRestrictions && dietaryRestrictions.trim()) {
+          const drErr = validateSafeText(dietaryRestrictions, "Dietary restrictions", { max: 300, required: false });
+          if (drErr) {
+            errors.dietaryRestrictions = drErr;
+            if (!message) message = drErr;
           }
         }
         if (specialRequests && specialRequests.trim()) {
@@ -900,8 +933,12 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
         break;
       case "eventType":
       case "celebrant":
+      case "bookingFor":
       case "theme":
         jumpToStep("event_venue");
+        break;
+      case "payment":
+        jumpToStep("review");
         break;
       case "setup":
       case "scaffold":
@@ -1205,8 +1242,8 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
         scaffold_base_area: !isFoodOnly && selectedScaffold ? (selectedScaffold.width_ft * selectedScaffold.length_ft) : undefined,
         scaffold_price: !isFoodOnly && selectedScaffold ? selectedScaffold.price : undefined,
         event_type: isFoodOnly ? "Food Order" : (eventType === "Other" && eventTypeOther ? eventTypeOther.trim() : eventType),
-        booking_for: celebrantName ? "someone_else" : "myself",
-        celebrant_name: celebrantName ? celebrantName.trim() : undefined,
+        booking_for: bookingFor === "someone_else" || celebrantName ? "someone_else" : "myself",
+        celebrant_name: bookingFor === "someone_else" && celebrantName ? celebrantName.trim() : undefined,
         event_theme: eventTheme ? eventTheme.trim() : undefined,
         event_palette: selectedPalette ? [selectedPalette] : undefined,
         event_date: selectedDate,
@@ -1217,12 +1254,13 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
         service_type: serviceType,
         include_food: isFoodOnly ? true : isEventSetupOnly ? false : includeFood,
         delivery_method: activeDeliveryMethod,
-        delivery_instructions: specialRequests ? specialRequests.trim() : undefined,
+        delivery_instructions: deliveryInstructions ? deliveryInstructions.trim() : (specialRequests ? specialRequests.trim() : undefined),
         province: isPickup ? undefined : BATANGAS_PROVINCE,
         municipality: isPickup ? undefined : municipality,
         barangay: isPickup ? undefined : barangay,
         street: isPickup ? undefined : (street ? street.trim() : undefined),
         landmark: isPickup ? undefined : (landmark ? landmark.trim() : undefined),
+        zip_code: isPickup ? undefined : (zipCode ? zipCode.trim() : undefined),
         selected_menu: isComboOffer ? [] : selectedDishes.map((d) => d._id),
         service_items: formattedAddons,
         inventory_items: Array.isArray(selectedPackage?.setup_equipment)
@@ -1233,8 +1271,9 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             }))
           : [],
         allergies: allergies ? allergies.trim() : undefined,
-        dietary_restrictions: allergies ? allergies.trim() : undefined,
+        dietary_restrictions: dietaryRestrictions ? dietaryRestrictions.trim() : (allergies ? allergies.trim() : undefined),
         special_requests: specialRequests ? specialRequests.trim() : undefined,
+        payment_method: paymentMethod || "cash",
         estimated_total: 0,
         contact_first_name: contactFirstName.trim(),
         contact_last_name: contactLastName.trim(),
@@ -1753,6 +1792,37 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                     onFocus={handleFieldFocus("landmark")}
                   />
                 </View>
+
+                <View onLayout={handleFieldLayout("zipCode")}>
+                  <AppInput
+                    label="ZIP Code (Optional)"
+                    placeholder="e.g. 4200"
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    value={zipCode}
+                    onChangeText={(val) => {
+                      const clean = val.replace(/\D/g, "").slice(0, 4);
+                      setZipCode(clean);
+                      clearFieldError("zipCode");
+                    }}
+                    error={fieldErrors.zipCode}
+                    onFocus={handleFieldFocus("zipCode")}
+                  />
+                </View>
+
+                <View onLayout={handleFieldLayout("deliveryInstructions")}>
+                  <AppInput
+                    label="Delivery Instructions (Optional)"
+                    placeholder="e.g. 2nd floor, blue gate, parking along side street"
+                    value={deliveryInstructions}
+                    onChangeText={(val) => {
+                      setDeliveryInstructions(val);
+                      clearFieldError("deliveryInstructions");
+                    }}
+                    error={fieldErrors.deliveryInstructions}
+                    onFocus={handleFieldFocus("deliveryInstructions")}
+                  />
+                </View>
               </View>
             )}
           </View>
@@ -1884,19 +1954,80 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               </View>
             )}
 
-            <View onLayout={handleFieldLayout("celebrantName")}>
-              <AppInput
-                label="Celebrant / Honoree Name (Optional)"
-                placeholder="e.g. Maria's 18th Debut or John & Jane"
-                value={celebrantName}
-                onChangeText={(val) => {
-                  setCelebrantName(val);
+            {/* Who is this celebration for? */}
+            <View style={styles.sectionHeadingRow}>
+              <Text style={styles.fieldLabel}>Who is this celebration for?</Text>
+            </View>
+            <View style={styles.segmentedToggleRow}>
+              <TouchableOpacity
+                style={[
+                  styles.segmentedToggleBtn,
+                  bookingFor !== "someone_else" && styles.segmentedToggleBtnActive,
+                ]}
+                onPress={() => {
+                  setBookingFor("myself");
+                  setCelebrantName("");
                   clearFieldError("celebrantName");
                 }}
-                error={fieldErrors.celebrantName}
-                onFocus={handleFieldFocus("celebrantName")}
-              />
+                activeOpacity={0.7}
+              >
+                <User
+                  size={15}
+                  color={bookingFor !== "someone_else" ? colors.primary : colors.foregroundMuted}
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={[
+                    styles.segmentedToggleText,
+                    bookingFor !== "someone_else" && styles.segmentedToggleTextActive,
+                  ]}
+                >
+                  For myself
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.segmentedToggleBtn,
+                  bookingFor === "someone_else" && styles.segmentedToggleBtnActive,
+                ]}
+                onPress={() => {
+                  setBookingFor("someone_else");
+                }}
+                activeOpacity={0.7}
+              >
+                <Heart
+                  size={15}
+                  color={bookingFor === "someone_else" ? colors.primary : colors.foregroundMuted}
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={[
+                    styles.segmentedToggleText,
+                    bookingFor === "someone_else" && styles.segmentedToggleTextActive,
+                  ]}
+                >
+                  For someone else
+                </Text>
+              </TouchableOpacity>
             </View>
+
+            {bookingFor === "someone_else" && (
+              <View onLayout={handleFieldLayout("celebrantName")}>
+                <AppInput
+                  label="Celebrant / Honoree Name"
+                  required={true}
+                  placeholder="e.g. Maria (Birthday), John & Sarah (Wedding)"
+                  value={celebrantName}
+                  onChangeText={(val) => {
+                    setCelebrantName(val);
+                    clearFieldError("celebrantName");
+                  }}
+                  error={fieldErrors.celebrantName}
+                  onFocus={handleFieldFocus("celebrantName")}
+                />
+              </View>
+            )}
 
             {/* Guest Count Stepper with Manual Input */}
             <View style={styles.sectionHeadingRow} onLayout={handleFieldLayout("guestCount")}>
@@ -2359,8 +2490,8 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
 
             <View onLayout={handleFieldLayout("allergies")}>
               <AppInput
-                label="Allergies & Dietary Restrictions (Optional)"
-                placeholder="e.g. 5 Vegetarians, severe peanut allergy, no shellfish"
+                label="Food Allergies (Optional)"
+                placeholder="e.g. Severe peanut allergy, shellfish, dairy intolerance..."
                 value={allergies}
                 onChangeText={(val) => {
                   setAllergies(val);
@@ -2373,9 +2504,25 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               />
             </View>
 
+            <View onLayout={handleFieldLayout("dietaryRestrictions")}>
+              <AppInput
+                label="Dietary Preferences & Restrictions (Optional)"
+                placeholder="e.g. 5 vegetarian guests, halal, no pork, or low-sodium meals..."
+                value={dietaryRestrictions}
+                onChangeText={(val) => {
+                  setDietaryRestrictions(val);
+                  clearFieldError("dietaryRestrictions");
+                }}
+                error={fieldErrors.dietaryRestrictions}
+                multiline
+                numberOfLines={3}
+                onFocus={handleFieldFocus("dietaryRestrictions")}
+              />
+            </View>
+
             <View onLayout={handleFieldLayout("specialRequests")}>
               <AppInput
-                label="Special Culinary Requests / Serving Preferences (Optional)"
+                label="Special Culinary Requests / Serving Notes (Optional)"
                 placeholder="e.g. Separate kiddie buffet table, extra gravy boat, dessert table display"
                 value={specialRequests}
                 onChangeText={(val) => {
@@ -2619,23 +2766,25 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                 </View>
               </TouchableOpacity>
 
-              {/* Celebrant if provided */}
-              {celebrantName ? (
-                <TouchableOpacity
-                  style={styles.summaryRowTouchable}
-                  onPress={() => jumpToField("celebrant")}
-                  activeOpacity={0.65}
-                  accessibilityLabel="Edit celebrant name"
-                >
-                  <Text style={styles.summaryLabel}>Celebrant:</Text>
-                  <View style={styles.summaryValueWithIcon}>
-                    <Text style={styles.summaryValue} numberOfLines={1}>{celebrantName}</Text>
-                    <View style={styles.rowEditBadge}>
-                      <Pencil size={11} color={colors.primary} />
-                    </View>
+              {/* Celebration For / Celebrant */}
+              <TouchableOpacity
+                style={styles.summaryRowTouchable}
+                onPress={() => jumpToField("celebrant")}
+                activeOpacity={0.65}
+                accessibilityLabel="Edit celebration recipient"
+              >
+                <Text style={styles.summaryLabel}>Celebration For:</Text>
+                <View style={styles.summaryValueWithIcon}>
+                  <Text style={styles.summaryValue} numberOfLines={1}>
+                    {bookingFor === "someone_else" && celebrantName
+                      ? `For ${celebrantName}`
+                      : "For myself"}
+                  </Text>
+                  <View style={styles.rowEditBadge}>
+                    <Pencil size={11} color={colors.primary} />
                   </View>
-                </TouchableOpacity>
-              ) : null}
+                </View>
+              </TouchableOpacity>
 
               {/* Guest Count */}
               <TouchableOpacity
@@ -2771,6 +2920,31 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               )}
 
+              {/* Preferred Payment Method in Summary Card */}
+              <TouchableOpacity
+                style={styles.summaryRowTouchable}
+                onPress={() => jumpToField("payment")}
+                activeOpacity={0.65}
+                accessibilityLabel="Edit preferred payment method"
+              >
+                <Text style={styles.summaryLabel}>Payment Method:</Text>
+                <View style={styles.summaryValueWithIcon}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                    {paymentMethod === "online" ? (
+                      <CreditCard size={13} color={colors.primary} />
+                    ) : (
+                      <Banknote size={13} color="#D97706" />
+                    )}
+                    <Text style={styles.summaryValue}>
+                      {paymentMethod === "online" ? "Online Payment" : "Cash Payment"}
+                    </Text>
+                  </View>
+                  <View style={styles.rowEditBadge}>
+                    <Pencil size={11} color={colors.primary} />
+                  </View>
+                </View>
+              </TouchableOpacity>
+
               {/* Tap to edit hint footer */}
               <View style={styles.summaryEditHintRow}>
                 <Edit3 size={11} color={colors.primary} />
@@ -2788,6 +2962,86 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                     No upfront payment or pricing commitment is required at this stage. Our banquet manager will review your requested date, guest count, and logistics, then prepare an official quotation with complete package costs, deposit amount, and remaining balance.
                   </Text>
                 </View>
+              </View>
+            </Card>
+
+            {/* Preferred Payment Method Card */}
+            <Card style={styles.paymentSectionCard}>
+              <View style={styles.paymentSectionHeader}>
+                <Text style={styles.paymentSectionTitle}>Preferred Payment Method</Text>
+                <Text style={styles.paymentSectionSubtitle}>
+                  Choose how you intend to pay for your deposit once your quotation is issued. No payment is taken today.
+                </Text>
+              </View>
+
+              <View style={styles.paymentOptionsContainer}>
+                {/* Option 1: Cash Payment */}
+                <TouchableOpacity
+                  style={[
+                    styles.paymentMethodCard,
+                    paymentMethod === "cash" && styles.paymentMethodCardCashActive,
+                  ]}
+                  onPress={() => setPaymentMethod("cash")}
+                  activeOpacity={0.8}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: paymentMethod === "cash" }}
+                  accessibilityLabel="Cash Payment"
+                >
+                  <View
+                    style={[
+                      styles.paymentRadioCircle,
+                      paymentMethod === "cash" && styles.paymentRadioCircleCashActive,
+                    ]}
+                  >
+                    {paymentMethod === "cash" && <View style={styles.paymentRadioDotCash} />}
+                  </View>
+
+                  <View style={styles.paymentMethodContent}>
+                    <View style={styles.paymentMethodTitleRow}>
+                      <View style={[styles.paymentIconBubble, { backgroundColor: "#FEF3C7" }]}>
+                        <Banknote size={16} color="#D97706" />
+                      </View>
+                      <Text style={styles.paymentMethodTitle}>Cash Payment</Text>
+                    </View>
+                    <Text style={styles.paymentMethodDesc}>
+                      Pay cash deposit in person at our office or on-site upon coordination with our team.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Option 2: Online Payment */}
+                <TouchableOpacity
+                  style={[
+                    styles.paymentMethodCard,
+                    paymentMethod === "online" && styles.paymentMethodCardOnlineActive,
+                  ]}
+                  onPress={() => setPaymentMethod("online")}
+                  activeOpacity={0.8}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: paymentMethod === "online" }}
+                  accessibilityLabel="Online Payment"
+                >
+                  <View
+                    style={[
+                      styles.paymentRadioCircle,
+                      paymentMethod === "online" && styles.paymentRadioCircleOnlineActive,
+                    ]}
+                  >
+                    {paymentMethod === "online" && <View style={styles.paymentRadioDotOnline} />}
+                  </View>
+
+                  <View style={styles.paymentMethodContent}>
+                    <View style={styles.paymentMethodTitleRow}>
+                      <View style={[styles.paymentIconBubble, { backgroundColor: colors.primaryLight }]}>
+                        <CreditCard size={16} color={colors.primary} />
+                      </View>
+                      <Text style={styles.paymentMethodTitle}>Online Payment</Text>
+                    </View>
+                    <Text style={styles.paymentMethodDesc}>
+                      Pay deposit online via GCash, Maya, or Credit/Debit Card through PayMongo.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
               </View>
             </Card>
           </View>
@@ -3150,6 +3404,33 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                   </View>
                 </TouchableOpacity>
               )}
+
+              {/* Option 8: Preferred Payment Method */}
+              <TouchableOpacity
+                style={styles.editSectionItem}
+                onPress={() => jumpToField("payment")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.editSectionIconWrap}>
+                  {paymentMethod === "online" ? (
+                    <CreditCard size={18} color={colors.primary} />
+                  ) : (
+                    <Banknote size={18} color="#D97706" />
+                  )}
+                </View>
+                <View style={styles.editSectionTextWrap}>
+                  <Text style={styles.editSectionTitle}>Preferred Payment Method</Text>
+                  <Text style={styles.editSectionSubtitle}>
+                    {paymentMethod === "online"
+                      ? "Online Payment (GCash, Maya, Cards)"
+                      : "Cash Payment (On-Site / Office)"}
+                  </Text>
+                </View>
+                <View style={styles.editSectionActionBadge}>
+                  <Text style={styles.editSectionActionText}>Edit</Text>
+                  <ChevronRight size={13} color={colors.primary} />
+                </View>
+              </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
@@ -4745,6 +5026,145 @@ const styles = StyleSheet.create({
   },
   typeCardError: {
     borderColor: colors.error,
+  },
+  /* Segmented Toggle for Celebration Recipient */
+  segmentedToggleRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  segmentedToggleBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+  },
+  segmentedToggleBtnActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+  },
+  segmentedToggleText: {
+    fontSize: typography.sizes.xs + 1,
+    fontWeight: "600",
+    color: colors.foregroundMuted,
+  },
+  segmentedToggleTextActive: {
+    color: colors.primary,
+    fontWeight: "700",
+  },
+  /* Preferred Payment Method Section */
+  paymentSectionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.base,
+    marginBottom: spacing.base,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    ...shadows.sm,
+  },
+  paymentSectionHeader: {
+    marginBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    paddingBottom: spacing.sm,
+  },
+  paymentSectionTitle: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foreground,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  paymentSectionSubtitle: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    marginTop: 3,
+    lineHeight: 17,
+  },
+  paymentOptionsContainer: {
+    gap: spacing.sm,
+  },
+  paymentMethodCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+  },
+  paymentMethodCardCashActive: {
+    borderColor: "#F59E0B",
+    backgroundColor: "rgba(245, 158, 11, 0.05)",
+  },
+  paymentMethodCardOnlineActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+  },
+  paymentRadioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.cardBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.sm,
+    marginTop: 2,
+  },
+  paymentRadioCircleCashActive: {
+    borderColor: "#F59E0B",
+  },
+  paymentRadioCircleOnlineActive: {
+    borderColor: colors.primary,
+  },
+  paymentRadioDotCash: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#F59E0B",
+  },
+  paymentRadioDotOnline: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.primary,
+  },
+  paymentMethodContent: {
+    flex: 1,
+  },
+  paymentMethodTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+    gap: spacing.xs + 2,
+  },
+  paymentIconBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  paymentMethodTitle: {
+    fontSize: typography.sizes.xs + 2,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foreground,
+  },
+  paymentMethodDesc: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    lineHeight: 17,
   },
 });
 

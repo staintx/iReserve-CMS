@@ -10,7 +10,7 @@ import { AdminAPI } from "../../api/admin";
 export default function AdminAnalytics() {
   const [range, setRange] = useState("This Year");
   const [loading, setLoading] = useState(true);
-  const [metrics, setMetrics] = useState({ monthlyRevenue: [], bookingStatus: [], topPackages: [] });
+  const [metrics, setMetrics] = useState({ monthlyRevenue: [], topPackages: [], mostSelectedMenu: [] });
   const { notify } = useToast();
 
   useEffect(() => {
@@ -35,6 +35,38 @@ export default function AdminAnalytics() {
     return list;
   }, [metrics.monthlyRevenue, range]);
 
+  const filteredMenu = useMemo(() => {
+    const list = metrics.mostSelectedMenu || [];
+    if (!list.length) return [];
+
+    const now = new Date();
+    let cutoff = null;
+    if (range === "Last 30 Days") {
+      cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    } else if (range === "Last 6 Months") {
+      cutoff = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+    } else if (range === "This Year") {
+      cutoff = new Date(now.getFullYear(), 0, 1);
+    }
+
+    if (!cutoff) {
+      return list;
+    }
+
+    return list
+      .map((item) => {
+        const matchingDates = (item.dates || []).filter((d) => new Date(d) >= cutoff);
+        return {
+          ...item,
+          count: matchingDates.length
+        };
+      })
+      .filter((item) => item.count > 0)
+      .sort((a, b) => b.count - a.count);
+  }, [metrics.mostSelectedMenu, range]);
+
+  const chartMenuData = useMemo(() => filteredMenu.slice(0, 6), [filteredMenu]);
+
   const handleExport = () => {
     if (loading) {
       notify("Please wait until analytics data finishes loading.", "warning");
@@ -42,13 +74,13 @@ export default function AdminAnalytics() {
     }
 
     const revenueList = filteredRevenue.length > 0 ? filteredRevenue : (metrics.monthlyRevenue || []);
-    const statusList = metrics.bookingStatus || [];
+    const menuList = filteredMenu.length > 0 ? filteredMenu : (metrics.mostSelectedMenu || []);
     const packageList = metrics.topPackages || [];
     const eventTypeList = metrics.eventTypes || [];
 
     const hasData =
       revenueList.length > 0 ||
-      statusList.length > 0 ||
+      menuList.length > 0 ||
       packageList.length > 0 ||
       eventTypeList.length > 0;
 
@@ -76,9 +108,9 @@ export default function AdminAnalytics() {
       ["Month", "Revenue (PHP)"],
       ...revenueList.map((item) => [item.month || "N/A", item.total ?? 0]),
       [],
-      ["--- BOOKINGS BY STATUS ---"],
-      ["Status", "Bookings Count"],
-      ...statusList.map((item) => [item.status || "Unknown", item.count ?? 0]),
+      ["--- MOST SELECTED MENU ---"],
+      ["Rank", "Menu Item", "Category", "Selection Count"],
+      ...menuList.map((item, idx) => [idx + 1, item.name || "Unknown", item.category || "General", item.count ?? 0]),
       [],
       ["--- TOP PACKAGES ---"],
       ["Package Name", "Total Bookings", "Revenue (PHP)"],
@@ -169,26 +201,47 @@ export default function AdminAnalytics() {
             )}
           </AdminCard>
 
-          {/* Booking Status Breakdown */}
+          {/* Most Selected Menu */}
           <AdminCard className="!p-5">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <p className="font-bold text-foreground">Bookings by Status</p>
-                <p className="text-xs text-muted-foreground">Current distribution across all bookings</p>
+                <p className="font-bold text-foreground">Most Selected Menu</p>
+                <p className="text-xs text-muted-foreground">
+                  {filteredMenu.length > 6
+                    ? `Top 6 of ${filteredMenu.length} frequently selected dishes`
+                    : "Most frequently selected dishes by volume"}
+                </p>
               </div>
             </div>
             {loading ? (
-              <div className="h-[300px] flex items-center justify-center text-sm text-gray-400">Loading booking data...</div>
-            ) : metrics.bookingStatus.length === 0 ? (
-              <div className="h-[300px] flex items-center justify-center text-sm text-gray-400">No bookings recorded yet.</div>
+              <div className="h-[300px] flex items-center justify-center text-sm text-gray-400">Loading menu data...</div>
+            ) : filteredMenu.length === 0 ? (
+              <div className="h-[300px] flex items-center justify-center text-sm text-gray-400">
+                No menu selections recorded for this period.
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={metrics.bookingStatus} barSize={32}>
+                <BarChart data={chartMenuData} barSize={32}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                  <XAxis dataKey="status" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12 }} />
-                  <Bar dataKey="count" name="Bookings" fill="#4C81E0" radius={[6, 6, 0, 0]} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 11, fill: "#9CA3AF" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(val) => (val.length > 14 ? `${val.slice(0, 12)}…` : val)}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#9CA3AF" }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 10, fontSize: 12 }}
+                    formatter={(val) => [`${val} selection${val === 1 ? "" : "s"}`, "Selections"]}
+                    labelFormatter={(label, items) => items?.[0]?.payload?.name || label}
+                  />
+                  <Bar dataKey="count" name="Selections" fill="#4C81E0" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}

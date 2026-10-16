@@ -31,7 +31,6 @@ import {
   MessageSquare,
   Star,
   PlusCircle,
-  ArrowUpCircle,
   FileEdit,
   X,
   Send,
@@ -62,7 +61,6 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   const id = route?.params?.id || route?.params?.bookingId;
 
   const [booking, setBooking] = useState(null);
-  const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
@@ -70,7 +68,6 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   // Modals
   const [showChangeModal, setShowChangeModal] = useState(false);
   const [showAddGuestsModal, setShowAddGuestsModal] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showRejectRevisionModal, setShowRejectRevisionModal] = useState(false);
   const [rejectRevisionReason, setRejectRevisionReason] = useState("");
 
@@ -109,10 +106,6 @@ export const BookingDetailScreen = ({ route, navigation }) => {
         setShowAddGuestsModal(false);
         return true;
       }
-      if (showUpgradeModal) {
-        setShowUpgradeModal(false);
-        return true;
-      }
       if (showRejectRevisionModal) {
         setShowRejectRevisionModal(false);
         return true;
@@ -121,10 +114,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
     };
     const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
     return () => sub.remove();
-  }, [showChangeModal, showAddGuestsModal, showUpgradeModal, showRejectRevisionModal]);
-
-  // Upgrade Package State
-  const [selectedUpgradePkg, setSelectedUpgradePkg] = useState(null);
+  }, [showChangeModal, showAddGuestsModal, showRejectRevisionModal]);
 
   // Rating & Review State
   const [bookingRating, setBookingRating] = useState(null);
@@ -161,13 +151,6 @@ export const BookingDetailScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     loadBooking();
-    // Preload packages for upgrade options
-    customerApi
-      .getPackages()
-      .then((pkgs) => {
-        if (Array.isArray(pkgs)) setPackages(pkgs);
-      })
-      .catch(() => {});
   }, [loadBooking]);
 
   // Status flags matching website logic
@@ -545,50 +528,6 @@ export const BookingDetailScreen = ({ route, navigation }) => {
       showAlertDialog({
         title: "Failed to Add Guests",
         message: err.response?.data?.message || "Failed to add guests.",
-        tone: "destructive",
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Upgrade Package
-  const handleUpgradePackage = async () => {
-    if (!selectedUpgradePkg) {
-      showAlertDialog({
-        title: "Selection Required",
-        message: "Please select a package to upgrade to.",
-        tone: "warning",
-      });
-      return;
-    }
-
-    const confirmed = await confirmAction({
-      title: "Request Package Upgrade?",
-      message: `Submit request to upgrade package to "${selectedUpgradePkg.name}"? Our catering manager will adjust the quotation inclusions and pricing.`,
-      confirmText: "Request Upgrade",
-      cancelText: "Keep Current Package",
-      tone: "primary",
-      icon: Sparkles,
-    });
-
-    if (!confirmed) return;
-
-    setActionLoading(true);
-    try {
-      await customerApi.upgradeBooking(booking._id, selectedUpgradePkg._id);
-      setShowUpgradeModal(false);
-      showAlertDialog({
-        title: "Upgrade Submitted",
-        message: `Your upgrade request to ${selectedUpgradePkg.name} has been submitted for manager review.`,
-        tone: "success",
-        confirmText: "Got It",
-      });
-      loadBooking();
-    } catch (err) {
-      showAlertDialog({
-        title: "Upgrade Failed",
-        message: err.response?.data?.message || "Failed to upgrade package.",
         tone: "destructive",
       });
     } finally {
@@ -1165,16 +1104,6 @@ export const BookingDetailScreen = ({ route, navigation }) => {
         <Card style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Selected Package</Text>
-            {!isCompleted && !isPast && !isCancelled && (
-              <TouchableOpacity
-                style={styles.headerActionPill}
-                onPress={() => setShowUpgradeModal(true)}
-                activeOpacity={0.7}
-              >
-                <ArrowUpCircle size={12} color={colors.primary} />
-                <Text style={styles.headerActionText}>Upgrade Package</Text>
-              </TouchableOpacity>
-            )}
           </View>
 
           {/* Package Banner */}
@@ -1698,72 +1627,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* ── MODAL 3: Upgrade Package ── */}
-      <Modal
-        visible={showUpgradeModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowUpgradeModal(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.modalOverlay}
-        >
-          <View style={[styles.modalContainer, { maxHeight: "80%" }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Package Upgrade</Text>
-              <TouchableOpacity
-                onPress={() => setShowUpgradeModal(false)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <X size={20} color={colors.foreground} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {packages
-                .filter(
-                  (p) => String(p._id) !== String(booking.package_id?._id || booking.package_id)
-                )
-                .map((pkg) => {
-                  const isSelected = selectedUpgradePkg?._id === pkg._id;
-                  return (
-                    <TouchableOpacity
-                      key={pkg._id}
-                      style={[styles.pkgOption, isSelected && styles.pkgOptionSelected]}
-                      onPress={() => setSelectedUpgradePkg(pkg)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.pkgOptionTitle}>{pkg.name}</Text>
-                        <Text style={styles.pkgOptionPrice}>
-                          {pkg.price_per_guest
-                            ? `${formatCurrency(pkg.price_per_guest)} / pax`
-                            : formatCurrency(pkg.setup_price || pkg.price || 0)}
-                        </Text>
-                      </View>
-                      {isSelected && <CheckCircle size={18} color={colors.primary} />}
-                    </TouchableOpacity>
-                  );
-                })}
-
-              <AppButton
-                title={
-                  selectedUpgradePkg
-                    ? `Request Upgrade to ${selectedUpgradePkg.name}`
-                    : "Choose a Package"
-                }
-                disabled={!selectedUpgradePkg}
-                loading={actionLoading}
-                onPress={handleUpgradePackage}
-                style={{ marginTop: spacing.md }}
-              />
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* ── MODAL 4: Reject Revision ── */}
+      {/* ── MODAL 3: Reject Revision ── */}
       <Modal
         visible={showRejectRevisionModal}
         animationType="fade"
@@ -2700,31 +2564,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.sm,
     marginBottom: spacing.sm,
-  },
-  pkgOption: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.sm,
-  },
-  pkgOptionSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryLight,
-  },
-  pkgOptionTitle: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamilies.bold,
-    fontWeight: "700",
-    color: colors.foregroundDark,
-  },
-  pkgOptionPrice: {
-    fontSize: typography.sizes.xs,
-    color: colors.foregroundMuted,
-    marginTop: 2,
   },
 });
 

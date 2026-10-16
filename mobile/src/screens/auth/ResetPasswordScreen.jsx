@@ -28,6 +28,7 @@ export const ResetPasswordScreen = ({ route, navigation }) => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
 
   const passwordRef = useRef(null);
   const confirmPasswordRef = useRef(null);
@@ -35,27 +36,32 @@ export const ResetPasswordScreen = ({ route, navigation }) => {
   const passwordEvaluation = evaluatePassword(password);
 
   const handleResetPassword = async () => {
+    const newErrors = {};
     if (!token.trim()) {
-      setError("Please enter your reset token or code.");
-      return;
+      newErrors.token = "Please enter your reset token or code.";
     }
 
     if (!password) {
-      setError("Please enter your new password.");
+      newErrors.password = "Please enter your new password.";
+    } else {
+      const { isValid } = evaluatePassword(password);
+      if (!isValid) {
+        newErrors.password = describePasswordGap(password);
+      }
+    }
+
+    if (!confirmPassword) {
+      newErrors.confirmPassword = "Confirm password is required.";
+    } else if (password !== confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
-    const { isValid } = evaluatePassword(password);
-    if (!isValid) {
-      setError(describePasswordGap(password));
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
+    setErrors({});
     setError("");
     setLoading(true);
 
@@ -128,10 +134,13 @@ export const ResetPasswordScreen = ({ route, navigation }) => {
         <View style={styles.form}>
           <AppInput
             label="Reset Token / Code"
+            required
             placeholder="Paste reset token here"
             value={token}
+            error={errors.token}
             onChangeText={(text) => {
               setToken(text);
+              if (errors.token) setErrors((prev) => ({ ...prev, token: "" }));
               if (error) setError("");
             }}
             leftIcon={Key}
@@ -143,10 +152,13 @@ export const ResetPasswordScreen = ({ route, navigation }) => {
           <AppInput
             ref={passwordRef}
             label="New Password"
+            required
             placeholder="Min 6 chars (A-Z, a-z, 0-9, special)"
             value={password}
+            error={errors.password}
             onChangeText={(text) => {
               setPassword(text);
+              if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
               if (error) setError("");
             }}
             leftIcon={Lock}
@@ -184,10 +196,13 @@ export const ResetPasswordScreen = ({ route, navigation }) => {
           <AppInput
             ref={confirmPasswordRef}
             label="Confirm New Password"
+            required
             placeholder="Re-enter your new password"
             value={confirmPassword}
+            error={errors.confirmPassword}
             onChangeText={(text) => {
               setConfirmPassword(text);
+              if (errors.confirmPassword) setErrors((prev) => ({ ...prev, confirmPassword: "" }));
               if (error) setError("");
             }}
             leftIcon={Lock}

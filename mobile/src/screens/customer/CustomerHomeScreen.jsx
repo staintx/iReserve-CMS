@@ -275,6 +275,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
       }
 
       // Check for active inquiry (signed-in customer)
+      const inquiriesData = inquiriesRes.status === "fulfilled" ? inquiriesRes.value : null;
       if (Array.isArray(inquiriesData)) {
         const activeList = inquiriesData.filter(
           (i) => !["Converted to Booking", "Cancelled", "Quote Rejected", "Expired"].includes(i.status)

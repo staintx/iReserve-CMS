@@ -33,6 +33,7 @@ export const RegisterScreen = ({ navigation }) => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
 
   const firstNameRef = useRef(null);
   const lastNameRef = useRef(null);
@@ -41,32 +42,45 @@ export const RegisterScreen = ({ navigation }) => {
   const confirmPasswordRef = useRef(null);
 
   const handleRegister = async () => {
+    const newErrors = {};
+
     const firstNameErr = validateName(firstName, "First name", { min: 2, max: 50, required: true });
     if (firstNameErr) {
-      setError(firstNameErr);
-      return;
+      newErrors.firstName = firstNameErr;
     }
+
     const lastNameErr = validateName(lastName, "Last name", { min: 2, max: 50, required: true });
     if (lastNameErr) {
-      setError(lastNameErr);
-      return;
+      newErrors.lastName = lastNameErr;
     }
-    if (!email.trim() || !email.includes("@")) {
-      setError("Please enter a valid email address.");
-      return;
+
+    if (!email.trim()) {
+      newErrors.email = "Email address is required.";
+    } else if (!email.includes("@")) {
+      newErrors.email = "Please enter a valid email address.";
     }
-    
-    const { isValid } = evaluatePassword(password);
-    if (!isValid) {
-      setError(describePasswordGap(password));
+
+    if (!password) {
+      newErrors.password = "Password is required.";
+    } else {
+      const { isValid } = evaluatePassword(password);
+      if (!isValid) {
+        newErrors.password = describePasswordGap(password);
+      }
+    }
+
+    if (!confirmPassword) {
+      newErrors.confirmPassword = "Confirm password is required.";
+    } else if (password !== confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
+    setErrors({});
     setError("");
     setLoading(true);
 
@@ -139,10 +153,13 @@ export const RegisterScreen = ({ navigation }) => {
           <AppInput
             ref={firstNameRef}
             label="First Name"
+            required
             placeholder="e.g. Juan"
             value={firstName}
+            error={errors.firstName}
             onChangeText={(text) => {
               setFirstName(text);
+              if (errors.firstName) setErrors((prev) => ({ ...prev, firstName: "" }));
               if (error) setError("");
             }}
             leftIcon={User}
@@ -154,10 +171,13 @@ export const RegisterScreen = ({ navigation }) => {
           <AppInput
             ref={lastNameRef}
             label="Last Name"
+            required
             placeholder="e.g. Dela Cruz"
             value={lastName}
+            error={errors.lastName}
             onChangeText={(text) => {
               setLastName(text);
+              if (errors.lastName) setErrors((prev) => ({ ...prev, lastName: "" }));
               if (error) setError("");
             }}
             leftIcon={User}
@@ -169,10 +189,13 @@ export const RegisterScreen = ({ navigation }) => {
           <AppInput
             ref={emailRef}
             label="Email Address"
+            required
             placeholder="name@example.com"
             value={email}
+            error={errors.email}
             onChangeText={(text) => {
               setEmail(text);
+              if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
               if (error) setError("");
             }}
             leftIcon={Mail}
@@ -185,10 +208,13 @@ export const RegisterScreen = ({ navigation }) => {
           <AppInput
             ref={passwordRef}
             label="Password"
+            required
             placeholder="Min 6 chars (A-Z, a-z, 0-9, special)"
             value={password}
+            error={errors.password}
             onChangeText={(text) => {
               setPassword(text);
+              if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
               if (error) setError("");
             }}
             leftIcon={Lock}
@@ -226,10 +252,13 @@ export const RegisterScreen = ({ navigation }) => {
           <AppInput
             ref={confirmPasswordRef}
             label="Confirm Password"
+            required
             placeholder="Repeat your password"
             value={confirmPassword}
+            error={errors.confirmPassword}
             onChangeText={(text) => {
               setConfirmPassword(text);
+              if (errors.confirmPassword) setErrors((prev) => ({ ...prev, confirmPassword: "" }));
               if (error) setError("");
             }}
             leftIcon={Lock}

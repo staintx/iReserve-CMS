@@ -36,6 +36,7 @@ export const EquipmentChecklistScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generalNote, setGeneralNote] = useState("");
+  const [itemErrors, setItemErrors] = useState({});
 
   // Items state: array of { inventory_id, name, quantity_booked, quantity_returned, quantity_damaged, notes }
   const [items, setItems] = useState([]);
@@ -105,6 +106,7 @@ export const EquipmentChecklistScreen = ({ route, navigation }) => {
   };
 
   const handleAllUndamaged = () => {
+    setItemErrors({});
     setItems((prev) =>
       prev.map((item) => ({
         ...item,
@@ -115,6 +117,14 @@ export const EquipmentChecklistScreen = ({ route, navigation }) => {
   };
 
   const updateQuantity = (index, field, delta) => {
+    if (itemErrors[index]) {
+      setItemErrors((prev) => {
+        const next = { ...prev };
+        delete next[index];
+        return next;
+      });
+    }
+
     setItems((prev) => {
       const copy = [...prev];
       const current = { ...copy[index] };
@@ -154,15 +164,23 @@ export const EquipmentChecklistScreen = ({ route, navigation }) => {
     }
 
     // Client-side validation: returned + damaged <= booked
-    for (const it of items) {
-      if ((it.quantity_returned || 0) + (it.quantity_damaged || 0) > it.quantity_booked) {
-        Alert.alert(
-          "Invalid Quantities",
-          `Returned (${it.quantity_returned}) + Damaged (${it.quantity_damaged}) cannot exceed booked (${it.quantity_booked}) for ${it.name}.`
-        );
-        return;
+    const errors = {};
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      const ret = it.quantity_returned || 0;
+      const dam = it.quantity_damaged || 0;
+      const booked = it.quantity_booked || 0;
+      if (ret + dam > booked) {
+        errors[i] = `Returned (${ret}) + Damaged (${dam}) cannot exceed booked (${booked}).`;
       }
     }
+
+    if (Object.keys(errors).length > 0) {
+      setItemErrors(errors);
+      return;
+    }
+
+    setItemErrors({});
 
     try {
       setSaving(true);
@@ -245,7 +263,13 @@ export const EquipmentChecklistScreen = ({ route, navigation }) => {
                 item.quantity_booked - (item.quantity_returned + item.quantity_damaged);
 
               return (
-                <Card key={index} style={styles.itemCard}>
+                <Card
+                  key={index}
+                  style={[
+                    styles.itemCard,
+                    Boolean(itemErrors[index]) && styles.itemCardError,
+                  ]}
+                >
                   <View style={styles.itemHeaderRow}>
                     <Text style={styles.itemName}>{item.name}</Text>
                     <View style={styles.bookedBadge}>
@@ -288,7 +312,14 @@ export const EquipmentChecklistScreen = ({ route, navigation }) => {
                     </View>
                   </View>
 
-                  {missingCount > 0 && (
+                  {Boolean(itemErrors[index]) && (
+                    <View style={styles.errorBannerRow}>
+                      <AlertTriangle size={13} color={colors.error} />
+                      <Text style={styles.fieldErrorText}>{itemErrors[index]}</Text>
+                    </View>
+                  )}
+
+                  {missingCount > 0 && !itemErrors[index] && (
                     <View style={styles.missingWarningRow}>
                       <AlertTriangle size={13} color={colors.warning} />
                       <Text style={styles.missingWarningText}>
@@ -405,6 +436,28 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: colors.borderLight,
+  },
+  itemCardError: {
+    borderColor: colors.error,
+    borderWidth: 1.5,
+    backgroundColor: colors.errorLight,
+  },
+  errorBannerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.errorLight,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    marginTop: spacing.xs,
+    gap: 6,
+  },
+  fieldErrorText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.medium,
+    fontWeight: "600",
+    color: colors.error,
+    flex: 1,
   },
   itemHeaderRow: {
     flexDirection: "row",

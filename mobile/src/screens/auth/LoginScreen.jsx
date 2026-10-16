@@ -26,20 +26,26 @@ export const LoginScreen = ({ navigation }) => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
 
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
 
   const handleLogin = async () => {
+    const newErrors = {};
     if (!email.trim()) {
-      setError("Please enter your email or username.");
-      return;
+      newErrors.email = "Please enter your email or username.";
     }
     if (!password) {
-      setError("Please enter your password.");
+      newErrors.password = "Please enter your password.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
+    setErrors({});
     setError("");
     setLoading(true);
 
@@ -141,10 +147,13 @@ export const LoginScreen = ({ navigation }) => {
           <AppInput
             ref={emailRef}
             label="Email or Username"
+            required
             placeholder="Enter your email or username"
             value={email}
+            error={errors.email}
             onChangeText={(text) => {
               setEmail(text);
+              if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
               if (error) setError("");
             }}
             leftIcon={Mail}
@@ -157,10 +166,13 @@ export const LoginScreen = ({ navigation }) => {
           <AppInput
             ref={passwordRef}
             label="Password"
+            required
             placeholder="Enter your password"
             value={password}
+            error={errors.password}
             onChangeText={(text) => {
               setPassword(text);
+              if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
               if (error) setError("");
             }}
             leftIcon={Lock}

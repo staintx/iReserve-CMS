@@ -80,9 +80,14 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   const [changeGuests, setChangeGuests] = useState("");
   const [changeVenue, setChangeVenue] = useState("");
   const [changeNote, setChangeNote] = useState("");
+  const [changeErrors, setChangeErrors] = useState({});
 
   // Add Guests State
   const [extraGuests, setExtraGuests] = useState("10");
+  const [extraGuestsError, setExtraGuestsError] = useState("");
+
+  // Review Error State
+  const [reviewError, setReviewError] = useState("");
 
   const handleGoBack = () => {
     if (navigation.canGoBack()) {
@@ -376,15 +381,29 @@ export const BookingDetailScreen = ({ route, navigation }) => {
 
   // Submit Change Proposal
   const handleSubmitChangeRequest = async () => {
+    const errs = {};
     if (!changeNote.trim() && !changeDate && !changeGuests && !changeTime && !changeVenue) {
-      showAlertDialog({
-        title: "Information Required",
-        message: "Please specify the changes you want to propose (date, time, guests, or notes).",
-        tone: "warning",
-      });
+      errs.general = "Please specify at least one revision detail (date, time, guests, venue, or notes).";
+    }
+    if (changeGuests) {
+      const g = parseInt(changeGuests, 10);
+      if (isNaN(g) || g <= 0) {
+        errs.changeGuests = "Please enter a valid guest count (at least 1).";
+      }
+    }
+    if (changeDate) {
+      const trimmedDate = changeDate.trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmedDate)) {
+        errs.changeDate = "Please enter date in YYYY-MM-DD format.";
+      }
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setChangeErrors(errs);
       return;
     }
 
+    setChangeErrors({});
     setActionLoading(true);
     try {
       const payload = {
@@ -402,6 +421,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
       setChangeTime("");
       setChangeGuests("");
       setChangeVenue("");
+      setChangeErrors({});
       showAlertDialog({
         title: "Revisions Submitted",
         message: "Your proposed revisions were submitted for manager review.",
@@ -491,15 +511,12 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   // Add Additional Guests
   const handleAddGuests = async () => {
     const count = parseInt(extraGuests, 10);
-    if (!count || count <= 0) {
-      showAlertDialog({
-        title: "Invalid Guest Count",
-        message: "Please enter a valid number of additional guests (at least 1).",
-        tone: "warning",
-      });
+    if (!count || count <= 0 || isNaN(count)) {
+      setExtraGuestsError("Please enter a valid number of additional guests (at least 1).");
       return;
     }
 
+    setExtraGuestsError("");
     const confirmed = await confirmAction({
       title: "Add Additional Guests?",
       message: `Confirm adding ${count} additional guests to this event? Per-pax pricing and catering allocations will be updated accordingly.`,
@@ -516,6 +533,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
       await customerApi.addGuests(booking._id, count);
       setShowAddGuestsModal(false);
       setExtraGuests("");
+      setExtraGuestsError("");
       showAlertDialog({
         title: "Guests Added",
         message: `Successfully added ${count} additional guests to your event.`,
@@ -581,14 +599,11 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   // Submit Star Rating & Review
   const handleSubmitRating = async () => {
     if (!ratingReview.trim()) {
-      showAlertDialog({
-        title: "Review Required",
-        message: "Please write a short review sharing your event catering experience.",
-        tone: "warning",
-      });
+      setReviewError("Please write a short review sharing your event catering experience.");
       return;
     }
 
+    setReviewError("");
     setSubmittingRating(true);
     try {
       const payload = {
@@ -1465,13 +1480,22 @@ export const BookingDetailScreen = ({ route, navigation }) => {
                   ))}
                 </View>
                 <TextInput
-                  style={styles.reviewInput}
+                  style={[
+                    styles.reviewInput,
+                    Boolean(reviewError) && styles.inputError,
+                  ]}
                   placeholder="Tell us about the food taste, table setup, and banquet staff..."
                   placeholderTextColor={colors.textDisabled}
                   multiline
                   value={ratingReview}
-                  onChangeText={setRatingReview}
+                  onChangeText={(val) => {
+                    setRatingReview(val);
+                    if (reviewError) setReviewError("");
+                  }}
                 />
+                {Boolean(reviewError) && (
+                  <Text style={styles.fieldErrorText}>{reviewError}</Text>
+                )}
                 <AppButton
                   title="Submit Rating & Review"
                   icon={Send}
@@ -1513,7 +1537,10 @@ export const BookingDetailScreen = ({ route, navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Propose Booking Revisions</Text>
               <TouchableOpacity
-                onPress={() => setShowChangeModal(false)}
+                onPress={() => {
+                  setShowChangeModal(false);
+                  setChangeErrors({});
+                }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <X size={20} color={colors.foreground} />
@@ -1521,14 +1548,28 @@ export const BookingDetailScreen = ({ route, navigation }) => {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
+              {Boolean(changeErrors.general) && (
+                <Text style={styles.generalErrorBanner}>{changeErrors.general}</Text>
+              )}
+
               <Text style={styles.inputLabel}>New Event Date (YYYY-MM-DD)</Text>
               <TextInput
-                style={styles.modalInput}
+                style={[
+                  styles.modalInput,
+                  Boolean(changeErrors.changeDate) && styles.inputError,
+                ]}
                 placeholder={booking.event_date ? booking.event_date.split("T")[0] : "2026-10-15"}
                 placeholderTextColor={colors.textDisabled}
                 value={changeDate}
-                onChangeText={setChangeDate}
+                onChangeText={(val) => {
+                  setChangeDate(val);
+                  if (changeErrors.changeDate) setChangeErrors((prev) => ({ ...prev, changeDate: "" }));
+                  if (changeErrors.general) setChangeErrors((prev) => ({ ...prev, general: "" }));
+                }}
               />
+              {Boolean(changeErrors.changeDate) && (
+                <Text style={styles.fieldErrorText}>{changeErrors.changeDate}</Text>
+              )}
 
               <Text style={styles.inputLabel}>New Start Time</Text>
               <TextInput
@@ -1536,18 +1577,31 @@ export const BookingDetailScreen = ({ route, navigation }) => {
                 placeholder={booking.start_time || "12:00 PM"}
                 placeholderTextColor={colors.textDisabled}
                 value={changeTime}
-                onChangeText={setChangeTime}
+                onChangeText={(val) => {
+                  setChangeTime(val);
+                  if (changeErrors.general) setChangeErrors((prev) => ({ ...prev, general: "" }));
+                }}
               />
 
               <Text style={styles.inputLabel}>New Guest Count</Text>
               <TextInput
-                style={styles.modalInput}
+                style={[
+                  styles.modalInput,
+                  Boolean(changeErrors.changeGuests) && styles.inputError,
+                ]}
                 placeholder={String(booking.guest_count || 50)}
                 placeholderTextColor={colors.textDisabled}
                 keyboardType="numeric"
                 value={changeGuests}
-                onChangeText={setChangeGuests}
+                onChangeText={(val) => {
+                  setChangeGuests(val);
+                  if (changeErrors.changeGuests) setChangeErrors((prev) => ({ ...prev, changeGuests: "" }));
+                  if (changeErrors.general) setChangeErrors((prev) => ({ ...prev, general: "" }));
+                }}
               />
+              {Boolean(changeErrors.changeGuests) && (
+                <Text style={styles.fieldErrorText}>{changeErrors.changeGuests}</Text>
+              )}
 
               <Text style={styles.inputLabel}>New Venue Type (Optional)</Text>
               <TextInput
@@ -1555,7 +1609,10 @@ export const BookingDetailScreen = ({ route, navigation }) => {
                 placeholder={booking.venue_type || "e.g. Covered Pavilion"}
                 placeholderTextColor={colors.textDisabled}
                 value={changeVenue}
-                onChangeText={setChangeVenue}
+                onChangeText={(val) => {
+                  setChangeVenue(val);
+                  if (changeErrors.general) setChangeErrors((prev) => ({ ...prev, general: "" }));
+                }}
               />
 
               <Text style={styles.inputLabel}>Notes & Reasons for Revision</Text>
@@ -1565,7 +1622,10 @@ export const BookingDetailScreen = ({ route, navigation }) => {
                 placeholderTextColor={colors.textDisabled}
                 multiline
                 value={changeNote}
-                onChangeText={setChangeNote}
+                onChangeText={(val) => {
+                  setChangeNote(val);
+                  if (changeErrors.general) setChangeErrors((prev) => ({ ...prev, general: "" }));
+                }}
               />
 
               <AppButton
@@ -1594,7 +1654,10 @@ export const BookingDetailScreen = ({ route, navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Additional Guests</Text>
               <TouchableOpacity
-                onPress={() => setShowAddGuestsModal(false)}
+                onPress={() => {
+                  setShowAddGuestsModal(false);
+                  setExtraGuestsError("");
+                }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <X size={20} color={colors.foreground} />
@@ -1607,13 +1670,22 @@ export const BookingDetailScreen = ({ route, navigation }) => {
 
             <Text style={styles.inputLabel}>Number of Additional Guests</Text>
             <TextInput
-              style={styles.modalInput}
+              style={[
+                styles.modalInput,
+                Boolean(extraGuestsError) && styles.inputError,
+              ]}
               placeholder="e.g. 10"
               placeholderTextColor={colors.textDisabled}
               keyboardType="numeric"
               value={extraGuests}
-              onChangeText={setExtraGuests}
+              onChangeText={(val) => {
+                setExtraGuests(val);
+                if (extraGuestsError) setExtraGuestsError("");
+              }}
             />
+            {Boolean(extraGuestsError) && (
+              <Text style={styles.fieldErrorText}>{extraGuestsError}</Text>
+            )}
 
             <AppButton
               title={`Confirm +${extraGuests || 0} Extra Guests`}
@@ -2550,6 +2622,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 23, 42, 0.45)",
     justifyContent: "center",
     padding: spacing.base,
+    ...Platform.select({
+      web: {
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+      },
+    }),
   },
   modalContainer: {
     backgroundColor: colors.surface,
@@ -2592,6 +2674,31 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     color: colors.foregroundDark,
     minHeight: 44,
+  },
+  inputError: {
+    borderColor: colors.error,
+    borderWidth: 1.5,
+    backgroundColor: colors.errorLight,
+  },
+  fieldErrorText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.medium,
+    fontWeight: "600",
+    color: colors.error,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  generalErrorBanner: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.medium,
+    fontWeight: "600",
+    color: colors.error,
+    backgroundColor: colors.errorLight,
+    borderColor: colors.errorBorder,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
   },
   pkgOption: {
     flexDirection: "row",

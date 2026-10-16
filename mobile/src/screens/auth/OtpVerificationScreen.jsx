@@ -40,6 +40,7 @@ export const OtpVerificationScreen = ({ route, navigation }) => {
   }, [countdown]);
 
   const handleOtpChange = (text, index) => {
+    if (error) setError("");
     const cleanText = text.replace(/[^0-9]/g, "");
 
     // If pasting full code or multi-digit string
@@ -60,6 +61,7 @@ export const OtpVerificationScreen = ({ route, navigation }) => {
   };
 
   const handleKeyPress = (e, index) => {
+    if (error) setError("");
     if (e.nativeEvent.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
@@ -151,12 +153,6 @@ export const OtpVerificationScreen = ({ route, navigation }) => {
           <Text style={styles.emailHighlight}>{email || "your email"}</Text>
         </Text>
 
-        {Boolean(error) && (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorBannerText}>{error}</Text>
-          </View>
-        )}
-
         {/* 6-box input */}
         <View style={styles.otpRow}>
           {otp.map((digit, idx) => (
@@ -178,6 +174,10 @@ export const OtpVerificationScreen = ({ route, navigation }) => {
             />
           ))}
         </View>
+
+        {Boolean(error) && (
+          <Text style={styles.fieldErrorText}>{error}</Text>
+        )}
 
         <AppButton
           title="Verify & Continue"
@@ -279,7 +279,15 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 360,
     gap: 8,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.md,
+  },
+  fieldErrorText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.medium,
+    fontWeight: "600",
+    color: colors.error,
+    textAlign: "center",
+    marginBottom: spacing.md,
   },
   otpBox: {
     flex: 1,

@@ -10,9 +10,8 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { X, MapPin, Users, Sparkles, CheckCircle2, ChevronRight } from "lucide-react-native";
+import { X, MapPin, Users, Sparkles, CheckCircle2 } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
-import AppButton from "./AppButton";
 
 export const GalleryLightboxModal = ({ visible, item, onClose, onInquireSetup }) => {
   const insets = useSafeAreaInsets();
@@ -48,7 +47,10 @@ export const GalleryLightboxModal = ({ visible, item, onClose, onInquireSetup })
           {/* Image & Detail Content */}
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: Math.max(insets.bottom, spacing.base) + spacing.md },
+            ]}
           >
             <View style={styles.imageWrapper}>
               <Image
@@ -91,20 +93,6 @@ export const GalleryLightboxModal = ({ visible, item, onClose, onInquireSetup })
               )}
             </View>
           </ScrollView>
-
-          {/* Bottom Action CTA */}
-          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, spacing.base) }]}>
-            <AppButton
-              title="Inquire for this Setup"
-              variant="primary"
-              size="lg"
-              icon={ChevronRight}
-              onPress={() => {
-                onClose();
-                if (onInquireSetup) onInquireSetup(item);
-              }}
-            />
-          </View>
         </View>
       </View>
     </Modal>
@@ -232,13 +220,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: typography.fontFamily.semiBold,
     color: colors.primary,
-  },
-  bottomBar: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
   },
 });
 

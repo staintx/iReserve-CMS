@@ -33,6 +33,7 @@ exports.getMe = asyncHandler(async (req, res) => {
   delete userData.profile_otp_expires;
   delete userData.profile_otp_attempts;
   delete userData.profile_otp_last_sent_at;
+  delete userData.profile_otp_target_email;
   delete userData.email_otp_hash;
   delete userData.email_otp_expires;
   delete userData.reset_password_token;
@@ -58,6 +59,35 @@ exports.requestProfileOtp = asyncHandler(async (req, res) => {
     }
   }
 
+  const candidateEmail = req.body?.email ? String(req.body.email).trim().toLowerCase() : null;
+  const isDefaultAdmin =
+    user.email?.toLowerCase() === "admin@ireserve.com" ||
+    user.email?.toLowerCase().endsWith("@ireserve.com");
+
+  let targetEmail = user.email;
+
+  if (candidateEmail && candidateEmail !== user.email?.toLowerCase()) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(candidateEmail)) {
+      return res.status(400).json({ message: "Please provide a valid email address." });
+    }
+
+    const existing = await User.findOne({ email: candidateEmail, _id: { $ne: user._id } });
+    if (existing) {
+      return res.status(409).json({ message: "Email already in use" });
+    }
+
+    // Default admin has an unroutable placeholder email (admin@ireserve.com).
+    // Send the verification code to the newly entered email on first change.
+    if (isDefaultAdmin) {
+      targetEmail = candidateEmail;
+    }
+  } else if (isDefaultAdmin) {
+    return res.status(400).json({
+      message: "Please enter your new email address to replace the default admin credentials."
+    });
+  }
+
   const otp = generateCryptoOtp();
   const otpHash = hashToken(otp);
 
@@ -65,16 +95,20 @@ exports.requestProfileOtp = asyncHandler(async (req, res) => {
   user.profile_otp_expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
   user.profile_otp_attempts = 0;
   user.profile_otp_last_sent_at = new Date();
+  user.profile_otp_target_email = targetEmail !== user.email ? targetEmail : undefined;
   await user.save();
 
-  // Send branded email to user's CURRENT registered email
+  // Send branded email to target email
   let emailSent = true;
   try {
     const roleLabel = (user.role || "user").toUpperCase();
+    const isNewEmailSetup = targetEmail !== user.email;
     const bodyContent = `
       <h2>Security Verification Code 🔐</h2>
       <p style="text-align: center; color: #475569;">
-        A request was made to update profile details on your <strong>Caezelle's Catering</strong> account (${roleLabel}).
+        ${isNewEmailSetup
+          ? `A request was made to set this address as the primary email on your <strong>Caezelle's Catering</strong> account (${roleLabel}).`
+          : `A request was made to update profile details on your <strong>Caezelle's Catering</strong> account (${roleLabel}).`}
       </p>
       <div class="otp-card">
         <div class="otp-label">Two-Factor Verification Code</div>
@@ -87,7 +121,7 @@ exports.requestProfileOtp = asyncHandler(async (req, res) => {
     `;
 
     await sendEmail({
-      to: user.email,
+      to: targetEmail,
       subject: "Security Verification Code | Caezelle's Catering",
       text: `Your security verification code is ${otp}. Valid for 10 minutes.`,
       html: wrapHtml("Security Verification", bodyContent)
@@ -102,7 +136,7 @@ exports.requestProfileOtp = asyncHandler(async (req, res) => {
     message: emailSent
       ? "Verification code sent to your email."
       : "Failed to deliver code via email. Please check your connection and try again.",
-    masked_email: maskEmail(user.email),
+    masked_email: maskEmail(targetEmail),
     cooldown_seconds: 60
   });
 });
@@ -127,6 +161,7 @@ exports.updateMe = asyncHandler(async (req, res) => {
     user.profile_otp_hash = undefined;
     user.profile_otp_expires = undefined;
     user.profile_otp_attempts = 0;
+    user.profile_otp_target_email = undefined;
     await user.save();
     return res.status(429).json({ message: "Too many failed attempts. This code has been invalidated. Please request a new code." });
   }
@@ -140,10 +175,21 @@ exports.updateMe = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: `Invalid verification code. ${remaining} attempt(s) remaining.` });
   }
 
+  // If this OTP was issued for a specific target email, ensure submitted email matches
+  if (user.profile_otp_target_email && req.body.email) {
+    const submittedEmail = String(req.body.email).trim().toLowerCase();
+    if (submittedEmail !== user.profile_otp_target_email.toLowerCase()) {
+      return res.status(400).json({
+        message: "Email address does not match the verification code recipient."
+      });
+    }
+  }
+
   // OTP verified successfully - clear OTP state
   user.profile_otp_hash = undefined;
   user.profile_otp_expires = undefined;
   user.profile_otp_attempts = 0;
+  user.profile_otp_target_email = undefined;
 
   let emailChanged = false;
   let oldEmail = user.email;
@@ -193,6 +239,7 @@ exports.updateMe = asyncHandler(async (req, res) => {
 
   if (req.body.email && emailChanged) {
     user.email = newEmail;
+    user.is_verified = true;
   }
   if (req.body.phone !== undefined) {
     user.phone = req.body.phone ? req.body.phone.trim() : "";
@@ -212,8 +259,9 @@ exports.updateMe = asyncHandler(async (req, res) => {
 
   await user.save();
 
-  // If email was changed, send security notice to OLD email and welcome notice to NEW email
-  if (emailChanged && oldEmail) {
+  // If email was changed, send security notice to OLD email (skip unroutable default credentials) and welcome notice to NEW email
+  const isOldDefault = !oldEmail || oldEmail.toLowerCase() === "admin@ireserve.com" || oldEmail.toLowerCase().endsWith("@ireserve.com");
+  if (emailChanged && oldEmail && !isOldDefault) {
     try {
       const securityAlertHtml = `
         <h2>Account Security Alert 🛡️</h2>
@@ -252,6 +300,23 @@ exports.updateMe = asyncHandler(async (req, res) => {
     } catch (e) {
       console.error("Email notification error:", e.message);
     }
+  } else if (emailChanged && newEmail) {
+    try {
+      const newEmailConfirmHtml = `
+        <h2>Email Address Confirmed ✅</h2>
+        <p style="text-align: center; color: #475569;">
+          Your Caezelle's Catering account email address has been successfully updated to <strong>${newEmail}</strong>.
+        </p>
+      `;
+      sendEmail({
+        to: newEmail,
+        subject: "Email address updated | Caezelle's Catering",
+        text: `Your account email has been updated to ${newEmail}.`,
+        html: wrapHtml("Email Updated", newEmailConfirmHtml)
+      }).catch((err) => console.error("Failed to send new email confirm:", err.message));
+    } catch (e) {
+      console.error("Email notification error:", e.message);
+    }
   }
 
   // Audit Log entry
@@ -275,6 +340,7 @@ exports.updateMe = asyncHandler(async (req, res) => {
   delete userData.profile_otp_expires;
   delete userData.profile_otp_attempts;
   delete userData.profile_otp_last_sent_at;
+  delete userData.profile_otp_target_email;
   delete userData.email_otp_hash;
   delete userData.email_otp_expires;
   delete userData.reset_password_token;

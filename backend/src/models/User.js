@@ -29,6 +29,7 @@ const UserSchema = new mongoose.Schema({
   profile_otp_expires: Date,
   profile_otp_attempts: { type: Number, default: 0 },
   profile_otp_last_sent_at: Date,
+  profile_otp_target_email: String,
   reset_password_token: String,
   reset_password_expires: Date,
   accepted_terms: { type: Boolean, default: false },

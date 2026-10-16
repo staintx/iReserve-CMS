@@ -22,6 +22,7 @@ const sanitizeUser = (user) => {
   delete data.profile_otp_expires;
   delete data.profile_otp_attempts;
   delete data.profile_otp_last_sent_at;
+  delete data.profile_otp_target_email;
   delete data.reset_password_token;
   delete data.reset_password_expires;
   delete data.refresh_token;

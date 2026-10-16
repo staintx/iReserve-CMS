@@ -135,7 +135,7 @@ export default function CustomerProfile() {
 
     setIsLoading(true);
     try {
-      const res = await CustomerAPI.requestProfileOtp();
+      const res = await CustomerAPI.requestProfileOtp({ email: emailToSubmit });
       setMaskedEmail(res.data?.masked_email || user?.email || "");
       setPendingPayload(payload);
       setOtpError("");
@@ -183,11 +183,16 @@ export default function CustomerProfile() {
   };
 
   const handleResendOtp = async () => {
-    const res = await CustomerAPI.requestProfileOtp();
-    if (res.data?.masked_email) {
-      setMaskedEmail(res.data.masked_email);
+    try {
+      const emailTarget = pendingPayload?.email || form.email;
+      const res = await CustomerAPI.requestProfileOtp({ email: emailTarget });
+      if (res.data?.masked_email) {
+        setMaskedEmail(res.data.masked_email);
+      }
+      notify("A new verification code was sent to your email.", "info");
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to resend verification code.", "error");
     }
-    notify("A new verification code was sent to your email.", "info");
   };
 
   const savePassword = async (e) => {

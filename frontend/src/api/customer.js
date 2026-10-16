@@ -59,7 +59,7 @@ export const CustomerAPI = {
 
   // profile
   getProfile: () => api.get("/users/me"),
-  requestProfileOtp: () => api.post("/users/me/request-otp"),
+  requestProfileOtp: (data) => api.post("/users/me/request-otp", data),
   updateProfile: (data) => api.put("/users/me", data),
   changePassword: (data) => api.put("/users/me/password", data),
 

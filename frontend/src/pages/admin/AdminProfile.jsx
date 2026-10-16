@@ -116,6 +116,10 @@ export default function AdminProfile() {
   }, [loadProfile]);
 
 
+  const isDefaultAdminEmail =
+    form.email?.toLowerCase() === "admin@ireserve.com" ||
+    form.email?.toLowerCase().endsWith("@ireserve.com");
+
   const isFormDirty =
     form.first_name !== initialForm.first_name ||
     form.last_name !== initialForm.last_name ||
@@ -180,9 +184,9 @@ export default function AdminProfile() {
 
     setIsProfileLoading(true);
     try {
-      // Trigger 2FA OTP request to user's registered email
-      const res = await AdminAPI.requestProfileOtp();
-      setMaskedEmail(res.data?.masked_email || user?.email || "");
+      // Trigger 2FA OTP request. For default admin credentials, OTP is routed to the new email.
+      const res = await AdminAPI.requestProfileOtp({ email: emailToSubmit });
+      setMaskedEmail(res.data?.masked_email || (isDefaultAdminEmail ? maskEmail(emailToSubmit) : maskEmail(user?.email || form.email)));
       setPendingPayload(payload);
       setOtpError("");
       setIsOtpModalOpen(true);
@@ -229,11 +233,16 @@ export default function AdminProfile() {
   };
 
   const handleResendOtp = async () => {
-    const res = await AdminAPI.requestProfileOtp();
-    if (res.data?.masked_email) {
-      setMaskedEmail(res.data.masked_email);
+    try {
+      const emailTarget = pendingPayload?.email || form.email;
+      const res = await AdminAPI.requestProfileOtp({ email: emailTarget });
+      if (res.data?.masked_email) {
+        setMaskedEmail(res.data.masked_email);
+      }
+      notify("A new verification code was sent to your email.", "info");
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to resend verification code.", "error");
     }
-    notify("A new verification code was sent to your email.", "info");
   };
 
   const savePassword = async (e) => {
@@ -489,7 +498,9 @@ export default function AdminProfile() {
                           </div>
                           <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
                             <Shield className="w-3.5 h-3.5 text-primary" />
-                            Changing admin email will require 2FA OTP verification on your current email address.
+                            {isDefaultAdminEmail
+                              ? "Initial setup: A verification code will be sent to your new email address to confirm ownership."
+                              : "Changing admin email will require 2FA OTP verification on your current email address."}
                           </p>
                         </div>
                       ) : (
@@ -499,10 +510,17 @@ export default function AdminProfile() {
                             <span className="font-mono text-xs sm:text-sm text-foreground truncate">
                               {isEmailMasked ? maskEmail(form.email) : form.email}
                             </span>
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full shrink-0">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              Verified
-                            </span>
+                            {isDefaultAdminEmail ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full shrink-0">
+                                <Info className="w-3 h-3 text-amber-600" />
+                                Default Email
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full shrink-0">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                Verified
+                              </span>
+                            )}
                           </div>
                           <button
                             type="button"
@@ -568,7 +586,11 @@ export default function AdminProfile() {
                   </div>
                   <div className="flex items-center justify-between pb-3 border-b border-border">
                     <span className="text-muted-foreground">Email Verification</span>
-                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">Verified</span>
+                    {isDefaultAdminEmail || !user?.is_verified ? (
+                      <span className="font-semibold text-amber-600 dark:text-amber-400">Pending Setup</span>
+                    ) : (
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">Verified</span>
+                    )}
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Member Since</span>

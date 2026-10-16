@@ -1,5 +1,5 @@
 import { createContext, useCallback, useEffect, useState } from "react";
-import api, { setTokens, clearTokens } from "../api/axios";
+import api, { setTokens, clearTokens, refreshAuth } from "../api/axios";
 import { getSocket, resetSocket } from "../api/socket";
 
 export const AuthContext = createContext();
@@ -16,7 +16,7 @@ export default function AuthProvider({ children }) {
           const { token, refreshToken, ...userData } = data;
           // Capture tokens if the /me endpoint returns them (it doesn't normally,
           // but the login response does — this is just defensive)
-          if (token) setTokens(token, refreshToken);
+          if (token) setTokens(token, refreshToken || undefined);
           setUser(userData);
           resetSocket();
           getSocket().connect();
@@ -34,6 +34,15 @@ export default function AuthProvider({ children }) {
         setIsReady(true);
       });
   }, []);
+
+  // Proactively refresh access token every 10 minutes while active (access token expires in 15m)
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => {
+      refreshAuth().catch(() => {});
+    }, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const login = async (email, password, turnstileToken) => {
     const { data } = await api.post("/auth/login", { 

@@ -30,6 +30,7 @@ import useRealTimeRefresh from "../../utils/useRealTimeRefresh";
 import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
 import LoadingState from "../../components/common/LoadingState";
+import CustomerHeaderIcons from "../../components/customer/CustomerHeaderIcons";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
 import ProcessTimeline from "../../components/common/ProcessTimeline";
@@ -586,19 +587,29 @@ export const InquiriesListScreen = ({ navigation }) => {
             )}
           </View>
 
+          <CustomerHeaderIcons navigation={navigation} />
+        </View>
+
+        <View style={styles.headerSubRow}>
+          <Text
+            style={styles.screenSubtitle}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            Track event requests and quotes.
+          </Text>
+
           <TouchableOpacity
             style={styles.newRequestBtn}
             onPress={() => navigation.navigate("InquiryWizard")}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="New Request"
           >
-            <Plus size={15} color={colors.white} style={{ marginRight: 4 }} />
+            <Plus size={14} color={colors.white} style={{ marginRight: 4 }} />
             <Text style={styles.newRequestBtnText}>New Request</Text>
           </TouchableOpacity>
         </View>
-
-        <Text style={styles.screenSubtitle}>
-          Track your event requests, quotation reviews, and booking progress.
-        </Text>
       </View>
 
       {/* 1-Row Combined Search and Filter with Bottom Sheet */}
@@ -670,7 +681,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: spacing.base,
-    paddingBottom: spacing.xs + 2,
+    paddingBottom: spacing.sm,
     backgroundColor: colors.surface,
   },
   headerTopRow: {
@@ -678,14 +689,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.sm,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   headerTitleGroup: {
     flexDirection: "row",
     alignItems: "center",
     flexShrink: 1,
     minWidth: 0,
-    gap: spacing.xs,
+    gap: spacing.xs + 2,
   },
   screenTitle: {
     fontSize: 21,
@@ -698,7 +709,7 @@ const styles = StyleSheet.create({
   countBadge: {
     backgroundColor: colors.surfaceAlt,
     paddingHorizontal: 7,
-    paddingVertical: 1,
+    paddingVertical: 1.5,
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.cardBorder,
@@ -709,13 +720,19 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamilies.bold,
     color: colors.foregroundMuted,
   },
+  headerSubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
   newRequestBtn: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.sm + 4,
-    paddingVertical: 7,
-    minHeight: 36,
+    paddingVertical: 6,
+    minHeight: 34,
     borderRadius: radius.pill,
     flexShrink: 0,
   },
@@ -725,6 +742,7 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   screenSubtitle: {
+    flex: 1,
     fontSize: 12,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,

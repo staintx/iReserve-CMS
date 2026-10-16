@@ -28,6 +28,7 @@ import { cacheData, getCachedData, CACHE_KEYS } from "../../utils/offlineStorage
 import useRealTimeRefresh from "../../utils/useRealTimeRefresh";
 import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
+import CustomerHeaderIcons from "../../components/customer/CustomerHeaderIcons";
 import AlertBanner from "../../components/common/AlertBanner";
 import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
@@ -600,19 +601,29 @@ export const BookingsListScreen = ({ navigation }) => {
             )}
           </View>
 
+          <CustomerHeaderIcons navigation={navigation} />
+        </View>
+
+        <View style={styles.headerSubRow}>
+          <Text
+            style={styles.screenSubtitle}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            Track reserved events and payments.
+          </Text>
+
           <TouchableOpacity
             style={styles.bookEventBtn}
             onPress={() => navigation.navigate("InquiryWizard")}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Book an event"
           >
-            <Plus size={15} color={colors.white} style={{ marginRight: 4 }} />
+            <Plus size={14} color={colors.white} style={{ marginRight: 4 }} />
             <Text style={styles.bookEventBtnText}>Book an event</Text>
           </TouchableOpacity>
         </View>
-
-        <Text style={styles.screenSubtitle}>
-          Track your reserved events, payments, and what to do next.
-        </Text>
       </View>
 
       {/* Payment Reminder Amber Banner (Preserved) */}
@@ -699,7 +710,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: spacing.base,
-    paddingBottom: spacing.xs + 2,
+    paddingBottom: spacing.sm,
     backgroundColor: colors.surface,
   },
   headerTopRow: {
@@ -707,14 +718,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.sm,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   headerTitleGroup: {
     flexDirection: "row",
     alignItems: "center",
     flexShrink: 1,
     minWidth: 0,
-    gap: spacing.xs,
+    gap: spacing.xs + 2,
   },
   screenTitle: {
     fontSize: 21,
@@ -727,7 +738,7 @@ const styles = StyleSheet.create({
   headerCountBadge: {
     backgroundColor: colors.surfaceAlt,
     paddingHorizontal: 7,
-    paddingVertical: 1,
+    paddingVertical: 1.5,
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.cardBorder,
@@ -738,13 +749,19 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamilies.bold,
     color: colors.foregroundMuted,
   },
+  headerSubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
   bookEventBtn: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.sm + 4,
-    paddingVertical: 7,
-    minHeight: 36,
+    paddingVertical: 6,
+    minHeight: 34,
     borderRadius: radius.pill,
     flexShrink: 0,
   },
@@ -754,6 +771,7 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   screenSubtitle: {
+    flex: 1,
     fontSize: 12,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,

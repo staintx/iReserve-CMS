@@ -30,6 +30,7 @@ import AdminCard from "../../components/admin/ui/AdminCard";
 import KPICard from "../../components/admin/ui/KPICard";
 import Badge from "../../components/admin/ui/Badge";
 import Btn from "../../components/admin/ui/Btn";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 import { useNavigate } from "react-router-dom";
 import { AdminAPI } from "../../api/admin";
@@ -54,6 +55,7 @@ export default function AdminCustomers() {
   const [refreshing, setRefreshing] = useState(false);
   const [drawerRow, setDrawerRow] = useState(null);
   const [copiedKey, setCopiedKey] = useState(null);
+  const [deactivateTarget, setDeactivateTarget] = useState(null);
 
   // Advanced filters
   const [minSpend, setMinSpend] = useState("");
@@ -102,8 +104,7 @@ export default function AdminCustomers() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [drawerRow]);
 
-  const handleToggleStatus = async (customer) => {
-    const newStatus = customer.is_active === false ? true : false;
+  const executeStatusChange = async (customer, newStatus) => {
     const actionText = newStatus ? "activate" : "deactivate";
 
     try {
@@ -115,8 +116,17 @@ export default function AdminCustomers() {
         setDrawerRow((prev) => ({ ...prev, is_active: newStatus }));
       }
       notify(`Customer account ${newStatus ? "activated" : "deactivated"} successfully`, "success");
-    } catch {
-      notify(`Failed to ${actionText} customer account`, "error");
+    } catch (err) {
+      notify(err?.response?.data?.message || `Failed to ${actionText} customer account`, "error");
+    }
+  };
+
+  const handleToggleStatus = (customer) => {
+    const isCurrentlyActive = customer.is_active !== false;
+    if (isCurrentlyActive) {
+      setDeactivateTarget(customer);
+    } else {
+      executeStatusChange(customer, true);
     }
   };
 
@@ -149,6 +159,27 @@ export default function AdminCustomers() {
       })
       .sort((a, b) => new Date(b.event_date || b.createdAt || 0) - new Date(a.event_date || a.createdAt || 0));
   }, [drawerRow, bookings]);
+
+  // Active bookings for the target being deactivated
+  const targetActiveBookings = useMemo(() => {
+    if (!deactivateTarget?._id) return [];
+    const custId = String(deactivateTarget._id);
+    const custEmail = (deactivateTarget.email || "").trim().toLowerCase();
+
+    return bookings.filter((b) => {
+      const bCustId = b.customer_id?._id
+        ? String(b.customer_id._id)
+        : b.customer_id
+        ? String(b.customer_id)
+        : null;
+      const matches = (bCustId && bCustId === custId) ||
+        (custEmail && b.contact_email && b.contact_email.trim().toLowerCase() === custEmail);
+      if (!matches) return false;
+
+      const s = (b.status || "").toLowerCase();
+      return s !== "cancelled" && s !== "completed" && s !== "refunded";
+    });
+  }, [deactivateTarget, bookings]);
 
   // Metrics summary
   const metrics = useMemo(() => {
@@ -979,6 +1010,82 @@ export default function AdminCustomers() {
 
             </div>
           </div>
+        )}
+        {/* Deactivation Confirmation Dialog with Active Booking Notice */}
+        {deactivateTarget && (
+          <ConfirmDialog
+            title="Deactivate Customer Account?"
+            isDestructive
+            wide
+            confirmText="Deactivate Account"
+            cancelText="Keep Account Active"
+            onConfirm={async () => {
+              await executeStatusChange(deactivateTarget, false);
+              setDeactivateTarget(null);
+            }}
+            onCancel={() => setDeactivateTarget(null)}
+          >
+            <div className="space-y-3 pt-1 text-xs">
+              {targetActiveBookings.length > 0 ? (
+                <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-3.5 space-y-2.5 text-rose-950">
+                  <div className="flex items-start gap-2.5 font-semibold text-rose-900 text-xs">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span>Warning: Active Reservations & Payments On Record</span>
+                      <p className="text-[11px] font-normal text-rose-800 mt-0.5">
+                        <strong>{deactivateTarget.full_name || deactivateTarget.email}</strong> currently has{" "}
+                        <strong>{targetActiveBookings.length} active reservation(s)</strong> and{" "}
+                        <strong>{fmt(deactivateTarget.spending)}</strong> in approved customer spending.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-rose-200/90 bg-white/95 p-2.5 space-y-1.5 max-h-36 overflow-y-auto">
+                    <div className="text-[10px] font-semibold text-rose-700 uppercase tracking-wider">
+                      Affected Active / Upcoming Bookings:
+                    </div>
+                    {targetActiveBookings.map((b) => (
+                      <div
+                        key={b._id}
+                        className="flex items-center justify-between text-[11px] py-1 border-b border-rose-100 last:border-b-0"
+                      >
+                        <div className="flex flex-col min-w-0 pr-2">
+                          <span className="font-semibold text-gray-900 truncate">
+                            #{b.reference || b._id?.slice(-6)} • {b.event_type || "Event"}
+                          </span>
+                          <span className="text-[10px] text-gray-500">
+                            Event Date: {formatDate(b.event_date)}
+                          </span>
+                        </div>
+                        <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-rose-100 text-rose-800 border border-rose-200">
+                          {b.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-1 text-[11px] text-rose-800/90 bg-rose-100/60 p-2 rounded-lg">
+                    <p className="font-semibold text-rose-900">Important notices before proceeding:</p>
+                    <ul className="list-disc list-inside space-y-0.5 text-[10px]">
+                      <li>The customer will be instantly locked out and unable to log in, view receipts, or make remaining payments online.</li>
+                      <li>These reservations will <strong>remain scheduled</strong> on the calendar unless separately cancelled in Bookings.</li>
+                      <li>If the event will not take place, process a formal cancellation or refund first to release assigned inventory and staff.</li>
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 text-gray-600">
+                  <p>
+                    Are you sure you want to deactivate the account for{" "}
+                    <strong className="text-gray-900">{deactivateTarget.full_name || deactivateTarget.email}</strong>?
+                  </p>
+                  <p className="text-[11px] text-gray-500">
+                    This customer will no longer be able to log in or create new inquiries. Historical records and past reservations will remain intact. You can reactivate this account at any time.
+                  </p>
+                </div>
+              )}
+            </div>
+          </ConfirmDialog>
         )}
       </div>
     </AdminLayout>

@@ -3,7 +3,107 @@ const Booking = require("../models/Booking");
 const Payment = require("../models/Payment");
 const Package = require("../models/Package");
 const Inquiry = require("../models/Inquiry");
+const MenuItem = require("../models/MenuItem");
 const asyncHandler = require("../utils/asyncHandler");
+
+async function getMostSelectedMenu() {
+  const [bookings, inquiries] = await Promise.all([
+    Booking.find({
+      $or: [
+        { "menu_items.0": { $exists: true } },
+        { "offer_food_snapshot.0": { $exists: true } }
+      ]
+    }).select("menu_items offer_food_snapshot createdAt inquiry_id").lean(),
+    Inquiry.find({
+      $or: [
+        { "selected_menu.0": { $exists: true } },
+        { "offer_food_snapshot.0": { $exists: true } }
+      ]
+    }).select("selected_menu offer_food_snapshot createdAt converted_booking_id").populate("selected_menu", "name category").lean()
+  ]);
+
+  const convertedInquiryIds = new Set();
+  for (const b of bookings) {
+    if (b.inquiry_id) {
+      convertedInquiryIds.add(b.inquiry_id.toString());
+    }
+  }
+
+  const menuMap = new Map();
+
+  const addSelection = (name, category, date) => {
+    if (!name || typeof name !== "string") return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
+    if (!menuMap.has(trimmed)) {
+      menuMap.set(trimmed, {
+        name: trimmed,
+        category: category || "",
+        count: 0,
+        dates: []
+      });
+    }
+
+    const item = menuMap.get(trimmed);
+    item.count += 1;
+    if (category && !item.category) {
+      item.category = category;
+    }
+    if (date) {
+      item.dates.push(date instanceof Date ? date.toISOString() : new Date(date).toISOString());
+    }
+  };
+
+  for (const b of bookings) {
+    const seen = new Set();
+    const date = b.createdAt || new Date();
+    if (Array.isArray(b.menu_items)) {
+      for (const m of b.menu_items) {
+        if (m && m.name && !seen.has(m.name)) {
+          seen.add(m.name);
+          addSelection(m.name, m.category, date);
+        }
+      }
+    }
+    if (Array.isArray(b.offer_food_snapshot)) {
+      for (const m of b.offer_food_snapshot) {
+        if (m && m.item_name && !seen.has(m.item_name)) {
+          seen.add(m.item_name);
+          addSelection(m.item_name, m.menu_category, date);
+        }
+      }
+    }
+  }
+
+  for (const inq of inquiries) {
+    if (inq.converted_booking_id || convertedInquiryIds.has(inq._id.toString())) {
+      continue;
+    }
+    const seen = new Set();
+    const date = inq.createdAt || new Date();
+    if (Array.isArray(inq.selected_menu)) {
+      for (const m of inq.selected_menu) {
+        const name = typeof m === "object" ? m?.name : String(m);
+        const cat = typeof m === "object" ? m?.category : "";
+        if (name && !seen.has(name)) {
+          seen.add(name);
+          addSelection(name, cat, date);
+        }
+      }
+    }
+    if (Array.isArray(inq.offer_food_snapshot)) {
+      for (const m of inq.offer_food_snapshot) {
+        if (m && m.item_name && !seen.has(m.item_name)) {
+          seen.add(m.item_name);
+          addSelection(m.item_name, m.menu_category, date);
+        }
+      }
+    }
+  }
+
+  return Array.from(menuMap.values()).sort((a, b) => b.count - a.count);
+}
 
 exports.dashboardSummary = asyncHandler(async (req, res) => {
   const startOfMonth = new Date();
@@ -35,7 +135,7 @@ exports.dashboardMetrics = asyncHandler(async (req, res) => {
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  const [summary, monthlyRevenue, bookingStatus, eventTypes, topPackages, recentBookings, recentInquiries] = await Promise.all([
+  const [summary, monthlyRevenue, bookingStatus, eventTypes, topPackages, recentBookings, recentInquiries, mostSelectedMenu] = await Promise.all([
     Promise.all([
       0,
       Inquiry.countDocuments({ status: "Pending Review" }),
@@ -81,7 +181,8 @@ exports.dashboardMetrics = asyncHandler(async (req, res) => {
       { $project: { _id: 1, bookings: 1, revenue: 1, name: "$package.name" } }
     ]),
     Booking.find().sort({ createdAt: -1 }).limit(5).select("event_type status createdAt"),
-    []
+    [],
+    getMostSelectedMenu()
   ]);
 
   const [totalInquiries, pendingQuotations, upcomingBookings, monthlyRevenueAggr, completedEvents] = summary;
@@ -139,6 +240,7 @@ exports.dashboardMetrics = asyncHandler(async (req, res) => {
     bookingStatus: formattedStatus,
     eventTypes: formattedEventTypes,
     topPackages: formattedTopPackages,
+    mostSelectedMenu,
     recentActivity
   });
 });

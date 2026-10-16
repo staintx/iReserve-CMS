@@ -108,7 +108,7 @@ export const MenuScreen = ({ navigation }) => {
           style={styles.searchInput}
           placeholder="Search dishes, pasta, desserts, beef..."
           placeholderTextColor={colors.textDisabled}
-          value={searchQuery}
+          value={searchQuery || ""}
           onChangeText={setSearchQuery}
           returnKeyType="search"
           accessibilityLabel="Search dishes"
@@ -129,6 +129,7 @@ export const MenuScreen = ({ navigation }) => {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.categoryPillsScroll}
         >
           {categories.map((cat) => {
@@ -160,6 +161,7 @@ export const MenuScreen = ({ navigation }) => {
           { paddingBottom: Math.max(insets.bottom, 16) + 120 },
         ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
         }

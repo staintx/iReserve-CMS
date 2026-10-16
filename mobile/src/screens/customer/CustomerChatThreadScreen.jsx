@@ -369,6 +369,7 @@ export const CustomerChatThreadScreen = ({ route, navigation }) => {
               ? String(item.client_message_id)
               : String(idx)
           }
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
           onContentSizeChange={() => {
             if (Array.isArray(messages) && messages.length > 0) {
@@ -388,7 +389,7 @@ export const CustomerChatThreadScreen = ({ route, navigation }) => {
       >
         <TextInput
           style={styles.textInput}
-          value={inputText}
+          value={inputText || ""}
           onChangeText={setInputText}
           placeholder="Ask a question about your event..."
           placeholderTextColor={colors.textDisabled}

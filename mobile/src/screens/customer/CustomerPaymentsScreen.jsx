@@ -470,6 +470,7 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={[
             styles.scrollContent,
             { paddingBottom: insets.bottom + 48 },
@@ -649,7 +650,7 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
                   style={styles.searchInput}
                   placeholder="Search transactions or reference..."
                   placeholderTextColor={colors.textDisabled}
-                  value={searchQuery}
+                  value={searchQuery || ""}
                   onChangeText={setSearchQuery}
                 />
                 {searchQuery.length > 0 && (
@@ -666,6 +667,7 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
                 contentContainerStyle={styles.filterChipsRow}
               >
                 {FILTER_TABS.map((tab) => {

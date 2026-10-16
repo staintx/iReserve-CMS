@@ -649,6 +649,7 @@ export const BookingsListScreen = ({ navigation }) => {
           data={filteredBookings}
           renderItem={renderBookingItem}
           keyExtractor={(item) => item._id}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: Math.max(insets.bottom, 16) + 100 },

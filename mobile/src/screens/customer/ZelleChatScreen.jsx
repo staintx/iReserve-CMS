@@ -262,7 +262,7 @@ export const ZelleChatScreen = ({ navigation }) => {
             style={styles.textInput}
             placeholder="How can I help you today?"
             placeholderTextColor={colors.textSubtle}
-            value={inputText}
+            value={inputText || ""}
             onChangeText={setInputText}
             multiline
             maxLength={1000}

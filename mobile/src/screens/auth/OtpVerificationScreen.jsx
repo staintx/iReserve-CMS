@@ -164,7 +164,7 @@ export const OtpVerificationScreen = ({ route, navigation }) => {
                 Boolean(digit) && styles.otpBoxFilled,
                 Boolean(error) && styles.otpBoxError,
               ]}
-              value={digit}
+              value={digit !== undefined && digit !== null ? String(digit) : ""}
               onChangeText={(text) => handleOtpChange(text, idx)}
               onKeyPress={(e) => handleKeyPress(e, idx)}
               keyboardType="number-pad"

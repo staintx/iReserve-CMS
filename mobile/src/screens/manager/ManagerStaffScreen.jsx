@@ -142,7 +142,7 @@ export const ManagerStaffScreen = ({ navigation }) => {
           style={styles.searchInput}
           placeholder="Search staff by name, role, phone..."
           placeholderTextColor={colors.textDisabled}
-          value={searchQuery}
+          value={searchQuery || ""}
           onChangeText={setSearchQuery}
         />
       </View>
@@ -152,6 +152,7 @@ export const ManagerStaffScreen = ({ navigation }) => {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.filterPillsScroll}
         >
           {positions.map((pos) => {
@@ -176,6 +177,7 @@ export const ManagerStaffScreen = ({ navigation }) => {
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.xxl }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
         }

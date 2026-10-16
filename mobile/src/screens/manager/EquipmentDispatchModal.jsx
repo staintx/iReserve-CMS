@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -112,7 +114,10 @@ export const EquipmentDispatchModal = ({ route, navigation }) => {
   };
 
   return (
-    <View style={styles.screen}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
       <Header
         title="Equipment Dispatch Check"
         subtitle="Logistics & Item Readiness"
@@ -126,6 +131,7 @@ export const EquipmentDispatchModal = ({ route, navigation }) => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scrollContent}
       >
         <Card style={styles.bannerCard} variant="flat">
@@ -204,7 +210,7 @@ export const EquipmentDispatchModal = ({ route, navigation }) => {
             style={styles.notesInput}
             placeholder="Add notes on packaging conditions, fragile items, or driver instructions..."
             placeholderTextColor={colors.textDisabled}
-            value={notes}
+            value={notes || ""}
             onChangeText={setNotes}
             multiline
           />
@@ -222,7 +228,7 @@ export const EquipmentDispatchModal = ({ route, navigation }) => {
           onPress={handleConfirmVerification}
         />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 

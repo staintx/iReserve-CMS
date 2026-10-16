@@ -545,7 +545,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
                   : "Search event styling, venues..."
               }
               placeholderTextColor={colors.textDisabled}
-              value={searchQuery}
+              value={searchQuery || ""}
               onChangeText={setSearchQuery}
               returnKeyType="search"
               accessibilityLabel="Search catalog"
@@ -653,6 +653,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
       <ScrollView
         ref={mainScrollRef}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: Math.max(insets.bottom, 16) + 120 },
@@ -797,6 +798,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.filterPillsScroll}
             >
               {PACKAGE_CATEGORIES.map((cat) => {
@@ -1034,6 +1036,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.filterPillsScroll}
             >
               {menuCategories.map((cat) => {
@@ -1127,6 +1130,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
                 contentContainerStyle={styles.filterPillsScroll}
               >
                 {galleryCategories.map((cat) => {

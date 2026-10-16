@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  KeyboardAvoidingView,
+  ScrollView,
 } from "react-native";
 import {
   X,
@@ -114,152 +116,169 @@ export const PaymentChoiceModal = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.sheetContainer}>
-          {/* Header */}
-          <View style={styles.sheetHeader}>
-            <View>
-              <Text style={styles.headerTitle}>Settle Outstanding Balance</Text>
-              <Text style={styles.headerSubtitle}>
-                {booking.event_type || "Catering Event"} • {refCode}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={onClose}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              style={styles.closeBtn}
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.keyboardAvoid}
+        >
+          <View style={styles.sheetContainer}>
+            <ScrollView
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.sheetScrollContent}
             >
-              <X size={20} color={colors.textSubtle} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Amount Due Banner */}
-          <View style={styles.amountBanner}>
-            <View>
-              <Text style={styles.amountBannerLabel}>REMAINING BALANCE DUE</Text>
-              <Text style={styles.amountBannerValue}>{formatCurrency(payable)}</Text>
-            </View>
-            {dueDate && (
-              <View style={styles.dueDateWrap}>
-                <Calendar size={13} color="#4C81E0" />
-                <Text style={styles.dueDateText}>Due: {formatDate(dueDate)}</Text>
+              {/* Header */}
+              <View style={styles.sheetHeader}>
+                <View>
+                  <Text style={styles.headerTitle}>Settle Outstanding Balance</Text>
+                  <Text style={styles.headerSubtitle}>
+                    {booking.event_type || "Catering Event"} • {refCode}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={onClose}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  style={styles.closeBtn}
+                >
+                  <X size={20} color={colors.textSubtle} />
+                </TouchableOpacity>
               </View>
-            )}
-          </View>
 
-          {/* Payment Method Selector */}
-          <View style={styles.methodList}>
-            {/* Option 1: Online PayMongo */}
-            <TouchableOpacity
-              style={[
-                styles.methodOption,
-                selectedMethod === "online" && styles.methodOptionActive,
-              ]}
-              onPress={() => setSelectedMethod("online")}
-              activeOpacity={0.8}
-            >
-              <View
-                style={[
-                  styles.methodRadio,
-                  selectedMethod === "online" && styles.methodRadioActive,
-                ]}
+              {/* Amount Due Banner */}
+              <View style={styles.amountBanner}>
+                <View>
+                  <Text style={styles.amountBannerLabel}>REMAINING BALANCE DUE</Text>
+                  <Text style={styles.amountBannerValue}>{formatCurrency(payable)}</Text>
+                </View>
+                {dueDate && (
+                  <View style={styles.dueDateWrap}>
+                    <Calendar size={13} color="#4C81E0" />
+                    <Text style={styles.dueDateText}>Due: {formatDate(dueDate)}</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Payment Method Selector */}
+              <View style={styles.methodList}>
+                {/* Option 1: Online PayMongo */}
+                <TouchableOpacity
+                  style={[
+                    styles.methodOption,
+                    selectedMethod === "online" && styles.methodOptionActive,
+                  ]}
+                  onPress={() => setSelectedMethod("online")}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.methodRadio,
+                      selectedMethod === "online" && styles.methodRadioActive,
+                    ]}
+                  >
+                    {selectedMethod === "online" && <View style={styles.radioDot} />}
+                  </View>
+
+                  <View style={styles.methodIconBubble}>
+                    <CreditCard size={20} color="#4C81E0" />
+                  </View>
+
+                  <View style={styles.methodTextWrap}>
+                    <Text style={styles.methodTitle}>Pay Online (PayMongo)</Text>
+                    <Text style={styles.methodSubtitle}>
+                      GCash, Maya, Debit / Credit Card
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Option 2: In-Person Cash */}
+                <TouchableOpacity
+                  style={[
+                    styles.methodOption,
+                    selectedMethod === "in_person" && styles.methodOptionActive,
+                  ]}
+                  onPress={() => setSelectedMethod("in_person")}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.methodRadio,
+                      selectedMethod === "in_person" && styles.methodRadioActive,
+                    ]}
+                  >
+                    {selectedMethod === "in_person" && <View style={styles.radioDot} />}
+                  </View>
+
+                  <View style={[styles.methodIconBubble, { backgroundColor: "#F1F5F9" }]}>
+                    <Banknote size={20} color={colors.foregroundDark} />
+                  </View>
+
+                  <View style={styles.methodTextWrap}>
+                    <Text style={styles.methodTitle}>Pay On-Site in Cash</Text>
+                    <Text style={styles.methodSubtitle}>
+                      Settle with your Event Manager on the day of the event
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* In-Person Note Input if selected */}
+              {selectedMethod === "in_person" && (
+                <View style={styles.notesBlock}>
+                  <Text style={styles.notesLabel}>Notes for Banquet Team (Optional)</Text>
+                  <TextInput
+                    style={styles.notesInput}
+                    placeholder="e.g. Will prepare exact cash on event day..."
+                    placeholderTextColor={colors.textDisabled}
+                    value={notes || ""}
+                    onChangeText={setNotes}
+                    multiline
+                    numberOfLines={2}
+                  />
+                </View>
+              )}
+
+              {/* Security Banner */}
+              <View style={styles.securityNote}>
+                {selectedMethod === "online" ? (
+                  <>
+                    <Lock size={13} color={colors.success} style={{ marginRight: 6 }} />
+                    <Text style={styles.securityNoteText}>
+                      256-bit encrypted checkout processed securely via PayMongo
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={13} color="#4C81E0" style={{ marginRight: 6 }} />
+                    <Text style={styles.securityNoteText}>
+                      Official printed receipt provided upon cash turnover
+                    </Text>
+                  </>
+                )}
+              </View>
+
+              {/* Action Button */}
+              <TouchableOpacity
+                style={[styles.proceedBtn, submitting && { opacity: 0.7 }]}
+                onPress={handleProceed}
+                disabled={submitting}
+                activeOpacity={0.85}
               >
-                {selectedMethod === "online" && <View style={styles.radioDot} />}
-              </View>
-
-              <View style={styles.methodIconBubble}>
-                <CreditCard size={20} color="#4C81E0" />
-              </View>
-
-              <View style={styles.methodTextWrap}>
-                <Text style={styles.methodTitle}>Pay Online (PayMongo)</Text>
-                <Text style={styles.methodSubtitle}>
-                  GCash, Maya, Debit / Credit Card
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Option 2: In-Person Cash */}
-            <TouchableOpacity
-              style={[
-                styles.methodOption,
-                selectedMethod === "in_person" && styles.methodOptionActive,
-              ]}
-              onPress={() => setSelectedMethod("in_person")}
-              activeOpacity={0.8}
-            >
-              <View
-                style={[
-                  styles.methodRadio,
-                  selectedMethod === "in_person" && styles.methodRadioActive,
-                ]}
-              >
-                {selectedMethod === "in_person" && <View style={styles.radioDot} />}
-              </View>
-
-              <View style={[styles.methodIconBubble, { backgroundColor: "#F1F5F9" }]}>
-                <Banknote size={20} color={colors.foregroundDark} />
-              </View>
-
-              <View style={styles.methodTextWrap}>
-                <Text style={styles.methodTitle}>Pay On-Site in Cash</Text>
-                <Text style={styles.methodSubtitle}>
-                  Settle with your Event Manager on the day of the event
-                </Text>
-              </View>
-            </TouchableOpacity>
+                {submitting ? (
+                  <ActivityIndicator color={colors.white} size="small" />
+                ) : (
+                  <Text style={styles.proceedBtnText}>
+                    {selectedMethod === "online" ? "Proceed to Checkout" : "Confirm Cash Settlement"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
-
-          {/* In-Person Note Input if selected */}
-          {selectedMethod === "in_person" && (
-            <View style={styles.notesBlock}>
-              <Text style={styles.notesLabel}>Notes for Banquet Team (Optional)</Text>
-              <TextInput
-                style={styles.notesInput}
-                placeholder="e.g. Will prepare exact cash on event day..."
-                placeholderTextColor={colors.textDisabled}
-                value={notes}
-                onChangeText={setNotes}
-                multiline
-                numberOfLines={2}
-              />
-            </View>
-          )}
-
-          {/* Security Banner */}
-          <View style={styles.securityNote}>
-            {selectedMethod === "online" ? (
-              <>
-                <Lock size={13} color={colors.success} style={{ marginRight: 6 }} />
-                <Text style={styles.securityNoteText}>
-                  256-bit encrypted checkout processed securely via PayMongo
-                </Text>
-              </>
-            ) : (
-              <>
-                <ShieldCheck size={13} color="#4C81E0" style={{ marginRight: 6 }} />
-                <Text style={styles.securityNoteText}>
-                  Official printed receipt provided upon cash turnover
-                </Text>
-              </>
-            )}
-          </View>
-
-          {/* Action Button */}
-          <TouchableOpacity
-            style={[styles.proceedBtn, submitting && { opacity: 0.7 }]}
-            onPress={handleProceed}
-            disabled={submitting}
-            activeOpacity={0.85}
-          >
-            {submitting ? (
-              <ActivityIndicator color={colors.white} size="small" />
-            ) : (
-              <Text style={styles.proceedBtnText}>
-                {selectedMethod === "online" ? "Proceed to Checkout" : "Confirm Cash Settlement"}
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -281,18 +300,24 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  keyboardAvoid: {
+    width: "100%",
+  },
   sheetContainer: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: Platform.OS === "ios" ? 36 : 24,
+    maxHeight: "90%",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.15,
     shadowRadius: 16,
     elevation: 10,
+  },
+  sheetScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: Platform.OS === "ios" ? 36 : 24,
   },
   sheetHeader: {
     flexDirection: "row",

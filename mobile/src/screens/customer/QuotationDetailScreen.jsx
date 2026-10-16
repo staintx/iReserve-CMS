@@ -450,6 +450,7 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
           { paddingBottom: insets.bottom + (isActionable || isDepositPaid || isRevisionPending ? 120 : 40) },
         ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Document Header & Authority Card */}
         <View style={styles.documentHeaderCard}>
@@ -971,7 +972,7 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
         onRequestClose={() => setShowRevisionModal(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.modalBackdrop}
         >
           <TouchableOpacity
@@ -1028,7 +1029,7 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
               ]}
               placeholder="e.g. Please adjust the guest count to 80, add 2 round tables, and include beef dishes."
               placeholderTextColor={colors.textDisabled}
-              value={revisionNote}
+              value={revisionNote || ""}
               onChangeText={(text) => {
                 setRevisionNote(text);
                 if (revisionError) setRevisionError("");

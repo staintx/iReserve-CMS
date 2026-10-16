@@ -837,6 +837,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
           { paddingBottom: insets.bottom + spacing.xl },
         ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* ── SECTION 1: OVERVIEW HERO CARD ── */}
         <Card style={styles.overviewHeroCard} variant="flat">
@@ -1530,7 +1531,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
         onRequestClose={() => setShowChangeModal(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.modalOverlay}
         >
           <View style={styles.modalContainer}>
@@ -1547,7 +1548,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {Boolean(changeErrors.general) && (
                 <Text style={styles.generalErrorBanner}>{changeErrors.general}</Text>
               )}
@@ -1560,7 +1561,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
                 ]}
                 placeholder={booking.event_date ? booking.event_date.split("T")[0] : "2026-10-15"}
                 placeholderTextColor={colors.textDisabled}
-                value={changeDate}
+                value={changeDate || ""}
                 onChangeText={(val) => {
                   setChangeDate(val);
                   if (changeErrors.changeDate) setChangeErrors((prev) => ({ ...prev, changeDate: "" }));
@@ -1647,7 +1648,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
         onRequestClose={() => setShowAddGuestsModal(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.modalOverlay}
         >
           <View style={styles.modalContainer}>
@@ -1677,7 +1678,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
               placeholder="e.g. 10"
               placeholderTextColor={colors.textDisabled}
               keyboardType="numeric"
-              value={extraGuests}
+              value={extraGuests || ""}
               onChangeText={(val) => {
                 setExtraGuests(val);
                 if (extraGuestsError) setExtraGuestsError("");
@@ -1705,7 +1706,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
         onRequestClose={() => setShowUpgradeModal(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.modalOverlay}
         >
           <View style={[styles.modalContainer, { maxHeight: "80%" }]}>
@@ -1719,7 +1720,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {packages
                 .filter(
                   (p) => String(p._id) !== String(booking.package_id?._id || booking.package_id)
@@ -1770,7 +1771,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
         onRequestClose={() => setShowRejectRevisionModal(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.modalOverlay}
         >
           <View style={styles.modalContainer}>
@@ -1794,7 +1795,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
               multiline
               placeholder="e.g. Schedule conflict, budget mismatch, prefer previous package..."
               placeholderTextColor={colors.textDisabled}
-              value={rejectRevisionReason}
+              value={rejectRevisionReason || ""}
               onChangeText={setRejectRevisionReason}
             />
 

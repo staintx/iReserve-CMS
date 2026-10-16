@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -195,6 +196,7 @@ export const AssignStaffModal = ({ route, navigation }) => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scrollContent}
       >
         {/* Currently Assigned Team Card */}
@@ -256,7 +258,7 @@ export const AssignStaffModal = ({ route, navigation }) => {
             style={styles.searchInput}
             placeholder="Search staff by name or skill..."
             placeholderTextColor={colors.textDisabled}
-            value={searchQuery}
+            value={searchQuery || ""}
             onChangeText={setSearchQuery}
           />
         </View>
@@ -351,53 +353,58 @@ export const AssignStaffModal = ({ route, navigation }) => {
         onRequestClose={() => setRoleModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
-              Assign Role for {selectedStaffForRole?.full_name}
-            </Text>
-            <Text style={styles.modalSub}>Select or type the role for this event:</Text>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={{ width: "100%", alignItems: "center" }}
+          >
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>
+                Assign Role for {selectedStaffForRole?.full_name}
+              </Text>
+              <Text style={styles.modalSub}>Select or type the role for this event:</Text>
 
-            <ScrollView style={styles.roleList} showsVerticalScrollIndicator={false}>
-              {COMMON_ROLES.map((role) => (
-                <TouchableOpacity
-                  key={role}
-                  style={styles.roleItem}
-                  onPress={() => handleConfirmRole(role)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.roleItemText}>{role}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+              <ScrollView style={styles.roleList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {COMMON_ROLES.map((role) => (
+                  <TouchableOpacity
+                    key={role}
+                    style={styles.roleItem}
+                    onPress={() => handleConfirmRole(role)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.roleItemText}>{role}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
 
-            <View style={styles.customRoleBox}>
-              <TextInput
-                style={styles.customRoleInput}
-                placeholder="Or specify custom role..."
-                placeholderTextColor={colors.textDisabled}
-                value={customRoleInput}
-                onChangeText={setCustomRoleInput}
-              />
+              <View style={styles.customRoleBox}>
+                <TextInput
+                  style={styles.customRoleInput}
+                  placeholder="Or specify custom role..."
+                  placeholderTextColor={colors.textDisabled}
+                  value={customRoleInput || ""}
+                  onChangeText={setCustomRoleInput}
+                />
+                <AppButton
+                  title="Confirm"
+                  size="sm"
+                  variant="primary"
+                  disabled={!customRoleInput.trim()}
+                  onPress={() => handleConfirmRole(customRoleInput.trim())}
+                />
+              </View>
+
               <AppButton
-                title="Confirm"
+                title="Cancel"
+                variant="ghost"
                 size="sm"
-                variant="primary"
-                disabled={!customRoleInput.trim()}
-                onPress={() => handleConfirmRole(customRoleInput.trim())}
+                onPress={() => {
+                  setRoleModalVisible(false);
+                  setSelectedStaffForRole(null);
+                }}
+                style={{ marginTop: spacing.xs }}
               />
             </View>
-
-            <AppButton
-              title="Cancel"
-              variant="ghost"
-              size="sm"
-              onPress={() => {
-                setRoleModalVisible(false);
-                setSelectedStaffForRole(null);
-              }}
-              style={{ marginTop: spacing.xs }}
-            />
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </View>

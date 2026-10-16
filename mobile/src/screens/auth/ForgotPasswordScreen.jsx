@@ -19,16 +19,22 @@ import authApi from "../../api/auth";
 export const ForgotPasswordScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async () => {
-    if (!email.trim() || !email.includes("@")) {
-      setError("Please enter a valid email address.");
+    if (!email.trim()) {
+      setEmailError("Email address is required.");
+      return;
+    }
+    if (!email.includes("@")) {
+      setEmailError("Please enter a valid email address.");
       return;
     }
 
+    setEmailError("");
     setError("");
     setLoading(true);
 
@@ -116,10 +122,13 @@ export const ForgotPasswordScreen = ({ navigation }) => {
           <View style={styles.form}>
             <AppInput
               label="Email Address"
+              required
               placeholder="name@example.com"
               value={email}
+              error={emailError}
               onChangeText={(text) => {
                 setEmail(text);
+                if (emailError) setEmailError("");
                 if (error) setError("");
               }}
               leftIcon={Mail}

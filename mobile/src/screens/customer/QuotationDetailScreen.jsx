@@ -60,6 +60,7 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
   // Revision Modal State
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [revisionNote, setRevisionNote] = useState("");
+  const [revisionError, setRevisionError] = useState("");
 
   const quickTags = [
     "Adjust Guest Count",
@@ -273,21 +274,19 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
 
   const handleRequestRevision = async () => {
     if (!revisionNote.trim()) {
-      showAlertDialog({
-        title: "Revision Details Required",
-        message:
-          "Please describe the adjustments or revisions you would like our catering team to make.",
-        tone: "warning",
-        confirmText: "Continue Editing",
-      });
+      setRevisionError(
+        "Please describe the adjustments or revisions you would like our catering team to make."
+      );
       return;
     }
 
+    setRevisionError("");
     setActionLoading(true);
     try {
       await customerApi.requestQuotationRevision(quotation._id, revisionNote.trim());
       setShowRevisionModal(false);
       setRevisionNote("");
+      setRevisionError("");
       showAlertDialog({
         title: "Revision Requested",
         message:
@@ -990,7 +989,10 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
                 </Text>
               </View>
               <TouchableOpacity
-                onPress={() => setShowRevisionModal(false)}
+                onPress={() => {
+                  setShowRevisionModal(false);
+                  setRevisionError("");
+                }}
                 style={styles.modalCloseBtn}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
@@ -1005,6 +1007,7 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
                   key={idx}
                   style={styles.quickTagChip}
                   onPress={() => {
+                    if (revisionError) setRevisionError("");
                     setRevisionNote((prev) =>
                       prev ? `${prev.trim()}\n• ${tag}: ` : `• ${tag}: `
                     );
@@ -1017,20 +1020,32 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
             </View>
 
             <TextInput
-              style={styles.revisionInput}
+              style={[
+                styles.revisionInput,
+                Boolean(revisionError) && styles.inputError,
+              ]}
               placeholder="e.g. Please adjust the guest count to 80, add 2 round tables, and include beef dishes."
               placeholderTextColor={colors.textDisabled}
               value={revisionNote}
-              onChangeText={setRevisionNote}
+              onChangeText={(text) => {
+                setRevisionNote(text);
+                if (revisionError) setRevisionError("");
+              }}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
             />
+            {Boolean(revisionError) && (
+              <Text style={styles.fieldErrorText}>{revisionError}</Text>
+            )}
 
             <View style={styles.modalButtonsRow}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}
-                onPress={() => setShowRevisionModal(false)}
+                onPress={() => {
+                  setShowRevisionModal(false);
+                  setRevisionError("");
+                }}
                 disabled={actionLoading}
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
@@ -1942,6 +1957,19 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     lineHeight: 20,
     marginBottom: spacing.lg,
+  },
+  inputError: {
+    borderColor: colors.error,
+    borderWidth: 1.5,
+    backgroundColor: colors.errorLight,
+    marginBottom: spacing.xs,
+  },
+  fieldErrorText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.medium,
+    fontWeight: "600",
+    color: colors.error,
+    marginBottom: spacing.md,
   },
   modalButtonsRow: {
     flexDirection: "row",

@@ -53,6 +53,7 @@ export const CustomerProfileScreen = ({ navigation }) => {
   const [lastName, setLastName] = useState(user?.last_name || "");
   const [phone, setPhone] = useState(user?.phone || "");
   const [saving, setSaving] = useState(false);
+  const [profileErrors, setProfileErrors] = useState({});
 
   // Change Password State
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -60,6 +61,7 @@ export const CustomerProfileScreen = ({ navigation }) => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState({});
 
   // Help Modal State
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -115,19 +117,22 @@ export const CustomerProfileScreen = ({ navigation }) => {
     setFirstName(user?.first_name || "");
     setLastName(user?.last_name || "");
     setPhone(user?.phone || "");
+    setProfileErrors({});
     setShowEditModal(true);
   };
 
   const handleSaveProfile = async () => {
+    const errs = {};
     if (!firstName.trim()) {
-      showAlertDialog({
-        title: "Validation Error",
-        message: "First name is required.",
-        tone: "warning",
-      });
+      errs.firstName = "First name is required.";
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setProfileErrors(errs);
       return;
     }
 
+    setProfileErrors({});
     setSaving(true);
     try {
       const payload = {
@@ -158,32 +163,30 @@ export const CustomerProfileScreen = ({ navigation }) => {
   };
 
   const handleChangePassword = async () => {
+    const errs = {};
     if (!currentPassword) {
-      showAlertDialog({
-        title: "Validation Error",
-        message: "Please enter your current password.",
-        tone: "warning",
-      });
-      return;
+      errs.currentPassword = "Current password is required.";
     }
-    const { isValid } = evaluatePassword(newPassword);
-    if (!isValid) {
-      showAlertDialog({
-        title: "Password Policy",
-        message: describePasswordGap(newPassword),
-        tone: "warning",
-      });
-      return;
+    if (!newPassword) {
+      errs.newPassword = "New password is required.";
+    } else {
+      const { isValid } = evaluatePassword(newPassword);
+      if (!isValid) {
+        errs.newPassword = describePasswordGap(newPassword);
+      }
     }
-    if (newPassword !== confirmPassword) {
-      showAlertDialog({
-        title: "Validation Error",
-        message: "New passwords do not match.",
-        tone: "warning",
-      });
+    if (!confirmPassword) {
+      errs.confirmPassword = "Confirm password is required.";
+    } else if (newPassword !== confirmPassword) {
+      errs.confirmPassword = "New passwords do not match.";
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setPasswordErrors(errs);
       return;
     }
 
+    setPasswordErrors({});
     setPasswordSaving(true);
     try {
       await authApi.changePassword({
@@ -194,6 +197,7 @@ export const CustomerProfileScreen = ({ navigation }) => {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setPasswordErrors({});
       showAlertDialog({
         title: "Password Updated",
         message: "Your password has been changed successfully.",
@@ -425,8 +429,13 @@ export const CustomerProfileScreen = ({ navigation }) => {
             <ScrollView showsVerticalScrollIndicator={false}>
               <AppInput
                 label="First Name"
+                required
                 value={firstName}
-                onChangeText={setFirstName}
+                error={profileErrors.firstName}
+                onChangeText={(val) => {
+                  setFirstName(val);
+                  if (profileErrors.firstName) setProfileErrors((prev) => ({ ...prev, firstName: "" }));
+                }}
                 placeholder="Enter first name"
               />
               <AppInput
@@ -479,22 +488,37 @@ export const CustomerProfileScreen = ({ navigation }) => {
             <ScrollView showsVerticalScrollIndicator={false}>
               <AppInput
                 label="Current Password"
+                required
                 value={currentPassword}
-                onChangeText={setCurrentPassword}
+                error={passwordErrors.currentPassword}
+                onChangeText={(val) => {
+                  setCurrentPassword(val);
+                  if (passwordErrors.currentPassword) setPasswordErrors((prev) => ({ ...prev, currentPassword: "" }));
+                }}
                 placeholder="Enter current password"
                 secureTextEntry
               />
               <AppInput
                 label="New Password"
+                required
                 value={newPassword}
-                onChangeText={setNewPassword}
+                error={passwordErrors.newPassword}
+                onChangeText={(val) => {
+                  setNewPassword(val);
+                  if (passwordErrors.newPassword) setPasswordErrors((prev) => ({ ...prev, newPassword: "" }));
+                }}
                 placeholder="At least 6 characters"
                 secureTextEntry
               />
               <AppInput
                 label="Confirm New Password"
+                required
                 value={confirmPassword}
-                onChangeText={setConfirmPassword}
+                error={passwordErrors.confirmPassword}
+                onChangeText={(val) => {
+                  setConfirmPassword(val);
+                  if (passwordErrors.confirmPassword) setPasswordErrors((prev) => ({ ...prev, confirmPassword: "" }));
+                }}
                 placeholder="Re-enter new password"
                 secureTextEntry
               />

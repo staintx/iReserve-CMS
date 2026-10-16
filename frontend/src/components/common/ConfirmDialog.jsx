@@ -45,6 +45,8 @@ export default function ConfirmDialog({
   confirmVariant,
   isDestructive = false,
   tone,
+  children,
+  wide = false,
   onConfirm,
   onCancel,
   onClose,
@@ -62,12 +64,15 @@ export default function ConfirmDialog({
       description={title ? message : undefined}
       confirmLabel={confirmText}
       cancelLabel={cancelText}
+      wide={wide}
       onConfirm={onConfirm}
       onCancel={onClose ? onCancel : undefined}
       onOpenChange={(open) => {
         if (open) return;
         dismiss?.();
       }}
-    />
+    >
+      {children}
+    </FeedbackDialog>
   );
 }

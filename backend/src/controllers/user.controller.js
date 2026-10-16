@@ -348,11 +348,25 @@ exports.getCustomers = asyncHandler(async (req, res) => {
 });
 
 exports.updateStatus = asyncHandler(async (req, res) => {
+  const newStatus = Boolean(req.body.is_active);
   const user = await User.findByIdAndUpdate(
     req.params.id,
-    { is_active: Boolean(req.body.is_active) },
+    { is_active: newStatus },
     { returnDocument: 'after' }
   );
   if (!user) return res.status(404).json({ message: "User not found" });
+
+  if (logAction) {
+    await logAction({
+      user_id: req.user?._id,
+      action: newStatus ? "user_activated" : "user_deactivated",
+      entity_type: "user",
+      entity_id: user._id,
+      details: `Admin ${newStatus ? "activated" : "deactivated"} account for ${user.full_name || user.email} (${user.role}).`,
+      changes: { is_active: newStatus },
+      ip_address: req.ip
+    }).catch((err) => console.error("logAction error:", err));
+  }
+
   res.json(user);
 });

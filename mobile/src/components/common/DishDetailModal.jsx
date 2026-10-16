@@ -7,6 +7,7 @@ import {
   Image,
   TouchableOpacity,
   ScrollView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X, Utensils, CheckCircle2, ChevronRight } from "lucide-react-native";
@@ -113,6 +114,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.6)",
     justifyContent: "flex-end",
+    ...Platform.select({
+      web: {
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+      },
+    }),
   },
   sheet: {
     backgroundColor: colors.surface,

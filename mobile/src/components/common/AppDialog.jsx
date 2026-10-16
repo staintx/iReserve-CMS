@@ -312,13 +312,28 @@ const styles = StyleSheet.create({
     elevation: 999,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    minHeight: "100%",
     backgroundColor: "rgba(15, 23, 42, 0.65)",
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.md,
-    zIndex: 99999,
-    elevation: 999,
+    ...Platform.select({
+      web: {
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 99999,
+      },
+      default: {
+        zIndex: 99999,
+        elevation: 999,
+      },
+    }),
   },
   keyboardContainer: {
     width: "100%",
@@ -328,6 +343,7 @@ const styles = StyleSheet.create({
   dialogCard: {
     width: "100%",
     maxWidth: 384,
+    maxHeight: Math.min(620, SCREEN_HEIGHT * 0.88),
     backgroundColor: colors.surface || "#FFFFFF",
     borderRadius: 24,
     paddingHorizontal: spacing.xl,

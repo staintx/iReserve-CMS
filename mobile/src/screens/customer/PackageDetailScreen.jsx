@@ -1599,6 +1599,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(10, 15, 29, 0.94)",
     justifyContent: "center",
     alignItems: "center",
+    ...Platform.select({
+      web: {
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+      },
+    }),
   },
   modalCloseBtn: {
     position: "absolute",

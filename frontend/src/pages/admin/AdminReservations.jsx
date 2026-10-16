@@ -592,7 +592,8 @@ export default function AdminReservations() {
 
   const cancellableSelected = selectedIds.filter((id) => {
     const r = sortedBookings.find((x) => x._id === id);
-    return r && r.rawStatus !== "cancelled" && r.rawStatus !== "completed";
+    const s = String(r?.rawStatus || "").toLowerCase();
+    return r && !["cancelled", "completed", "ongoing", "pending completion"].includes(s);
   });
 
   const handleBulkCancel = async () => {
@@ -1068,7 +1069,7 @@ export default function AdminReservations() {
         {/* Slide-Over Reservation Summary Drawer */}
         {selectedBooking && (() => {
           const canApprove = selectedBooking.rawStatus === "pending deposit" || selectedBooking.hasChangeRequest;
-          const canCancel = selectedBooking.rawStatus !== "cancelled" && selectedBooking.rawStatus !== "completed";
+          const canCancel = !["cancelled", "completed", "ongoing", "pending completion"].includes(String(selectedBooking.rawStatus || "").toLowerCase());
 
           return (
             <div

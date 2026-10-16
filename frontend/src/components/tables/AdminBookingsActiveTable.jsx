@@ -76,7 +76,9 @@ export default function AdminBookingsActiveTable({ bookings, onMarkDone, onCance
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={() => onView?.(b)}>View</Button>
                     <Button size="sm" onClick={() => onMarkDone?.(b)}>Mark Done</Button>
-                    <Button variant="destructive" size="sm" onClick={() => onCancel?.(b)}>Cancel</Button>
+                    {!["ongoing", "pending completion", "completed"].includes(String(b.status || "").toLowerCase()) && (
+                      <Button variant="destructive" size="sm" onClick={() => onCancel?.(b)}>Cancel</Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

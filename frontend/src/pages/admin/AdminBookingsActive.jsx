@@ -53,13 +53,19 @@ export default function AdminBookingsActive() {
         load();
       })
       .catch((err) => notify(err.response?.data?.message || "We could not update the booking. Please try again.", "error"));
-  const cancel = (id) =>
+  const cancel = (id) => {
+    const target = bookings.find((b) => b._id === id);
+    if (target && ["ongoing", "pending completion", "completed"].includes(String(target.status || "").toLowerCase())) {
+      notify(`Cannot cancel a booking that is currently ${target.status}.`, "warning");
+      return;
+    }
     AdminAPI.updateBooking(id, { status: "cancelled" })
       .then(() => {
         notify("Booking cancelled.", "warning");
         load();
       })
       .catch((err) => notify(err.response?.data?.message || "We could not update the booking. Please try again.", "error"));
+  };
 
   return (
     <AdminLayout>

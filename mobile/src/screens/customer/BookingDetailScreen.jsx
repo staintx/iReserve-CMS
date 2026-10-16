@@ -55,6 +55,12 @@ import AppButton from "../../components/common/AppButton";
 import { formatCurrency, formatDate, formatTime, formatShortDate } from "../../utils/format";
 import { confirmAction, showAlertDialog } from "../../context/DialogContext";
 import { showInAppNotification } from "../../components/common/InAppNotificationBanner";
+import OcularDatePickerModal from "../../components/customer/OcularDatePickerModal";
+import {
+  requiresPhysicalSiteInspection,
+  getBookingOcularActionMeta,
+  isBookingAwaitingDeposit,
+} from "../../utils/ocularHelper";
 
 export const BookingDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -70,6 +76,8 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   const [showAddGuestsModal, setShowAddGuestsModal] = useState(false);
   const [showRejectRevisionModal, setShowRejectRevisionModal] = useState(false);
   const [rejectRevisionReason, setRejectRevisionReason] = useState("");
+  const [showOcularModal, setShowOcularModal] = useState(false);
+  const [isSubmittingOcular, setIsSubmittingOcular] = useState(false);
 
   // Change Request Form State
   const [changeDate, setChangeDate] = useState("");
@@ -108,6 +116,10 @@ export const BookingDetailScreen = ({ route, navigation }) => {
       }
       if (showRejectRevisionModal) {
         setShowRejectRevisionModal(false);
+        return true;
+      }
+      if (showOcularModal) {
+        setShowOcularModal(false);
         return true;
       }
       return false;
@@ -190,21 +202,45 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   const isCancelReqPending = booking?.cancellation_request?.status === "pending";
   const canCancel = !isPast && !isCancelled && !isCompleted && !isOverdue && !isCancelReqPending;
 
+  // Ocular Metadata & Lifecycle State
+  const ocularActionMeta = useMemo(() => {
+    return getBookingOcularActionMeta(booking);
+  }, [booking]);
+
+  const isPhysicalInspectionRequired = useMemo(() => {
+    return requiresPhysicalSiteInspection(booking);
+  }, [booking]);
+
+  const needsOcular = Boolean(
+    ocularActionMeta && ocularActionMeta.state === "action_required" && !isCancelled
+  );
+  const pendingOcular = Boolean(
+    ocularActionMeta && ocularActionMeta.state === "requested" && !isCancelled
+  );
+
   // Milestone Stepper Calculation (Consistent 5 steps matching website)
   const isOcularDone =
     booking?.ocular_visit?.status === "completed" || booking?.ocular_visit?.status === "skipped";
   const isOcularActive =
-    rawStatus === "ocular scheduled" || booking?.ocular_visit?.status === "scheduled";
+    rawStatus === "ocular scheduled" ||
+    booking?.ocular_visit?.status === "scheduled" ||
+    pendingOcular ||
+    needsOcular;
 
   const timelineSteps = useMemo(() => {
     return [
       { id: "inquiry", label: "Inquiry & Quote", done: true },
       { id: "deposit", label: "Deposit Paid", done: isDepositPaid },
-      { id: "ocular", label: "Ocular Visit", done: isOcularDone, active: isOcularActive },
+      {
+        id: "ocular",
+        label: isPhysicalInspectionRequired ? "Ocular Visit" : "Inspection (N/A)",
+        done: isOcularDone || (!isPhysicalInspectionRequired && isDepositPaid),
+        active: isOcularActive,
+      },
       { id: "ready", label: "Ready for Event", done: isReady || isCompleted, active: isReady },
       { id: "completed", label: "Completed", done: isCompleted },
     ];
-  }, [isDepositPaid, isOcularDone, isOcularActive, isReady, isCompleted]);
+  }, [isDepositPaid, isOcularDone, isOcularActive, isReady, isCompleted, isPhysicalInspectionRequired]);
 
   // Milestone Progress Ratio for connector bar
   const activeStepIndex = useMemo(() => {
@@ -256,15 +292,34 @@ export const BookingDetailScreen = ({ route, navigation }) => {
         tone: "amber",
       };
     }
-    if (isOcularActive) {
+    if (pendingOcular) {
+      return {
+        title: "Ocular Visit Requested",
+        description: `Your requested site visit for ${
+          booking?.ocular_visit?.scheduled_date
+            ? formatDate(booking.ocular_visit.scheduled_date)
+            : "the selected date"
+        }${booking?.ocular_visit?.scheduled_time ? ` at ${booking.ocular_visit.scheduled_time}` : ""} is under review by our catering coordinator.`,
+        tone: "amber",
+      };
+    }
+    if (isOcularActive && (booking?.ocular_visit?.status === "scheduled" || rawStatus === "ocular scheduled")) {
       return {
         title: "Ocular Visit Scheduled",
         description: `Our team will visit your venue on ${
           booking?.ocular_visit?.scheduled_date
             ? formatDate(booking.ocular_visit.scheduled_date)
             : "the scheduled date"
-        } to review layout and outlets.`,
+        }${booking?.ocular_visit?.scheduled_time ? ` at ${booking.ocular_visit.scheduled_time}` : ""} to review layout and outlets.`,
         tone: "blue",
+      };
+    }
+    if (needsOcular) {
+      return {
+        title: "Ocular Inspection Needed",
+        description:
+          "Choose a convenient date and time for our coordinator to inspect your venue layout, electrical access, and table arrangements.",
+        tone: "amber",
       };
     }
     if (isReady) {
@@ -289,7 +344,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
         "Your event reservation is confirmed. Our banquet coordinator is actively managing logistics.",
       tone: "blue",
     };
-  }, [isCancelled, hasPendingRevision, isOverdue, rawStatus, isDepositPaid, isFullyPaid, isOcularActive, isReady, isCompleted, booking]);
+  }, [isCancelled, hasPendingRevision, isOverdue, rawStatus, isDepositPaid, isFullyPaid, isOcularActive, isReady, isCompleted, pendingOcular, needsOcular, booking]);
 
   // Reference Code & Copy Action
   const refCode =
@@ -618,53 +673,78 @@ export const BookingDetailScreen = ({ route, navigation }) => {
     }
   };
 
-  // Request Ocular
-  const handleRequestOcular = async () => {
-    const confirmed = await confirmAction({
-      title: "Request Ocular Inspection",
-      message:
-        "Would you like to request an on-site venue inspection by our team? We will coordinate with you to confirm the date and time.",
-      confirmText: "Request Inspection",
-      cancelText: "Not Now",
-      tone: "primary",
-      icon: Calendar,
-    });
-
-    if (!confirmed) return;
-
-    setActionLoading(true);
-    try {
-      const d = new Date();
-      d.setDate(d.getDate() + 3);
-      await customerApi.requestOcular(booking._id, {
-        scheduled_date: d.toISOString().split("T")[0],
-        notes: "Customer requested ocular inspection via mobile app.",
-      });
+  // Request / Reschedule Ocular (Opens Modal)
+  const handleRequestOcular = () => {
+    if (isCancelled) {
       showAlertDialog({
-        title: "Ocular Requested",
-        message: "Our team will contact you to confirm the site visit schedule.",
-        tone: "success",
+        title: "Booking Cancelled",
+        message: "Ocular scheduling is closed for cancelled bookings.",
+        tone: "warning",
+      });
+      return;
+    }
+
+    if (isBookingAwaitingDeposit(booking)) {
+      showAlertDialog({
+        title: "Deposit Required First",
+        message:
+          "Please pay the required deposit first. An ocular visit can only be scheduled once your reservation is confirmed.",
+        tone: "warning",
         confirmText: "Understood",
       });
-      loadBooking();
+      return;
+    }
+
+    setShowOcularModal(true);
+  };
+
+  // Submit Ocular Schedule via API
+  const handleSubmitOcular = async (selectedDate, selectedTime, ocularNotes) => {
+    setIsSubmittingOcular(true);
+    setActionLoading(true);
+    try {
+      await customerApi.requestOcular(booking._id, {
+        scheduled_date: selectedDate,
+        scheduled_time: selectedTime,
+        notes: ocularNotes || "Customer requested ocular inspection via mobile app.",
+      });
+      setShowOcularModal(false);
+      showAlertDialog({
+        title: "Ocular Requested",
+        message: `Your request for a venue inspection on ${formatDate(selectedDate)} at ${selectedTime} has been submitted. Our team will review and confirm shortly.`,
+        tone: "success",
+        confirmText: "Done",
+      });
+      await loadBooking();
     } catch (err) {
       showAlertDialog({
         title: "Request Failed",
-        message: err.response?.data?.message || "Failed to request ocular.",
+        message: err.response?.data?.message || "Failed to schedule ocular visit.",
         tone: "destructive",
       });
+      throw err;
     } finally {
+      setIsSubmittingOcular(false);
       setActionLoading(false);
     }
   };
 
   // Skip Ocular
   const handleSkipOcular = async () => {
+    if (booking?.ocular_visit?.is_required) {
+      showAlertDialog({
+        title: "Ocular Required",
+        message: "An on-site venue inspection is required for this booking and cannot be skipped.",
+        tone: "warning",
+      });
+      return;
+    }
+
     const confirmed = await confirmAction({
       title: "Skip Ocular Inspection?",
       message:
         "Are you confident with your venue setup without an on-site inspection? Event preparation will proceed directly based on your submitted venue specifications.",
-      confirmText: "Skip Ocular",
+      confirmText: "Yes, Skip Ocular",
       cancelText: "Keep Ocular",
       tone: "warning",
       icon: AlertTriangle,
@@ -681,7 +761,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
         tone: "info",
         confirmText: "Done",
       });
-      loadBooking();
+      await loadBooking();
     } catch (err) {
       showAlertDialog({
         title: "Action Failed",
@@ -1307,11 +1387,26 @@ export const BookingDetailScreen = ({ route, navigation }) => {
             <Text style={styles.sectionTitle}>Site Inspection / Ocular</Text>
           </View>
 
-          {booking.ocular_visit?.status === "completed" ? (
-            <View style={styles.ocularStatusBox}>
-              <CheckCircle size={16} color={colors.success} />
+          {!isPhysicalInspectionRequired ? (
+            <View style={styles.ocularDeliveryBox}>
+              <Info size={16} color={colors.primary} />
               <View style={{ marginLeft: spacing.sm, flex: 1 }}>
-                <Text style={styles.ocularTitle}>Ocular Visit Completed</Text>
+                <Text style={styles.ocularTitle}>Inspection Not Required</Text>
+                <Text style={styles.ocularDesc}>
+                  An on-site ocular inspection is not required for this delivery booking. Food will be delivered packed and warm to your location on event day.
+                </Text>
+              </View>
+            </View>
+          ) : booking.ocular_visit?.status === "completed" ? (
+            <View style={styles.ocularCompletedBox}>
+              <CheckCircle size={18} color={colors.success} />
+              <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                <View style={styles.ocularTitleRow}>
+                  <Text style={styles.ocularTitle}>Ocular Visit Completed</Text>
+                  <View style={styles.ocularBadgeSuccess}>
+                    <Text style={styles.ocularBadgeSuccessText}>Completed</Text>
+                  </View>
+                </View>
                 <Text style={styles.ocularDesc}>
                   Outcome: <Text style={{ fontWeight: "700" }}>{booking.ocular_visit.outcome || "Proceed"}</Text>
                   {booking.ocular_visit.notes ? ` • ${booking.ocular_visit.notes}` : ""}
@@ -1319,44 +1414,116 @@ export const BookingDetailScreen = ({ route, navigation }) => {
               </View>
             </View>
           ) : booking.ocular_visit?.status === "scheduled" ? (
-            <View style={styles.ocularStatusBox}>
-              <Eye size={16} color={colors.primary} />
+            <View style={styles.ocularScheduledBox}>
+              <Eye size={18} color={colors.primary} />
               <View style={{ marginLeft: spacing.sm, flex: 1 }}>
-                <Text style={styles.ocularTitle}>Ocular Visit Scheduled</Text>
+                <View style={styles.ocularTitleRow}>
+                  <Text style={styles.ocularTitle}>Ocular Visit Scheduled</Text>
+                  <View style={styles.ocularBadgePrimary}>
+                    <Text style={styles.ocularBadgePrimaryText}>Confirmed</Text>
+                  </View>
+                </View>
                 <Text style={styles.ocularDesc}>
                   Scheduled Date: {formatDate(booking.ocular_visit.scheduled_date)}{" "}
                   {booking.ocular_visit.scheduled_time || ""}
                 </Text>
+                {booking.ocular_visit.notes ? (
+                  <Text style={styles.ocularNoteSub}>Note: {booking.ocular_visit.notes}</Text>
+                ) : null}
+                {!isCancelled && !isCompleted && (
+                  <View style={{ marginTop: spacing.sm }}>
+                    <AppButton
+                      title="Request Reschedule"
+                      onPress={handleRequestOcular}
+                      variant="outline"
+                      size="sm"
+                    />
+                  </View>
+                )}
+              </View>
+            </View>
+          ) : pendingOcular ? (
+            <View style={styles.ocularRequestedBox}>
+              <Clock size={18} color={colors.warningDark || "#B45309"} />
+              <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                <View style={styles.ocularTitleRow}>
+                  <Text style={styles.ocularTitle}>Ocular Visit Requested</Text>
+                  <View style={styles.ocularBadgeWarning}>
+                    <Text style={styles.ocularBadgeWarningText}>Under Review</Text>
+                  </View>
+                </View>
+                <Text style={styles.ocularDesc}>
+                  Requested Date: {formatDate(booking.ocular_visit.scheduled_date)}{" "}
+                  {booking.ocular_visit.scheduled_time || ""}
+                </Text>
+                <Text style={styles.ocularReviewNotice}>
+                  Your preferred schedule has been submitted. Our catering coordinator will review and confirm or reach out to coordinate shortly.
+                </Text>
+                {!isCancelled && (
+                  <View style={{ marginTop: spacing.sm }}>
+                    <AppButton
+                      title="Reschedule Request"
+                      onPress={handleRequestOcular}
+                      variant="outline"
+                      size="sm"
+                    />
+                  </View>
+                )}
               </View>
             </View>
           ) : booking.ocular_visit?.status === "skipped" ? (
             <View style={styles.ocularSkippedBox}>
-              <Text style={styles.ocularSkippedText}>
-                Site ocular inspection was skipped by customer request.
-              </Text>
+              <Info size={16} color={colors.textDisabled || "#94A3B8"} />
+              <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                <Text style={styles.ocularTitle}>Ocular Visit Skipped</Text>
+                <Text style={styles.ocularSkippedText}>
+                  Site ocular inspection was skipped by customer request. Event preparation will proceed based on venue specifications.
+                </Text>
+                {!isCancelled && !isCompleted && !isPast && (
+                  <View style={{ marginTop: spacing.sm }}>
+                    <AppButton
+                      title="Request Ocular Visit"
+                      onPress={handleRequestOcular}
+                      variant="outline"
+                      size="sm"
+                    />
+                  </View>
+                )}
+              </View>
+            </View>
+          ) : isBookingAwaitingDeposit(booking) ? (
+            <View style={styles.ocularAwaitingDepositBox}>
+              <AlertCircle size={16} color={colors.warningDark || "#B45309"} />
+              <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                <Text style={styles.ocularTitle}>Deposit Required First</Text>
+                <Text style={styles.ocularDesc}>
+                  Please settle your reservation deposit first. Once your reservation is confirmed, you can schedule an on-site ocular inspection.
+                </Text>
+              </View>
             </View>
           ) : (
             <View>
               <Text style={styles.ocularNoteText}>
-                An on-site inspection ensures electrical outlets, table layout, and setup
-                boundaries match your expectations.
+                An on-site inspection ensures electrical outlets, stage boundaries, and table layout match your event expectations.
               </Text>
               <View style={styles.ocularActionsRow}>
                 <AppButton
-                  title="Request Ocular"
+                  title="Schedule Ocular"
                   onPress={handleRequestOcular}
                   size="sm"
                   style={{ flex: 1 }}
                   loading={actionLoading}
                 />
-                <AppButton
-                  title="Skip Ocular"
-                  onPress={handleSkipOcular}
-                  variant="outline"
-                  size="sm"
-                  style={{ flex: 1 }}
-                  disabled={actionLoading}
-                />
+                {!booking.ocular_visit?.is_required && (
+                  <AppButton
+                    title="Skip Ocular"
+                    onPress={handleSkipOcular}
+                    variant="outline"
+                    size="sm"
+                    style={{ flex: 1 }}
+                    disabled={actionLoading}
+                  />
+                )}
               </View>
             </View>
           )}
@@ -1681,6 +1848,24 @@ export const BookingDetailScreen = ({ route, navigation }) => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* ── MODAL 4: Ocular Date & Time Picker ── */}
+      {showOcularModal && (
+        <OcularDatePickerModal
+          visible={showOcularModal}
+          onClose={() => setShowOcularModal(false)}
+          onSubmit={handleSubmitOcular}
+          onSkip={() => {
+            setShowOcularModal(false);
+            handleSkipOcular();
+          }}
+          booking={booking}
+          initialDate={booking?.ocular_visit?.scheduled_date}
+          initialTime={booking?.ocular_visit?.scheduled_time || "10:00 AM"}
+          initialNotes={booking?.ocular_visit?.notes || ""}
+          submitting={isSubmittingOcular || actionLoading}
+        />
+      )}
     </View>
   );
 };
@@ -2359,6 +2544,102 @@ const styles = StyleSheet.create({
   },
 
   // ── Ocular Card ──
+  ocularTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 2,
+  },
+  ocularBadgeSuccess: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+  },
+  ocularBadgeSuccessText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.success,
+  },
+  ocularBadgePrimary: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+  },
+  ocularBadgePrimaryText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  ocularBadgeWarning: {
+    backgroundColor: colors.warningLight,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+  },
+  ocularBadgeWarningText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.warningDark,
+  },
+  ocularCompletedBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    padding: spacing.sm + 2,
+    borderRadius: radius.md,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    borderWidth: 1,
+  },
+  ocularScheduledBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: colors.primaryLight,
+    padding: spacing.sm + 2,
+    borderRadius: radius.md,
+    borderColor: colors.powderBlue,
+    borderWidth: 1,
+  },
+  ocularRequestedBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: colors.warningLight,
+    padding: spacing.sm + 2,
+    borderRadius: radius.md,
+    borderColor: colors.warningBorder,
+    borderWidth: 1,
+  },
+  ocularDeliveryBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: colors.surfaceAlt,
+    padding: spacing.sm + 2,
+    borderRadius: radius.md,
+    borderColor: colors.borderLight,
+    borderWidth: 1,
+  },
+  ocularAwaitingDepositBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: colors.warningLight,
+    padding: spacing.sm + 2,
+    borderRadius: radius.md,
+    borderColor: colors.warningBorder,
+    borderWidth: 1,
+  },
+  ocularNoteSub: {
+    fontSize: 11,
+    color: colors.foregroundMuted,
+    marginTop: 3,
+    fontStyle: "italic",
+  },
+  ocularReviewNotice: {
+    fontSize: 11,
+    color: colors.warningDark,
+    marginTop: 4,
+    lineHeight: 15,
+  },
   ocularStatusBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -2378,8 +2659,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.foregroundMuted,
     marginTop: 1,
+    lineHeight: 15,
   },
   ocularSkippedBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
     backgroundColor: colors.surfaceAlt,
     padding: spacing.sm + 2,
     borderRadius: radius.md,
@@ -2388,6 +2672,7 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     color: colors.foregroundMuted,
     fontStyle: "italic",
+    lineHeight: 16,
   },
   ocularNoteText: {
     fontSize: typography.sizes.xs,

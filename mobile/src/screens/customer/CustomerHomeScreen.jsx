@@ -447,14 +447,22 @@ export const CustomerHomeScreen = ({ navigation }) => {
       if (isDepositNeeded) {
         kicker = "Action Required";
         subtitlePrompt = "Tap to settle deposit & lock date";
+      } else if (b.ocular_visit?.status === "scheduled" || statusLower === "ocular scheduled") {
+        kicker = "Site Visit Scheduled";
+        subtitlePrompt = b.ocular_visit?.scheduled_date
+          ? `Site visit on ${formatDate(b.ocular_visit.scheduled_date)}`
+          : "Site visit confirmed";
+      } else if (b.ocular_visit?.status === "requested") {
+        kicker = "Site Visit Requested";
+        subtitlePrompt = b.ocular_visit?.scheduled_date
+          ? `Inspection requested for ${formatDate(b.ocular_visit.scheduled_date)} • Under review`
+          : "Inspection requested • Under review";
       } else if (["preparing", "food prep"].includes(statusLower)) {
         subtitlePrompt = "Kitchen preparing your menu";
       } else if (["out for delivery", "in transit"].includes(statusLower)) {
         subtitlePrompt = "Delivery dispatched to venue";
       } else if (statusLower === "ready for event") {
         subtitlePrompt = "Ready for your event celebration";
-      } else if (statusLower === "ocular scheduled") {
-        subtitlePrompt = "Site visit scheduled";
       }
 
       const title = recordTitle(b);

@@ -206,6 +206,22 @@ export const CustomerDashboardScreen = ({ navigation }) => {
     bookings.forEach((b) => {
       const statusLower = String(b.status).toLowerCase();
       if (statusLower === "cancelled") return;
+
+      // Add scheduled ocular visit milestone if upcoming
+      if (b.ocular_visit?.status === "scheduled" && b.ocular_visit?.scheduled_date) {
+        list.push({
+          id: `ocular-${b._id}`,
+          type: "ocular",
+          date: b.ocular_visit.scheduled_date,
+          time: b.ocular_visit.scheduled_time || "10:00 AM",
+          title: `Ocular Visit: ${recordTitle(b)}`,
+          subtitle: "On-site Venue Inspection",
+          venue: b.municipality || b.venue_type || "Batangas Venue",
+          status: "Site Visit Scheduled",
+          onPress: () => navigation.navigate("BookingDetail", { id: b._id }),
+        });
+      }
+
       list.push({
         id: `book-${b._id}`,
         type: "booking",

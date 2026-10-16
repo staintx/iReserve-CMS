@@ -33,7 +33,9 @@ export const StatusBadge = ({ status, size = "md", showDot = true, style }) => {
   } else if (
     normalized.includes("pending") ||
     normalized.includes("review") ||
-    normalized === "draft"
+    normalized === "draft" ||
+    normalized.includes("ocular requested") ||
+    normalized === "requested"
   ) {
     bgColor = colors.warningLight;
     textColor = colors.warningDark;
@@ -104,6 +106,9 @@ export const StatusBadge = ({ status, size = "md", showDot = true, style }) => {
   if (normalized === "deposit pending" || normalized === "pending deposit") label = "Deposit Needed";
   if (normalized === "customer_accepted") label = "Quote Accepted";
   if (normalized === "ocular scheduled") label = "Site Visit Scheduled";
+  if (normalized === "ocular requested") label = "Ocular Requested";
+  if (normalized === "ocular completed") label = "Ocular Completed";
+  if (normalized === "ocular skipped") label = "Ocular Skipped";
   if (normalized === "preparing" || normalized === "food prep") label = "Food Prep";
   if (normalized === "out for delivery" || normalized === "ready for delivery" || normalized === "in transit") label = "Out for Delivery";
   if (normalized === "ready for event") label = "Ready for Event";

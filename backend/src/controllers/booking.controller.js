@@ -675,6 +675,14 @@ exports.update = asyncHandler(async (req, res) => {
     });
   }
 
+  const currentStatusLower = String(current.status || "").toLowerCase();
+  const nextStatusLower = String(req.body.status || "").toLowerCase();
+  if (nextStatusLower === "cancelled" && ["ongoing", "pending completion"].includes(currentStatusLower)) {
+    return res.status(400).json({
+      message: `Cannot cancel a booking that is currently ${current.status}. Please conclude the event lifecycle.`
+    });
+  }
+
   if (req.body.status && ["completed", "Completed"].includes(req.body.status) && !["completed", "Completed"].includes(current.status)) {
     if (current.cancellation_request?.status === "pending") {
       return res.status(400).json({
@@ -877,7 +885,7 @@ exports.update = asyncHandler(async (req, res) => {
       }
     }
   } else if (
-    current.status === "confirmed" &&
+    current.status !== "cancelled" &&
     ["cancelled", "refunded"].includes(updated.status)
   ) {
     const releasedReservations = await InventoryReservation.find({ booking_id: updated._id });
@@ -1659,6 +1667,13 @@ exports.requestChange = asyncHandler(async (req, res) => {
 exports.processRefund = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  const currentStatusLower = String(booking.status || "").toLowerCase();
+  if (["ongoing", "pending completion", "completed"].includes(currentStatusLower) && currentStatusLower !== "cancelled") {
+    return res.status(400).json({
+      message: `Cannot cancel or refund a booking that is currently ${booking.status}.`
+    });
+  }
 
   if (booking.refund_denied || booking.cancellation_request?.status === "denied") {
     return res.status(400).json({
@@ -2716,6 +2731,13 @@ exports.requestCancellation = asyncHandler(async (req, res) => {
 exports.approveCancellation = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  const currentStatusLower = String(booking.status || "").toLowerCase();
+  if (["ongoing", "pending completion", "completed"].includes(currentStatusLower)) {
+    return res.status(400).json({
+      message: `Cannot cancel a booking that is currently ${booking.status}.`
+    });
+  }
 
   if (booking.refund_denied || booking.cancellation_request?.status === "denied") {
     return res.status(400).json({ message: "Cannot approve refund: The refund request for this booking has already been denied." });

@@ -414,6 +414,10 @@ export default function AdminBookingDetails() {
 
   const handleApproveCancellation = async () => {
     if (!booking) return;
+    if (["ongoing", "pending completion", "completed"].includes(rawStatus)) {
+      notify(`Cannot cancel this booking because it is already ${booking.status}.`, "error");
+      return;
+    }
     setCancelActionLoading(true);
     try {
       const payload = {
@@ -1382,8 +1386,17 @@ export default function AdminBookingDetails() {
                 </Btn>
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs h-8 font-semibold rounded-md bg-[#4C81E0] hover:bg-[#3b6bc4] active:scale-[0.98] text-white transition-all shadow-xs cursor-pointer select-none"
+                  disabled={["ongoing", "pending completion", "completed"].includes(rawStatus)}
+                  className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs h-8 font-semibold rounded-md transition-all shadow-xs select-none ${
+                    ["ongoing", "pending completion", "completed"].includes(rawStatus)
+                      ? "bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60"
+                      : "bg-[#4C81E0] hover:bg-[#3b6bc4] active:scale-[0.98] text-white cursor-pointer"
+                  }`}
                   onClick={() => {
+                    if (["ongoing", "pending completion", "completed"].includes(rawStatus)) {
+                      notify(`Cannot approve cancellation for an event that is ${booking.status}. Please decline the request.`, "warning");
+                      return;
+                    }
                     setAdminCancelNote("");
                     setCancellationReasonInput(cancellationReason || "");
                     setCustomRefundAmount(totalPaid > 0 ? String(totalPaid * 0.5) : "0");
@@ -1391,6 +1404,7 @@ export default function AdminBookingDetails() {
                     setPenaltyReasonPreset("late_cancel");
                     setShowApproveCancelModal(true);
                   }}
+                  title={["ongoing", "pending completion", "completed"].includes(rawStatus) ? "Ongoing/concluded events cannot be cancelled" : "Review & Approve Cancellation"}
                 >
                   <Check className="w-3.5 h-3.5 mr-1" /> Review &amp; Approve
                 </button>
@@ -4035,7 +4049,15 @@ export default function AdminBookingDetails() {
                       disabled: false,
                       tone: "border-emerald-200 bg-emerald-50/40 text-emerald-950 hover:border-emerald-400"
                     },
-                    { id: "cancelled", label: "Cancelled", desc: "Reservation cancelled", disabled: false, tone: "border-rose-200 bg-rose-50/40 text-rose-950 hover:border-rose-400" },
+                    {
+                      id: "cancelled",
+                      label: "Cancelled",
+                      desc: ["ongoing", "pending completion", "completed"].includes(rawStatus)
+                        ? `Cannot cancel — event is already ${booking.status}`
+                        : "Reservation cancelled",
+                      disabled: ["ongoing", "pending completion", "completed"].includes(rawStatus),
+                      tone: "border-rose-200 bg-rose-50/40 text-rose-950 hover:border-rose-400"
+                    },
                   ].map((opt) => (
                     <label
                       key={opt.id}
@@ -4091,6 +4113,10 @@ export default function AdminBookingDetails() {
                     return;
                   }
                   if (selectedNewStatus?.toLowerCase() === "cancelled") {
+                    if (["ongoing", "pending completion", "completed"].includes(rawStatus)) {
+                      notify(`Cannot change status to Cancelled because this booking is already ${booking.status}.`, "error");
+                      return;
+                    }
                     setShowStatusSelectModal(false);
                     setAdminCancelNote("");
                     setCancellationReasonInput(booking.cancellation_reason || "");

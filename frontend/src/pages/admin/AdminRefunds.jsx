@@ -304,6 +304,11 @@ export default function AdminRefunds() {
 
   // Open refund calculator
   const handleOpenCalc = (r) => {
+    const rawBookingStatus = String(r.bookingObj?.status || "").toLowerCase();
+    if (["ongoing", "pending completion", "completed"].includes(rawBookingStatus) && rawBookingStatus !== "cancelled") {
+      notify(`Cannot process cancellation refund for a booking that is currently ${r.bookingObj?.status}.`, "warning");
+      return;
+    }
     setActiveRefund(r);
     const initialPct = 50;
     const initialAmount = Math.round(((Number(r.totalPaid || 0) * initialPct) / 100) * 100) / 100;
@@ -470,6 +475,11 @@ export default function AdminRefunds() {
   // Process refund submission after confirmation
   const handleExecuteApproval = async () => {
     if (!activeRefund) return;
+    const rawBookingStatus = String(activeRefund.bookingObj?.status || "").toLowerCase();
+    if (["ongoing", "pending completion", "completed"].includes(rawBookingStatus) && rawBookingStatus !== "cancelled") {
+      notify(`Cannot process cancellation refund for a booking that is currently ${activeRefund.bookingObj?.status}.`, "error");
+      return;
+    }
     const finalAmount = Math.round((Number.isFinite(refundAmount) ? refundAmount : 0) * 100) / 100;
 
     if (finalAmount > MAX_FINANCIAL_AMOUNT) {

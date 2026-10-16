@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Platform,
+  Image,
 } from "react-native";
 import {
   X,
@@ -15,10 +16,10 @@ import {
   RefreshCcw,
   CheckCircle2,
   Clock,
+  XCircle,
   MapPin,
   Calendar,
   CreditCard,
-  Building2,
   ShieldCheck,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
@@ -32,12 +33,14 @@ import {
   getReceiptBookingDetails,
   getReceiptBusinessInfo,
   getReceiptFinancials,
+  getReceiptOriginalPaymentDetails,
   formatReceiptCurrency,
   formatReceiptDateTime,
   formatReceiptEventDate,
 } from "../../utils/receiptHelpers";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const businessLogo = require("../../../assets/images/business-logo.jpg");
 
 export const CustomerReceiptModal = ({
   visible,
@@ -57,6 +60,7 @@ export const CustomerReceiptModal = ({
   const customer = getReceiptCustomerDetails(payment, booking);
   const bookingDetails = getReceiptBookingDetails(payment, booking);
   const financials = getReceiptFinancials(payment, booking);
+  const origPayment = isRefund ? getReceiptOriginalPaymentDetails(payment, booking) : null;
 
   const milestoneLabel = getReceiptMilestoneLabel(payment.payment_type);
   const methodLabel = getReceiptPaymentMethod(payment);
@@ -73,9 +77,13 @@ export const CustomerReceiptModal = ({
   const isApproved = financials.isApproved;
 
   const statusLabel = isRefund
-    ? isApproved
+    ? financials.isDenied || status === "denied" || status === "rejected"
+      ? "DENIED"
+      : isApproved
       ? "REFUND COMPLETED"
       : "REFUND PENDING"
+    : financials.isDenied || status === "denied" || status === "rejected"
+    ? "DENIED"
     : isApproved
     ? "PAID & APPROVED"
     : status === "pending"
@@ -131,8 +139,14 @@ export const CustomerReceiptModal = ({
           >
             {/* 1. Official Business Header */}
             <View style={styles.brandSection}>
-              <View style={styles.brandIconBubble}>
-                <Building2 size={24} color="#4C81E0" />
+              <View style={styles.brandLogoWrap}>
+                <Image
+                  source={businessLogo}
+                  style={styles.brandLogo}
+                  resizeMode="contain"
+                  accessible
+                  accessibilityLabel={`${OFFICIAL_BUSINESS_NAME} Logo`}
+                />
               </View>
               <Text style={styles.brandName}>{OFFICIAL_BUSINESS_NAME}</Text>
               <Text style={styles.brandAddress}>{biz.address}</Text>
@@ -144,14 +158,18 @@ export const CustomerReceiptModal = ({
               <View
                 style={[
                   styles.statusPill,
-                  isRefund
+                  financials.isDenied || status === "denied" || status === "rejected"
+                    ? styles.statusPillDenied
+                    : isRefund
                     ? styles.statusPillRefund
                     : isApproved
                     ? styles.statusPillSuccess
                     : styles.statusPillPending,
                 ]}
               >
-                {isApproved ? (
+                {financials.isDenied || status === "denied" || status === "rejected" ? (
+                  <XCircle size={12} color="#E11D48" style={{ marginRight: 4 }} />
+                ) : isApproved ? (
                   <CheckCircle2
                     size={12}
                     color={isRefund ? "#4C81E0" : colors.success}
@@ -163,7 +181,9 @@ export const CustomerReceiptModal = ({
                 <Text
                   style={[
                     styles.statusPillText,
-                    isRefund
+                    financials.isDenied || status === "denied" || status === "rejected"
+                      ? { color: "#E11D48" }
+                      : isRefund
                       ? { color: "#4C81E0" }
                       : isApproved
                       ? { color: colors.success }
@@ -275,6 +295,41 @@ export const CustomerReceiptModal = ({
               )}
             </View>
 
+            {/* Original Payment Information for Refunds */}
+            {isRefund && origPayment && (origPayment.amount != null || origPayment.method || origPayment.reference) && (
+              <View style={styles.sectionBlock}>
+                <Text style={styles.sectionTitle}>Original Payment Details</Text>
+                {origPayment.amount != null && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Original Paid</Text>
+                    <Text style={styles.detailValueBold}>
+                      {formatReceiptCurrency(origPayment.amount)}
+                    </Text>
+                  </View>
+                )}
+                {origPayment.method && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Payment Method</Text>
+                    <Text style={styles.detailValue}>{origPayment.method}</Text>
+                  </View>
+                )}
+                {origPayment.date && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Date Paid</Text>
+                    <Text style={styles.detailValue}>
+                      {formatReceiptDateTime(origPayment.date)}
+                    </Text>
+                  </View>
+                )}
+                {origPayment.reference && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Original Ref.</Text>
+                    <Text style={styles.detailValueMono}>{origPayment.reference}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* 5. Financial Summary Box */}
             <View style={styles.summaryCard}>
               <View style={styles.summaryRow}>
@@ -284,10 +339,16 @@ export const CustomerReceiptModal = ({
                 <Text
                   style={[
                     styles.summaryAmount,
-                    isRefund ? { color: "#4C81E0" } : { color: colors.foregroundDark },
+                    financials.isDenied
+                      ? { color: "#E11D48" }
+                      : isRefund
+                      ? { color: "#4C81E0" }
+                      : { color: colors.foregroundDark },
                   ]}
                 >
-                  {formatReceiptCurrency(financials.amountPaid, { isRefund })}
+                  {financials.isDenied && isRefund
+                    ? "₱0.00 (Denied)"
+                    : formatReceiptCurrency(financials.amountPaid, { isRefund })}
                 </Text>
               </View>
 
@@ -429,14 +490,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 8,
   },
-  brandIconBubble: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#EFF6FF",
+  brandLogoWrap: {
+    width: 76,
+    height: 76,
+    borderRadius: 16,
+    backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    overflow: "hidden",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  brandLogo: {
+    width: "100%",
+    height: "100%",
+    aspectRatio: 1,
   },
   brandName: {
     fontSize: 16,
@@ -482,6 +556,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
     borderWidth: 1,
     borderColor: "#BFDBFE",
+  },
+  statusPillDenied: {
+    backgroundColor: "#FFF1F2",
+    borderWidth: 1,
+    borderColor: "#FECDD3",
   },
   statusPillText: {
     fontSize: 11,

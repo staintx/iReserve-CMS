@@ -139,6 +139,9 @@ export const getReceiptCustomerDetails = (payment, booking = null) => {
 /**
  * Extract booking and event details safely from payment, booking, or inquiry.
  */
+/**
+ * Extract booking and event details safely from payment, booking, or inquiry.
+ */
 export const getReceiptBookingDetails = (payment, booking = null) => {
   if (!payment) {
     return {
@@ -150,33 +153,43 @@ export const getReceiptBookingDetails = (payment, booking = null) => {
       venue: null,
       startTime: null,
       serviceType: null,
+      isInquiry: false,
     };
   }
 
-  const b = booking || (payment.booking_id && typeof payment.booking_id === "object" ? payment.booking_id : {});
-  const inq = payment.inquiry_id && typeof payment.inquiry_id === "object" ? payment.inquiry_id : {};
+  const b = (booking && !booking.inquiry_type && !booking.reference?.startsWith?.("INQ"))
+    ? booking
+    : (payment.booking_id && typeof payment.booking_id === "object" ? payment.booking_id : {});
+  const inq = (booking && (booking.inquiry_type || booking.reference?.startsWith?.("INQ")))
+    ? booking
+    : (payment.inquiry_id && typeof payment.inquiry_id === "object" ? payment.inquiry_id : {});
 
   const bookingRef =
     b.reference ||
     inq.reference ||
+    (inq._id ? `INQ-${String(inq._id).slice(-6).toUpperCase()}` : null) ||
     (b._id ? `BK-${String(b._id).slice(-6).toUpperCase()}` : null) ||
     "N/A";
 
-  const eventType = b.event_type || inq.event_type || null;
-  const packageName = b.package_name_snapshot || b.package_id?.name || inq.package_name_snapshot || inq.package_id?.name || null;
-  const eventDate = b.event_date || inq.event_date || null;
+  const isInquiry = Boolean(
+    (!b.reference && !b._id && (inq.reference || inq._id || payment.inquiry_id)) ||
+    bookingRef.startsWith("INQ")
+  );
+
+  const eventType = b.event_type || inq.event_type || inq.inquiry_type || null;
+  const packageName = b.package_name_snapshot || b.package_id?.name || inq.package_name_snapshot || inq.package_id?.name || inq.package_id?.title || null;
+  const eventDate = b.event_date || inq.event_date || inq.preferred_date || null;
   const guestCount = b.guest_count || inq.guest_count || null;
-  const startTime = b.start_time || inq.start_time || null;
+  const startTime = b.start_time || inq.start_time || inq.preferred_time || null;
   const serviceType = b.service_type || inq.service_type || null;
 
   const venueParts = [b.street, b.barangay, b.municipality, b.province].filter(Boolean);
+  const inqVenueParts = [inq.street, inq.barangay, inq.municipality, inq.province].filter(Boolean);
   const venue =
     venueParts.length > 0
       ? venueParts.join(", ")
       : b.venue_type ||
-        [inq.street, inq.barangay, inq.municipality, inq.province].filter(Boolean).join(", ") ||
-        inq.venue_type ||
-        null;
+        (inqVenueParts.length > 0 ? inqVenueParts.join(", ") : inq.venue_type || inq.venue || null);
 
   return {
     bookingRef,
@@ -187,6 +200,61 @@ export const getReceiptBookingDetails = (payment, booking = null) => {
     venue,
     startTime,
     serviceType,
+    isInquiry,
+  };
+};
+
+/**
+ * Extract original payment details for refund transactions.
+ */
+export const getReceiptOriginalPaymentDetails = (payment, booking = null) => {
+  if (!payment) return null;
+  const isRefund =
+    String(payment.payment_type || "").toLowerCase() === "refund" ||
+    Number(payment.amount) < 0;
+  if (!isRefund) return null;
+
+  const b = booking || (payment.booking_id && typeof payment.booking_id === "object" ? payment.booking_id : null);
+  const bPayments = Array.isArray(b?.payments) ? b.payments : [];
+
+  const positiveApproved = bPayments.filter(
+    (p) => (p.status === "approved" || p.status === "paid") && Number(p.amount) > 0
+  );
+
+  const amount =
+    positiveApproved.reduce((sum, p) => sum + Number(p.amount), 0) ||
+    Number(b?.total_paid) ||
+    Number(payment.metadata?.original_amount) ||
+    null;
+
+  const firstApproved = positiveApproved[0];
+  const method =
+    firstApproved?.payment_method ||
+    firstApproved?.method ||
+    payment.metadata?.original_payment_method ||
+    b?.payment_method ||
+    null;
+
+  const reference =
+    firstApproved?.gateway_reference ||
+    firstApproved?.reference_number ||
+    payment.metadata?.original_reference ||
+    payment.metadata?.reference_number ||
+    null;
+
+  const date =
+    firstApproved?.paid_at ||
+    firstApproved?.createdAt ||
+    payment.metadata?.original_paid_at ||
+    null;
+
+  if (!amount && !method && !reference && !date) return null;
+
+  return {
+    amount,
+    method: method ? getReceiptPaymentMethod({ method }) : null,
+    reference,
+    date,
   };
 };
 
@@ -223,6 +291,8 @@ export const getReceiptFinancials = (payment, booking = null) => {
       remainingBalance: null,
       isFullyPaid: false,
       status: "approved",
+      isApproved: true,
+      isDenied: false,
     };
   }
 
@@ -230,13 +300,23 @@ export const getReceiptFinancials = (payment, booking = null) => {
     String(payment.payment_type || "").toLowerCase() === "refund" ||
     Number(payment.amount) < 0;
 
-  const amountPaid = Math.abs(Number(payment.amount) || 0);
-  const pType = String(payment.payment_type || "").toLowerCase().trim();
-  const status = String(payment.status || "approved").toLowerCase();
-  const isApproved = ["approved", "paid", "completed", "succeeded"].includes(status);
-
   const b = booking || (payment.booking_id && typeof payment.booking_id === "object" ? payment.booking_id : null);
   const inq = payment.inquiry_id && typeof payment.inquiry_id === "object" ? payment.inquiry_id : null;
+
+  const rawStatus = String(payment.status || "approved").toLowerCase();
+  const isDenied =
+    rawStatus === "denied" ||
+    rawStatus === "rejected" ||
+    Boolean(payment.refund_denied) ||
+    Boolean(payment.metadata?.denied) ||
+    Boolean(b?.refund_denied) ||
+    b?.cancellation_request?.status === "denied" ||
+    b?.cancellation_request?.status === "rejected";
+
+  const status = (isDenied && isRefund) ? "denied" : rawStatus;
+  const isApproved = !isDenied && ["approved", "paid", "completed", "succeeded"].includes(status);
+  const amountPaid = (isDenied && isRefund) ? 0 : Math.abs(Number(payment.amount) || 0);
+  const pType = String(payment.payment_type || "").toLowerCase().trim();
 
   const totalBookingAmount =
     Number(b?.total_price ?? b?.total_cost ?? inq?.total_price ?? inq?.total_cost) || null;
@@ -272,8 +352,9 @@ export const getReceiptFinancials = (payment, booking = null) => {
     paymentType: pType,
     status,
     isApproved,
+    isDenied,
     totalBookingAmount,
-    totalContract: totalBookingAmount, // Alias for backward compatibility
+    totalContract: totalBookingAmount,
     remainingBalance,
     isFullyPaid,
   };

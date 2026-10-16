@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Printer, X, Receipt, RotateCcw } from "lucide-react";
+import { Printer, X, Receipt, RefreshCcw } from "lucide-react";
 import { Button } from "../../ui/button";
 import useBusinessInfo from "../../../hooks/useBusinessInfo";
 import AdminPrintReceipt from "./AdminPrintReceipt";
@@ -46,7 +46,7 @@ export default function AdminReceiptModal({
 
   return (
     <>
-      {/* ── Screen Modal Preview ── */}
+      {/* ── Screen Modal Preview (Matches Mobile App Sheet Layout) ── */}
       <div
         className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto caz-receipt-modal-backdrop animate-in fade-in duration-150"
         onClick={(e) => {
@@ -56,34 +56,38 @@ export default function AdminReceiptModal({
         aria-modal="true"
         aria-label={isRefund ? "Refund Voucher" : "Payment Receipt"}
       >
-        <div className="w-full sm:max-w-[680px] max-sm:max-h-[92vh] sm:max-h-[90vh] bg-slate-100 text-slate-900 max-sm:rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col my-0 sm:my-auto animate-in zoom-in-95 duration-200">
+        <div className="w-full sm:max-w-[500px] max-sm:max-h-[92vh] sm:max-h-[90vh] bg-white text-slate-900 max-sm:rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col my-0 sm:my-auto animate-in zoom-in-95 duration-200">
           
           {/* ── Modal Top Header & Actions ── */}
-          <div className="px-3.5 py-3 sm:px-5 sm:py-3.5 bg-white border-b border-slate-200/90 flex items-center justify-between gap-2 shrink-0 select-none print:hidden">
-            <div className="flex items-center gap-2 min-w-0">
+          <div className="px-4 py-3 sm:px-5 sm:py-3.5 bg-white border-b border-slate-200/90 flex items-center justify-between gap-2.5 shrink-0 select-none print:hidden">
+            <div className="flex items-center gap-3 min-w-0">
               <div
-                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                  isRefund ? "bg-rose-500/10 text-rose-600" : "bg-[#2C4B8A]/10 text-[#2C4B8A]"
+                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                  isRefund ? "bg-[#EFF6FF] text-[#4C81E0]" : "bg-[#2C4B8A]/10 text-[#2C4B8A]"
                 }`}
               >
-                {isRefund ? <RotateCcw className="w-4 h-4" /> : <Receipt className="w-4 h-4" />}
+                {isRefund ? (
+                  <RefreshCcw className="w-4 h-4" />
+                ) : (
+                  <Receipt className="w-4 h-4" />
+                )}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
                     {isRefund ? "Refund Voucher" : "Payment Receipt"}
                   </h3>
                   <span className="text-[10px] font-mono font-semibold text-[#2C4B8A] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60 leading-none">
                     {receiptNumber}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
+                <p className="text-xs text-slate-500 leading-tight mt-0.5">
                   Official Administrative Record
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               <Button
                 size="sm"
                 onClick={handlePrint}
@@ -96,7 +100,7 @@ export default function AdminReceiptModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
                 aria-label="Close receipt"
               >
                 <X className="w-4 h-4" />
@@ -105,7 +109,7 @@ export default function AdminReceiptModal({
           </div>
 
           {/* ── Scrollable Document Preview Workspace ── */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-5 [scrollbar-width:thin]">
+          <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5 [scrollbar-width:thin] bg-white">
             <CateringReceiptDocument
               payment={payment}
               booking={booking}
@@ -115,6 +119,17 @@ export default function AdminReceiptModal({
               isPrint={false}
               onViewProof={onViewProof}
             />
+          </div>
+
+          {/* ── Bottom Done Action Footer matching mobile ── */}
+          <div className="px-5 py-3 sm:px-6 sm:py-3.5 border-t border-slate-100 bg-white select-none print:hidden shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full h-11 bg-[#2C4B8A] hover:bg-[#203766] text-white font-bold rounded-xl flex items-center justify-center text-sm transition-colors shadow-xs cursor-pointer"
+            >
+              Done
+            </button>
           </div>
         </div>
       </div>
@@ -129,4 +144,3 @@ export default function AdminReceiptModal({
     </>
   );
 }
-

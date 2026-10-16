@@ -1,5 +1,5 @@
 import { io } from "socket.io-client";
-import api, { getAccessToken } from "./axios";
+import { getAccessToken, refreshAuth } from "./axios";
 
 let socket;
 
@@ -26,10 +26,10 @@ export const getSocket = () => {
       console.error("[Socket] connect_error:", err.message);
       if (err.message === "TOKEN_EXPIRED") {
         try {
-          await api.post("/auth/refresh");
+          await refreshAuth();
           socket.connect();
         } catch {
-          window.dispatchEvent(new CustomEvent("session-expired"));
+          // refreshAuth clears tokens and dispatches session-expired
         }
       }
     });

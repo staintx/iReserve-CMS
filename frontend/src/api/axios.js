@@ -35,12 +35,16 @@ _accessToken = getFrontendCookie(TOKEN_COOKIE);
 _refreshToken = getFrontendCookie(REFRESH_COOKIE);
 
 export const setTokens = (access, refresh) => {
-  _accessToken = access || null;
-  _refreshToken = refresh || null;
-  if (access) setFrontendCookie(TOKEN_COOKIE, access, 900); // 15m (matches JWT expiry)
-  else clearFrontendCookie(TOKEN_COOKIE);
-  if (refresh) setFrontendCookie(REFRESH_COOKIE, refresh, 7 * 86400); // 7d
-  else clearFrontendCookie(REFRESH_COOKIE);
+  if (access !== undefined) {
+    _accessToken = access || null;
+    if (access) setFrontendCookie(TOKEN_COOKIE, access, 900); // 15m (matches JWT expiry)
+    else clearFrontendCookie(TOKEN_COOKIE);
+  }
+  if (refresh !== undefined) {
+    _refreshToken = refresh || null;
+    if (refresh) setFrontendCookie(REFRESH_COOKIE, refresh, 7 * 86400); // 7d
+    else clearFrontendCookie(REFRESH_COOKIE);
+  }
 };
 
 export const clearTokens = () => {
@@ -78,6 +82,38 @@ const processQueue = (error) => {
   failedQueue = [];
 };
 
+export const refreshAuth = async () => {
+  if (isRefreshing) {
+    return new Promise((resolve, reject) => {
+      failedQueue.push({ resolve, reject });
+    });
+  }
+
+  isRefreshing = true;
+  const tokenToRefresh = _refreshToken || getFrontendCookie(REFRESH_COOKIE);
+
+  try {
+    const { data } = await axios.post(
+      `${api.defaults.baseURL}/auth/refresh`,
+      { refreshToken: tokenToRefresh },
+      {
+        withCredentials: true,
+        headers: tokenToRefresh ? { "x-refresh-token": tokenToRefresh } : {},
+      }
+    );
+    if (data.token) setTokens(data.token, data.refreshToken);
+    processQueue(null);
+    return data;
+  } catch (refreshErr) {
+    clearTokens();
+    processQueue(refreshErr);
+    window.dispatchEvent(new CustomEvent("session-expired"));
+    throw refreshErr;
+  } finally {
+    isRefreshing = false;
+  }
+};
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -85,9 +121,10 @@ api.interceptors.response.use(
 
     // Also handle NO_TOKEN on Safari where backend cookies were silently dropped
     const code = error.response?.data?.code;
+    const currentRefresh = _refreshToken || getFrontendCookie(REFRESH_COOKIE);
     const isAuthFailure =
       error.response?.status === 401 &&
-      (code === "TOKEN_EXPIRED" || (code === "NO_TOKEN" && _refreshToken));
+      (code === "TOKEN_EXPIRED" || (code === "NO_TOKEN" && currentRefresh));
 
     if (
       isAuthFailure &&
@@ -95,39 +132,13 @@ api.interceptors.response.use(
       !originalRequest.url?.includes("/auth/refresh") &&
       !originalRequest.url?.includes("/auth/login")
     ) {
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then(() => api(originalRequest))
-          .catch((err) => Promise.reject(err));
-      }
-
       originalRequest._retry = true;
-      isRefreshing = true;
 
       try {
-        // Send refresh token via both body and header so the backend finds it
-        // regardless of whether cookies survived (Safari ITP)
-        const { data } = await axios.post(
-          `${api.defaults.baseURL}/auth/refresh`,
-          { refreshToken: _refreshToken },
-          {
-            withCredentials: true,
-            headers: _refreshToken ? { "x-refresh-token": _refreshToken } : {},
-          }
-        );
-        // Capture the new access token
-        if (data.token) setTokens(data.token, _refreshToken);
-        processQueue(null);
+        await refreshAuth();
         return api(originalRequest);
       } catch (refreshErr) {
-        clearTokens();
-        processQueue(refreshErr);
-        window.dispatchEvent(new CustomEvent("session-expired"));
         return Promise.reject(refreshErr);
-      } finally {
-        isRefreshing = false;
       }
     }
 

@@ -21,6 +21,7 @@ import {
   Sparkles,
   Users,
   Plus,
+  Eye,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import customerApi from "../../api/customer";
@@ -472,6 +473,26 @@ export const BookingsListScreen = ({ navigation }) => {
               </Text>
             </View>
           )}
+
+          {/* Row 4: Site Visit / Ocular (if scheduled or requested) */}
+          {item.ocular_visit?.status === "scheduled" && item.ocular_visit?.scheduled_date && (
+            <View style={styles.metaRow}>
+              <Eye size={13} color={colors.primary} style={styles.metaIcon} />
+              <Text style={[styles.metaText, { color: colors.primary, fontWeight: "600" }]} numberOfLines={1}>
+                Site Visit: {formatDate(item.ocular_visit.scheduled_date)}
+                {item.ocular_visit.scheduled_time ? ` • ${item.ocular_visit.scheduled_time}` : ""}
+              </Text>
+            </View>
+          )}
+
+          {item.ocular_visit?.status === "requested" && item.ocular_visit?.scheduled_date && (
+            <View style={styles.metaRow}>
+              <Clock size={13} color={colors.warningDark || "#B45309"} style={styles.metaIcon} />
+              <Text style={[styles.metaText, { color: colors.warningDark || "#B45309", fontWeight: "600" }]} numberOfLines={1}>
+                Site Visit Requested: {formatDate(item.ocular_visit.scheduled_date)} (Review)
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Financial Information Box (Space-Efficient) */}
@@ -504,7 +525,14 @@ export const BookingsListScreen = ({ navigation }) => {
         </View>
 
         {/* Compact Status Callout Banner */}
-        {isCompleted ? (
+        {item.ocular_visit?.status === "requested" ? (
+          <View style={styles.ocularCallout}>
+            <Clock size={13} color={colors.warningDark || "#B45309"} style={styles.calloutIcon} />
+            <Text style={styles.ocularCalloutText} numberOfLines={1}>
+              Site visit requested for {formatDate(item.ocular_visit.scheduled_date)} • Awaiting confirmation
+            </Text>
+          </View>
+        ) : isCompleted ? (
           <View style={styles.completedCallout}>
             <CheckCircle2 size={13} color={colors.primary} style={styles.calloutIcon} />
             <Text style={styles.completedCalloutText} numberOfLines={1}>
@@ -888,6 +916,23 @@ const styles = StyleSheet.create({
   calloutIcon: {
     marginRight: 5,
     flexShrink: 0,
+  },
+  ocularCallout: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.warningLight,
+    borderWidth: 1,
+    borderColor: colors.warningBorder,
+    borderRadius: radius.md,
+    paddingVertical: 4,
+    paddingHorizontal: 7,
+    marginBottom: spacing.xs + 2,
+  },
+  ocularCalloutText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.warningDark,
+    flex: 1,
   },
   readyCallout: {
     flexDirection: "row",

@@ -1,17 +1,23 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
-  Alert,
   Platform,
   Linking,
   BackHandler,
 } from "react-native";
 import { WebView } from "react-native-webview";
-import { CheckCircle, AlertTriangle, ArrowLeft, ExternalLink, CreditCard, RefreshCw } from "lucide-react-native";
+import {
+  CheckCircle,
+  AlertTriangle,
+  ExternalLink,
+  CreditCard,
+  RefreshCw,
+  Clock,
+} from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import Header from "../../components/common/Header";
 import AppButton from "../../components/common/AppButton";
@@ -21,6 +27,11 @@ import { confirmAction, showAlertDialog } from "../../context/DialogContext";
 
 export const PaymentCheckoutScreen = ({ route, navigation }) => {
   const params = route.params || {};
+  const webViewRef = useRef(null);
+
+  const isInquiryDeposit =
+    Boolean(params.inquiryId) ||
+    (!params.bookingId && (Boolean(params.depositAmount) || params.paymentType === "deposit"));
 
   const [currentCheckoutUrl, setCurrentCheckoutUrl] = useState(params.checkoutUrl || null);
   const [currentPaymentId, setCurrentPaymentId] = useState(params.paymentId || null);
@@ -31,6 +42,15 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
   const [verifying, setVerifying] = useState(false);
   const [success, setSuccess] = useState(false);
   const [confirmedBookingId, setConfirmedBookingId] = useState(params.bookingId || null);
+
+  const extractQueryParam = (url, paramName) => {
+    try {
+      const match = url.match(new RegExp(`[?&]${paramName}=([^&#]*)`));
+      return match ? decodeURIComponent(match[1]) : null;
+    } catch {
+      return null;
+    }
+  };
 
   // Synchronize state when navigation params change
   useEffect(() => {
@@ -90,133 +110,29 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
     }
   }, [params.bookingId, params.inquiryId, params.amount, currentCheckoutUrl]);
 
-  const showNotice = (title, message) => {
-    const isError =
-      title.toLowerCase().includes("failed") ||
-      title.toLowerCase().includes("error") ||
-      title.toLowerCase().includes("rejected");
-    showAlertDialog({
-      title,
-      message,
-      tone: isError ? "destructive" : "info",
-      confirmText: "Got It",
-    });
-  };
+  const handleReturn = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else if (params.inquiryId) {
+      navigation.navigate("QuotationDetail", { inquiryId: params.inquiryId });
+    } else if (params.bookingId) {
+      navigation.navigate("BookingDetail", { id: params.bookingId });
+    } else {
+      navigation.navigate("CustomerTabs", { screen: "InquiriesList" });
+    }
+  }, [navigation, params.inquiryId, params.bookingId]);
 
-  const handleManualVerify = async () => {
-    setVerifying(true);
-    try {
-      if (currentPaymentId) {
-        const res = await customerApi.verifyPayment(currentPaymentId);
-        const pStatus = res?.payment?.status;
-        if (pStatus === "approved") {
-          if (res.payment?.booking_id) {
-            setConfirmedBookingId(res.payment.booking_id);
-          }
-          setSuccess(true);
-          return;
-        } else if (pStatus === "rejected") {
-          showNotice(
-            "Payment Failed",
-            "The payment transaction was rejected or failed. Please retry with another payment method."
-          );
-          return;
-        } else {
-          showNotice(
-            "Payment Processing",
-            "Payment is still being processed by the gateway. Please wait a few moments and tap 'Verify Payment Status' again."
-          );
-          return;
-        }
-      } else if (params.inquiryId) {
-        const inq = await customerApi.getInquiryById(params.inquiryId);
-        if (inq?.payment_status === "deposit_paid" || inq?.payment_status === "fully_paid") {
-          if (inq.converted_booking_id) setConfirmedBookingId(inq.converted_booking_id);
-          setSuccess(true);
-        } else {
-          showNotice(
-            "Payment Verification",
-            "We haven't received confirmation from the gateway yet. If you just completed paying, please allow 10-15 seconds and try verifying again."
-          );
-        }
+  const handleRetry = useCallback(() => {
+    if (webViewRef.current) {
+      webViewRef.current.reload();
+    } else if (currentCheckoutUrl) {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.open(currentCheckoutUrl, "_blank");
       } else {
-        showNotice(
-          "Payment Verification",
-          "Please allow a moment for the payment gateway to process, then try verifying again."
-        );
+        Linking.openURL(currentCheckoutUrl);
       }
-    } catch (err) {
-      console.warn("Manual verify notice:", err);
-      showNotice(
-        "Verification Notice",
-        err.response?.data?.message || "Could not verify payment yet. Please try again in a few moments."
-      );
-    } finally {
-      setVerifying(false);
     }
-  };
-
-  const handleNavigationStateChange = async (navState) => {
-    const url = navState.url || "";
-
-    // Check for success redirect parameter
-    if (url.includes("payment=success") || url.includes("status=success")) {
-      setVerifying(true);
-      try {
-        if (currentPaymentId) {
-          const res = await customerApi.verifyPayment(currentPaymentId);
-          if (res?.payment?.status === "approved") {
-            if (res.payment?.booking_id) {
-              setConfirmedBookingId(res.payment.booking_id);
-            }
-            setSuccess(true);
-          } else {
-            showNotice(
-              "Payment Processing",
-              "We received your return from checkout, but confirmation is still processing. Please tap 'Verify Payment Status' to update."
-            );
-          }
-        } else if (params.inquiryId) {
-          const inq = await customerApi.getInquiryById(params.inquiryId);
-          if (inq?.payment_status === "deposit_paid" || inq?.payment_status === "fully_paid") {
-            if (inq.converted_booking_id) setConfirmedBookingId(inq.converted_booking_id);
-            setSuccess(true);
-          } else {
-            showNotice(
-              "Payment Processing",
-              "Payment processing is underway. Please tap 'Verify Payment Status' once complete."
-            );
-          }
-        } else {
-          setSuccess(true);
-        }
-      } catch (err) {
-        console.warn("Payment verification note", err);
-        showNotice(
-          "Verification Note",
-          "Redirect received, but verification check failed. Please tap 'Verify Payment Status'."
-        );
-      } finally {
-        setVerifying(false);
-      }
-    } else if (url.includes("payment=cancelled") || url.includes("status=cancelled")) {
-      const returnButtonText = params.bookingId ? "Return to Booking" : "Return to Inquiries";
-
-      showAlertDialog({
-        title: "Payment Cancelled",
-        message: "Your payment transaction was cancelled. You can retry paying at any time from your bookings list.",
-        tone: "info",
-        confirmText: returnButtonText,
-        onConfirm: () => {
-          if (params.bookingId) {
-            navigation.navigate("BookingDetail", { id: params.bookingId });
-          } else {
-            navigation.navigate("CustomerTabs", { screen: "InquiriesList" });
-          }
-        },
-      });
-    }
-  };
+  }, [currentCheckoutUrl]);
 
   const handleExit = useCallback(async () => {
     const shouldExit = await confirmAction({
@@ -230,33 +146,246 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
     });
 
     if (shouldExit) {
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      } else if (params.bookingId) {
-        navigation.navigate("BookingDetail", { id: params.bookingId });
+      handleReturn();
+    }
+  }, [handleReturn]);
+
+  const handleManualVerify = async () => {
+    setVerifying(true);
+    try {
+      if (currentPaymentId) {
+        const res = await customerApi.verifyPayment(currentPaymentId);
+        const pStatus = res?.payment?.status;
+        if (res?.payment?.amount && !currentAmount) {
+          setCurrentAmount(res.payment.amount);
+        }
+
+        if (pStatus === "approved") {
+          if (res.payment?.booking_id) {
+            setConfirmedBookingId(res.payment.booking_id);
+          }
+          setSuccess(true);
+          return;
+        } else if (pStatus === "rejected" || pStatus === "failed") {
+          const shouldRetry = await confirmAction({
+            title: "Payment Failed",
+            message:
+              "The payment transaction was rejected or failed. You can retry with another payment method or return.",
+            tone: "destructive",
+            confirmText: "Retry Payment",
+            cancelText: isInquiryDeposit ? "Return to Inquiry" : "Return to Booking",
+          });
+          if (shouldRetry) {
+            handleRetry();
+          } else {
+            handleReturn();
+          }
+          return;
+        } else {
+          showAlertDialog({
+            title: "Payment Processing",
+            message:
+              "Payment is still being processed by the gateway. Please wait a few moments and tap 'Verify Payment Status' again.",
+            tone: "info",
+            confirmText: "Got It",
+          });
+          return;
+        }
+      } else if (params.inquiryId) {
+        const inq = await customerApi.getInquiryById(params.inquiryId);
+        if (inq?.payment_status === "deposit_paid" || inq?.payment_status === "fully_paid") {
+          if (inq.converted_booking_id) setConfirmedBookingId(inq.converted_booking_id);
+          setSuccess(true);
+          return;
+        } else {
+          showAlertDialog({
+            title: "Payment Not Verified Yet",
+            message:
+              "We haven't received confirmation from the gateway yet. If you just completed paying, please allow 10-15 seconds and try verifying again.",
+            tone: "info",
+            confirmText: "Got It",
+          });
+          return;
+        }
       } else {
-        navigation.navigate("CustomerTabs", { screen: "InquiriesList" });
+        showAlertDialog({
+          title: "Payment Verification",
+          message:
+            "Please allow a moment for the payment gateway to process, then try verifying again.",
+          tone: "info",
+          confirmText: "Got It",
+        });
+      }
+    } catch (err) {
+      console.warn("Manual verify notice:", err);
+      showAlertDialog({
+        title: "Verification Notice",
+        message:
+          err.response?.data?.message ||
+          "Could not verify payment yet. Please try again in a few moments.",
+        tone: "warning",
+        confirmText: "Got It",
+      });
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleNavigationStateChange = async (navState) => {
+    const url = navState.url || "";
+    if (!url) return;
+
+    // Check for success redirect parameter
+    if (url.includes("payment=success") || url.includes("status=success")) {
+      setVerifying(true);
+      try {
+        const resolvedPaymentId = currentPaymentId || extractQueryParam(url, "payment_id");
+        if (resolvedPaymentId && !currentPaymentId) {
+          setCurrentPaymentId(resolvedPaymentId);
+        }
+        const resolvedInquiryId = params.inquiryId || extractQueryParam(url, "inquiry_id");
+
+        if (resolvedPaymentId) {
+          const res = await customerApi.verifyPayment(resolvedPaymentId);
+          const pStatus = res?.payment?.status;
+          if (res?.payment?.amount && !currentAmount) {
+            setCurrentAmount(res.payment.amount);
+          }
+
+          if (pStatus === "approved") {
+            if (res.payment?.booking_id) {
+              setConfirmedBookingId(res.payment.booking_id);
+            }
+            setSuccess(true);
+            return;
+          } else if (pStatus === "rejected" || pStatus === "failed") {
+            const shouldRetry = await confirmAction({
+              title: "Payment Failed",
+              message:
+                "The payment transaction was rejected or failed. You can retry with another payment method or return.",
+              tone: "destructive",
+              confirmText: "Retry Payment",
+              cancelText: isInquiryDeposit ? "Return to Inquiry" : "Return to Booking",
+            });
+            if (shouldRetry) {
+              handleRetry();
+            } else {
+              handleReturn();
+            }
+            return;
+          } else {
+            showAlertDialog({
+              title: "Payment Processing",
+              message:
+                "We received your return from checkout, but confirmation is still processing with the gateway. Please tap 'Verify Payment Status' once complete.",
+              tone: "info",
+              confirmText: "Got It",
+            });
+            return;
+          }
+        } else if (resolvedInquiryId) {
+          const inq = await customerApi.getInquiryById(resolvedInquiryId);
+          if (inq?.payment_status === "deposit_paid" || inq?.payment_status === "fully_paid") {
+            if (inq.converted_booking_id) setConfirmedBookingId(inq.converted_booking_id);
+            setSuccess(true);
+            return;
+          } else {
+            showAlertDialog({
+              title: "Payment Processing",
+              message:
+                "Payment processing is underway. Please allow a few moments and tap 'Verify Payment Status' to confirm.",
+              tone: "info",
+              confirmText: "Got It",
+            });
+            return;
+          }
+        } else {
+          showAlertDialog({
+            title: "Payment Unverified",
+            message:
+              "We could not verify your transaction automatically. If you completed payment, please tap 'Verify Payment Status'.",
+            tone: "warning",
+            confirmText: "Got It",
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn("Payment verification error:", err);
+        showAlertDialog({
+          title: "Verification Check",
+          message:
+            err.response?.data?.message ||
+            "Redirect received, but verification check could not be completed yet. Please tap 'Verify Payment Status'.",
+          tone: "warning",
+          confirmText: "Got It",
+        });
+      } finally {
+        setVerifying(false);
+      }
+    } else if (
+      url.includes("payment=cancelled") ||
+      url.includes("status=cancelled") ||
+      url.includes("payment=failed") ||
+      url.includes("status=failed")
+    ) {
+      const isFail = url.includes("failed");
+      const title = isFail ? "Payment Failed" : "Payment Cancelled";
+      const message = isFail
+        ? "Your payment transaction was declined or failed. Would you like to retry payment or return?"
+        : isInquiryDeposit
+        ? "Your payment transaction was cancelled. You can retry paying your deposit now or return to your inquiry."
+        : "Your payment transaction was cancelled. You can retry paying now or return to your booking.";
+
+      const shouldRetry = await confirmAction({
+        title,
+        message,
+        tone: isFail ? "destructive" : "warning",
+        confirmText: "Retry Payment",
+        cancelText: isInquiryDeposit ? "Return to Inquiry" : "Return to Booking",
+      });
+
+      if (shouldRetry) {
+        handleRetry();
+      } else {
+        handleReturn();
       }
     }
-  }, [navigation, params.bookingId]);
+  };
 
   const handleSuccessDone = useCallback(() => {
-    const targetId = confirmedBookingId || params.bookingId;
-    if (targetId) {
-      navigation.reset({
-        index: 1,
-        routes: [
-          { name: "CustomerTabs", params: { screen: "BookingsList" } },
-          { name: "BookingDetail", params: { id: targetId } },
-        ],
-      });
+    if (isInquiryDeposit) {
+      if (params.inquiryId) {
+        navigation.reset({
+          index: 1,
+          routes: [
+            { name: "CustomerTabs", params: { screen: "InquiriesList" } },
+            { name: "QuotationDetail", params: { inquiryId: params.inquiryId } },
+          ],
+        });
+      } else {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "CustomerTabs", params: { screen: "InquiriesList" } }],
+        });
+      }
     } else {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "CustomerTabs", params: { screen: "BookingsList" } }],
-      });
+      const targetId = params.bookingId || confirmedBookingId;
+      if (targetId) {
+        navigation.reset({
+          index: 1,
+          routes: [
+            { name: "CustomerTabs", params: { screen: "BookingsList" } },
+            { name: "BookingDetail", params: { id: targetId } },
+          ],
+        });
+      } else {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "CustomerTabs", params: { screen: "BookingsList" } }],
+        });
+      }
     }
-  }, [confirmedBookingId, params.bookingId, navigation]);
+  }, [isInquiryDeposit, params.inquiryId, params.bookingId, confirmedBookingId, navigation]);
 
   // Intercept Android hardware back button to prevent accidental exit
   useEffect(() => {
@@ -293,15 +422,7 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
         <Text style={styles.verifyingDesc}>{initError}</Text>
         <AppButton
           title="Go Back"
-          onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else if (params.bookingId) {
-              navigation.navigate("BookingDetail", { id: params.bookingId });
-            } else {
-              navigation.navigate("CustomerTabs", { screen: "InquiriesList" });
-            }
-          }}
+          onPress={handleReturn}
           style={{ marginTop: spacing.lg, minWidth: 160 }}
         />
       </View>
@@ -314,7 +435,9 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.verifyingTitle}>Verifying Payment...</Text>
         <Text style={styles.verifyingDesc}>
-          Confirming transaction with PayMongo and securing your reservation.
+          {isInquiryDeposit
+            ? "Confirming deposit transaction with PayMongo and updating your inquiry status."
+            : "Confirming transaction with PayMongo and updating your reservation."}
         </Text>
       </View>
     );
@@ -326,13 +449,32 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
         <View style={styles.successIconCircle}>
           <CheckCircle size={52} color={colors.success} />
         </View>
-        <Text style={styles.successTitle}>Payment Successful! 🎉</Text>
+        <Text style={styles.successTitle}>Payment Successful</Text>
         <Text style={styles.successDesc}>
-          Thank you! Your event payment of {currentAmount ? formatCurrency(currentAmount) : "amount"} has been verified. Your booking is confirmed.
+          {isInquiryDeposit
+            ? `Thank you! Your event deposit of ${
+                currentAmount ? formatCurrency(currentAmount) : "amount"
+              } has been verified.`
+            : `Thank you! Your payment of ${
+                currentAmount ? formatCurrency(currentAmount) : "amount"
+              } has been verified.`}
         </Text>
 
+        {/* Clear Outcome & Next Steps Card */}
+        <View style={styles.nextStepsCard}>
+          <View style={styles.nextStepsHeader}>
+            <Clock size={16} color={colors.primary} />
+            <Text style={styles.nextStepsTitle}>Next Steps</Text>
+          </View>
+          <Text style={styles.nextStepsText}>
+            {isInquiryDeposit
+              ? "Your inquiry is now awaiting final admin confirmation and conversion into an official booking. Our banquet team will review your reservation schedule."
+              : "Your payment records have been updated. You can review all event and payment details in your booking."}
+          </Text>
+        </View>
+
         <AppButton
-          title="View Confirmed Booking"
+          title={isInquiryDeposit ? "View Inquiry Details" : "View Booking Details"}
           onPress={handleSuccessDone}
           size="lg"
           style={styles.doneBtn}
@@ -348,16 +490,28 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
         subtitle="PayMongo Payment Gateway"
         onBack={handleExit}
         rightElement={
-          currentCheckoutUrl ? (
+          <View style={styles.headerActions}>
             <TouchableOpacity
-              onPress={() => Linking.openURL(currentCheckoutUrl)}
+              onPress={handleManualVerify}
               style={styles.openExternalBtn}
               activeOpacity={0.7}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="Verify Payment Status"
             >
-              <ExternalLink size={18} color={colors.primary} />
+              <RefreshCw size={17} color={colors.primary} />
             </TouchableOpacity>
-          ) : null
+            {currentCheckoutUrl ? (
+              <TouchableOpacity
+                onPress={() => Linking.openURL(currentCheckoutUrl)}
+                style={styles.openExternalBtn}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Open External Browser"
+              >
+                <ExternalLink size={17} color={colors.primary} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
         }
       />
 
@@ -374,7 +528,7 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
             {currentAmount ? (
               <View style={styles.webAmountBadge}>
                 <Text style={styles.webAmountLabel}>
-                  {params.bookingId ? "Remaining Balance Due" : "Payable Deposit"}
+                  {isInquiryDeposit ? "Payable Deposit" : "Remaining Balance Due"}
                 </Text>
                 <Text style={styles.webAmountValue}>{formatCurrency(currentAmount)}</Text>
               </View>
@@ -392,7 +546,7 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
               style={styles.webActionBtn}
             />
             <AppButton
-              title="I Have Completed Payment"
+              title="Verify Payment Status"
               variant="outline"
               onPress={handleManualVerify}
               size="md"
@@ -402,6 +556,7 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
         </View>
       ) : (
         <WebView
+          ref={webViewRef}
           source={{ uri: currentCheckoutUrl }}
           onNavigationStateChange={handleNavigationStateChange}
           startInLoadingState
@@ -447,6 +602,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     fontSize: typography.sizes.sm,
     color: colors.foregroundMuted,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
   },
   openExternalBtn: {
     width: 36,
@@ -502,8 +662,35 @@ const styles = StyleSheet.create({
     color: colors.foregroundMuted,
     textAlign: "center",
     lineHeight: 22,
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.lg,
     maxWidth: 320,
+  },
+  nextStepsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    padding: spacing.base,
+    width: "100%",
+    maxWidth: 340,
+    marginBottom: spacing.xl,
+  },
+  nextStepsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.xs,
+    gap: spacing.xs,
+  },
+  nextStepsTitle: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foreground,
+  },
+  nextStepsText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    lineHeight: 18,
   },
   doneBtn: {
     width: "100%",
@@ -578,3 +765,4 @@ const styles = StyleSheet.create({
 });
 
 export default PaymentCheckoutScreen;
+

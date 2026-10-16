@@ -1,4 +1,5 @@
 import React from "react";
+import { CheckCircle2, Clock, ShieldCheck, XCircle, Image as ImageIcon } from "lucide-react";
 import {
   formatReceiptCurrency,
   formatReceiptDateTime,
@@ -10,12 +11,14 @@ import {
   getReceiptBookingDetails,
   getReceiptBusinessInfo,
   getReceiptFinancials,
+  getReceiptOriginalPaymentDetails,
   getReceiptSignatory,
+  OFFICIAL_BUSINESS_NAME,
 } from "../../../utils/receiptHelpers";
 
 /**
- * Professional A4 Catering Business Receipt Document
- * Shared between Admin and Customer views for both on-screen preview and high-fidelity A4 printing.
+ * Professional Catering Business Receipt Document
+ * Shared between Admin and Customer views for both on-screen preview (matching mobile receipt) and high-fidelity A4 printing.
  *
  * @param {Object} props
  * @param {Object} props.payment - Payment transaction document
@@ -42,8 +45,11 @@ export default function CateringReceiptDocument({
   const bookingDetails = getReceiptBookingDetails(payment, booking);
   const financials = getReceiptFinancials(payment, booking);
   const signatory = getReceiptSignatory(payment, booking);
+  const originalPayment = getReceiptOriginalPaymentDetails(payment, booking);
 
   const isRefund = financials.isRefund;
+  const isDenied = financials.isDenied;
+  const isApproved = financials.isApproved;
   const receiptNumber = getReceiptNumber(payment);
   const milestoneLabel = getReceiptMilestoneLabel(payment.payment_type);
   const methodLabel = getReceiptPaymentMethod(payment);
@@ -65,11 +71,17 @@ export default function CateringReceiptDocument({
   const statusText = (() => {
     const s = financials.status;
     if (isRefund) {
+      if (isDenied || s === "denied" || s === "rejected") {
+        return "DENIED";
+      }
       if (["approved", "completed", "paid", "refunded", "succeeded"].includes(s)) {
         return "REFUND COMPLETED";
       }
       if (s === "pending") return "REFUND PENDING";
       return s.toUpperCase();
+    }
+    if (isDenied || s === "denied" || s === "rejected") {
+      return "DENIED";
     }
     if (["approved", "paid", "succeeded", "completed"].includes(s)) {
       return "PAID & APPROVED";
@@ -118,10 +130,14 @@ export default function CateringReceiptDocument({
               }}
             >
               <img
-                src="/logo.jpg"
+                src="/business-logo.jpg"
                 alt={biz.name}
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
                 onError={(e) => {
+                  if (e.target.src && e.target.src.endsWith("/business-logo.jpg")) {
+                    e.target.src = "/logo.jpg";
+                    return;
+                  }
                   e.target.onerror = null;
                   e.target.parentElement.innerHTML =
                     '<div style="font-weight:900;font-size:11pt;color:#000000;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">C</div>';
@@ -159,7 +175,11 @@ export default function CateringReceiptDocument({
                 color: "#000000",
               }}
             >
-              {isRefund ? "Official Refund Voucher" : "Official Payment Receipt"}
+              {isRefund
+                ? isDenied
+                  ? "Official Refund Denial Voucher"
+                  : "Official Refund Voucher"
+                : "Official Payment Receipt"}
             </div>
             <div
               style={{
@@ -195,6 +215,8 @@ export default function CateringReceiptDocument({
                     fontWeight: "800",
                     letterSpacing: "0.5px",
                     textTransform: "uppercase",
+                    backgroundColor: isDenied ? "#fef2f2" : "transparent",
+                    color: isDenied ? "#b91c1c" : "#000000",
                   }}
                 >
                   {statusText}
@@ -219,7 +241,11 @@ export default function CateringReceiptDocument({
                 color: "#000000",
               }}
             >
-              {isRefund ? "Refund Recipient Details" : "Customer Details"}
+              {isRefund
+                ? isDenied
+                  ? "Refund Applicant Details"
+                  : "Refund Recipient Details"
+                : "Customer Details"}
             </div>
             <div style={{ fontSize: "8pt", lineHeight: "1.45" }}>
               <div>
@@ -260,24 +286,24 @@ export default function CateringReceiptDocument({
                 color: "#000000",
               }}
             >
-              Event &amp; Reservation Details
+              {bookingDetails.isInquiry ? "Inquiry & Reservation Details" : "Event & Reservation Details"}
             </div>
             <div style={{ fontSize: "8pt", lineHeight: "1.45" }}>
               <div>
-                <span style={{ fontSize: "7pt", color: "#555555", display: "inline-block", width: "22mm" }}>
-                  Booking reference:
+                <span style={{ fontSize: "7pt", color: "#555555", display: "inline-block", width: "24mm" }}>
+                  {bookingDetails.isInquiry ? "Inquiry reference:" : "Booking reference:"}
                 </span>
                 <strong style={{ fontFamily: "monospace", fontSize: "8.5pt" }}>{bookingDetails.bookingRef}</strong>
               </div>
               <div>
-                <span style={{ fontSize: "7pt", color: "#555555", display: "inline-block", width: "22mm" }}>
-                  Event type:
+                <span style={{ fontSize: "7pt", color: "#555555", display: "inline-block", width: "24mm" }}>
+                  {bookingDetails.isInquiry ? "Inquiry type:" : "Event type:"}
                 </span>
-                <span>{bookingDetails.eventType || "Catering Event"}</span>
+                <span>{bookingDetails.eventType || (bookingDetails.isInquiry ? "Inquiry Request" : "Catering Event")}</span>
               </div>
               {bookingDetails.packageName && (
                 <div>
-                  <span style={{ fontSize: "7pt", color: "#555555", display: "inline-block", width: "22mm" }}>
+                  <span style={{ fontSize: "7pt", color: "#555555", display: "inline-block", width: "24mm" }}>
                     Package:
                   </span>
                   <span>{bookingDetails.packageName}</span>
@@ -285,8 +311,8 @@ export default function CateringReceiptDocument({
               )}
               {bookingDetails.eventDate && (
                 <div>
-                  <span style={{ fontSize: "7pt", color: "#555555", display: "inline-block", width: "22mm" }}>
-                    Event date:
+                  <span style={{ fontSize: "7pt", color: "#555555", display: "inline-block", width: "24mm" }}>
+                    {bookingDetails.isInquiry ? "Preferred date:" : "Event date:"}
                   </span>
                   <strong>{formatReceiptEventDate(bookingDetails.eventDate, { long: true })}</strong>
                   {bookingDetails.guestCount && (
@@ -298,7 +324,7 @@ export default function CateringReceiptDocument({
               )}
               {bookingDetails.venue && (
                 <div>
-                  <span style={{ fontSize: "7pt", color: "#555555", display: "inline-block", width: "22mm" }}>
+                  <span style={{ fontSize: "7pt", color: "#555555", display: "inline-block", width: "24mm" }}>
                     Venue:
                   </span>
                   <span>{bookingDetails.venue}</span>
@@ -330,31 +356,35 @@ export default function CateringReceiptDocument({
             <tbody>
               <tr style={{ borderBottom: "1px solid #000000" }}>
                 <td style={{ padding: "2.4mm 2mm", verticalAlign: "top" }}>
-                  <div style={{ fontWeight: "800", fontSize: "8.5pt" }}>{milestoneLabel}</div>
+                  <div style={{ fontWeight: "800", fontSize: "8.5pt" }}>
+                    {isRefund && isDenied ? "Refund Request (Denied)" : milestoneLabel}
+                  </div>
                   <div style={{ fontSize: "6.8pt", color: "#555555", marginTop: "0.5mm" }}>
-                    Booking reference: {bookingDetails.bookingRef}
+                    {bookingDetails.isInquiry ? "Inquiry reference: " : "Booking reference: "}
+                    {bookingDetails.bookingRef}
                     {bookingDetails.eventType ? ` • ${bookingDetails.eventType}` : ""}
                   </div>
                   {/* Notes / Reason if present */}
                   {displayNote && (
                     <div style={{ fontSize: "6.5pt", fontStyle: "italic", color: "#444444", marginTop: "0.8mm" }}>
-                      {payment.payment_type === "additional" ? "Reason: " : "Note: "}{displayNote}
+                      {isRefund ? "Reason: " : payment.payment_type === "additional" ? "Reason: " : "Note: "}{displayNote}
+                    </div>
+                  )}
+                  {/* Original Payment Details for Refunds */}
+                  {isRefund && originalPayment && (
+                    <div style={{ fontSize: "6.5pt", color: "#444444", marginTop: "1mm", borderTop: "1px dotted #ccc", paddingTop: "0.8mm" }}>
+                      <strong>Original Payment:</strong> {formatReceiptCurrency(originalPayment.amount)} via {originalPayment.method || "Direct"} on {formatReceiptDateTime(originalPayment.date)} {originalPayment.reference ? `(Ref: ${originalPayment.reference})` : ""}
                     </div>
                   )}
                 </td>
                 <td style={{ padding: "2.4mm 2mm", verticalAlign: "top" }}>
                   <div>{methodLabel}</div>
-                  {isAdmin && (
-                    <div style={{ fontSize: "6.5pt", color: "#666666", marginTop: "0.3mm" }}>
-                      {payment.gateway === "paymongo" ? "Online Gateway" : "Onsite / Direct"}
-                    </div>
-                  )}
                 </td>
                 <td style={{ padding: "2.4mm 2mm", verticalAlign: "top", fontFamily: "monospace", fontSize: "7pt" }}>
                   {transactionRef || "—"}
                 </td>
                 <td style={{ padding: "2.4mm 2mm", verticalAlign: "top", textAlign: "right", fontWeight: "800", fontSize: "9pt" }}>
-                  {fmt(payment.amount)}
+                  {isRefund && isDenied ? "₱0.00" : fmt(payment.amount)}
                 </td>
               </tr>
             </tbody>
@@ -364,10 +394,10 @@ export default function CateringReceiptDocument({
         {/* Financial Summary & Balances */}
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "4mm" }}>
           <div style={{ width: "82mm", border: "1px solid #000000", padding: "2.5mm 3mm", fontSize: "8pt", lineHeight: "1.4" }}>
-            {/* Total Booking Amount (Replaced Total Contract Amount) */}
+            {/* Total Booking Amount */}
             {financials.totalBookingAmount !== null && (
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1mm", color: "#444444", fontSize: "7.5pt" }}>
-                <span>Total Booking Amount:</span>
+                <span>{bookingDetails.isInquiry ? "Total Estimated Amount:" : "Total Booking Amount:"}</span>
                 <span style={{ fontFamily: "monospace" }}>{fmt(financials.totalBookingAmount)}</span>
               </div>
             )}
@@ -387,7 +417,9 @@ export default function CateringReceiptDocument({
               }}
             >
               <span>{isRefund ? "Amount Refunded:" : "Amount Paid:"}</span>
-              <span style={{ fontFamily: "monospace", fontSize: "10.5pt" }}>{fmt(payment.amount)}</span>
+              <span style={{ fontFamily: "monospace", fontSize: "10.5pt" }}>
+                {isRefund && isDenied ? "₱0.00 (Denied)" : fmt(payment.amount)}
+              </span>
             </div>
 
             {/* Remaining Balance Line */}
@@ -411,26 +443,13 @@ export default function CateringReceiptDocument({
             {isRefund && (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "0.5mm", fontSize: "7.5pt", color: "#555555" }}>
                 <span>Transaction Effect:</span>
-                <span style={{ fontWeight: "700" }}>Account Credited / Settled</span>
+                <span style={{ fontWeight: "700", color: isDenied ? "#b91c1c" : "#000000" }}>
+                  {isDenied ? "Denied — No Disbursement" : "Account Credited / Settled"}
+                </span>
               </div>
             )}
           </div>
         </div>
-
-        {/* Administrative Verification Details (Admin-Only Section) */}
-        {isAdmin && (
-          <div style={{ border: "1px dashed #666666", padding: "2mm 3mm", marginBottom: "4mm", fontSize: "6.8pt", backgroundColor: "#fafafa" }}>
-            <div style={{ fontWeight: "800", letterSpacing: "0.4px", marginBottom: "1mm", color: "#333333" }}>
-              Administrative Audit &amp; Record Verification
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2mm", fontFamily: "monospace", color: "#444444" }}>
-              <div>System Payment ID: <strong>{payment._id}</strong></div>
-              <div>Gateway Channel: {payment.gateway || "manual"}</div>
-              {payment.gateway_checkout_id && <div>Checkout Session: {payment.gateway_checkout_id}</div>}
-              {payment.gateway_payment_intent_id && <div>Payment Intent: {payment.gateway_payment_intent_id}</div>}
-            </div>
-          </div>
-        )}
 
         {/* Signatures & Acknowledgment Section */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: "3mm", marginBottom: "4mm", paddingTop: "2mm" }}>
@@ -444,35 +463,19 @@ export default function CateringReceiptDocument({
             </div>
           </div>
 
-          {/* Right: Management Signature Block (Admin-Only) */}
-          {isAdmin ? (
-            <div style={{ textAlign: "right", minWidth: "45mm" }}>
-              <div style={{ borderBottom: "1px solid #000000", width: "42mm", marginLeft: "auto", marginBottom: "1.2mm" }} />
-              {signatory.name ? (
-                <>
-                  <div style={{ fontSize: "8pt", fontWeight: "800", lineHeight: "1.1", textTransform: "uppercase" }}>
-                    {signatory.name}
-                  </div>
-                  <div style={{ fontSize: "6.5pt", color: "#555555", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-                    {signatory.role || "Authorized Signatory"}
-                  </div>
-                </>
-              ) : (
-                <div style={{ fontSize: "6.5pt", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", color: "#333333" }}>
-                  Authorized Signature
-                </div>
-              )}
-              <div style={{ fontSize: "6pt", color: "#777777", textTransform: "uppercase", marginTop: "0.3mm" }}>
-                {biz.name}
-              </div>
+          {/* Right: Signature Box */}
+          <div style={{ textAlign: "right", minWidth: "55mm" }}>
+            <div style={{ width: "48mm", borderBottom: "1px solid #000000", marginBottom: "1.5mm", marginLeft: "auto" }} />
+            <div style={{ fontSize: "7.5pt", fontWeight: "800", color: "#000000" }}>
+              {signatory.name || "Authorized Management Signatory"}
             </div>
-          ) : (
-            /* Customer Copy: Official Electronic Acknowledgment Notice */
-            <div style={{ textAlign: "right", maxWidth: "60mm", fontSize: "6.5pt", color: "#555555", lineHeight: "1.3" }}>
-              <div style={{ fontWeight: "700", color: "#222222" }}>Official Customer Copy</div>
-              <div>No physical signature required for electronic receipt acknowledgment.</div>
+            <div style={{ fontSize: "6.5pt", color: "#555555" }}>
+              {signatory.role}
             </div>
-          )}
+            <div style={{ fontSize: "6pt", color: "#777777", textTransform: "uppercase", marginTop: "0.3mm" }}>
+              {biz.name}
+            </div>
+          </div>
         </div>
 
         {/* Formal Document Footer */}
@@ -488,331 +491,340 @@ export default function CateringReceiptDocument({
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // B. ON-SCREEN PREVIEW VIEW (Active when isPrint=false inside Modal)
+  // B. ON-SCREEN RECEIPT (Unified Mobile Receipt Ticket Layout)
   // ═══════════════════════════════════════════════════════════════
+  const onScreenStatusLabel = isRefund
+    ? isDenied
+      ? "DENIED"
+      : isApproved
+      ? "REFUND COMPLETED"
+      : "REFUND PENDING"
+    : isApproved
+    ? "PAID & APPROVED"
+    : financials.status === "pending"
+    ? "PENDING VERIFICATION"
+    : financials.status.toUpperCase();
+
   return (
-    <div className="bg-white text-slate-900 border border-slate-200/90 rounded-xl shadow-xs overflow-hidden select-text text-xs leading-normal">
-      {/* 1. Masthead Header */}
-      <div className="p-4 sm:p-5 border-b border-slate-200/90 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start gap-3">
-        {/* Business Branding */}
-        <div className="flex items-start gap-3 max-w-md">
-          <div className="w-12 h-12 rounded-lg border border-slate-200 bg-white overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
-            <img
-              src="/logo.jpg"
-              alt={biz.name}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.parentElement.innerHTML =
-                  '<div class="w-full h-full bg-[#1E3563] text-white font-bold flex items-center justify-center text-base">C</div>';
-              }}
+    <div className="bg-white text-slate-900 select-text text-xs leading-normal">
+      {/* 1. Official Business Header */}
+      <div className="flex flex-col items-center text-center py-1 sm:py-2">
+        {/* Logo container matching mobile brandLogoWrap: 76x76, rounded-2xl, border #E2E8F0, shadow-xs */}
+        <div className="w-[76px] h-[76px] rounded-2xl bg-white border border-[#E2E8F0] shadow-xs flex items-center justify-center overflow-hidden mb-2 mx-auto p-0.5">
+          <img
+            src="/business-logo.jpg"
+            alt={OFFICIAL_BUSINESS_NAME}
+            className="w-full h-full object-contain"
+            onError={(e) => {
+              if (e.target.src && e.target.src.endsWith("/business-logo.jpg")) {
+                e.target.src = "/logo.jpg";
+                return;
+              }
+              e.target.onerror = null;
+              e.target.parentElement.innerHTML =
+                '<div class="w-full h-full bg-[#1E3563] text-white font-bold flex items-center justify-center text-base rounded-xl">C</div>';
+            }}
+          />
+        </div>
+
+        <h2 className="text-base font-extrabold text-slate-900 tracking-tight leading-snug">
+          {OFFICIAL_BUSINESS_NAME}
+        </h2>
+        <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">
+          {biz.address}
+        </p>
+        <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">
+          {[biz.phone, biz.email].filter(Boolean).join(" • ")}
+        </p>
+
+        {/* Status Pill matching mobile */}
+        <div
+          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold mt-2.5 ${
+            isRefund
+              ? isDenied
+                ? "bg-rose-50 text-rose-700 border border-rose-200"
+                : "bg-[#EFF6FF] text-[#4C81E0] border border-[#BFDBFE]"
+              : isApproved
+              ? "bg-[#ECFDF5] text-emerald-700 border border-[#A7F3D0]"
+              : "bg-[#FFFBEB] text-amber-700 border border-[#FDE68A]"
+          }`}
+        >
+          {isRefund && isDenied ? (
+            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+          ) : isApproved ? (
+            <CheckCircle2
+              className={`w-3.5 h-3.5 ${
+                isRefund ? "text-[#4C81E0]" : "text-emerald-600"
+              }`}
             />
-          </div>
-          <div>
-            <h2 className="text-sm sm:text-base font-bold font-serif tracking-tight text-slate-900">
-              {biz.name}
-            </h2>
-            <p className="text-[10px] text-slate-500 leading-snug mt-1">
-              {biz.address}
-              <br />
-              {[biz.phone ? `Tel: ${biz.phone}` : null, biz.email].filter(Boolean).join(" • ")}
-            </p>
-          </div>
+          ) : (
+            <Clock className="w-3.5 h-3.5 text-amber-600" />
+          )}
+          <span>{onScreenStatusLabel}</span>
         </div>
 
-        {/* Document Identifier & Status */}
-        <div className="text-left sm:text-right space-y-1 shrink-0 self-stretch sm:self-auto border-t sm:border-t-0 pt-2.5 sm:pt-0 border-slate-200">
-          <span className="text-[11px] sm:text-xs font-bold text-slate-900 tracking-tight block">
-            {isRefund ? "Official Refund Voucher" : "Official Payment Receipt"}
-          </span>
-          <span className="text-[9.5px] font-semibold text-slate-400 block">
-            {isAdmin ? "Administrative Office Record" : "Customer Receipt Copy"}
-          </span>
-          <div className="pt-0.5">
-            <span className="text-[10px] font-mono font-semibold text-slate-500 block">
-              {isRefund ? "Voucher Number:" : "Receipt Number:"}{" "}
-              <strong className="text-slate-900 font-bold">{receiptNumber}</strong>
-            </span>
-            <span className="text-[10px] text-slate-500 block mt-0.5">
-              Transaction Date: <strong className="text-slate-700">{formatReceiptDateTime(paidAt)}</strong>
-            </span>
-          </div>
-          <div className="pt-1 flex sm:justify-end">
-            <span
-              className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                financials.isApproved
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200/70"
-                  : isRefund
-                  ? "bg-blue-50 text-[#4C81E0] border-blue-200"
-                  : "bg-amber-50 text-amber-700 border-amber-200/70"
-              }`}
-            >
-              {statusText}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Key Metadata Grid (Customer & Reservation Details) */}
-      <div className="p-4 sm:p-5 border-b border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-white text-xs">
-        {/* Customer Details Box */}
-        <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/40 space-y-1">
-          <span className="text-[10px] font-bold tracking-wide text-slate-600 block mb-1">
-            {isRefund ? "Refund Recipient Details" : "Customer Details"}
-          </span>
-          <div className="space-y-0.5">
-            <div className="font-bold text-sm text-slate-900">{customer.name}</div>
-            {customer.phone && (
-              <div className="text-[11px] text-slate-600">
-                <span className="text-slate-400 mr-1.5 font-medium">Phone:</span>
-                <span className="font-mono">{customer.phone}</span>
-              </div>
-            )}
-            {customer.email && (
-              <div className="text-[11px] text-slate-600 break-all">
-                <span className="text-slate-400 mr-1.5 font-medium">Email:</span>
-                <span>{customer.email}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Event & Reservation Details Box */}
-        <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/40 space-y-1">
-          <span className="text-[10px] font-bold tracking-wide text-slate-600 block mb-1">
-            Event &amp; Reservation Details
-          </span>
-          <div className="space-y-0.5">
-            <div className="text-[11px] text-slate-700">
-              <span className="text-slate-400 mr-1.5 font-medium">Booking reference:</span>
-              <span className="font-mono font-bold text-slate-900">{bookingDetails.bookingRef}</span>
-            </div>
-            <div className="text-[11px] text-slate-700">
-              <span className="text-slate-400 mr-1.5 font-medium">Event type:</span>
-              <span className="font-medium text-slate-900">{bookingDetails.eventType || "Catering Event"}</span>
-            </div>
-            {bookingDetails.packageName && (
-              <div className="text-[11px] text-slate-700 truncate" title={bookingDetails.packageName}>
-                <span className="text-slate-400 mr-1.5 font-medium">Package:</span>
-                <span className="font-medium text-slate-900">{bookingDetails.packageName}</span>
-              </div>
-            )}
-            {bookingDetails.eventDate && (
-              <div className="text-[11px] text-slate-700">
-                <span className="text-slate-400 mr-1.5 font-medium">Event date:</span>
-                <span className="font-medium text-slate-900">
-                  {formatReceiptEventDate(bookingDetails.eventDate, { long: true })}
-                </span>
-                {bookingDetails.guestCount && (
-                  <span className="text-slate-500 ml-1">({bookingDetails.guestCount} Pax)</span>
-                )}
-              </div>
-            )}
-            {bookingDetails.venue && (
-              <div className="text-[11px] text-slate-700 truncate" title={bookingDetails.venue}>
-                <span className="text-slate-400 mr-1.5 font-medium">Venue:</span>
-                <span>{bookingDetails.venue}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Payment Breakdown Table */}
-      <div className="p-4 sm:p-5 border-b border-slate-200/80">
-        <span className="text-[10px] font-bold tracking-wide text-slate-600 block mb-2">
-          Payment Breakdown &amp; Particulars
+        <span className="text-[10px] uppercase tracking-wider text-slate-400 mt-1.5 font-medium">
+          {isAdmin ? "Official Administrative Record" : "Customer Acknowledgment Copy"}
         </span>
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-[10px] text-slate-600 font-bold">
-                <th className="py-2.5 px-3">Particulars &amp; Description</th>
-                <th className="py-2.5 px-3">Payment Method</th>
-                <th className="py-2.5 px-3">Transaction Reference</th>
-                <th className="py-2.5 px-3 text-right">Amount (PHP)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              <tr className="bg-white">
-                <td className="py-3 px-3">
-                  <div className="font-bold text-slate-900">{milestoneLabel}</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">
-                    Booking reference: {bookingDetails.bookingRef}
-                    {bookingDetails.eventType ? ` • ${bookingDetails.eventType}` : ""}
-                  </div>
-                  {displayNote && (
-                    <div className="text-[10px] text-slate-700 mt-1 bg-amber-50/70 p-1.5 rounded border border-amber-200/60 leading-snug">
-                      <strong className="text-amber-950 font-semibold">{payment.payment_type === "additional" ? "Reason: " : "Note: "}</strong>
-                      <span>{displayNote}</span>
-                    </div>
-                  )}
-                </td>
-                <td className="py-3 px-3">
-                  <div className="font-medium text-slate-800">{methodLabel}</div>
-                  {isAdmin && (
-                    <div className="text-[10px] text-slate-400 mt-0.5">
-                      {payment.gateway === "paymongo" ? "Online Gateway" : "Onsite / Direct"}
-                    </div>
-                  )}
-                </td>
-                <td className="py-3 px-3 font-mono text-[11px] text-slate-600">
-                  {transactionRef || "—"}
-                </td>
-                <td className="py-3 px-3 text-right font-bold text-sm text-slate-900 tabular-nums">
-                  {fmt(payment.amount)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+      </div>
+
+      {/* Serrated Divider (ticket zig-zag cut matching mobile 26 teeth) */}
+      <div className="w-full overflow-hidden my-3 select-none flex" style={{ height: "6px" }} aria-hidden="true">
+        <svg
+          className="w-full"
+          style={{ height: "6px" }}
+          viewBox="0 0 520 6"
+          preserveAspectRatio="none"
+        >
+          <path
+            d="M0 0 L10 6 L20 0 L30 6 L40 0 L50 6 L60 0 L70 6 L80 0 L90 6 L100 0 L110 6 L120 0 L130 6 L140 0 L150 6 L160 0 L170 6 L180 0 L190 6 L200 0 L210 6 L220 0 L230 6 L240 0 L250 6 L260 0 L270 6 L280 0 L290 6 L300 0 L310 6 L320 0 L330 6 L340 0 L350 6 L360 0 L370 6 L380 0 L390 6 L400 0 L410 6 L420 0 L430 6 L440 0 L450 6 L460 0 L470 6 L480 0 L490 6 L500 0 L510 6 L520 0 L520 12 L0 12 Z"
+            fill="#F1F5F9"
+          />
+        </svg>
+      </div>
+
+      {/* 2. Customer Information */}
+      <div className="pb-3.5 mb-3.5 border-b border-slate-100">
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+          Customer Details
+        </h3>
+        <div className="space-y-1.5 text-xs sm:text-[13px]">
+          <div className="flex justify-between items-start gap-3">
+            <span className="text-slate-500">Client Name</span>
+            <span className="font-semibold text-slate-900 text-right">{customer.name}</span>
+          </div>
+          {customer.email && (
+            <div className="flex justify-between items-start gap-3">
+              <span className="text-slate-500">Email</span>
+              <span className="text-slate-900 text-right break-all">{customer.email}</span>
+            </div>
+          )}
+          {customer.phone && (
+            <div className="flex justify-between items-start gap-3">
+              <span className="text-slate-500">Phone</span>
+              <span className="text-slate-900 text-right font-mono">{customer.phone}</span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 4. Financial Balances & Settlement Summary */}
-      <div className="p-4 sm:p-5 border-b border-slate-200/80 bg-slate-50/30 flex justify-end">
-        <div className="w-full sm:w-72 space-y-2 text-xs">
-          {/* Total Booking Amount */}
-          {financials.totalBookingAmount !== null && (
-            <div className="flex justify-between items-center text-slate-500">
-              <span className="text-[11px]">Total Booking Amount:</span>
-              <span className="font-mono font-medium">{fmt(financials.totalBookingAmount)}</span>
-            </div>
-          )}
-
-          <div className="p-2.5 rounded-lg bg-white border border-slate-200 flex justify-between items-center shadow-2xs">
-            <span className="text-xs font-bold tracking-wide text-slate-700">
-              {isRefund ? "Amount Refunded" : "Amount Paid"}
+      {/* 3. Event / Inquiry Details */}
+      <div className="pb-3.5 mb-3.5 border-b border-slate-100">
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+          {bookingDetails.isInquiry ? "Inquiry Details" : "Event Details"}
+        </h3>
+        <div className="space-y-1.5 text-xs sm:text-[13px]">
+          <div className="flex justify-between items-start gap-3">
+            <span className="text-slate-500">
+              {bookingDetails.isInquiry ? "Inquiry Reference" : "Booking Reference"}
             </span>
-            <span
-              className={`text-lg font-extrabold tabular-nums ${
-                isRefund ? "text-[#4C81E0]" : "text-slate-900"
-              }`}
-            >
-              {fmt(payment.amount)}
+            <span className="font-mono font-semibold text-slate-900 text-right">
+              {bookingDetails.bookingRef}
             </span>
           </div>
-
-          {!isRefund && (
-            <div className="flex justify-between items-center px-1 text-xs">
-              <span className="font-bold text-slate-600 text-[11px]">
-                Remaining Balance:
+          {bookingDetails.eventType && (
+            <div className="flex justify-between items-start gap-3">
+              <span className="text-slate-500">
+                {bookingDetails.isInquiry ? "Inquiry Type" : "Event Type"}
               </span>
-              <span className="font-mono font-bold text-slate-900 text-sm">
-                {financials.remainingBalance !== null ? (
-                  financials.remainingBalance <= 0 ? (
-                    <span className="text-emerald-700">₱0.00 (Fully Settled)</span>
-                  ) : (
-                    fmt(financials.remainingBalance)
-                  )
-                ) : (
-                  <span className="text-slate-400">Refer to Statement</span>
-                )}
+              <span className="font-semibold text-slate-900 text-right">
+                {bookingDetails.eventType}
               </span>
             </div>
           )}
-
-          {isRefund && (
-            <div className="flex justify-between items-center px-1 text-xs text-slate-500">
-              <span>Transaction Effect:</span>
-              <span className="font-semibold text-slate-700">Account Credited / Settled</span>
+          {bookingDetails.packageName && (
+            <div className="flex justify-between items-start gap-3">
+              <span className="text-slate-500">Package</span>
+              <span className="text-slate-900 text-right">{bookingDetails.packageName}</span>
+            </div>
+          )}
+          {bookingDetails.eventDate && (
+            <div className="flex justify-between items-start gap-3">
+              <span className="text-slate-500">
+                {bookingDetails.isInquiry ? "Preferred Date" : "Event Date"}
+              </span>
+              <span className="text-slate-900 text-right">
+                {formatReceiptEventDate(bookingDetails.eventDate, { long: true })}
+              </span>
+            </div>
+          )}
+          {bookingDetails.guestCount && (
+            <div className="flex justify-between items-start gap-3">
+              <span className="text-slate-500">Guest Count</span>
+              <span className="text-slate-900 text-right">{bookingDetails.guestCount} guests</span>
+            </div>
+          )}
+          {bookingDetails.venue && (
+            <div className="flex justify-between items-start gap-3">
+              <span className="text-slate-500">Venue</span>
+              <span className="text-slate-900 text-right max-w-[60%]">{bookingDetails.venue}</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* 5. Administrative Verification Box (Admin Only) */}
-      {isAdmin && (
-        <div className="p-4 sm:p-5 border-b border-slate-200/80 bg-slate-50/70 text-[11px] space-y-1.5">
-          <span className="text-[10px] font-bold tracking-wide text-slate-600 block">
-            Administrative Audit &amp; Record Verification
-          </span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-600 font-mono text-[10.5px]">
-            <div>
-              <span className="text-slate-400 mr-1 font-sans">Payment ID:</span>
-              <span>{payment._id}</span>
+      {/* 4. Payment Transaction Details */}
+      <div className="pb-3.5 mb-3.5 border-b border-slate-100">
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+          Transaction Info
+        </h3>
+        <div className="space-y-1.5 text-xs sm:text-[13px]">
+          <div className="flex justify-between items-start gap-3">
+            <span className="text-slate-500">
+              {isRefund ? "Transaction Type" : "Payment Milestone"}
+            </span>
+            <span className="font-semibold text-slate-900 text-right">{milestoneLabel}</span>
+          </div>
+          <div className="flex justify-between items-start gap-3">
+            <span className="text-slate-500">Payment Method</span>
+            <span className="text-slate-900 text-right">{methodLabel}</span>
+          </div>
+          <div className="flex justify-between items-start gap-3">
+            <span className="text-slate-500">Transaction Date</span>
+            <span className="text-slate-900 text-right">{formatReceiptDateTime(paidAt)}</span>
+          </div>
+          {transactionRef && (
+            <div className="flex justify-between items-start gap-3">
+              <span className="text-slate-500">Reference No.</span>
+              <span className="font-mono font-semibold text-slate-900 text-right">
+                {transactionRef}
+              </span>
             </div>
-            <div>
-              <span className="text-slate-400 mr-1 font-sans">Gateway Channel:</span>
-              <span>{payment.gateway || "manual"}</span>
+          )}
+          {displayNote && (
+            <div className="flex justify-between items-start gap-3">
+              <span className="text-slate-500">{isRefund ? "Reason / Notes" : "Note / Reason"}</span>
+              <span className="text-slate-900 text-right max-w-[60%]">{displayNote}</span>
             </div>
-            {payment.gateway_checkout_id && (
-              <div className="sm:col-span-2">
-                <span className="text-slate-400 mr-1 font-sans">Checkout Session:</span>
-                <span>{payment.gateway_checkout_id}</span>
-              </div>
-            )}
-            {payment.gateway_payment_intent_id && (
-              <div className="sm:col-span-2">
-                <span className="text-slate-400 mr-1 font-sans">Payment Intent:</span>
-                <span>{payment.gateway_payment_intent_id}</span>
-              </div>
-            )}
-            {payment.proof_url && (
-              <div className="sm:col-span-2 pt-1 border-t border-slate-200/80 flex items-center justify-between gap-2">
-                <span className="text-[10px] text-slate-500 font-sans">
-                  Payment Proof Attached
+          )}
+        </div>
+      </div>
+
+      {/* 4b. Original Payment Details for Refunds (when available) */}
+      {isRefund && originalPayment && (
+        <div className="pb-3.5 mb-3.5 border-b border-slate-100">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+            Original Payment Details
+          </h3>
+          <div className="space-y-1.5 text-xs sm:text-[13px] bg-slate-50/70 p-2.5 rounded-lg border border-slate-100">
+            {originalPayment.amount != null && (
+              <div className="flex justify-between items-start gap-3">
+                <span className="text-slate-500">Original Amount Paid</span>
+                <span className="font-semibold text-slate-900 text-right tabular-nums">
+                  {formatReceiptCurrency(originalPayment.amount)}
                 </span>
-                {onViewProof ? (
-                  <button
-                    type="button"
-                    onClick={() => onViewProof(payment.proof_url)}
-                    className="text-[11px] font-sans font-semibold text-primary hover:underline cursor-pointer"
-                  >
-                    View Proof Document
-                  </button>
-                ) : (
-                  <a
-                    href={payment.proof_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[11px] font-sans font-semibold text-primary hover:underline cursor-pointer"
-                  >
-                    Open Proof Document
-                  </a>
-                )}
+              </div>
+            )}
+            {originalPayment.method && (
+              <div className="flex justify-between items-start gap-3">
+                <span className="text-slate-500">Original Method</span>
+                <span className="text-slate-900 text-right">{originalPayment.method}</span>
+              </div>
+            )}
+            {originalPayment.date && (
+              <div className="flex justify-between items-start gap-3">
+                <span className="text-slate-500">Original Payment Date</span>
+                <span className="text-slate-900 text-right">
+                  {formatReceiptDateTime(originalPayment.date)}
+                </span>
+              </div>
+            )}
+            {originalPayment.reference && (
+              <div className="flex justify-between items-start gap-3">
+                <span className="text-slate-500">Original Reference No.</span>
+                <span className="font-mono font-semibold text-slate-900 text-right">
+                  {originalPayment.reference}
+                </span>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* 6. Signature & Footer Notes */}
-      <div className="p-4 sm:p-5 flex flex-col sm:flex-row justify-between items-end gap-4 text-xs">
-        <div className="text-slate-500 text-[10px] max-w-xs space-y-0.5">
-          <p className="font-semibold text-slate-700">
-            Official electronic acknowledgment • iReserve CMS
-          </p>
-          <p className="text-slate-400">
-            Securely recorded under {biz.name}. Keep this document for your records.
-          </p>
+      {/* 5. Financial Summary Box */}
+      <div className="bg-[#F8FAFC] rounded-xl border border-slate-200/90 p-4 mb-4">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+          <span className="text-sm font-bold text-slate-900">
+            {isRefund ? "Refund Amount" : "Amount Paid"}
+          </span>
+          <div className="text-right">
+            <span
+              className={`text-xl sm:text-2xl font-extrabold tabular-nums ${
+                isRefund
+                  ? isDenied
+                    ? "text-rose-600"
+                    : "text-[#4C81E0]"
+                  : "text-slate-900"
+              }`}
+            >
+              {isRefund && isDenied ? "₱0.00" : fmt(financials.amountPaid)}
+            </span>
+            {isRefund && isDenied && (
+              <span className="block text-[11px] font-bold text-rose-600 uppercase tracking-wide">
+                (Denied)
+              </span>
+            )}
+          </div>
         </div>
 
-        {isAdmin ? (
-          <div className="text-right w-full sm:w-auto">
-            <div className="border-b border-slate-400 w-44 ml-auto mb-1" />
-            {signatory.name ? (
-              <>
-                <div className="font-bold text-xs text-slate-900 leading-tight uppercase">
-                  {signatory.name}
-                </div>
-                <div className="text-[9.5px] text-slate-500 uppercase tracking-wide">
-                  {signatory.role || "Authorized Signatory"}
-                </div>
-              </>
-            ) : (
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide font-medium">
-                Authorized Management Signature
-              </div>
-            )}
-            <div className="text-[9px] text-slate-400 uppercase mt-0.5">
-              {biz.name}
-            </div>
-          </div>
-        ) : (
-          <div className="text-right text-[10px] text-slate-400">
-            <span>Customer Electronic Copy</span>
+        {financials.totalBookingAmount != null && financials.totalBookingAmount > 0 && (
+          <div className="flex justify-between items-center text-xs mt-2.5">
+            <span className="text-slate-500">
+              {bookingDetails.isInquiry ? "Total Estimated Amount" : "Total Booking Amount"}
+            </span>
+            <span className="font-medium text-slate-900 tabular-nums">
+              {fmt(financials.totalBookingAmount)}
+            </span>
           </div>
         )}
+
+        {financials.remainingBalance != null && !isRefund && (
+          <div className="flex justify-between items-center text-xs mt-1.5">
+            <span className="text-slate-500">Remaining Balance</span>
+            <span
+              className={`font-bold tabular-nums ${
+                financials.remainingBalance > 0 ? "text-[#4C81E0]" : "text-emerald-600"
+              }`}
+            >
+              {financials.remainingBalance > 0
+                ? fmt(financials.remainingBalance)
+                : "Settled (₱0.00)"}
+            </span>
+          </div>
+        )}
+
+        {isRefund && (
+          <div className="flex justify-between items-center text-xs mt-2">
+            <span className="text-slate-500">Transaction Effect</span>
+            <span className={`font-semibold ${isDenied ? "text-rose-600" : "text-slate-700"}`}>
+              {isDenied ? "Denied — No Disbursement" : "Account Credited / Settled"}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Payment Proof Button (Admin Only, if proof image exists) */}
+      {isAdmin && (payment.proof_image || payment.proof_of_payment) && onViewProof && (
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => onViewProof(payment.proof_image || payment.proof_of_payment)}
+            className="w-full py-2 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
+            <span>View Uploaded Payment Proof</span>
+          </button>
+        </div>
+      )}
+
+      {/* 6. Bottom Security Assurance */}
+      <div className="flex items-center justify-center gap-1.5 py-1.5 text-slate-400 select-none">
+        <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+        <span className="text-[10px] text-center">
+          {isAdmin
+            ? "Official administrative record verified by iReserve reservation management"
+            : "Official customer copy verified by iReserve reservation management"}
+        </span>
       </div>
     </div>
   );

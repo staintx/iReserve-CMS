@@ -285,6 +285,61 @@ export const getReceiptBusinessInfo = (businessInfo = {}) => {
 /**
  * Calculate financial totals and remaining balance safely.
  */
+/**
+ * Extract original payment details for refund vouchers.
+ */
+export const getReceiptOriginalPaymentDetails = (payment, booking = null) => {
+  if (!payment) return null;
+  const isRefund =
+    String(payment.payment_type || "").toLowerCase() === "refund" ||
+    Number(payment.amount) < 0;
+
+  if (!isRefund) return null;
+
+  const b = booking || (payment.booking_id && typeof payment.booking_id === "object" ? payment.booking_id : null);
+  const paymentsList = Array.isArray(b?.payments) ? b.payments : [];
+
+  const originalPayment = paymentsList.find(
+    (p) =>
+      p &&
+      String(p.payment_type || "").toLowerCase() !== "refund" &&
+      Number(p.amount) > 0 &&
+      (String(p._id) === String(payment.original_payment_id) ||
+        String(p._id) === String(payment.metadata?.original_payment_id) ||
+        p.status === "approved")
+  ) || paymentsList[0];
+
+  const origAmount =
+    payment.original_payment_amount ??
+    payment.metadata?.original_payment_amount ??
+    (originalPayment ? Number(originalPayment.amount) : null);
+
+  const origMethod =
+    payment.original_payment_method ??
+    payment.metadata?.original_payment_method ??
+    (originalPayment ? originalPayment.method || originalPayment.payment_method : null);
+
+  const origDate =
+    payment.original_payment_date ??
+    payment.metadata?.original_payment_date ??
+    (originalPayment ? originalPayment.paid_at || originalPayment.createdAt : null);
+
+  const origRef =
+    payment.original_payment_reference ??
+    payment.metadata?.original_payment_reference ??
+    (originalPayment ? originalPayment.gateway_reference || originalPayment.reference_number : null);
+
+  return {
+    amount: origAmount,
+    method: origMethod,
+    date: origDate,
+    reference: origRef,
+  };
+};
+
+/**
+ * Calculate financial totals and remaining balance safely.
+ */
 export const getReceiptFinancials = (payment, booking = null) => {
   if (!payment) {
     return {
@@ -295,6 +350,8 @@ export const getReceiptFinancials = (payment, booking = null) => {
       remainingBalance: null,
       isFullyPaid: false,
       status: "approved",
+      isApproved: true,
+      isDenied: false,
     };
   }
 
@@ -302,13 +359,23 @@ export const getReceiptFinancials = (payment, booking = null) => {
     String(payment.payment_type || "").toLowerCase() === "refund" ||
     Number(payment.amount) < 0;
 
-  const amountPaid = Math.abs(Number(payment.amount) || 0);
-  const pType = String(payment.payment_type || "").toLowerCase().trim();
-  const status = String(payment.status || "approved").toLowerCase();
-  const isApproved = ["approved", "paid", "completed", "succeeded"].includes(status);
-
   const b = booking || (payment.booking_id && typeof payment.booking_id === "object" ? payment.booking_id : null);
   const inq = payment.inquiry_id && typeof payment.inquiry_id === "object" ? payment.inquiry_id : null;
+
+  const rawStatus = String(payment.status || "approved").toLowerCase();
+  const isDenied =
+    rawStatus === "denied" ||
+    rawStatus === "rejected" ||
+    Boolean(payment.refund_denied) ||
+    Boolean(payment.metadata?.denied) ||
+    Boolean(b?.refund_denied) ||
+    b?.cancellation_request?.status === "denied" ||
+    b?.cancellation_request?.status === "rejected";
+
+  const status = (isDenied && isRefund) ? "denied" : rawStatus;
+  const isApproved = !isDenied && ["approved", "paid", "completed", "succeeded"].includes(status);
+  const amountPaid = (isDenied && isRefund) ? 0 : Math.abs(Number(payment.amount) || 0);
+  const pType = String(payment.payment_type || "").toLowerCase().trim();
 
   const totalBookingAmount =
     Number(b?.total_price ?? b?.total_cost ?? inq?.total_price ?? inq?.total_cost) || null;
@@ -344,6 +411,7 @@ export const getReceiptFinancials = (payment, booking = null) => {
     paymentType: pType,
     status,
     isApproved,
+    isDenied,
     totalBookingAmount,
     totalContract: totalBookingAmount,
     remainingBalance,

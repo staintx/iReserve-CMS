@@ -192,12 +192,14 @@ export default function AdminPayments() {
   const getTransactionStatusLabel = (p) => {
     const isRefund = String(p?.payment_type || "").toLowerCase().trim() === "refund";
     const s = String(p?.status || "").toLowerCase().trim();
+    const isDenied = s === "denied" || s === "rejected" || Boolean(p?.refund_denied) || Boolean(p?.metadata?.denied);
     if (isRefund) {
+      if (isDenied) return "Denied";
       if (["approved", "completed", "paid", "refunded", "succeeded"].includes(s)) return "Refunded";
       if (s === "pending") return "Pending";
-      if (["rejected", "failed", "cancelled"].includes(s)) return "Failed";
       return p?.status || "Refunded";
     }
+    if (isDenied) return "Denied";
     if (["approved", "paid", "succeeded"].includes(s)) return "Paid";
     if (s === "pending") return "Pending";
     if (["rejected", "failed"].includes(s)) return "Failed";
@@ -1196,7 +1198,7 @@ export default function AdminPayments() {
           booking={
             bookings.find(
               (b) => b._id === (receiptModalRow?.booking_id?._id || receiptModalRow?.booking_id)
-            ) || receiptModalRow?.booking_id
+            ) || receiptModalRow?.booking_id || receiptModalRow?.inquiry_id
           }
           businessInfo={businessInfo}
           onClose={() => setReceiptModalRow(null)}

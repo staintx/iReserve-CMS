@@ -263,6 +263,21 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
       });
   }, [payments, statusFilter, searchQuery]);
 
+  // Helper to determine if a refund request was denied
+  const checkIsDeniedRefund = (p, b) => {
+    const isRefund = (p?.payment_type || "").toLowerCase() === "refund" || Number(p?.amount) < 0;
+    if (!isRefund) return false;
+    return Boolean(
+      p?.status === "denied" ||
+      p?.status === "rejected" ||
+      p?.refund_denied ||
+      p?.metadata?.denied ||
+      b?.refund_denied ||
+      b?.cancellation_request?.status === "denied" ||
+      b?.cancellation_request?.status === "rejected"
+    );
+  };
+
   // Open Receipt Modal
   const handleOpenReceipt = (payment, booking = null) => {
     const matchedBooking =
@@ -271,6 +286,8 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
         (b) => String(b._id) === String(payment.booking_id?._id || payment.booking_id)
       ) ||
       payment.booking_id;
+
+    if (checkIsDeniedRefund(payment, matchedBooking)) return;
 
     setReceiptPayment(payment);
     setReceiptBooking(matchedBooking);
@@ -361,13 +378,31 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
   };
 
   // Status Badge Renderer
-  const renderStatusBadge = (status, isRefund = false) => {
+  const renderStatusBadge = (status, isRefund = false, isDenied = false) => {
     const s = String(status || "").toLowerCase();
     if (isRefund) {
+      if (isDenied || s === "denied" || s === "rejected") {
+        return (
+          <View style={[styles.badgeBase, styles.badgeFailed]}>
+            <XCircle size={11} color={colors.error} style={{ marginRight: 3 }} />
+            <Text style={[styles.badgeText, { color: colors.error }]}>Denied</Text>
+          </View>
+        );
+      }
+
+      if (["approved", "successful", "paid", "refunded"].includes(s)) {
+        return (
+          <View style={[styles.badgeBase, styles.badgeRefund]}>
+            <RefreshCcw size={11} color={BRAND_BLUE} style={{ marginRight: 3 }} />
+            <Text style={[styles.badgeText, { color: BRAND_BLUE }]}>Refunded</Text>
+          </View>
+        );
+      }
+
       return (
-        <View style={[styles.badgeBase, styles.badgeRefund]}>
-          <RefreshCcw size={11} color={BRAND_BLUE} style={{ marginRight: 3 }} />
-          <Text style={[styles.badgeText, { color: BRAND_BLUE }]}>Refunded</Text>
+        <View style={[styles.badgeBase, styles.badgePending]}>
+          <Clock size={11} color={colors.warning} style={{ marginRight: 3 }} />
+          <Text style={[styles.badgeText, { color: colors.warning }]}>Pending</Text>
         </View>
       );
     }
@@ -470,6 +505,7 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={[
             styles.scrollContent,
             { paddingBottom: insets.bottom + 48 },
@@ -649,7 +685,7 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
                   style={styles.searchInput}
                   placeholder="Search transactions or reference..."
                   placeholderTextColor={colors.textDisabled}
-                  value={searchQuery}
+                  value={searchQuery || ""}
                   onChangeText={setSearchQuery}
                 />
                 {searchQuery.length > 0 && (
@@ -666,6 +702,7 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
                 contentContainerStyle={styles.filterChipsRow}
               >
                 {FILTER_TABS.map((tab) => {
@@ -722,6 +759,7 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
                   const refCode = b?.reference || p.inquiry_id?.reference || "-";
                   const dateStr = formatDate(p.paid_at || p.createdAt);
                   const receiptNum = getReceiptNumber(p);
+                  const isDeniedRefund = checkIsDeniedRefund(p, b);
 
                   return (
                     <TouchableOpacity
@@ -730,8 +768,8 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
                         styles.transactionCard,
                         isRefund && styles.transactionCardRefund,
                       ]}
-                      onPress={() => handleOpenReceipt(p, b)}
-                      activeOpacity={0.75}
+                      onPress={() => !isDeniedRefund && handleOpenReceipt(p, b)}
+                      activeOpacity={isDeniedRefund ? 1 : 0.75}
                     >
                       {/* Top Row: Event Name & Status */}
                       <View style={styles.txTopRow}>
@@ -745,7 +783,7 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
                             <Text style={styles.txDateText}>{dateStr}</Text>
                           </View>
                         </View>
-                        {renderStatusBadge(p.status, isRefund)}
+                        {renderStatusBadge(p.status, isRefund, isDeniedRefund)}
                       </View>
 
                       {/* Middle Details: Type & Method */}
@@ -781,17 +819,19 @@ export const CustomerPaymentsScreen = ({ navigation }) => {
                           </Text>
                         </View>
 
-                        <View style={styles.viewReceiptPill}>
-                          {isRefund ? (
-                            <RefreshCcw size={12} color={BRAND_BLUE} style={{ marginRight: 4 }} />
-                          ) : (
-                            <Receipt size={12} color={BRAND_BLUE} style={{ marginRight: 4 }} />
-                          )}
-                          <Text style={styles.viewReceiptText}>
-                            {isRefund ? "Voucher" : "Receipt"}
-                          </Text>
-                          <ChevronRight size={13} color={BRAND_BLUE} />
-                        </View>
+                        {!isDeniedRefund && (
+                          <View style={styles.viewReceiptPill}>
+                            {isRefund ? (
+                              <RefreshCcw size={12} color={BRAND_BLUE} style={{ marginRight: 4 }} />
+                            ) : (
+                              <Receipt size={12} color={BRAND_BLUE} style={{ marginRight: 4 }} />
+                            )}
+                            <Text style={styles.viewReceiptText}>
+                              {isRefund ? "Voucher" : "Receipt"}
+                            </Text>
+                            <ChevronRight size={13} color={BRAND_BLUE} />
+                          </View>
+                        )}
                       </View>
                     </TouchableOpacity>
                   );

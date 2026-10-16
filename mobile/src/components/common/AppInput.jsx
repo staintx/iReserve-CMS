@@ -63,7 +63,7 @@ export const AppInput = forwardRef(({
 
         <TextInput
           ref={ref}
-          value={value}
+          value={value !== undefined && value !== null ? String(value) : ""}
           onChangeText={onChangeText}
           placeholder={placeholder}
           placeholderTextColor={colors.textDisabled}
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.inputBackground,
-    borderWidth: 1.2,
+    borderWidth: 1.5,
     borderColor: colors.inputBorder,
     borderRadius: radius.lg,
     height: 52,
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   },
   inputWrapperFocused: {
     borderColor: colors.primary,
-    borderWidth: 1.6,
+    borderWidth: 1.5,
     backgroundColor: colors.white,
     ...Platform.select({
       ios: {

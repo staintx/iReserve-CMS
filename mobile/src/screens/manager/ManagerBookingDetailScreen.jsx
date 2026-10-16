@@ -11,6 +11,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -549,7 +550,10 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
     booking.payment_status === "deposit_pending" || booking.status === "Deposit Pending";
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <KeyboardAvoidingView
+      style={[styles.screen, { paddingTop: insets.top }]}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
       {/* Top Bar */}
       <View style={styles.topBar}>
         <TouchableOpacity
@@ -575,6 +579,7 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
@@ -1234,7 +1239,7 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
                             style={styles.inlineNoteInput}
                             placeholder="Specify issue (e.g. 2 damaged, missing on arrival)..."
                             placeholderTextColor={colors.textDisabled}
-                            value={draftNote}
+                            value={draftNote || ""}
                             onChangeText={(val) =>
                               setInlineDrafts((prev) => ({ ...prev, [item.item_key]: val }))
                             }
@@ -1262,7 +1267,7 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
                   placeholderTextColor={colors.textDisabled}
                   multiline
                   numberOfLines={3}
-                  value={additionalNotes}
+                  value={additionalNotes || ""}
                   onChangeText={setAdditionalNotes}
                   editable={!isChecklistDone && !isCompleted && !isBeforeEventDate}
                 />
@@ -1303,7 +1308,7 @@ export const ManagerBookingDetailScreen = ({ route, navigation }) => {
           )}
         </Card>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 

@@ -140,7 +140,7 @@ export const FilterSortBar = ({
             style={styles.searchInput}
             placeholder={searchPlaceholder}
             placeholderTextColor={colors.textSubtle}
-            value={searchQuery}
+            value={searchQuery || ""}
             onChangeText={onSearchChange}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
@@ -190,6 +190,7 @@ export const FilterSortBar = ({
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.appliedChipsScroll}
           >
             {isPaymentDueActive && (
@@ -314,6 +315,7 @@ export const FilterSortBar = ({
                 <ScrollView
                   style={styles.sheetScroll}
                   showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
                 >
                   {/* SECTION 1: Sort by */}
                   <View style={styles.sectionBlock}>

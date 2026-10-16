@@ -279,8 +279,24 @@ export default function CustomerPayments() {
     }
   };
 
+  const checkIsDeniedRefund = (p, b) => {
+    const isRefund = (p?.payment_type || "").toLowerCase() === "refund" || Number(p?.amount) < 0;
+    if (!isRefund) return false;
+    const pStatus = String(p?.status || "").toLowerCase();
+    const book = b || (p?.booking_id && typeof p.booking_id === "object" ? p.booking_id : null);
+    return (
+      pStatus === "denied" ||
+      pStatus === "rejected" ||
+      Boolean(p?.refund_denied) ||
+      Boolean(p?.metadata?.denied) ||
+      Boolean(book?.refund_denied) ||
+      ["denied", "rejected"].includes(book?.cancellation_request?.status)
+    );
+  };
+
   // Open Receipt Modal
   const handleOpenReceipt = (payment, booking) => {
+    if (checkIsDeniedRefund(payment, booking)) return;
     setReceiptPayment(payment);
     setReceiptBooking(booking || payment.booking_id);
   };
@@ -307,6 +323,10 @@ export default function CustomerPayments() {
       const isCancelled = ["cancelled", "canceled", "rejected", "refunded"].includes(
         (b.status || "").toLowerCase()
       );
+      const isRefundDenied = Boolean(
+        b.refund_denied ||
+        ["denied", "rejected"].includes(b.cancellation_request?.status)
+      );
       map.set(String(b._id), {
         booking: b,
         payments: [],
@@ -316,7 +336,7 @@ export default function CustomerPayments() {
         paidAmount: 0,
         amountRetained: 0,
         isCancelled,
-        hasPendingRefund: b.payment_status === "refund_requested",
+        hasPendingRefund: !isRefundDenied && b.payment_status === "refund_requested",
       });
     });
 
@@ -356,7 +376,11 @@ export default function CustomerPayments() {
         entry.grossPaid += Number(p.amount || 0);
       }
       if (isRefund && (p.status || "").toLowerCase() === "pending") {
-        entry.hasPendingRefund = true;
+        const b = entry.booking;
+        const bDenied = Boolean(b?.refund_denied || ["denied", "rejected"].includes(b?.cancellation_request?.status) || p.refund_denied || p.status === "denied");
+        if (!bDenied) {
+          entry.hasPendingRefund = true;
+        }
       }
     });
 
@@ -506,9 +530,17 @@ export default function CustomerPayments() {
   }, [isMobile, filteredPayments, paginatedTransactions]);
 
   // Status badge renderer
-  const renderPaymentStatusBadge = (status, isRefund = false) => {
+  const renderPaymentStatusBadge = (status, isRefund = false, isDenied = false) => {
     const s = String(status || "").toLowerCase();
     if (isRefund) {
+      if (isDenied || s === "denied" || s === "rejected") {
+        return (
+          <span className="bg-rose-50 text-rose-700 border border-rose-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold select-none">
+            <XCircle className="w-3 h-3 text-rose-600" />
+            <span>Denied</span>
+          </span>
+        );
+      }
       if (["approved", "successful", "paid", "refunded"].includes(s)) {
         return (
           <span className="bg-blue-50 text-[#4C81E0] border border-blue-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold select-none">
@@ -528,7 +560,7 @@ export default function CustomerPayments() {
       return (
         <span className="bg-rose-50 text-rose-700 border border-rose-200/80 inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-md font-semibold select-none">
           <XCircle className="w-3 h-3 text-rose-600" />
-          <span>Rejected</span>
+          <span>Denied</span>
         </span>
       );
     }
@@ -1048,19 +1080,19 @@ export default function CustomerPayments() {
                                         "px-2 py-0.5 text-[10px] font-bold rounded-md border",
                                         refundIssued > 0
                                           ? "text-[#4C81E0] bg-blue-50 border-blue-200"
-                                          : hasPendingRefund
-                                            ? "text-amber-800 bg-amber-50 border-amber-200"
-                                            : (booking.refund_denied || ["denied", "rejected"].includes(booking.cancellation_request?.status))
-                                              ? "text-rose-800 bg-rose-50 border-rose-200"
+                                          : (booking.refund_denied || ["denied", "rejected"].includes(booking.cancellation_request?.status))
+                                            ? "text-rose-800 bg-rose-50 border-rose-200"
+                                            : hasPendingRefund
+                                              ? "text-amber-800 bg-amber-50 border-amber-200"
                                               : "text-rose-800 bg-rose-50 border-rose-200"
                                       )}
                                     >
                                       {refundIssued > 0
                                         ? "Cancelled · Refunded"
-                                        : hasPendingRefund
-                                          ? "Refund Pending"
-                                          : (booking.refund_denied || ["denied", "rejected"].includes(booking.cancellation_request?.status))
-                                            ? "Cancelled · Refund Denied"
+                                        : (booking.refund_denied || ["denied", "rejected"].includes(booking.cancellation_request?.status))
+                                          ? "Cancelled · Refund Denied"
+                                          : hasPendingRefund
+                                            ? "Refund Pending"
                                             : "Cancelled"}
                                     </span>
                                   ) : isFullyPaid ? (
@@ -1289,7 +1321,7 @@ export default function CustomerPayments() {
                                               <span className="font-bold text-xs text-slate-900">
                                                 {renderMilestoneLabel(p.payment_type, isRefund)}
                                               </span>
-                                              {renderPaymentStatusBadge(p.status, isRefund)}
+                                              {renderPaymentStatusBadge(p.status, isRefund, checkIsDeniedRefund(p, booking))}
                                             </div>
                                             {!isRefund && (p.description || p.metadata?.reason || p.metadata?.description) && (
                                               <div className="text-[11.5px] text-amber-900 bg-amber-50/80 px-2 py-0.5 rounded border border-amber-200/70 mt-1 max-w-md font-medium">
@@ -1334,16 +1366,22 @@ export default function CustomerPayments() {
                                               {formatCurrency(p.amount)}
                                             </span>
                                           )}
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleOpenReceipt(p, booking)}
-                                            className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3B6EC6] hover:bg-blue-50 px-2.5 rounded-lg cursor-pointer"
-                                            title={isRefund ? "View Refund Transaction" : "View Payment Receipt"}
-                                          >
-                                            {isRefund ? <RefreshCcw className="w-3.5 h-3.5" /> : <Receipt className="w-3.5 h-3.5" />}
-                                            <span>{isRefund ? "Refund" : "Receipt"}</span>
-                                          </Button>
+                                          {!checkIsDeniedRefund(p, booking) ? (
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => handleOpenReceipt(p, booking)}
+                                              className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3B6EC6] hover:bg-blue-50 px-2.5 rounded-lg cursor-pointer"
+                                              title={isRefund ? "View Refund Transaction" : "View Payment Receipt"}
+                                            >
+                                              {isRefund ? <RefreshCcw className="w-3.5 h-3.5" /> : <Receipt className="w-3.5 h-3.5" />}
+                                              <span>{isRefund ? "Refund" : "Receipt"}</span>
+                                            </Button>
+                                          ) : (
+                                            <span className="text-[11px] font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200/60 select-none">
+                                              Denied
+                                            </span>
+                                          )}
                                         </div>
                                       </div>
                                     );
@@ -1441,7 +1479,7 @@ export default function CustomerPayments() {
                                 )}
                               </div>
                               <div className="shrink-0">
-                                {renderPaymentStatusBadge(p.status, isRefund)}
+                                {renderPaymentStatusBadge(p.status, isRefund, checkIsDeniedRefund(p, b))}
                               </div>
                             </div>
 
@@ -1477,16 +1515,22 @@ export default function CustomerPayments() {
                                 )}
                               </div>
 
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleOpenReceipt(p, b)}
-                                className="h-8 text-xs font-semibold gap-1.5 text-[#4C81E0] border-blue-200 hover:bg-blue-50 px-3 rounded-lg cursor-pointer"
-                                title={isRefund ? "View Refund Transaction" : "View Payment Receipt"}
-                              >
-                                {isRefund ? <RefreshCcw className="w-3.5 h-3.5" /> : <Receipt className="w-3.5 h-3.5" />}
-                                <span>{isRefund ? "Refund" : "Receipt"}</span>
-                              </Button>
+                              {!checkIsDeniedRefund(p, b) ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleOpenReceipt(p, b)}
+                                  className="h-8 text-xs font-semibold gap-1.5 text-[#4C81E0] border-blue-200 hover:bg-blue-50 px-3 rounded-lg cursor-pointer"
+                                  title={isRefund ? "View Refund Transaction" : "View Payment Receipt"}
+                                >
+                                  {isRefund ? <RefreshCcw className="w-3.5 h-3.5" /> : <Receipt className="w-3.5 h-3.5" />}
+                                  <span>{isRefund ? "Refund" : "Receipt"}</span>
+                                </Button>
+                              ) : (
+                                <span className="text-[11px] font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200/60 select-none">
+                                  Denied
+                                </span>
+                              )}
                             </div>
                           </div>
                         );
@@ -1624,20 +1668,26 @@ export default function CustomerPayments() {
                                   </td>
 
                                   <td className="py-3.5 px-4 text-xs">
-                                    {renderPaymentStatusBadge(p.status, isRefund)}
+                                    {renderPaymentStatusBadge(p.status, isRefund, checkIsDeniedRefund(p, b))}
                                   </td>
 
                                   <td className="py-3.5 px-4 text-xs text-right">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleOpenReceipt(p, b)}
-                                      className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3B6EC6] hover:bg-blue-50 px-2.5 rounded-lg cursor-pointer"
-                                      title={isRefund ? "View Refund Transaction" : "View Payment Receipt"}
-                                    >
-                                      {isRefund ? <RefreshCcw className="w-3.5 h-3.5" /> : <Receipt className="w-3.5 h-3.5" />}
-                                      <span>{isRefund ? "Refund" : "Receipt"}</span>
-                                    </Button>
+                                    {!checkIsDeniedRefund(p, b) ? (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleOpenReceipt(p, b)}
+                                        className="h-7 text-xs font-semibold gap-1 text-[#4C81E0] hover:text-[#3B6EC6] hover:bg-blue-50 px-2.5 rounded-lg cursor-pointer"
+                                        title={isRefund ? "View Refund Transaction" : "View Payment Receipt"}
+                                      >
+                                        {isRefund ? <RefreshCcw className="w-3.5 h-3.5" /> : <Receipt className="w-3.5 h-3.5" />}
+                                        <span>{isRefund ? "Refund" : "Receipt"}</span>
+                                      </Button>
+                                    ) : (
+                                      <span className="text-[11px] font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200/60 select-none">
+                                        Denied
+                                      </span>
+                                    )}
                                   </td>
                                 </tr>
                               );

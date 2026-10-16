@@ -115,7 +115,7 @@ export const GalleryScreen = ({ navigation }) => {
           style={styles.searchInput}
           placeholder="Search weddings, floral styling, venues..."
           placeholderTextColor={colors.textDisabled}
-          value={searchQuery}
+          value={searchQuery || ""}
           onChangeText={setSearchQuery}
         />
         {searchQuery.length > 0 && (
@@ -130,6 +130,7 @@ export const GalleryScreen = ({ navigation }) => {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.categoryPillsScroll}
         >
           {categories.map((cat) => {
@@ -159,6 +160,7 @@ export const GalleryScreen = ({ navigation }) => {
           { paddingBottom: Math.max(insets.bottom, 16) + 120 },
         ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
         }

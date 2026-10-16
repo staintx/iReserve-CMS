@@ -264,7 +264,7 @@ export const ManagerBookingsScreen = ({ navigation, route }) => {
             style={styles.searchInput}
             placeholder="Search by client, event or ref..."
             placeholderTextColor={colors.textDisabled}
-            value={searchQuery}
+            value={searchQuery || ""}
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
@@ -287,6 +287,7 @@ export const ManagerBookingsScreen = ({ navigation, route }) => {
           data={filteredBookings}
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={

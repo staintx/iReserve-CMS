@@ -377,12 +377,19 @@ export default function CustomerEventDashboard() {
     [pendingRefundPayments]
   );
 
+  const isRefundDenied = Boolean(
+    booking?.refund_denied ||
+    booking?.cancellation_request?.status === "denied" ||
+    booking?.cancellation_request?.status === "rejected"
+  );
+
   const hasPendingRefund = useMemo(() => {
+    if (isRefundDenied) return false;
     return (
       pendingRefundPayments.length > 0 ||
       (booking?.payment_status === "refund_requested" && totalRefundIssued === 0)
     );
-  }, [pendingRefundPayments, booking, totalRefundIssued]);
+  }, [pendingRefundPayments, booking, totalRefundIssued, isRefundDenied]);
 
   const amountRetained = useMemo(
     () => Math.max(0, totalAmountPaid - totalRefundIssued),
@@ -1889,9 +1896,11 @@ export default function CustomerEventDashboard() {
                       {isCancelled
                         ? totalRefundIssued > 0
                           ? "Cancelled · Refunded"
-                          : hasPendingRefund
-                            ? "Refund Pending"
-                            : "Cancelled"
+                          : isRefundDenied
+                            ? "Cancelled · Refund Denied"
+                            : hasPendingRefund
+                              ? "Refund Pending"
+                              : "Cancelled"
                         : isFullyPaid
                           ? "Paid in full"
                           : "Balance Pending"}
@@ -1948,6 +1957,33 @@ export default function CustomerEventDashboard() {
                               </p>
                               <p className="text-[10px] text-slate-500 italic">
                                 * Reservation deposits are normally non-refundable; this refund reflects an approved exception.
+                              </p>
+                            </div>
+                          </>
+                        ) : isRefundDenied ? (
+                          <>
+                            <div className="flex items-baseline justify-between gap-3">
+                              <span className="text-slate-500 flex items-center gap-1">
+                                <XCircle className="w-3 h-3 text-rose-600" />
+                                Refund Status
+                              </span>
+                              <span className="font-semibold tabular-nums text-rose-700">
+                                Denied (₱0 Disbursed)
+                              </span>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-100 flex items-baseline justify-between gap-3">
+                              <span className="font-bold text-slate-900">Balance status</span>
+                              <span className="text-base font-bold tabular-nums text-rose-700">Refund Denied</span>
+                            </div>
+
+                            <div className="p-2.5 rounded-lg bg-rose-50/70 border border-rose-200/80 text-[11px] space-y-1">
+                              <div className="font-semibold text-rose-900 flex items-center gap-1">
+                                <XCircle className="w-3 h-3 text-rose-700" />
+                                <span>Refund Request Denied</span>
+                              </div>
+                              <p className="text-rose-800 leading-relaxed">
+                                Your refund request was reviewed and denied: {booking.refund_denial_reason || booking.cancellation_request?.admin_notes || "Non-refundable per cancellation policy terms."}
                               </p>
                             </div>
                           </>
@@ -2320,6 +2356,35 @@ export default function CustomerEventDashboard() {
                             </p>
                             <p className="text-[10px] text-slate-500 italic">
                               * Reservation deposits are normally non-refundable; this refund reflects an approved exception.
+                            </p>
+                          </div>
+                        </>
+                      ) : isRefundDenied ? (
+                        <>
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="text-slate-600 flex items-center gap-1">
+                              <XCircle className="w-3 h-3 text-rose-600" />
+                              Refund Status
+                            </span>
+                            <span className="shrink-0 font-sans font-semibold tabular-nums text-rose-700">
+                              Denied (₱0 Disbursed)
+                            </span>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
+                            <span className="font-bold text-slate-900">Balance status</span>
+                            <span className="shrink-0 font-sans text-lg font-bold tabular-nums text-rose-700">
+                              Refund Denied
+                            </span>
+                          </div>
+
+                          <div className="mt-2 p-2.5 rounded-lg bg-rose-50/70 border border-rose-200/80 text-[11px] space-y-1">
+                            <div className="font-semibold text-rose-900 flex items-center gap-1">
+                              <XCircle className="w-3 h-3 text-rose-700" />
+                              <span>Refund Request Denied</span>
+                            </div>
+                            <p className="text-rose-800 leading-relaxed">
+                              Your refund request was reviewed and denied: {booking.refund_denial_reason || booking.cancellation_request?.admin_notes || "Non-refundable per cancellation policy terms."}
                             </p>
                           </div>
                         </>

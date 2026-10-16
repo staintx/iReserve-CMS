@@ -226,14 +226,6 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
           y: Math.max(0, targetY),
           animated: true,
         });
-      } else {
-        if (
-          key.toLowerCase().includes("landmark") ||
-          key.toLowerCase().includes("street") ||
-          key.toLowerCase().includes("phone")
-        ) {
-          scrollViewRef.current?.scrollToEnd({ animated: true });
-        }
       }
     }, 150);
   };
@@ -1520,7 +1512,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
 
             {/* Suggested Dates Strip */}
             <Text style={styles.fieldLabel}>Suggested Fast Dates</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateCardsScroll}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.dateCardsScroll}>
               {[4, 5, 6, 7, 14, 21].map((offset) => {
                 const targetD = new Date();
                 targetD.setDate(targetD.getDate() + offset);
@@ -1638,7 +1630,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             </View>
 
             {/* Quick Guest Count Presets */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetsScroll}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.presetsScroll}>
               {[20, 30, 50, 80, 100, 150, 200, 300].map((preset) => {
                 const isSelected = guestCount === preset;
                 return (
@@ -2059,7 +2051,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             {isComboOffer ? (
               <Text style={styles.helperNote}>* Guest count is fixed for this special combo offer.</Text>
             ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetsScroll}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.presetsScroll}>
                 {[30, 50, 80, 100, 150, 200, 300, 500].map((preset) => {
                   const isSelected = guestCount === preset;
                   return (
@@ -2132,7 +2124,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             {Boolean(fieldErrors.venueType) && (
               <Text style={styles.fieldErrorText}>{fieldErrors.venueType}</Text>
             )}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.venueTypesScroll}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.venueTypesScroll}>
               {VENUE_TYPES.map((vType) => {
                 const isSelected = venueType === vType;
                 return (
@@ -2371,6 +2363,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                     <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled"
                       contentContainerStyle={styles.categoryScroll}
                     >
                       {dynamicMenuCategories.map((cat) => {
@@ -3088,57 +3081,62 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
         }}
       >
         <View style={styles.modalBackdrop}>
-          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Batangas Municipality</Text>
-              <TouchableOpacity onPress={() => { setShowMunicipalityPicker(false); setMunicipalityQuery(""); }}>
-                <Text style={styles.modalClose}>Done</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.modalSearchContainer}>
-              <Search size={16} color={colors.foregroundMuted} style={styles.modalSearchIcon} />
-              <TextInput
-                placeholder="Search municipality..."
-                placeholderTextColor={colors.foregroundMuted}
-                value={municipalityQuery}
-                onChangeText={setMunicipalityQuery}
-                style={styles.modalSearchInput}
-                autoCorrect={false}
-                clearButtonMode="while-editing"
-              />
-              {municipalityQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setMunicipalityQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <X size={15} color={colors.foregroundMuted} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalKeyboardAvoid}
+          >
+            <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Batangas Municipality</Text>
+                <TouchableOpacity onPress={() => { setShowMunicipalityPicker(false); setMunicipalityQuery(""); }}>
+                  <Text style={styles.modalClose}>Done</Text>
                 </TouchableOpacity>
-              )}
+              </View>
+              <View style={styles.modalSearchContainer}>
+                <Search size={16} color={colors.foregroundMuted} style={styles.modalSearchIcon} />
+                <TextInput
+                  placeholder="Search municipality..."
+                  placeholderTextColor={colors.foregroundMuted}
+                  value={municipalityQuery || ""}
+                  onChangeText={setMunicipalityQuery}
+                  style={styles.modalSearchInput}
+                  autoCorrect={false}
+                  clearButtonMode="while-editing"
+                />
+                {municipalityQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setMunicipalityQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <X size={15} color={colors.foregroundMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
+                {filteredMunicipalities.map((muni) => (
+                  <TouchableOpacity
+                    key={muni}
+                    style={styles.modalItem}
+                    onPress={() => {
+                      setMunicipality(muni);
+                      setBarangay("");
+                      clearFieldError("municipality");
+                      clearFieldError("barangay");
+                      setMunicipalityQuery("");
+                      setShowMunicipalityPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.modalItemText, municipality === muni && styles.modalItemTextActive]}>
+                      {muni}
+                    </Text>
+                    {municipality === muni && <Check size={18} color={colors.primary} />}
+                  </TouchableOpacity>
+                ))}
+                {filteredMunicipalities.length === 0 && (
+                  <View style={styles.modalEmptyState}>
+                    <Text style={styles.modalEmptyText}>No municipalities match "{municipalityQuery}"</Text>
+                  </View>
+                )}
+              </ScrollView>
             </View>
-            <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
-              {filteredMunicipalities.map((muni) => (
-                <TouchableOpacity
-                  key={muni}
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setMunicipality(muni);
-                    setBarangay("");
-                    clearFieldError("municipality");
-                    clearFieldError("barangay");
-                    setMunicipalityQuery("");
-                    setShowMunicipalityPicker(false);
-                  }}
-                >
-                  <Text style={[styles.modalItemText, municipality === muni && styles.modalItemTextActive]}>
-                    {muni}
-                  </Text>
-                  {municipality === muni && <Check size={18} color={colors.primary} />}
-                </TouchableOpacity>
-              ))}
-              {filteredMunicipalities.length === 0 && (
-                <View style={styles.modalEmptyState}>
-                  <Text style={styles.modalEmptyText}>No municipalities match "{municipalityQuery}"</Text>
-                </View>
-              )}
-            </ScrollView>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -3153,55 +3151,60 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
         }}
       >
         <View style={styles.modalBackdrop}>
-          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Barangay in {municipality}</Text>
-              <TouchableOpacity onPress={() => { setShowBarangayPicker(false); setBarangayQuery(""); }}>
-                <Text style={styles.modalClose}>Done</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.modalSearchContainer}>
-              <Search size={16} color={colors.foregroundMuted} style={styles.modalSearchIcon} />
-              <TextInput
-                placeholder="Search barangay..."
-                placeholderTextColor={colors.foregroundMuted}
-                value={barangayQuery}
-                onChangeText={setBarangayQuery}
-                style={styles.modalSearchInput}
-                autoCorrect={false}
-                clearButtonMode="while-editing"
-              />
-              {barangayQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setBarangayQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <X size={15} color={colors.foregroundMuted} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalKeyboardAvoid}
+          >
+            <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Barangay in {municipality}</Text>
+                <TouchableOpacity onPress={() => { setShowBarangayPicker(false); setBarangayQuery(""); }}>
+                  <Text style={styles.modalClose}>Done</Text>
                 </TouchableOpacity>
-              )}
+              </View>
+              <View style={styles.modalSearchContainer}>
+                <Search size={16} color={colors.foregroundMuted} style={styles.modalSearchIcon} />
+                <TextInput
+                  placeholder="Search barangay..."
+                  placeholderTextColor={colors.foregroundMuted}
+                  value={barangayQuery || ""}
+                  onChangeText={setBarangayQuery}
+                  style={styles.modalSearchInput}
+                  autoCorrect={false}
+                  clearButtonMode="while-editing"
+                />
+                {barangayQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setBarangayQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <X size={15} color={colors.foregroundMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
+                {filteredBarangays.map((brgy) => (
+                  <TouchableOpacity
+                    key={brgy}
+                    style={styles.modalItem}
+                    onPress={() => {
+                      setBarangay(brgy);
+                      clearFieldError("barangay");
+                      setBarangayQuery("");
+                      setShowBarangayPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.modalItemText, barangay === brgy && styles.modalItemTextActive]}>
+                      {brgy}
+                    </Text>
+                    {barangay === brgy && <Check size={18} color={colors.primary} />}
+                  </TouchableOpacity>
+                ))}
+                {filteredBarangays.length === 0 && (
+                  <View style={styles.modalEmptyState}>
+                    <Text style={styles.modalEmptyText}>No barangays match "{barangayQuery}"</Text>
+                  </View>
+                )}
+              </ScrollView>
             </View>
-            <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
-              {filteredBarangays.map((brgy) => (
-                <TouchableOpacity
-                  key={brgy}
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setBarangay(brgy);
-                    clearFieldError("barangay");
-                    setBarangayQuery("");
-                    setShowBarangayPicker(false);
-                  }}
-                >
-                  <Text style={[styles.modalItemText, barangay === brgy && styles.modalItemTextActive]}>
-                    {brgy}
-                  </Text>
-                  {barangay === brgy && <Check size={18} color={colors.primary} />}
-                </TouchableOpacity>
-              ))}
-              {filteredBarangays.length === 0 && (
-                <View style={styles.modalEmptyState}>
-                  <Text style={styles.modalEmptyText}>No barangays match "{barangayQuery}"</Text>
-                </View>
-              )}
-            </ScrollView>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -3228,7 +3231,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               Tap any section below to jump back and update your inquiry details:
             </Text>
 
-            <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {/* Option 1: Schedule & Time */}
               <TouchableOpacity
                 style={styles.editSectionItem}
@@ -5165,6 +5168,10 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     lineHeight: 17,
+  },
+  modalKeyboardAvoid: {
+    width: "100%",
+    justifyContent: "flex-end",
   },
 });
 

@@ -297,6 +297,7 @@ export const CustomerProfileScreen = ({ navigation }) => {
             { paddingBottom: insets.bottom + 96 },
           ]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Sheet Header */}
           <Text style={styles.sheetTitle}>Profile</Text>
@@ -426,7 +427,7 @@ export const CustomerProfileScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <AppInput
                 label="First Name"
                 required
@@ -485,7 +486,7 @@ export const CustomerProfileScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <AppInput
                 label="Current Password"
                 required

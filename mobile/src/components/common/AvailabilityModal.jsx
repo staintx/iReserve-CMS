@@ -12,6 +12,7 @@ import {
   Alert,
   Platform,
   BackHandler,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -418,66 +419,71 @@ export const AvailabilityModal = ({
         </TouchableWithoutFeedback>
 
         {/* Bottom sheet card */}
-        <View
-          style={[
-            styles.modalContainer,
-            { paddingBottom: Math.max(insets.bottom, spacing.md) },
-          ]}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.keyboardAvoid}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={{ flex: 1 }}>
-              <View style={styles.titleRow}>
-                <View style={styles.iconCircle}>
-                  <CalendarDays size={18} color={colors.primary} />
-                </View>
-                <Text style={styles.title}>Set My Availability</Text>
-              </View>
-              <Text style={styles.subtitle}>
-                Record personal off-duty dates and view your blackout schedule
-              </Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-              <X size={20} color={colors.foregroundMuted} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Segmented Controls */}
-          <View style={styles.tabsContainer}>
-            <TouchableOpacity
-              style={[styles.tabBtn, activeTab === "form" && styles.tabBtnActive]}
-              onPress={() => {
-                setConfirmingDeleteId(null);
-                setActiveTab("form");
-              }}
-              activeOpacity={0.8}
-            >
-              <CalendarOff size={15} color={activeTab === "form" ? colors.primary : colors.textSubtle} />
-              <Text style={[styles.tabBtnText, activeTab === "form" && styles.tabBtnTextActive]}>
-                Set Dates Off {selectedDates.length > 0 ? `(${selectedDates.length})` : ""}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.tabBtn, activeTab === "saved" && styles.tabBtnActive]}
-              onPress={() => {
-                setConfirmingDeleteId(null);
-                setActiveTab("saved");
-              }}
-              activeOpacity={0.8}
-            >
-              <Clock size={15} color={activeTab === "saved" ? colors.primary : colors.textSubtle} />
-              <Text style={[styles.tabBtnText, activeTab === "saved" && styles.tabBtnTextActive]}>
-                Saved Off-Duty ({records.length})
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            style={styles.body}
-            contentContainerStyle={styles.bodyContent}
-            showsVerticalScrollIndicator={false}
+          <View
+            style={[
+              styles.modalContainer,
+              { paddingBottom: Math.max(insets.bottom, spacing.md) },
+            ]}
           >
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={{ flex: 1 }}>
+                <View style={styles.titleRow}>
+                  <View style={styles.iconCircle}>
+                    <CalendarDays size={18} color={colors.primary} />
+                  </View>
+                  <Text style={styles.title}>Set My Availability</Text>
+                </View>
+                <Text style={styles.subtitle}>
+                  Record personal off-duty dates and view your blackout schedule
+                </Text>
+              </View>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+                <X size={20} color={colors.foregroundMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Segmented Controls */}
+            <View style={styles.tabsContainer}>
+              <TouchableOpacity
+                style={[styles.tabBtn, activeTab === "form" && styles.tabBtnActive]}
+                onPress={() => {
+                  setConfirmingDeleteId(null);
+                  setActiveTab("form");
+                }}
+                activeOpacity={0.8}
+              >
+                <CalendarOff size={15} color={activeTab === "form" ? colors.primary : colors.textSubtle} />
+                <Text style={[styles.tabBtnText, activeTab === "form" && styles.tabBtnTextActive]}>
+                  Set Dates Off {selectedDates.length > 0 ? `(${selectedDates.length})` : ""}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.tabBtn, activeTab === "saved" && styles.tabBtnActive]}
+                onPress={() => {
+                  setConfirmingDeleteId(null);
+                  setActiveTab("saved");
+                }}
+                activeOpacity={0.8}
+              >
+                <Clock size={15} color={activeTab === "saved" ? colors.primary : colors.textSubtle} />
+                <Text style={[styles.tabBtnText, activeTab === "saved" && styles.tabBtnTextActive]}>
+                  Saved Off-Duty ({records.length})
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.body}
+              contentContainerStyle={styles.bodyContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
             {activeTab === "form" ? (
               <View style={styles.formSection}>
                 {/* Month navigation */}
@@ -592,7 +598,7 @@ export const AvailabilityModal = ({
                     style={styles.textInput}
                     placeholder="Or type a custom note..."
                     placeholderTextColor={colors.textDisabled}
-                    value={reason}
+                    value={reason || ""}
                     onChangeText={setReason}
                     maxLength={100}
                   />
@@ -712,7 +718,8 @@ export const AvailabilityModal = ({
               </View>
             )}
           </ScrollView>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
 
         {/* In-Modal Notification Banner (Above bottom sheet and backdrop) */}
         <InAppNotificationBanner inModal />
@@ -739,6 +746,9 @@ const styles = StyleSheet.create({
   },
   backdropTapArea: {
     ...StyleSheet.absoluteFillObject,
+  },
+  keyboardAvoid: {
+    width: "100%",
   },
   modalContainer: {
     backgroundColor: colors.surface,

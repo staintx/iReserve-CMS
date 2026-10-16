@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -207,7 +209,10 @@ export const EquipmentChecklistScreen = ({ route, navigation }) => {
   const locked = !isEventStarted();
 
   return (
-    <View style={styles.screen}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
       <Header
         title="Equipment Return Checklist"
         subtitle={booking?.reference ? `#${booking.reference}` : "Inventory Reconciliation"}
@@ -216,6 +221,7 @@ export const EquipmentChecklistScreen = ({ route, navigation }) => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scrollContent}
       >
         {locked && (
@@ -334,7 +340,7 @@ export const EquipmentChecklistScreen = ({ route, navigation }) => {
                       style={styles.itemNoteInput}
                       placeholder="Note cause of damage or missing details..."
                       placeholderTextColor={colors.textDisabled}
-                      value={item.notes}
+                      value={item.notes || ""}
                       onChangeText={(t) => updateItemNotes(index, t)}
                       editable={!locked}
                     />
@@ -356,7 +362,7 @@ export const EquipmentChecklistScreen = ({ route, navigation }) => {
               style={styles.generalInput}
               placeholder="Add final inspection remarks or return warehouse location..."
               placeholderTextColor={colors.textDisabled}
-              value={generalNote}
+              value={generalNote || ""}
               onChangeText={setGeneralNote}
               multiline
             />
@@ -376,7 +382,7 @@ export const EquipmentChecklistScreen = ({ route, navigation }) => {
           onPress={handleSubmit}
         />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 

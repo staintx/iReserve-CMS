@@ -703,11 +703,11 @@ export default function AdminRefunds() {
             <Eye size={15} />
           </button>
 
-          {r.status === "approved" && (
+          {(r.status === "approved" || r.status === "denied") && (
             <button
               onClick={() => setVoucherModalRow(r)}
               className="p-1.5 rounded-lg text-slate-500 hover:text-primary hover:bg-blue-50 transition-colors"
-              title="Print Refund Voucher"
+              title={r.status === "denied" ? "View Denial Record" : "Print Refund Voucher"}
             >
               <Printer size={15} />
             </button>
@@ -1209,14 +1209,14 @@ export default function AdminRefunds() {
                   </div>
                 )}
 
-                {drawerRow.status === "approved" && (
+                {(drawerRow.status === "approved" || drawerRow.status === "denied") && (
                   <button
                     onClick={() => setVoucherModalRow(drawerRow)}
                     className="w-full py-2 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs"
-                    title="Print official refund voucher"
+                    title={drawerRow.status === "denied" ? "View refund denial record" : "Print official refund voucher"}
                   >
                     <Printer size={14} />
-                    <span>Print Refund Voucher</span>
+                    <span>{drawerRow.status === "denied" ? "View Denial Record" : "Print Refund Voucher"}</span>
                   </button>
                 )}
 
@@ -1714,18 +1714,25 @@ export default function AdminRefunds() {
         {voucherModalRow && (
           <AdminReceiptModal
             isOpen={Boolean(voucherModalRow)}
-            payment={
-              voucherModalRow.refundRecord || {
+            payment={{
+              ...(voucherModalRow.refundRecord || {
                 _id: voucherModalRow._id,
                 amount: -Number(voucherModalRow.totalRefunded || 0),
                 payment_type: "refund",
                 method: voucherModalRow.bookingObj?.payment_method || "manual",
-                status: "approved",
                 paid_at: voucherModalRow.updatedAt,
                 customer_id: voucherModalRow.bookingObj?.customer_id,
                 reference_number: voucherModalRow.bookingRef,
-              }
-            }
+              }),
+              payment_type: "refund",
+              status: voucherModalRow.status === "denied" ? "denied" : (voucherModalRow.refundRecord?.status || voucherModalRow.status || "approved"),
+              refund_denied: voucherModalRow.status === "denied" || Boolean(voucherModalRow.bookingObj?.refund_denied),
+              metadata: {
+                ...(voucherModalRow.refundRecord?.metadata || {}),
+                reason: voucherModalRow.denialReason || voucherModalRow.reason || voucherModalRow.refundRecord?.metadata?.reason,
+                denied: voucherModalRow.status === "denied",
+              },
+            }}
             booking={
               voucherModalRow.bookingObj || {
                 reference: voucherModalRow.bookingRef,
@@ -1734,6 +1741,7 @@ export default function AdminRefunds() {
                 contact_first_name: voucherModalRow.customerName,
                 contact_email: voucherModalRow.customerEmail,
                 contact_phone: voucherModalRow.customerPhone,
+                refund_denied: voucherModalRow.status === "denied",
               }
             }
             onClose={() => setVoucherModalRow(null)}

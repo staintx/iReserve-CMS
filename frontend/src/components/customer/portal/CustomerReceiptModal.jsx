@@ -51,40 +51,35 @@ export default function CustomerReceiptModal({
         aria-modal="true"
         aria-label={isRefund ? "Refund Transaction" : "Payment Receipt"}
       >
-        <div className="w-full sm:max-w-[680px] max-sm:max-h-[92vh] sm:max-h-[90vh] bg-slate-100 text-slate-900 max-sm:rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col my-0 sm:my-auto animate-in zoom-in-95 duration-200">
+        <div className="w-full sm:max-w-[500px] max-sm:max-h-[92vh] sm:max-h-[90vh] bg-white text-slate-900 max-sm:rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col my-0 sm:my-auto animate-in zoom-in-95 duration-200">
           
           {/* ── Modal Top Header & Actions ── */}
           <div className="px-4 py-3 sm:px-5 sm:py-3.5 bg-white border-b border-slate-200/90 flex items-center justify-between gap-2.5 shrink-0 select-none print:hidden">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-3 min-w-0">
               <div
-                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                  isRefund ? "bg-rose-500/10 text-rose-600" : "bg-[#2C4B8A]/10 text-[#2C4B8A]"
-                }`}
+                className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-[#EFF6FF]"
               >
-                {isRefund ? <RefreshCcw className="w-4 h-4" /> : <Receipt className="w-4 h-4" />}
+                {isRefund ? (
+                  <RefreshCcw className="w-4 h-4 text-[#4C81E0]" />
+                ) : (
+                  <Receipt className="w-4 h-4 text-[#4C81E0]" />
+                )}
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
-                    {isRefund ? "Refund Transaction Voucher" : "Official Payment Receipt"}
-                  </h3>
-                  <span className="text-[10px] font-mono font-semibold text-[#2C4B8A] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60 leading-none">
-                    {receiptNumber}
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
-                  {isRefund
-                    ? "Official Refund Acknowledgment"
-                    : "Official Customer Acknowledgment"}
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
+                  {isRefund ? "Refund Voucher" : "Payment Receipt"}
+                </h3>
+                <p className="text-xs text-slate-500 leading-tight font-mono tabular-nums mt-0.5">
+                  {receiptNumber}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               <Button
                 size="sm"
                 onClick={handlePrint}
-                className="h-8 px-2.5 sm:px-3 text-xs font-semibold bg-[#2C4B8A] hover:bg-[#203766] text-white gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                className="h-8 px-2.5 sm:px-3 text-xs font-semibold bg-[#4C81E0] hover:bg-[#3b6ecc] text-white gap-1.5 shadow-2xs transition-colors cursor-pointer"
                 title={isRefund ? "Print Refund Voucher or Save as PDF" : "Print Receipt or Save as PDF"}
               >
                 <Printer className="w-3.5 h-3.5" />
@@ -93,7 +88,7 @@ export default function CustomerReceiptModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
                 aria-label="Close receipt"
               >
                 <X className="w-4 h-4" />
@@ -102,7 +97,7 @@ export default function CustomerReceiptModal({
           </div>
 
           {/* ── Scrollable Document Preview Workspace ── */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-5 [scrollbar-width:thin]">
+          <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5 [scrollbar-width:thin] bg-white">
             <CateringReceiptDocument
               payment={payment}
               booking={booking}
@@ -111,6 +106,17 @@ export default function CustomerReceiptModal({
               isAdmin={false}
               isPrint={false}
             />
+          </div>
+
+          {/* ── Bottom Sheet Done Footer matching Mobile ── */}
+          <div className="px-5 py-3 sm:px-6 sm:py-3.5 border-t border-slate-100 bg-white select-none print:hidden shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full h-11 bg-[#4C81E0] hover:bg-[#3b6ecc] text-white font-bold rounded-xl flex items-center justify-center text-sm transition-colors shadow-xs cursor-pointer"
+            >
+              Done
+            </button>
           </div>
         </div>
       </div>

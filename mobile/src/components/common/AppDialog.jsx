@@ -195,93 +195,98 @@ export const AppDialog = ({
   if (!visible) return null;
 
   const dialogContent = (
-    <TouchableWithoutFeedback onPress={handleBackdropPress}>
-      <View style={styles.backdrop}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.keyboardContainer}
-          enabled={false}
-        >
-          <TouchableWithoutFeedback onPress={(e) => e.stopPropagation?.()}>
-            <View style={styles.dialogCard}>
-              {/* Visual Icon Badge */}
-              <View
-                style={[
-                  styles.iconCircle,
-                  {
-                    backgroundColor: toneConfig.iconBg,
-                    borderColor: toneConfig.iconBorder,
-                  },
-                ]}
-              >
-                <View style={styles.iconInner}>
-                  <IconComponent size={24} color={toneConfig.iconColor} />
-                </View>
-              </View>
-
-              {/* Dialog Title */}
-              {title ? <Text style={styles.title}>{title}</Text> : null}
-
-              {/* Scrollable Content Body to guarantee zero clipping on mobile screens */}
-              <ScrollView
-                style={styles.scrollArea}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                bounces={false}
-              >
-                {message ? <Text style={styles.message}>{message}</Text> : null}
-
-                {renderHighlight()}
-
-                {children}
-              </ScrollView>
-
-              {/* Mobile Action Buttons (Thumb-friendly vertical stack) */}
-              <View style={styles.buttonCol}>
-                <TouchableOpacity
-                  style={[
-                    styles.confirmBtn,
-                    { backgroundColor: toneConfig.confirmBtnBg },
-                    isLoading && styles.btnDisabled,
-                  ]}
-                  onPress={handleConfirm}
-                  disabled={isLoading}
-                  activeOpacity={0.82}
-                  accessibilityRole="button"
-                  accessibilityLabel={confirmText}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator size="small" color={toneConfig.confirmBtnText} />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.confirmBtnText,
-                        { color: toneConfig.confirmBtnText },
-                      ]}
-                    >
-                      {confirmText}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-
-                {cancelText ? (
-                  <TouchableOpacity
-                    style={[styles.cancelBtn, isLoading && styles.btnDisabled]}
-                    onPress={handleCancel}
-                    disabled={isLoading}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel={cancelText}
-                  >
-                    <Text style={styles.cancelBtnText}>{cancelText}</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
+    <View style={styles.backdrop}>
+      {dismissOnBackdrop && (
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={handleBackdropPress}
+          accessible={false}
+        />
+      )}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.keyboardContainer}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
+      >
+        <View style={styles.dialogCard}>
+          {/* Visual Icon Badge */}
+          <View
+            style={[
+              styles.iconCircle,
+              {
+                backgroundColor: toneConfig.iconBg,
+                borderColor: toneConfig.iconBorder,
+              },
+            ]}
+          >
+            <View style={styles.iconInner}>
+              <IconComponent size={24} color={toneConfig.iconColor} />
             </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
-      </View>
-    </TouchableWithoutFeedback>
+          </View>
+
+          {/* Dialog Title */}
+          {title ? <Text style={styles.title}>{title}</Text> : null}
+
+          {/* Scrollable Content Body to guarantee zero clipping on mobile screens */}
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            {message ? <Text style={styles.message}>{message}</Text> : null}
+
+            {renderHighlight()}
+
+            {children}
+          </ScrollView>
+
+          {/* Mobile Action Buttons (Thumb-friendly vertical stack) */}
+          <View style={styles.buttonCol}>
+            <TouchableOpacity
+              style={[
+                styles.confirmBtn,
+                { backgroundColor: toneConfig.confirmBtnBg },
+                isLoading && styles.btnDisabled,
+              ]}
+              onPress={handleConfirm}
+              disabled={isLoading}
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel={confirmText}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color={toneConfig.confirmBtnText} />
+              ) : (
+                <Text
+                  style={[
+                    styles.confirmBtnText,
+                    { color: toneConfig.confirmBtnText },
+                  ]}
+                >
+                  {confirmText}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {cancelText ? (
+              <TouchableOpacity
+                style={[styles.cancelBtn, isLoading && styles.btnDisabled]}
+                onPress={handleCancel}
+                disabled={isLoading}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={cancelText}
+              >
+                <Text style={styles.cancelBtnText}>{cancelText}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </View>
   );
 
   if (inline) {

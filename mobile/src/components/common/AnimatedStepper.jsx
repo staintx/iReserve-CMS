@@ -150,7 +150,7 @@ export const AnimatedStepper = ({
               size === "lg" && styles.valueLarge,
               disabled && styles.valueDisabled,
             ]}
-            value={textValue}
+            value={textValue || ""}
             onChangeText={handleChangeText}
             onFocus={() => setIsFocused(true)}
             onBlur={handleBlur}
@@ -215,10 +215,11 @@ const styles = StyleSheet.create({
     minWidth: 54,
     height: "100%",
     borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
   valueWrapperFocused: {
     backgroundColor: colors.white,
-    borderWidth: 1,
     borderColor: colors.primary,
   },
   valueInput: {

@@ -10,7 +10,6 @@ import {
   eventTypeForPackage,
   packagePriceParts,
   priceLabel,
-  serviceLabel,
 } from "../../lib/packageDisplay";
 import {
   isSpecialOffer,
@@ -360,10 +359,7 @@ export default function Packages() {
                 <div className="ls-card-grid">
                   {filtered.map((pkg) => {
                     const capacity = capacityLabel(pkg);
-                    const service = serviceLabel(pkg);
-                    const event = eventTypeForPackage(pkg);
                     const priceInfo = packagePriceParts(pkg);
-                    const categoryTag = event || service || pkg.package_type || "Package";
 
                     return (
                       <article className="ls-pkg ls-pkg--standard" key={pkg._id || pkg.name}>
@@ -379,7 +375,6 @@ export default function Packages() {
                               <Package size={34} strokeWidth={1.5} className="ls-pkg-empty-icon" aria-hidden="true" />
                             </div>
                           )}
-                          <span className="ls-pkg-tag">{categoryTag}</span>
                         </div>
 
                         <div className="ls-pkg-body">
@@ -521,7 +516,6 @@ function ComboCard({ offer, perPax, peso, navigate }) {
             <Package size={34} strokeWidth={1.5} className="ls-pkg-empty-icon" aria-hidden="true" />
           </div>
         )}
-        <span className="ls-pkg-tag ls-pkg-tag--combo">Combo Pack</span>
       </div>
 
       <div className="ls-pkg-body">

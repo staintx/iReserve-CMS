@@ -15,20 +15,25 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Sparkles,
-  ArrowUp,
-  Paperclip,
-  SlidersHorizontal,
-  Trash2,
+  Send,
   ChevronLeft,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography, shadows } from "../../constants/theme";
 import zelleApi from "../../api/zelle";
 
+const LOADING_PHASES = [
+  "Reading your catering inquiry...",
+  "Checking packages and availability...",
+  "Formatting personalized recommendations...",
+];
+
 const SUGGESTED_PROMPTS = [
+  "✨ Recommend wedding packages",
+  "📅 Is Dec 15 available?",
+  "💰 Package for 100 pax under ₱60k",
+  "📝 Help me draft an inquiry",
+  "🥩 What beef viands are available?",
   "What is the booking & deposit process?",
-  "Suggest a 100-guest wedding menu",
-  "Estimate total cost for 150 guests",
-  "What packages do you offer for birthdays?",
 ];
 
 export const ZelleChatScreen = ({ navigation }) => {
@@ -37,7 +42,9 @@ export const ZelleChatScreen = ({ navigation }) => {
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId] = useState(() => `mobile_zelle_${Date.now()}`);
+  const [conversationId, setConversationId] = useState(null);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
 
   const flatListRef = useRef(null);
 
@@ -45,7 +52,12 @@ export const ZelleChatScreen = ({ navigation }) => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
-    const showSub = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const showSub = Keyboard.addListener(showEvent, () => {
+      setKeyboardVisible(true);
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    });
     const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
 
     return () => {
@@ -54,12 +66,31 @@ export const ZelleChatScreen = ({ navigation }) => {
     };
   }, []);
 
+  // Dynamic multi-stage loading indicator while AI is generating
+  useEffect(() => {
+    if (!loading) {
+      setLoadingPhaseIndex(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setLoadingPhaseIndex((prev) => (prev + 1) % LOADING_PHASES.length);
+    }, 2200);
+
+    return () => clearInterval(interval);
+  }, [loading]);
+
   const handleSend = async (overrideText) => {
     const textToSend = typeof overrideText === "string" ? overrideText : inputText;
     const clean = textToSend.trim();
     if (!clean || loading) return;
 
-    const userMsg = { id: `user_${Date.now()}`, sender: "user", text: clean };
+    const userMsg = {
+      id: `user_${Date.now()}`,
+      sender: "user",
+      text: clean,
+      timestamp: Date.now(),
+    };
     setMessages((prev) => [...prev, userMsg]);
     setInputText("");
     setLoading(true);
@@ -68,23 +99,40 @@ export const ZelleChatScreen = ({ navigation }) => {
       const response = await zelleApi.chat({
         message: clean,
         session_id: sessionId,
+        conversation_id: conversationId || undefined,
       });
 
+      if (response?.conversation_id) {
+        setConversationId(response.conversation_id);
+      }
+
       const replyText =
+        response?.text ||
         response?.response ||
         response?.reply ||
         "I'm sorry, I couldn't generate a response. Please try again.";
-      const aiMsg = { id: `ai_${Date.now()}`, sender: "ai", text: replyText };
+      const aiMsg = {
+        id: `ai_${Date.now()}`,
+        sender: "ai",
+        text: replyText,
+        timestamp: Date.now(),
+      };
       setMessages((prev) => [...prev, aiMsg]);
-      flatListRef.current?.scrollToEnd({ animated: true });
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     } catch (err) {
       const errorMsg = {
         id: `err_${Date.now()}`,
         sender: "ai",
         text:
           "I'm having trouble connecting right now. Please check your network or try again.",
+        timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, errorMsg]);
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     } finally {
       setLoading(false);
     }
@@ -120,6 +168,36 @@ export const ZelleChatScreen = ({ navigation }) => {
           >
             {item.text}
           </Text>
+          {item.timestamp && (
+            <Text
+              style={[
+                styles.bubbleTime,
+                isAi ? styles.aiBubbleTime : styles.userBubbleTime,
+              ]}
+            >
+              {new Date(item.timestamp).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderLoadingFooter = () => {
+    if (!loading) return null;
+    return (
+      <View style={styles.loadingBubbleContainer}>
+        <View style={styles.aiAvatar}>
+          <Sparkles size={14} color={colors.primary} />
+        </View>
+        <View style={styles.loadingBubble}>
+          <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 8 }} />
+          <Text style={styles.loadingBubbleText}>
+            {LOADING_PHASES[loadingPhaseIndex]}
+          </Text>
         </View>
       </View>
     );
@@ -132,7 +210,7 @@ export const ZelleChatScreen = ({ navigation }) => {
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       enabled={Platform.OS === "ios"}
     >
-      {/* Header (Glovo Circular Back Button) */}
+      {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity
           onPress={() => {
@@ -152,20 +230,15 @@ export const ZelleChatScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <View style={styles.headerTitleCenter}>
-          <Text style={styles.headerTitle}>iReserve Assistant</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.headerTitle}>iReserve Assistant</Text>
+            <View style={styles.onlineDot} />
+          </View>
           <Text style={styles.headerSubtitle}>Powered by Caezelle AI</Text>
         </View>
 
-        <TouchableOpacity
-          onPress={() => setMessages([])}
-          style={styles.clearBtn}
-          activeOpacity={0.7}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel="Clear chat history"
-        >
-          <Trash2 size={18} color={colors.foregroundMuted} />
-        </TouchableOpacity>
+        {/* Right Spacer balances the Back button without a trash icon */}
+        <View style={styles.headerRightSpacer} />
       </View>
 
       {/* Main Chat Area */}
@@ -218,6 +291,7 @@ export const ZelleChatScreen = ({ navigation }) => {
                   isKeyboardVisible && styles.promptChipKeyboard,
                 ]}
                 onPress={() => handleSend(prompt)}
+                disabled={loading}
                 activeOpacity={0.7}
               >
                 <Text style={styles.promptChipText}>{prompt}</Text>
@@ -232,6 +306,7 @@ export const ZelleChatScreen = ({ navigation }) => {
           renderItem={renderBubble}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          ListFooterComponent={renderLoadingFooter}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -239,86 +314,77 @@ export const ZelleChatScreen = ({ navigation }) => {
         />
       )}
 
-      {loading && (
-        <View style={styles.typingIndicator}>
-          <Sparkles size={14} color={colors.primary} />
-          <Text style={styles.typingText}>Agent is drafting response...</Text>
+      {/* Quick Suggestions Strip (Zelle website style, visible when messages exist and keyboard is dismissed) */}
+      {!isKeyboardVisible && messages.length > 0 && (
+        <View style={styles.suggestionsBar}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.suggestionsScrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {SUGGESTED_PROMPTS.map((prompt, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={styles.suggestionPill}
+                onPress={() => handleSend(prompt)}
+                disabled={loading}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.suggestionPillText}>{prompt}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       )}
 
-      {/* Modern Chat Input Card */}
+      {/* Modern Chat Input Bar */}
       <View
         style={[
-          styles.inputWrapper,
+          styles.inputBar,
           {
             paddingBottom: isKeyboardVisible
-              ? spacing.xs
-              : Math.max(insets.bottom, spacing.xs) + spacing.xs,
+              ? Platform.OS === "ios"
+                ? spacing.xs
+                : spacing.sm
+              : Math.max(insets.bottom, spacing.sm),
           },
         ]}
       >
-        <View style={styles.inputCard}>
-          <TextInput
-            style={styles.textInput}
-            placeholder="How can I help you today?"
-            placeholderTextColor={colors.textSubtle}
-            value={inputText || ""}
-            onChangeText={setInputText}
-            multiline
-            maxLength={1000}
-            textAlignVertical="top"
-            scrollEnabled
-          />
+        <TextInput
+          style={styles.textInput}
+          placeholder="Ask Zelle about packages, dates, menu..."
+          placeholderTextColor={colors.textDisabled}
+          value={inputText}
+          onChangeText={setInputText}
+          multiline
+          maxLength={1000}
+          textAlignVertical="center"
+          returnKeyType="default"
+          blurOnSubmit={false}
+        />
 
-          <View style={styles.inputActionsRow}>
-            <View style={styles.mediaActionsLeft}>
-              <TouchableOpacity
-                style={styles.iconActionBtn}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityRole="button"
-                accessibilityLabel="Attach file"
-              >
-                <Paperclip size={18} color={colors.foregroundMuted} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.iconActionBtn}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                accessibilityRole="button"
-                accessibilityLabel="Assistant options"
-              >
-                <SlidersHorizontal size={18} color={colors.foregroundMuted} />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.sendBtn,
-                Boolean(inputText.trim()) && styles.sendBtnActive,
-              ]}
-              onPress={() => handleSend()}
-              disabled={!inputText.trim() || loading}
-              activeOpacity={0.8}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel="Send message"
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <ArrowUp
-                  size={16}
-                  color={inputText.trim() ? colors.white : colors.foregroundMuted}
-                />
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <Text style={styles.disclaimerText}>
-          Agent is AI and can make mistakes. Please double-check responses.
-        </Text>
+        <TouchableOpacity
+          style={[
+            styles.sendBtn,
+            inputText.trim() && !loading ? styles.sendBtnActive : styles.sendBtnDisabled,
+          ]}
+          onPress={() => handleSend()}
+          disabled={!inputText.trim() || loading}
+          activeOpacity={0.8}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color={colors.white} />
+          ) : (
+            <Send
+              size={18}
+              color={inputText.trim() ? colors.white : colors.textDisabled}
+            />
+          )}
+        </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
@@ -333,25 +399,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
     zIndex: 10,
-    elevation: 4,
+    elevation: 2,
   },
   backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.surfaceAlt,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  clearBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
@@ -364,15 +420,31 @@ const styles = StyleSheet.create({
   headerTitleCenter: {
     alignItems: "center",
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   headerTitle: {
     fontSize: typography.sizes.md,
     fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
+  onlineDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: colors.success,
+    marginLeft: 6,
+  },
   headerSubtitle: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
+    marginTop: 1,
+  },
+  headerRightSpacer: {
+    width: 38,
+    height: 38,
   },
   welcomeScrollView: {
     flex: 1,
@@ -386,8 +458,8 @@ const styles = StyleSheet.create({
   },
   welcomeContentContainerKeyboard: {
     justifyContent: "flex-start",
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
   },
   sparkleIconCircle: {
     width: 60,
@@ -399,10 +471,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   sparkleIconCircleKeyboard: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    marginBottom: spacing.xs,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginBottom: 4,
   },
   welcomeTitle: {
     fontSize: 22,
@@ -413,8 +485,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   welcomeTitleKeyboard: {
-    fontSize: 18,
-    lineHeight: 22,
+    fontSize: 17,
+    lineHeight: 21,
     marginBottom: 2,
   },
   welcomeDesc: {
@@ -428,7 +500,7 @@ const styles = StyleSheet.create({
   welcomeDescKeyboard: {
     fontSize: typography.sizes.xs,
     lineHeight: 16,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   promptList: {
     width: "100%",
@@ -440,12 +512,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.cardBorder,
     alignItems: "center",
     ...shadows.sm,
   },
   promptChipKeyboard: {
-    paddingVertical: 9,
+    paddingVertical: 8,
   },
   promptChipText: {
     fontSize: typography.sizes.sm,
@@ -454,8 +526,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   listContent: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.base,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
   },
   bubbleContainer: {
     flexDirection: "row",
@@ -505,84 +578,105 @@ const styles = StyleSheet.create({
   userText: {
     color: colors.white,
   },
-  typingIndicator: {
+  bubbleTime: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.regular,
+    marginTop: 4,
+    alignSelf: "flex-end",
+  },
+  aiBubbleTime: {
+    color: colors.textSubtle,
+  },
+  userBubbleTime: {
+    color: "rgba(255, 255, 255, 0.75)",
+  },
+  loadingBubbleContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    marginVertical: spacing.xs,
+    maxWidth: "84%",
+    alignSelf: "flex-start",
+  },
+  loadingBubble: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xs,
-    gap: 6,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: radius.lg,
+    borderTopLeftRadius: radius.xs,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.base,
   },
-  typingText: {
+  loadingBubbleText: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.medium,
     color: colors.foregroundMuted,
   },
-  /* Input Card */
-  inputWrapper: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xs,
-    backgroundColor: colors.background,
-  },
-  inputCard: {
+  /* Quick Suggestions */
+  suggestionsBar: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+    paddingVertical: spacing.xs,
+  },
+  suggestionsScrollContent: {
+    paddingHorizontal: spacing.md,
+    gap: spacing.xs,
+  },
+  suggestionPill: {
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    paddingHorizontal: spacing.sm,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.xs,
-    ...shadows.sm,
+  },
+  suggestionPillText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foreground,
+  },
+  /* Input Bar */
+  inputBar: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs + 2,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.cardBorder,
   },
   textInput: {
+    flex: 1,
     fontSize: typography.sizes.sm,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foreground,
-    minHeight: 38,
-    maxHeight: 110,
-    paddingHorizontal: spacing.xs,
-    paddingTop: Platform.OS === "ios" ? 4 : 2,
-    paddingBottom: 6,
-    textAlignVertical: "top",
-  },
-  inputActionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-    paddingTop: 6,
-    marginTop: 2,
-  },
-  mediaActionsLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  iconActionBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: 22,
+    paddingHorizontal: spacing.md,
+    paddingTop: Platform.OS === "ios" ? 10 : 8,
+    paddingBottom: Platform.OS === "ios" ? 10 : 8,
+    minHeight: 42,
+    maxHeight: 100,
+    marginRight: spacing.xs + 2,
+    textAlignVertical: "center",
   },
   sendBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceAlt,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.surfaceAlt,
   },
   sendBtnActive: {
     backgroundColor: colors.primary,
   },
-  disclaimerText: {
-    fontSize: 10,
-    fontFamily: typography.fontFamilies.regular,
-    color: colors.textSubtle,
-    textAlign: "center",
-    marginTop: 4,
-    marginBottom: 2,
+  sendBtnDisabled: {
+    backgroundColor: colors.surfaceAlt,
   },
 });
 

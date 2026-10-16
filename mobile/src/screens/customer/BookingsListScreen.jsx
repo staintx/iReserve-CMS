@@ -29,7 +29,6 @@ import useRealTimeRefresh from "../../utils/useRealTimeRefresh";
 import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
 import CustomerHeaderIcons from "../../components/customer/CustomerHeaderIcons";
-import AlertBanner from "../../components/common/AlertBanner";
 import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
@@ -190,28 +189,6 @@ export const BookingsListScreen = ({ navigation }) => {
 
     return groups;
   }, [packageServiceOptions, comboPackNames]);
-
-  // Calculate balance due across bookings
-  const { totalBalanceDue, dueBooking } = useMemo(() => {
-    let sum = 0;
-    let firstDue = null;
-
-    bookings.forEach((b) => {
-      const total = Number(b.total_price || b.total_amount || 0);
-      const paid = Number(b.deposit_paid || b.amount_paid || 0);
-      const remaining = total - paid;
-      const statusLower = String(b.status || "").toLowerCase();
-      if (
-        remaining > 0 &&
-        !["completed", "event completed", "cancelled", "canceled", "rejected", "refunded"].includes(statusLower)
-      ) {
-        sum += remaining;
-        if (!firstDue) firstDue = b;
-      }
-    });
-
-    return { totalBalanceDue: sum, dueBooking: firstDue };
-  }, [bookings]);
 
   // Compute status counts for filter dropdown (exact website categories only)
   const filterCounts = useMemo(() => {
@@ -626,19 +603,6 @@ export const BookingsListScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Payment Reminder Amber Banner (Preserved) */}
-      {totalBalanceDue > 0 && (
-        <View style={styles.bannerWrapper}>
-          <AlertBanner
-            message={`Payment needed. One booking has ${formatCurrency(
-              totalBalanceDue
-            )} still to pay.`}
-            actionLabel="Show them"
-            onPress={() => setIsPaymentDueOnly(true)}
-          />
-        </View>
-      )}
-
       {/* 1-Row Combined Search and Filter with Bottom Sheet */}
       <FilterSortBar
         searchQuery={searchQuery}
@@ -776,11 +740,6 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     lineHeight: 16,
-  },
-  bannerWrapper: {
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.xs,
-    backgroundColor: colors.surface,
   },
   /* List Content */
   listContent: {

@@ -26,6 +26,8 @@ import {
   Package,
   Check,
   ChevronLeft,
+  CreditCard,
+  Banknote,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography, shadows } from "../../constants/theme";
 import customerApi from "../../api/customer";
@@ -355,6 +357,32 @@ export const InquiryDetailScreen = ({ route, navigation }) => {
                 ) : null}
               </View>
             </View>
+
+            {inquiry.payment_method ? (
+              <>
+                <View style={styles.gridDivider} />
+                <View style={styles.venueRow}>
+                  <View style={styles.gridIconWrap}>
+                    {inquiry.payment_method === "online" ? (
+                      <CreditCard size={15} color={colors.primary} />
+                    ) : (
+                      <Banknote size={15} color="#D97706" />
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.gridItemLabel}>Preferred Payment Method</Text>
+                    <Text style={styles.gridItemValue}>
+                      {inquiry.payment_method === "online" ? "Online Payment" : "Cash Payment"}
+                    </Text>
+                    <Text style={styles.gridItemSub}>
+                      {inquiry.payment_method === "online"
+                        ? "GCash, Maya, or Card through PayMongo"
+                        : "Cash deposit in person or on-site coordination"}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            ) : null}
           </View>
         </View>
 

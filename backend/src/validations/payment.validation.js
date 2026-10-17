@@ -8,7 +8,7 @@ exports.paymentSchema = Joi.object({
   amount: monetaryRule("Amount", { min: 0.01, max: MAX_FINANCIAL_AMOUNT, required: true, allowZero: false }),
   payment_type: Joi.string().required(),
   method: Joi.string().required(),
-  proof_url: Joi.string().allow("").optional(),
+  proof_url: Joi.string().allow("", null).optional(),
   description: Joi.string().allow("").optional(),
   status: Joi.string().optional()
 }).unknown(true);
@@ -17,7 +17,7 @@ exports.paymentUpdateSchema = Joi.object({
   amount: monetaryRule("Amount", { min: 0, max: MAX_FINANCIAL_AMOUNT, required: false, allowZero: true }),
   payment_type: Joi.string().optional(),
   method: Joi.string().optional(),
-  proof_url: Joi.string().allow("").optional(),
+  proof_url: Joi.string().allow("", null).optional(),
   description: Joi.string().allow("").optional(),
   status: Joi.string().optional()
 }).unknown(true);

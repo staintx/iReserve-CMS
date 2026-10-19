@@ -2008,6 +2008,37 @@ exports.verifyReturns = asyncHandler(async (req, res) => {
 
   const { returns, damage_fee, damage_reason, mark_clean, additional_notes, inventory_id, equipment_return_id } =
     req.body;
+
+  if (Array.isArray(returns)) {
+    for (const ret of returns) {
+      const booked = Number(ret.quantity_booked || 0);
+      const returnedVal = Number(ret.quantity_returned !== undefined ? ret.quantity_returned : booked);
+      const damagedVal = Number(ret.quantity_damaged !== undefined ? ret.quantity_damaged : 0);
+      const missingVal = Number(ret.quantity_missing !== undefined ? ret.quantity_missing : 0);
+
+      if (!Number.isInteger(returnedVal) || returnedVal < 0) {
+        return res.status(400).json({
+          message: `Returned quantity for ${ret.name || 'equipment'} must be a valid non-negative whole number.`
+        });
+      }
+      if (!Number.isInteger(damagedVal) || damagedVal < 0) {
+        return res.status(400).json({
+          message: `Damaged quantity for ${ret.name || 'equipment'} must be a valid non-negative whole number.`
+        });
+      }
+      if (!Number.isInteger(missingVal) || missingVal < 0) {
+        return res.status(400).json({
+          message: `Missing quantity for ${ret.name || 'equipment'} must be a valid non-negative whole number.`
+        });
+      }
+      if (booked > 0 && returnedVal + damagedVal > booked) {
+        return res.status(400).json({
+          message: `Invalid return amount for ${ret.name || 'equipment'}. Returned (${returnedVal}) + Damaged (${damagedVal}) cannot exceed dispatched amount (${booked}).`
+        });
+      }
+    }
+  }
+
   const { reconcileEquipmentTurnover } = require("../utils/reconcileInventory");
 
   await reconcileEquipmentTurnover({

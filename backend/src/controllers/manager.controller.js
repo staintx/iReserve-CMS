@@ -707,14 +707,30 @@ exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
       const item = booking.equipment_returns.find(
         (eq) => String(eq.inventory_id) === String(ret.inventory_id) || String(eq._id) === String(ret._id)
       );
-      if (item) {
-        const returnedVal = Number(ret.quantity_returned !== undefined ? ret.quantity_returned : ret.quantity_booked || 0);
-        const damagedVal = Number(ret.quantity_damaged || 0);
-        if (returnedVal + damagedVal > item.quantity_booked) {
-          return res.status(400).json({
-            message: `Invalid return amount for ${item.name || 'equipment'}. Returned (${returnedVal}) + Damaged (${damagedVal}) cannot exceed dispatched amount (${item.quantity_booked}).`
-          });
-        }
+      const bookedQty = item ? item.quantity_booked : Number(ret.quantity_booked || 0);
+      const returnedVal = Number(ret.quantity_returned !== undefined ? ret.quantity_returned : bookedQty);
+      const damagedVal = Number(ret.quantity_damaged !== undefined ? ret.quantity_damaged : 0);
+      const missingVal = Number(ret.quantity_missing !== undefined ? ret.quantity_missing : 0);
+
+      if (!Number.isInteger(returnedVal) || returnedVal < 0) {
+        return res.status(400).json({
+          message: `Returned quantity for ${ret.name || item?.name || 'equipment'} must be a valid non-negative whole number.`
+        });
+      }
+      if (!Number.isInteger(damagedVal) || damagedVal < 0) {
+        return res.status(400).json({
+          message: `Damaged quantity for ${ret.name || item?.name || 'equipment'} must be a valid non-negative whole number.`
+        });
+      }
+      if (!Number.isInteger(missingVal) || missingVal < 0) {
+        return res.status(400).json({
+          message: `Missing quantity for ${ret.name || item?.name || 'equipment'} must be a valid non-negative whole number.`
+        });
+      }
+      if (bookedQty > 0 && returnedVal + damagedVal > bookedQty) {
+        return res.status(400).json({
+          message: `Invalid return amount for ${item?.name || ret.name || 'equipment'}. Returned (${returnedVal}) + Damaged (${damagedVal}) cannot exceed dispatched amount (${bookedQty}).`
+        });
       }
     }
 
@@ -868,10 +884,13 @@ const syncChecklistToReturns = (booking, actorId) => {
       ret.verified_at = null;
       ret.verified_by = null;
     } else if (c.status === "inspected_ok" || c.status === "complete") {
+      const retQty = typeof c.quantity_returned === "number" && c.quantity_returned >= 0
+        ? Math.min(bookedQty, c.quantity_returned)
+        : bookedQty;
       ret.verification_status = "verified_ok";
-      ret.quantity_returned = bookedQty;
+      ret.quantity_returned = retQty;
       ret.quantity_damaged = 0;
-      ret.quantity_missing = 0;
+      ret.quantity_missing = Math.max(0, bookedQty - retQty);
       ret.notes = c.notes || "Inspected in good condition";
       ret.issue_category = "";
       ret.verified_at = c.completed_at || new Date();
@@ -882,21 +901,35 @@ const syncChecklistToReturns = (booking, actorId) => {
       ret.verified_at = c.completed_at || new Date();
       ret.verified_by = c.completed_by || actorId;
 
+      const issueQty = typeof c.issue_quantity === "number" && c.issue_quantity >= 0
+        ? Math.min(bookedQty, c.issue_quantity)
+        : (c.issue_type === "damaged" && typeof c.quantity_damaged === "number"
+            ? Math.min(bookedQty, c.quantity_damaged)
+            : (c.issue_type === "missing" && typeof c.quantity_missing === "number"
+                ? Math.min(bookedQty, c.quantity_missing)
+                : bookedQty));
+
       if (c.issue_type === "missing") {
         ret.issue_category = "missing";
-        ret.quantity_missing = bookedQty;
+        ret.quantity_missing = issueQty;
         ret.quantity_damaged = 0;
-        ret.quantity_returned = 0;
+        ret.quantity_returned = typeof c.quantity_returned === "number"
+          ? Math.min(bookedQty - issueQty, Math.max(0, c.quantity_returned))
+          : Math.max(0, bookedQty - issueQty);
       } else if (c.issue_type === "damaged") {
         ret.issue_category = "damaged";
-        ret.quantity_damaged = bookedQty;
+        ret.quantity_damaged = issueQty;
         ret.quantity_missing = 0;
-        ret.quantity_returned = 0;
+        ret.quantity_returned = typeof c.quantity_returned === "number"
+          ? Math.min(bookedQty - issueQty, Math.max(0, c.quantity_returned))
+          : Math.max(0, bookedQty - issueQty);
       } else {
         ret.issue_category = "other";
-        ret.quantity_damaged = bookedQty;
+        ret.quantity_damaged = issueQty;
         ret.quantity_missing = 0;
-        ret.quantity_returned = 0;
+        ret.quantity_returned = typeof c.quantity_returned === "number"
+          ? Math.min(bookedQty - issueQty, Math.max(0, c.quantity_returned))
+          : Math.max(0, bookedQty - issueQty);
       }
     }
   });
@@ -937,6 +970,10 @@ exports.updateEquipmentChecklist = asyncHandler(async (req, res) => {
       is_inspected: Boolean(c.is_inspected),
       status: ["not_inspected", "inspected_ok", "issue_reported", "incomplete", "complete"].includes(c.status) ? c.status : "not_inspected",
       issue_type: ["none", "damaged", "missing", "quantity_mismatch", "needs_repair", "other"].includes(c.issue_type) ? c.issue_type : "none",
+      issue_quantity: typeof c.issue_quantity === "number" && Number.isInteger(c.issue_quantity) && c.issue_quantity >= 0 ? c.issue_quantity : undefined,
+      quantity_returned: typeof c.quantity_returned === "number" && Number.isInteger(c.quantity_returned) && c.quantity_returned >= 0 ? c.quantity_returned : undefined,
+      quantity_damaged: typeof c.quantity_damaged === "number" && Number.isInteger(c.quantity_damaged) && c.quantity_damaged >= 0 ? c.quantity_damaged : undefined,
+      quantity_missing: typeof c.quantity_missing === "number" && Number.isInteger(c.quantity_missing) && c.quantity_missing >= 0 ? c.quantity_missing : undefined,
       notes: typeof c.notes === "string" ? c.notes : "",
       completed_at: c.completed_at || (c.status === "inspected_ok" || c.status === "complete" || c.status === "incomplete" || c.is_complete ? new Date() : null),
       completed_by: req.user._id
@@ -944,6 +981,44 @@ exports.updateEquipmentChecklist = asyncHandler(async (req, res) => {
   } else if (item && item.item_key) {
     if (item.status === "incomplete" && (!item.notes || !String(item.notes).trim())) {
       return res.status(400).json({ message: "An issue description is required before marking an item as Incomplete." });
+    }
+
+    let issueQty = undefined;
+    if (item.issue_quantity !== undefined && item.issue_quantity !== null && item.issue_quantity !== "") {
+      issueQty = Number(item.issue_quantity);
+      if (isNaN(issueQty) || !Number.isInteger(issueQty) || issueQty < 0) {
+        return res.status(400).json({ message: "Quantity must be a valid non-negative whole number." });
+      }
+      if (typeof item.quantity === "number" && item.quantity > 0 && issueQty > item.quantity) {
+        return res.status(400).json({ message: `Quantity (${issueQty}) cannot exceed allocated quantity (${item.quantity}).` });
+      }
+    }
+
+    let retQty = undefined;
+    if (item.quantity_returned !== undefined && item.quantity_returned !== null && item.quantity_returned !== "") {
+      retQty = Number(item.quantity_returned);
+      if (isNaN(retQty) || !Number.isInteger(retQty) || retQty < 0) {
+        return res.status(400).json({ message: "Returned quantity must be a valid non-negative whole number." });
+      }
+      if (typeof item.quantity === "number" && item.quantity > 0 && retQty > item.quantity) {
+        return res.status(400).json({ message: `Returned quantity (${retQty}) cannot exceed allocated quantity (${item.quantity}).` });
+      }
+    }
+
+    let damQty = undefined;
+    if (item.quantity_damaged !== undefined && item.quantity_damaged !== null && item.quantity_damaged !== "") {
+      damQty = Number(item.quantity_damaged);
+      if (isNaN(damQty) || !Number.isInteger(damQty) || damQty < 0) {
+        return res.status(400).json({ message: "Damaged quantity must be a valid non-negative whole number." });
+      }
+    }
+
+    let misQty = undefined;
+    if (item.quantity_missing !== undefined && item.quantity_missing !== null && item.quantity_missing !== "") {
+      misQty = Number(item.quantity_missing);
+      if (isNaN(misQty) || !Number.isInteger(misQty) || misQty < 0) {
+        return res.status(400).json({ message: "Missing quantity must be a valid non-negative whole number." });
+      }
     }
 
     if (!Array.isArray(booking.equipment_checklist)) {
@@ -967,6 +1042,10 @@ exports.updateEquipmentChecklist = asyncHandler(async (req, res) => {
       is_inspected: isInspected,
       status: status,
       issue_type: item.issue_type || "none",
+      issue_quantity: issueQty,
+      quantity_returned: retQty,
+      quantity_damaged: damQty,
+      quantity_missing: misQty,
       notes: item.notes !== undefined ? String(item.notes) : "",
       completed_at: completedAt,
       completed_by: isInspected ? req.user._id : null,

@@ -212,8 +212,8 @@ export default function AppRoutes() {
           {/* Manager (protected by role) */}
           <Route path="/manager/dashboard" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerDashboard /></ProtectedRoute>} />
           <Route path="/manager/bookings" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerBookings /></ProtectedRoute>} />
-          <Route path="/manager/events/:id" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerEventDetails /></ProtectedRoute>} />
-          <Route path="/manager/bookings/:id" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerEventDetails /></ProtectedRoute>} />
+          <Route path="/manager/events/:id" element={<ProtectedRoute allowedRoles={adminManagerOnly}><ManagerEventDetails /></ProtectedRoute>} />
+          <Route path="/manager/bookings/:id" element={<ProtectedRoute allowedRoles={adminManagerOnly}><ManagerEventDetails /></ProtectedRoute>} />
           <Route path="/manager/staff" element={<Navigate to="/manager/dashboard" replace />} />
 
           {/* Staff (protected by role) */}

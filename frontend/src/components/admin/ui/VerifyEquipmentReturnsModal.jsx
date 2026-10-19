@@ -68,14 +68,18 @@ export default function VerifyEquipmentReturnsModal({
         const isDamaged = item.issue_type === "damaged";
         const isMissing = item.issue_type === "missing";
         const isIssue = item.status === "incomplete" || item.status === "issue_reported" || (item.issue_type && item.issue_type !== "none");
+        const issueQty = Number(item.issue_quantity !== undefined ? item.issue_quantity : (item.quantity_damaged || item.quantity_missing || (isIssue ? booked : 0)));
+        const returnedQty = Number(item.quantity_returned !== undefined ? item.quantity_returned : (isIssue ? Math.max(0, booked - issueQty) : booked));
+        const damagedQty = Number(item.quantity_damaged !== undefined ? item.quantity_damaged : (isDamaged ? issueQty : (isIssue && !isMissing ? issueQty : 0)));
+
         itemMap.set(key, {
           _id: item._id,
           item_key: item.item_key,
           name: item.name || "Equipment Item",
           category: item.category || "Equipment",
           quantity_booked: booked,
-          quantity_returned: isIssue ? 0 : booked,
-          quantity_damaged: isDamaged ? booked : (isIssue && !isMissing ? booked : 0),
+          quantity_returned: returnedQty,
+          quantity_damaged: damagedQty,
           notes: item.notes || "",
         });
       }
@@ -203,16 +207,26 @@ export default function VerifyEquipmentReturnsModal({
       const booked = Number(item.quantity_booked || 0);
 
       if (field === "quantity_returned") {
-        const val = Math.max(0, Math.min(booked, Number(value) || 0));
-        item.quantity_returned = val;
-        if (val + Number(item.quantity_damaged || 0) > booked) {
-          item.quantity_damaged = Math.max(0, booked - val);
+        if (value === "") {
+          item.quantity_returned = "";
+        } else {
+          const num = Math.floor(Number(value));
+          const val = Math.max(0, Math.min(booked, isNaN(num) ? 0 : num));
+          item.quantity_returned = val;
+          if (val + Number(item.quantity_damaged || 0) > booked) {
+            item.quantity_damaged = Math.max(0, booked - val);
+          }
         }
       } else if (field === "quantity_damaged") {
-        const val = Math.max(0, Math.min(booked, Number(value) || 0));
-        item.quantity_damaged = val;
-        if (val + Number(item.quantity_returned || 0) > booked) {
-          item.quantity_returned = Math.max(0, booked - val);
+        if (value === "") {
+          item.quantity_damaged = "";
+        } else {
+          const num = Math.floor(Number(value));
+          const val = Math.max(0, Math.min(booked, isNaN(num) ? 0 : num));
+          item.quantity_damaged = val;
+          if (val + Number(item.quantity_returned || 0) > booked) {
+            item.quantity_returned = Math.max(0, booked - val);
+          }
         }
       } else {
         item[field] = value;
@@ -232,6 +246,17 @@ export default function VerifyEquipmentReturnsModal({
       notify("Resulting total amount cannot exceed ₱10,000,000.", "error");
       return;
     }
+
+    for (const i of items) {
+      const booked = Number(i.quantity_booked || 0);
+      const ret = Number(i.quantity_returned === "" ? 0 : i.quantity_returned);
+      const dam = Number(i.quantity_damaged === "" ? 0 : i.quantity_damaged);
+      if (!Number.isInteger(ret) || ret < 0 || !Number.isInteger(dam) || dam < 0 || (ret + dam) > booked) {
+        notify(`Please enter valid whole numbers for ${i.name} (returned + damaged must not exceed ${booked}).`, "error");
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {

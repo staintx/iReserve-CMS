@@ -66,7 +66,7 @@ export default function ManagerEventDetailsModal({
   const [equipmentList, setEquipmentList] = useState([]);
   const [savingItemIndex, setSavingItemIndex] = useState(null);
   const [editingItemIndex, setEditingItemIndex] = useState(null);
-  const [itemIssueDraft, setItemIssueDraft] = useState({ category: "missing", note: "" });
+  const [itemIssueDraft, setItemIssueDraft] = useState({ category: "missing", note: "", quantity: 1 });
 
   // Booking items & services overview collapse
   const [viewAllBookingItems, setViewAllBookingItems] = useState(false);
@@ -139,22 +139,36 @@ export default function ManagerEventDetailsModal({
           status = "verified_ok";
         }
 
+        const damaged = Number(ret.quantity_damaged || 0);
+        const missing = Number(ret.quantity_missing || 0);
+        const returned = Number(ret.quantity_returned !== undefined ? ret.quantity_returned : (rawStatus === "verified_ok" ? booked : Math.max(0, booked - damaged - missing)));
+        const issueQty = damaged > 0 ? damaged : (missing > 0 ? missing : (status === "issue_recorded" ? 1 : 0));
+
         initialEquipment.push({
           _id: ret._id,
           inventory_id: ret.inventory_id?._id || ret.inventory_id || null,
           name: ret.name || ret.inventory_id?.item_name || "Equipment Item",
           quantity_booked: booked,
+          quantity_returned: returned,
+          quantity_damaged: damaged,
+          quantity_missing: missing,
+          issue_quantity: issueQty,
           verification_status: status,
-          issue_category: ret.issue_category || (Number(ret.quantity_damaged || 0) > 0 ? "damaged" : "missing"),
+          issue_category: ret.issue_category || (damaged > 0 ? "damaged" : (missing > 0 ? "missing" : "damaged")),
           notes: ret.notes || ""
         });
       });
     } else if (inventoryItems.length > 0) {
       inventoryItems.forEach((item) => {
+        const qty = Number(item.quantity || 1);
         initialEquipment.push({
           inventory_id: item.inventory_id?._id || item.inventory_id || null,
           name: item.name || item.inventory_id?.item_name || "Equipment Item",
-          quantity_booked: Number(item.quantity || 1),
+          quantity_booked: qty,
+          quantity_returned: 0,
+          quantity_damaged: 0,
+          quantity_missing: 0,
+          issue_quantity: 0,
           verification_status: "pending",
           issue_category: "",
           notes: ""
@@ -164,7 +178,7 @@ export default function ManagerEventDetailsModal({
 
     setEquipmentList(initialEquipment);
     setEditingItemIndex(null);
-    setItemIssueDraft({ category: "missing", note: "" });
+    setItemIssueDraft({ category: "missing", note: "", quantity: 1 });
     setActiveSubView("equipment");
     setViewAllBookingItems(false);
   }, [booking]);
@@ -340,14 +354,42 @@ export default function ManagerEventDetailsModal({
   const persistEquipmentList = async (updatedList) => {
     const payloadReturns = updatedList.map((item) => {
       const isPending = item.verification_status === "pending";
+      const isOk = item.verification_status === "verified_ok";
+      const isIssue = item.verification_status === "issue_recorded";
+      const booked = Number(item.quantity_booked || 1);
+
+      let returnedVal = 0;
+      let damagedVal = 0;
+      let missingVal = 0;
+
+      if (isPending) {
+        returnedVal = 0;
+        damagedVal = 0;
+        missingVal = 0;
+      } else if (isOk) {
+        returnedVal = booked;
+        damagedVal = 0;
+        missingVal = 0;
+      } else if (isIssue) {
+        const issueQty = Number(item.issue_quantity !== undefined ? item.issue_quantity : (item.quantity_damaged || item.quantity_missing || 1));
+        if (item.issue_category === "missing") {
+          missingVal = issueQty;
+          damagedVal = 0;
+        } else {
+          damagedVal = issueQty;
+          missingVal = 0;
+        }
+        returnedVal = Math.max(0, booked - issueQty);
+      }
+
       return {
         _id: item._id,
         inventory_id: item.inventory_id,
         name: item.name,
-        quantity_booked: item.quantity_booked,
-        quantity_returned: isPending ? 0 : item.quantity_booked,
-        quantity_damaged: 0,
-        quantity_missing: 0,
+        quantity_booked: booked,
+        quantity_returned: returnedVal,
+        quantity_damaged: damagedVal,
+        quantity_missing: missingVal,
         verification_status: item.verification_status,
         issue_category: item.issue_category || "",
         notes: item.notes || ""
@@ -372,6 +414,10 @@ export default function ManagerEventDetailsModal({
         ...updatedList[index],
         verification_status: "verified_ok",
         issue_category: "",
+        issue_quantity: 0,
+        quantity_returned: Number(updatedList[index].quantity_booked || 1),
+        quantity_damaged: 0,
+        quantity_missing: 0,
         notes: ""
       };
 
@@ -410,9 +456,13 @@ export default function ManagerEventDetailsModal({
   const handleOpenReportIssue = (index) => {
     const item = equipmentList[index];
     setEditingItemIndex(index);
+    const existingQty = item.issue_quantity !== undefined && item.issue_quantity > 0
+      ? item.issue_quantity
+      : (item.quantity_damaged || item.quantity_missing || (item.quantity_booked ? 1 : 1));
     setItemIssueDraft({
       category: item.issue_category || "missing",
-      note: item.notes || ""
+      note: item.notes || "",
+      quantity: existingQty > 0 ? existingQty : 1
     });
   };
 
@@ -442,6 +492,7 @@ export default function ManagerEventDetailsModal({
   // Item Verification: Save Reported Issue / Note
   const handleSaveIssue = async (index) => {
     if (!booking || savingItemIndex !== null) return;
+    const item = equipmentList[index];
     const cleanNote = itemIssueDraft.note.trim();
 
     if (!cleanNote) {
@@ -449,14 +500,30 @@ export default function ManagerEventDetailsModal({
       return;
     }
 
+    const booked = Number(item.quantity_booked || 1);
+    const issueQty = Number(itemIssueDraft.quantity);
+
+    if (!Number.isInteger(issueQty) || issueQty < 1 || (booked > 0 && issueQty > booked)) {
+      notify(`Quantity affected must be a valid whole number between 1 and ${booked}.`, "error");
+      return;
+    }
+
     setSavingItemIndex(index);
     const updatedList = [...equipmentList];
     const isCategoryIssue = itemIssueDraft.category === "missing" || itemIssueDraft.category === "damaged";
+
+    const damagedQty = itemIssueDraft.category === "damaged" ? issueQty : 0;
+    const missingQty = itemIssueDraft.category === "missing" ? issueQty : 0;
+    const returnedQty = Math.max(0, booked - issueQty);
 
     updatedList[index] = {
       ...updatedList[index],
       verification_status: isCategoryIssue ? "issue_recorded" : "verified_ok",
       issue_category: itemIssueDraft.category,
+      issue_quantity: issueQty,
+      quantity_returned: returnedQty,
+      quantity_damaged: damagedQty,
+      quantity_missing: missingQty,
       notes: cleanNote
     };
 
@@ -466,7 +533,7 @@ export default function ManagerEventDetailsModal({
       setEditingItemIndex(null);
       notify(
         isCategoryIssue
-          ? `Problem recorded for "${updatedList[index].name}".`
+          ? `Problem (${issueQty} ${itemIssueDraft.category}) recorded for "${updatedList[index].name}".`
           : `Note saved for "${updatedList[index].name}".`,
         "success"
       );
@@ -496,6 +563,10 @@ export default function ManagerEventDetailsModal({
           ...updatedList[index],
           verification_status: "pending",
           issue_category: "",
+          issue_quantity: 0,
+          quantity_returned: 0,
+          quantity_damaged: 0,
+          quantity_missing: 0,
           notes: ""
         };
 
@@ -1377,6 +1448,20 @@ export default function ManagerEventDetailsModal({
                           </strong>
                           <span className="text-xs text-slate-500">
                             Expected back: <strong className="text-slate-800 font-semibold">{item.quantity_booked} units</strong>
+                            {isIssueRecorded && item.issue_quantity ? (
+                              <span className="text-rose-700 font-semibold ml-2">
+                                · Affected: <strong>{item.issue_quantity} {item.issue_category || "damaged"}</strong>
+                                {item.quantity_booked > item.issue_quantity && (
+                                  <span className="text-emerald-700 font-normal ml-1">
+                                    ({item.quantity_booked - item.issue_quantity} returned good)
+                                  </span>
+                                )}
+                              </span>
+                            ) : isVerifiedOk ? (
+                              <span className="text-emerald-700 font-medium ml-2">
+                                · Returned: <strong>{item.quantity_returned ?? item.quantity_booked} units</strong>
+                              </span>
+                            ) : null}
                           </span>
                         </div>
 
@@ -1522,26 +1607,49 @@ export default function ManagerEventDetailsModal({
                             </button>
                           </div>
 
-                          {/* Category buttons */}
-                          <div className="space-y-1">
-                            <span className="text-[11px] font-bold text-slate-600 block">
-                              Issue Type
-                            </span>
-                            <div className="flex items-center gap-2">
-                              {["missing", "damaged", "other"].map((cat) => (
-                                <button
-                                  key={cat}
-                                  type="button"
-                                  onClick={() => setItemIssueDraft((d) => ({ ...d, category: cat }))}
-                                  className={`px-2.5 py-1 rounded-lg border text-xs capitalize font-semibold transition-all cursor-pointer ${
-                                    itemIssueDraft.category === cat
-                                      ? "bg-rose-50 text-rose-900 border-rose-300 shadow-2xs font-bold"
-                                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                                  }`}
-                                >
-                                  {cat}
-                                </button>
-                              ))}
+                          {/* Issue Type & Quantity Affected */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <span className="text-[11px] font-bold text-slate-600 block">
+                                Issue Type
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {["missing", "damaged", "other"].map((cat) => (
+                                  <button
+                                    key={cat}
+                                    type="button"
+                                    onClick={() => setItemIssueDraft((d) => ({ ...d, category: cat }))}
+                                    className={`flex-1 py-1 px-2 rounded-lg border text-xs capitalize font-semibold transition-all cursor-pointer ${
+                                      itemIssueDraft.category === cat
+                                        ? "bg-rose-50 text-rose-900 border-rose-300 shadow-2xs font-bold"
+                                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    {cat}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label htmlFor={`issue-qty-${idx}`} className="text-[11px] font-bold text-slate-600 block">
+                                Quantity Affected <span className="text-rose-600">*</span>
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  id={`issue-qty-${idx}`}
+                                  type="number"
+                                  min={1}
+                                  max={item.quantity_booked || 1}
+                                  step={1}
+                                  value={itemIssueDraft.quantity}
+                                  onChange={(e) => setItemIssueDraft((d) => ({ ...d, quantity: e.target.value }))}
+                                  className="w-20 rounded-lg border border-slate-300 bg-white p-1 text-xs text-slate-900 font-bold text-center focus:outline-none focus:ring-1 focus:ring-[#4c81e0] focus:border-[#4c81e0]"
+                                />
+                                <span className="text-[11px] text-slate-500">
+                                  of {item.quantity_booked} expected
+                                </span>
+                              </div>
                             </div>
                           </div>
 

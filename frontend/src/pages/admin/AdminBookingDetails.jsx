@@ -179,14 +179,20 @@ export default function AdminBookingDetails() {
         const isDamaged = item.issue_type === "damaged";
         const isMissing = item.issue_type === "missing";
         const isIssue = item.status === "incomplete" || item.status === "issue_reported" || (item.issue_type && item.issue_type !== "none");
+        const issueQty = Number(item.issue_quantity !== undefined ? item.issue_quantity : (item.quantity_damaged || item.quantity_missing || (isIssue ? booked : 0)));
+        const returnedQty = Number(item.quantity_returned !== undefined ? item.quantity_returned : (isIssue ? Math.max(0, booked - issueQty) : (item.is_inspected ? booked : 0)));
+        const damagedQty = Number(item.quantity_damaged !== undefined ? item.quantity_damaged : (isDamaged ? issueQty : (isIssue && !isMissing ? issueQty : 0)));
+        const missingQty = Number(item.quantity_missing !== undefined ? item.quantity_missing : (isMissing ? issueQty : 0));
+
         itemMap.set(key, {
           _id: item._id,
           name: item.name || "Equipment Item",
           category: item.category || "Equipment",
           quantity_assigned: booked,
-          quantity_returned: isIssue ? 0 : (item.is_inspected ? booked : 0),
-          quantity_damaged: isDamaged ? booked : (isIssue && !isMissing ? booked : 0),
-          quantity_missing: isMissing ? booked : 0,
+          quantity_returned: returnedQty,
+          quantity_damaged: damagedQty,
+          quantity_missing: missingQty,
+          issue_quantity: issueQty,
           notes: item.notes || "",
           verified_at: item.completed_at || null,
           verified_by: item.completed_by || null,
@@ -537,7 +543,8 @@ export default function AdminBookingDetails() {
       setDamageFeeReason(rawReason);
     } else {
       setDamageFeeInput("");
-      const defaultReason = `${item.quantity_damaged || item.quantity_missing || 1}x ${item.name}${item.notes ? `: ${item.notes}` : " damage / loss"}`;
+      const issueCount = item.issue_quantity || item.quantity_damaged || item.quantity_missing || 1;
+      const defaultReason = `${issueCount}x ${item.name}${item.notes ? `: ${item.notes}` : " damage / loss"}`;
       setDamageFeeReason(defaultReason);
     }
     setShowDamageChargeModal(true);
@@ -2810,9 +2817,19 @@ export default function AdminBookingDetails() {
                                         <Boxes size={14} className="text-rose-600 shrink-0" />
                                         <span>{item.name}</span>
                                       </h4>
-                                      <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                                      <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
                                         {item.quantity ? `${item.quantity} ${item.unit || "pcs"} • ` : ""}{item.category || "Equipment"}
                                       </span>
+                                      {item.issue_quantity ? (
+                                        <span className="text-[10.5px] text-rose-700 font-bold block mt-0.5">
+                                          Affected: {item.issue_quantity} {item.issue_type === "missing" ? "missing" : "damaged"}
+                                          {item.quantity && item.quantity > item.issue_quantity && (
+                                            <span className="text-emerald-700 font-normal ml-1">
+                                              ({item.quantity - item.issue_quantity} returned good)
+                                            </span>
+                                          )}
+                                        </span>
+                                      ) : null}
                                     </div>
                                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1 shrink-0">
                                       <AlertTriangle size={10} /> Incomplete – Issue Reported
@@ -2875,6 +2892,11 @@ export default function AdminBookingDetails() {
                                       <span className="text-[10px] text-muted-foreground truncate block">
                                         {item.quantity ? `${item.quantity} ${item.unit || "pcs"} • ` : ""}{item.category || "Equipment"}
                                       </span>
+                                      {item.quantity ? (
+                                        <span className="text-[10px] text-emerald-700 font-medium block">
+                                          {item.quantity_returned ?? item.quantity} returned in good condition
+                                        </span>
+                                      ) : null}
                                     </div>
                                     <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shrink-0">
                                       <CheckCircle2 size={10} /> No issue reported

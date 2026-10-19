@@ -1417,18 +1417,24 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     const isLegacyPax = rawUnit.toLowerCase() === "pax";
     const standardUnit = findStandardPortionUnit(rawUnit);
     const isCustom = Boolean(rawUnit && !isLegacyPax && !standardUnit);
-    setMenuItems((prev) => [
-      ...prev,
-      menuRow({
-        name: dish.name,
-        category: dish.category || "",
-        price: dish.price ? String(dish.price) : "",
-        unit: isLegacyPax ? "" : rawUnit,
-        isCustomUnit: isCustom,
-        quantity: 1,
-        image_url: dish.image_url || "",
-      }),
-    ]);
+    setMenuItems((prev) => {
+      const alreadyActive = prev.some(
+        (m) => !m.removed && (m.name || "").trim().toLowerCase() === (dish.name || "").trim().toLowerCase()
+      );
+      if (alreadyActive) return prev;
+      return [
+        ...prev,
+        menuRow({
+          name: dish.name,
+          category: dish.category || "",
+          price: dish.price ? String(dish.price) : "",
+          unit: isLegacyPax ? "" : rawUnit,
+          isCustomUnit: isCustom,
+          quantity: 1,
+          image_url: dish.image_url || "",
+        }),
+      ];
+    });
   };
 
   const handleAddCustomDish = (name) => {

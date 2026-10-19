@@ -804,11 +804,11 @@ export default function CateringReceiptDocument({
       </div>
 
       {/* Payment Proof Button (Admin Only, if proof image exists) */}
-      {isAdmin && (payment.proof_image || payment.proof_of_payment) && onViewProof && (
+      {isAdmin && (payment.proof_url || payment.proof_image || payment.proof_of_payment) && onViewProof && (
         <div className="mb-4">
           <button
             type="button"
-            onClick={() => onViewProof(payment.proof_image || payment.proof_of_payment)}
+            onClick={() => onViewProof(payment.proof_url || payment.proof_image || payment.proof_of_payment)}
             className="w-full py-2 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             <ImageIcon className="w-3.5 h-3.5 text-slate-500" />

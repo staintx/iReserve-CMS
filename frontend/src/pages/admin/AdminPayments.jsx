@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { 
   Eye, 
   Download, 
@@ -32,7 +32,10 @@ import {
   PlusCircle,
   BookmarkCheck,
   CheckCheck,
-  CircleDollarSign
+  CircleDollarSign,
+  Paperclip,
+  Upload,
+  Trash2
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -85,6 +88,14 @@ export default function AdminPayments() {
   const [proofModalUrl, setProofModalUrl] = useState(null);
   const [approveTarget, setApproveTarget] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [uploadingProof, setUploadingProof] = useState(false);
+  const drawerProofInputRef = useRef(null);
+
+  const isPdfUrl = (url) => {
+    if (!url || typeof url !== "string") return false;
+    const clean = url.split("?")[0].toLowerCase();
+    return clean.endsWith(".pdf") || clean.includes("/pdf/") || clean.includes(".pdf");
+  };
 
   const loadData = async (showToast = false) => {
     if (showToast) setRefreshing(true);
@@ -410,6 +421,64 @@ export default function AdminPayments() {
     }
   };
 
+  const handleUploadProofForDrawer = async (file) => {
+    if (!file || !drawerRow) return;
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"];
+    if (!allowedTypes.includes(file.type)) {
+      notify("Please upload a valid image (JPG, PNG, WEBP, GIF) or PDF document.", "error");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      notify("File size exceeds 5MB limit.", "error");
+      return;
+    }
+
+    setUploadingProof(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await AdminAPI.uploadPaymentProof(formData);
+      const url = res.data?.url;
+      if (!url) throw new Error("No URL returned from server.");
+
+      await AdminAPI.updatePayment(drawerRow._id, { proof_url: url });
+      notify("Proof of payment uploaded successfully!", "success");
+
+      setDrawerRow((prev) => (prev ? { ...prev, proof_url: url } : prev));
+      setPayments((prev) =>
+        prev.map((p) => (p._id === drawerRow._id ? { ...p, proof_url: url } : p))
+      );
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to upload proof of payment.", "error");
+    } finally {
+      setUploadingProof(false);
+      if (drawerProofInputRef.current) drawerProofInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveProofForDrawer = async () => {
+    if (!drawerRow) return;
+    if (!window.confirm("Are you sure you want to remove the proof of payment from this transaction?")) {
+      return;
+    }
+
+    setUploadingProof(true);
+    try {
+      await AdminAPI.updatePayment(drawerRow._id, { proof_url: "" });
+      notify("Proof of payment removed.", "success");
+      setDrawerRow((prev) => (prev ? { ...prev, proof_url: "" } : prev));
+      setPayments((prev) =>
+        prev.map((p) => (p._id === drawerRow._id ? { ...p, proof_url: "" } : p))
+      );
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to remove proof of payment.", "error");
+    } finally {
+      setUploadingProof(false);
+    }
+  };
+
   // CSV Export Handler
   const handleExportCSV = () => {
     if (filtered.length === 0) {
@@ -457,7 +526,19 @@ export default function AdminPayments() {
               ) : (
                 <FileText size={12} className="text-primary shrink-0" />
               )}
-              PAY-{p._id.slice(-6).toUpperCase()}
+              <span>PAY-{p._id.slice(-6).toUpperCase()}</span>
+              {Boolean(p.proof_url) && (
+                <span
+                  title="Proof of payment attached (Click to view)"
+                  className="text-primary/70 hover:text-primary transition-colors cursor-pointer ml-0.5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setProofModalUrl(p.proof_url);
+                  }}
+                >
+                  <Paperclip size={11} />
+                </span>
+              )}
             </div>
             <div className="text-[11px] text-gray-400 mt-0.5">{formatDate(p.paid_at || p.createdAt)}</div>
           </div>
@@ -921,6 +1002,31 @@ export default function AdminPayments() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </div>
+                        <div className="col-span-2 pt-1.5 border-t border-border/40">
+                          <span className="text-[10px] text-muted-foreground block font-medium">Proof of Payment</span>
+                          {drawerRow.proof_url ? (
+                            <button
+                              type="button"
+                              onClick={() => setProofModalUrl(drawerRow.proof_url)}
+                              className="inline-flex items-center gap-1.5 font-semibold text-primary hover:underline cursor-pointer text-xs mt-0.5"
+                            >
+                              <Paperclip size={12} />
+                              <span>{isPdfUrl(drawerRow.proof_url) ? "Attached (PDF Document)" : "Attached (Image Receipt)"}</span>
+                              <ExternalLink size={11} />
+                            </button>
+                          ) : (
+                            <div className="flex items-center justify-between gap-2 mt-0.5">
+                              <span className="text-xs text-muted-foreground italic">None uploaded</span>
+                              <button
+                                type="button"
+                                onClick={() => drawerProofInputRef.current?.click()}
+                                className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                              >
+                                <Upload size={11} /> Upload Proof
+                              </button>
+                            </div>
+                          )}
+                        </div>
                         {isRefund && drawerRow.metadata?.reason && (
                           <div className="col-span-2 pt-1 border-t border-border/40">
                             <span className="text-[10px] text-muted-foreground block font-medium">Refund Reason</span>
@@ -1012,36 +1118,159 @@ export default function AdminPayments() {
                   </div>
                 )}
 
-                {/* 4. Payment Proof Section (only shown when proof image was uploaded) */}
-                {Boolean(drawerRow.proof_url) && (
-                  <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2.5 shadow-2xs">
+                {/* 4. Payment Proof Section (Always visible in Payment Summary) */}
+                <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
                     <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <Eye size={12} className="text-primary" /> Payment Proof
+                      <FileText size={12} className="text-primary" /> Proof of Payment
                     </h5>
-                    <div className="space-y-2">
-                      <div className="relative group rounded-xl overflow-hidden border border-border/70 bg-muted/40 max-h-44 flex items-center justify-center p-2">
-                        <img
-                          src={drawerRow.proof_url}
-                          alt="Proof of Payment"
-                          className="max-h-40 object-contain rounded-lg shadow-2xs"
-                        />
-                        <div
-                          onClick={() => setProofModalUrl(drawerRow.proof_url)}
-                          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold cursor-pointer gap-1.5"
-                        >
-                          <Eye size={16} /> Click to View Fullscreen
+                    {drawerRow.proof_url ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
+                        <CheckCircle2 size={10} /> Attached
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                        Not Attached
+                      </span>
+                    )}
+                  </div>
+
+                  {drawerRow.proof_url ? (
+                    <div className="space-y-2.5">
+                      {isPdfUrl(drawerRow.proof_url) ? (
+                        /* PDF Document Card */
+                        <div className="p-3 rounded-lg border border-border/80 bg-muted/30 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-9 h-9 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0">
+                              <FileText size={18} />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-xs font-bold text-foreground block truncate">
+                                Receipt / Payment Proof
+                              </span>
+                              <span className="text-[10px] text-muted-foreground block font-mono">
+                                PDF Document
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setProofModalUrl(drawerRow.proof_url)}
+                              className="px-2.5 py-1 text-xs bg-primary/10 hover:bg-primary/20 text-primary font-semibold rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+                              title="Preview PDF document"
+                            >
+                              <Eye size={12} /> Preview
+                            </button>
+                            <a
+                              href={drawerRow.proof_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors cursor-pointer"
+                              title="Open PDF in new tab"
+                            >
+                              <ExternalLink size={13} />
+                            </a>
+                          </div>
                         </div>
+                      ) : (
+                        /* Image Preview Card */
+                        <div className="relative group rounded-xl overflow-hidden border border-border/70 bg-muted/40 max-h-48 flex items-center justify-center p-2">
+                          <img
+                            src={drawerRow.proof_url}
+                            alt="Proof of Payment"
+                            className="max-h-44 object-contain rounded-lg shadow-2xs"
+                          />
+                          <div
+                            onClick={() => setProofModalUrl(drawerRow.proof_url)}
+                            className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold cursor-pointer gap-1.5"
+                          >
+                            <Eye size={16} /> Click to View Fullscreen
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action buttons below preview */}
+                      <div className="flex items-center gap-2 pt-1 border-t border-border/40">
+                        <button
+                          type="button"
+                          onClick={() => setProofModalUrl(drawerRow.proof_url)}
+                          className="flex-1 py-1.5 px-2.5 text-xs text-primary font-semibold hover:bg-primary/5 border border-primary/20 rounded-md transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                        >
+                          <Eye size={12} /> View Fullscreen
+                        </button>
+                        <a
+                          href={drawerRow.proof_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted border border-border/80 rounded-md transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                          title="Open in new browser tab"
+                        >
+                          <ExternalLink size={12} /> Open
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => drawerProofInputRef.current?.click()}
+                          disabled={uploadingProof}
+                          className="py-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted border border-border/80 rounded-md transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                          title="Upload a new receipt to replace this one"
+                        >
+                          <Upload size={12} /> Replace
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveProofForDrawer}
+                          disabled={uploadingProof}
+                          className="p-1.5 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                          title="Remove proof file"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Empty State: Allow uploading proof directly from drawer */
+                    <div className="p-3.5 border border-dashed border-border/80 rounded-xl bg-muted/20 text-center space-y-2">
+                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
+                        <Upload size={15} />
+                      </div>
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-semibold text-foreground">No proof of payment attached</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Attach receipt image (.JPG, PNG, WEBP) or PDF up to 5MB
+                        </p>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setProofModalUrl(drawerRow.proof_url)}
-                        className="w-full py-1 text-xs text-muted-foreground hover:text-foreground font-medium flex items-center justify-center gap-1 hover:bg-muted rounded-md transition-colors cursor-pointer"
+                        onClick={() => drawerProofInputRef.current?.click()}
+                        disabled={uploadingProof}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
                       >
-                        <ExternalLink size={12} /> Open Fullscreen Image
+                        {uploadingProof ? (
+                          <>
+                            <RefreshCw size={12} className="animate-spin" /> Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={12} /> Upload Proof of Payment
+                          </>
+                        )}
                       </button>
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {/* Hidden file input for uploading or replacing proof in drawer */}
+                  <input
+                    type="file"
+                    ref={drawerProofInputRef}
+                    accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadProofForDrawer(file);
+                    }}
+                  />
+                </div>
 
                 {/* 5. Booking Payment History */}
                 {bookingPayments.length > 0 && (
@@ -1221,21 +1450,49 @@ export default function AdminPayments() {
           />
         )}
 
-        {/* Fullscreen Proof Image Lightbox Modal */}
+        {/* Fullscreen Proof Image / PDF Lightbox Modal */}
         {proofModalUrl && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="relative max-w-3xl w-full max-h-[90vh] flex flex-col items-center">
-              <button
-                onClick={() => setProofModalUrl(null)}
-                className="absolute -top-10 right-0 text-white hover:text-gray-300 transition-colors p-1"
-              >
-                <X size={24} />
-              </button>
-              <img
-                src={proofModalUrl}
-                alt="Proof Fullscreen"
-                className="max-h-[85vh] max-w-full object-contain rounded-xl shadow-2xl border border-white/20"
-              />
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in-0 duration-150">
+            <div className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center">
+              <div className="w-full flex items-center justify-between pb-2 text-white select-none">
+                <span className="text-xs font-semibold flex items-center gap-1.5 text-white/90">
+                  <FileText size={14} className="text-primary-foreground" />
+                  <span>Proof of Payment Preview</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={proofModalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs bg-white/20 hover:bg-white/30 text-white px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <ExternalLink size={12} /> Open in New Tab
+                  </a>
+                  <button
+                    onClick={() => setProofModalUrl(null)}
+                    className="p-1 rounded-md text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                    aria-label="Close preview"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {isPdfUrl(proofModalUrl) ? (
+                <iframe
+                  src={proofModalUrl}
+                  title="Proof of Payment Document"
+                  className="w-full h-[80vh] rounded-xl bg-white shadow-2xl border border-white/20"
+                />
+              ) : (
+                <div className="w-full max-h-[80vh] flex items-center justify-center overflow-hidden rounded-xl border border-white/20 bg-black/40 shadow-2xl p-2">
+                  <img
+                    src={proofModalUrl}
+                    alt="Proof of Payment Fullscreen"
+                    className="max-h-[76vh] max-w-full object-contain rounded-lg"
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}

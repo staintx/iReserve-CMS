@@ -2150,17 +2150,23 @@ export default function WalkInBookingModal({ open, onClose, onCreated }) {
 
   const handleAddCatalogDish = (dish) => {
     setIsQuotationDirty(true);
-    setQuotationMenuItems((prev) => [
-      ...prev,
-      menuRow({
-        name: dish.name,
-        category: dish.category || "",
-        price: dish.price ? String(dish.price) : "",
-        unit: dish.unit || "Pax",
-        quantity: 1,
-        image_url: dish.image_url || "",
-      }),
-    ]);
+    setQuotationMenuItems((prev) => {
+      const alreadyActive = prev.some(
+        (m) => !m.removed && (m.name || "").trim().toLowerCase() === (dish.name || "").trim().toLowerCase()
+      );
+      if (alreadyActive) return prev;
+      return [
+        ...prev,
+        menuRow({
+          name: dish.name,
+          category: dish.category || "",
+          price: dish.price ? String(dish.price) : "",
+          unit: dish.unit || "Pax",
+          quantity: 1,
+          image_url: dish.image_url || "",
+        }),
+      ];
+    });
   };
 
   const handleAddCustomDish = (name) => {

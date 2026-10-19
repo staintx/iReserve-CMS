@@ -30,7 +30,6 @@ import {
 } from "../../../../lib/specialOffers";
 import ManageInclusionsModal, {
   getCleanInclusionName,
-  categorizeInclusion,
 } from "../ManageInclusionsModal";
 import DishThumbnail from "../DishThumbnail";
 import {
@@ -38,6 +37,10 @@ import {
   findStandardPortionUnit,
 } from "../../../../utils/quotationPricing";
 import { MAX_FINANCIAL_AMOUNT } from "../../../../lib/validationRules";
+import {
+  CATEGORY_GROUPS,
+  resolveGroup,
+} from "../../../../lib/menuCategories";
 
 function MoneyInput({ value, onChange, placeholder = "0.00", disabled, className = "", id }) {
   const block = (e) => {
@@ -121,9 +124,13 @@ export default function PricingAdjustmentsStep({
   customNotes = "",
   deliveryNotes = "",
 }) {
-  // Catalog Dish Search
+  // Quoted dishes category filter
+  const [selectedMenuCategory, setSelectedMenuCategory] = useState("all");
+
+  // Catalog Dish Search & Category Filter
   const [isDishSearchOpen, setIsDishSearchOpen] = useState(false);
   const [dishSearchQuery, setDishSearchQuery] = useState("");
+  const [catalogCategoryFilter, setCatalogCategoryFilter] = useState("all");
   const dishSearchRef = useRef(null);
 
   // Catalog Add-on Search
@@ -148,11 +155,108 @@ export default function PricingAdjustmentsStep({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
-  const filteredDishes = catalogMenuItems.filter((dish) => {
-    if (!dishSearchQuery.trim()) return true;
+  const activeMenuItems = useMemo(
+    () => (menuItems || []).filter((m) => !m.removed),
+    [menuItems]
+  );
+
+  // Dynamically derive category filter chips from quoted dishes respecting aliases
+  const menuCategoriesList = useMemo(() => {
+    const groups = new Map();
+    (menuItems || []).forEach((item) => {
+      const group = resolveGroup(item.category);
+      if (!groups.has(group.id)) {
+        groups.set(group.id, {
+          id: group.id,
+          label: group.label,
+          count: 0,
+          totalCount: 0,
+        });
+      }
+      const entry = groups.get(group.id);
+      entry.totalCount += 1;
+      if (!item.removed) {
+        entry.count += 1;
+      }
+    });
+
+    const order = CATEGORY_GROUPS.map((g) => g.id);
+    return [...groups.values()].sort((a, b) => {
+      const ai = order.indexOf(a.id);
+      const bi = order.indexOf(b.id);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.label.localeCompare(b.label);
+    });
+  }, [menuItems]);
+
+  // Derive the active category, falling back to "all" if the previously selected category no longer exists
+  const activeSelectedMenuCategory = useMemo(() => {
+    if (selectedMenuCategory === "all") return "all";
+    const exists = menuCategoriesList.some((c) => c.id === selectedMenuCategory);
+    return exists ? selectedMenuCategory : "all";
+  }, [selectedMenuCategory, menuCategoriesList]);
+
+  // Displayed dishes for table (preserves originalIndex for form edits, errors, and actions)
+  const displayedMenuItems = useMemo(() => {
+    return (menuItems || [])
+      .map((item, originalIndex) => ({ item, originalIndex }))
+      .filter(({ item }) => {
+        if (activeSelectedMenuCategory === "all") return true;
+        return resolveGroup(item.category).id === activeSelectedMenuCategory;
+      });
+  }, [menuItems, activeSelectedMenuCategory]);
+
+  // Catalog categories dynamically derived from catalog dishes
+  const catalogCategoryGroups = useMemo(() => {
+    const groups = new Map();
+    (catalogMenuItems || []).forEach((dish) => {
+      const group = resolveGroup(dish.category);
+      if (!groups.has(group.id)) {
+        groups.set(group.id, {
+          id: group.id,
+          label: group.label,
+          count: 0,
+        });
+      }
+      groups.get(group.id).count += 1;
+    });
+
+    const order = CATEGORY_GROUPS.map((g) => g.id);
+    return [...groups.values()].sort((a, b) => {
+      const ai = order.indexOf(a.id);
+      const bi = order.indexOf(b.id);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.label.localeCompare(b.label);
+    });
+  }, [catalogMenuItems]);
+
+  const activeDishNames = useMemo(() => {
+    return new Set(
+      activeMenuItems
+        .map((m) => (m.name || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+  }, [activeMenuItems]);
+
+  const filteredDishes = useMemo(() => {
     const q = dishSearchQuery.toLowerCase().trim();
-    return dish.name?.toLowerCase().includes(q) || dish.category?.toLowerCase().includes(q);
-  });
+    return (catalogMenuItems || []).filter((dish) => {
+      if (catalogCategoryFilter !== "all") {
+        if (resolveGroup(dish.category).id !== catalogCategoryFilter) {
+          return false;
+        }
+      }
+      if (!q) return true;
+      return (
+        dish.name?.toLowerCase().includes(q) ||
+        dish.category?.toLowerCase().includes(q)
+      );
+    });
+  }, [catalogMenuItems, catalogCategoryFilter, dishSearchQuery]);
 
   const activeAddonNames = useMemo(() => {
     return new Set(
@@ -177,7 +281,6 @@ export default function PricingAdjustmentsStep({
     (!packageRecord && !inquiry?.package_id && !isFoodOnly) ||
     (Array.isArray(inquiry?.custom_setup_scope) && inquiry.custom_setup_scope.length > 0)
   );
-  const activeMenuItems = menuItems.filter((m) => !m.removed);
   const activeAddOns = addOns.filter((a) => !a.removed);
 
   const menuTotal = useMemo(
@@ -908,8 +1011,8 @@ export default function PricingAdjustmentsStep({
               </button>
 
               {isDishSearchOpen && (
-                <div className="absolute right-0 mt-1 w-72 sm:w-80 bg-white rounded-lg shadow-lg border border-slate-200 z-50 p-2 text-xs">
-                  <div className="relative mb-2">
+                <div className="absolute right-0 mt-1 w-80 sm:w-96 bg-white rounded-lg shadow-lg border border-slate-200 z-50 p-2.5 text-xs space-y-2">
+                  <div className="relative">
                     <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
                     <input
                       type="text"
@@ -921,6 +1024,66 @@ export default function PricingAdjustmentsStep({
                     />
                   </div>
 
+                  {/* Catalog Category Filter Chips */}
+                  {catalogCategoryGroups.length > 0 && (
+                    <div
+                      role="tablist"
+                      aria-label="Filter catalog dishes by category"
+                      className="flex items-center gap-1 overflow-x-auto pb-1 text-[11px] no-scrollbar"
+                    >
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={catalogCategoryFilter === "all"}
+                        onClick={() => setCatalogCategoryFilter("all")}
+                        className={`px-2.5 py-0.5 rounded-full font-medium transition-colors cursor-pointer shrink-0 border ${
+                          catalogCategoryFilter === "all"
+                            ? "bg-[#4C81E0] border-[#4C81E0] text-white font-semibold shadow-xs hover:bg-[#3B6BC4]"
+                            : "bg-[#D6E4F7]/30 border-[#4C81E0]/30 text-[#2B60BA] hover:bg-[#D6E4F7]/60 hover:border-[#4C81E0]/60 hover:text-[#1E4E9E]"
+                        } focus:outline-none focus:ring-2 focus:ring-[#4C81E0] focus:ring-offset-1`}
+                      >
+                        <span>All</span>
+                        <span
+                          className={`ml-1 text-[10px] px-1 py-0.2 rounded-full font-mono tabular-nums ${
+                            catalogCategoryFilter === "all"
+                              ? "bg-white/25 text-white font-semibold"
+                              : "bg-[#D6E4F7]/80 text-[#1E4E9E] font-semibold border border-[#4C81E0]/20"
+                          }`}
+                        >
+                          {catalogMenuItems.length}
+                        </span>
+                      </button>
+                      {catalogCategoryGroups.map((cat) => {
+                        const isSelected = catalogCategoryFilter === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={isSelected}
+                            onClick={() => setCatalogCategoryFilter(cat.id)}
+                            className={`px-2.5 py-0.5 rounded-full font-medium transition-colors cursor-pointer shrink-0 border ${
+                              isSelected
+                                ? "bg-[#4C81E0] border-[#4C81E0] text-white font-semibold shadow-xs hover:bg-[#3B6BC4]"
+                                : "bg-[#D6E4F7]/30 border-[#4C81E0]/30 text-[#2B60BA] hover:bg-[#D6E4F7]/60 hover:border-[#4C81E0]/60 hover:text-[#1E4E9E]"
+                            } focus:outline-none focus:ring-2 focus:ring-[#4C81E0] focus:ring-offset-1`}
+                          >
+                            <span>{cat.label}</span>
+                            <span
+                              className={`ml-1 text-[10px] px-1 py-0.2 rounded-full font-mono tabular-nums ${
+                                isSelected
+                                  ? "bg-white/25 text-white font-semibold"
+                                  : "bg-[#D6E4F7]/80 text-[#1E4E9E] font-semibold border border-[#4C81E0]/20"
+                              }`}
+                            >
+                              {cat.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   <div className="max-h-56 overflow-y-auto divide-y divide-slate-100">
                     {filteredDishes.length === 0 ? (
                       <div className="p-3 text-center text-slate-500">
@@ -931,6 +1094,7 @@ export default function PricingAdjustmentsStep({
                             onClick={() => {
                               onAddCustomDish(dishSearchQuery.trim());
                               setDishSearchQuery("");
+                              setCatalogCategoryFilter("all");
                               setIsDishSearchOpen(false);
                             }}
                             className="block mx-auto mt-2 text-xs font-semibold text-primary hover:underline cursor-pointer"
@@ -940,36 +1104,58 @@ export default function PricingAdjustmentsStep({
                         )}
                       </div>
                     ) : (
-                      filteredDishes.map((dish) => (
-                        <button
-                          key={dish._id}
-                          type="button"
-                          onClick={() => {
-                            onAddCatalogDish(dish);
-                            setIsDishSearchOpen(false);
-                            setDishSearchQuery("");
-                          }}
-                          className="w-full text-left p-1.5 hover:bg-slate-50 rounded flex items-center justify-between transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <DishThumbnail
-                              name={dish.name}
-                              imageUrl={dish.image_url}
-                              catalog={catalogMenuItems}
-                              size="xs"
-                            />
-                            <div className="min-w-0">
-                              <span className="font-medium text-slate-800 block truncate">{dish.name}</span>
-                              <span className="text-[10px] text-slate-500">{dish.category || "Course"}</span>
+                      filteredDishes.map((dish) => {
+                        const isAlreadyAdded = activeDishNames.has((dish.name || "").trim().toLowerCase());
+                        return (
+                          <button
+                            key={dish._id}
+                            type="button"
+                            disabled={isAlreadyAdded}
+                            onClick={() => {
+                              if (isAlreadyAdded) return;
+                              onAddCatalogDish(dish);
+                              setIsDishSearchOpen(false);
+                              setDishSearchQuery("");
+                              setCatalogCategoryFilter("all");
+                            }}
+                            title={
+                              isAlreadyAdded
+                                ? `"${dish.name}" is already included in this quotation`
+                                : `Add "${dish.name}" to quotation`
+                            }
+                            className={`w-full text-left p-1.5 rounded flex items-center justify-between transition-colors ${
+                              isAlreadyAdded
+                                ? "opacity-60 bg-slate-50/60 cursor-not-allowed"
+                                : "hover:bg-slate-50 cursor-pointer"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <DishThumbnail
+                                name={dish.name}
+                                imageUrl={dish.image_url}
+                                catalog={catalogMenuItems}
+                                size="xs"
+                              />
+                              <div className="min-w-0">
+                                <span className="font-medium text-slate-800 block truncate">{dish.name}</span>
+                                <span className="text-[10px] text-slate-500">{dish.category || "Course"}</span>
+                              </div>
                             </div>
-                          </div>
-                          {dish.price > 0 && (
-                            <span className="font-mono text-xs text-slate-700 font-medium shrink-0 ml-2">
-                              ₱{Number(dish.price).toLocaleString()}
-                            </span>
-                          )}
-                        </button>
-                      ))
+                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                              {isAlreadyAdded && (
+                                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.5 rounded">
+                                  In Quote
+                                </span>
+                              )}
+                              {dish.price > 0 && (
+                                <span className="font-mono text-xs text-slate-700 font-medium">
+                                  ₱{Number(dish.price).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -977,10 +1163,81 @@ export default function PricingAdjustmentsStep({
             </div>
           </div>
 
+          {/* Category Filter Chips */}
+          {menuItems.length > 0 && (
+            <div
+              role="tablist"
+              aria-label="Filter quoted dishes by category"
+              className="flex items-center gap-1.5 flex-wrap pt-0.5 pb-1 text-xs"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeSelectedMenuCategory === "all"}
+                onClick={() => setSelectedMenuCategory("all")}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer border ${
+                  activeSelectedMenuCategory === "all"
+                    ? "bg-[#4C81E0] border-[#4C81E0] text-white font-semibold shadow-xs hover:bg-[#3B6BC4]"
+                    : "bg-[#D6E4F7]/30 border-[#4C81E0]/30 text-[#2B60BA] hover:bg-[#D6E4F7]/60 hover:border-[#4C81E0]/60 hover:text-[#1E4E9E]"
+                } focus:outline-none focus:ring-2 focus:ring-[#4C81E0] focus:ring-offset-1`}
+              >
+                <span>All</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono tabular-nums ${
+                    activeSelectedMenuCategory === "all"
+                      ? "bg-white/25 text-white font-semibold"
+                      : "bg-[#D6E4F7]/80 text-[#1E4E9E] font-semibold border border-[#4C81E0]/20"
+                  }`}
+                >
+                  {activeMenuItems.length}
+                </span>
+              </button>
+              {menuCategoriesList.map((cat) => {
+                const isSelected = activeSelectedMenuCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isSelected}
+                    onClick={() => setSelectedMenuCategory(cat.id)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer border ${
+                      isSelected
+                        ? "bg-[#4C81E0] border-[#4C81E0] text-white font-semibold shadow-xs hover:bg-[#3B6BC4]"
+                        : "bg-[#D6E4F7]/30 border-[#4C81E0]/30 text-[#2B60BA] hover:bg-[#D6E4F7]/60 hover:border-[#4C81E0]/60 hover:text-[#1E4E9E]"
+                    } focus:outline-none focus:ring-2 focus:ring-[#4C81E0] focus:ring-offset-1`}
+                  >
+                    <span>{cat.label}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono tabular-nums ${
+                        isSelected
+                          ? "bg-white/25 text-white font-semibold"
+                          : "bg-[#D6E4F7]/80 text-[#1E4E9E] font-semibold border border-[#4C81E0]/20"
+                      }`}
+                    >
+                      {cat.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Dishes Table */}
           {menuItems.length === 0 ? (
             <div className="p-4 rounded-md bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
               No dishes currently added. Click &ldquo;Add Dish from Catalog&rdquo; to add dishes.
+            </div>
+          ) : displayedMenuItems.length === 0 ? (
+            <div className="p-4 rounded-md bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+              <span>No dishes found in this category.</span>
+              <button
+                type="button"
+                onClick={() => setSelectedMenuCategory("all")}
+                className="text-primary hover:underline font-semibold ml-1 cursor-pointer"
+              >
+                View all dishes
+              </button>
             </div>
           ) : (
             <div className="overflow-x-auto border border-slate-200 rounded-md">
@@ -996,15 +1253,15 @@ export default function PricingAdjustmentsStep({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {menuItems.map((item, index) => {
+                  {displayedMenuItems.map(({ item, originalIndex }) => {
                     const qty = Math.max(1, Number(item.quantity) || 1);
                     const price = Number(item.price) || 0;
                     const lineTotal = qty * price;
-                    const hasError = errors[`menu_items.${index}.price`] || errors[`menu_items.${index}.quantity`];
+                    const hasError = errors[`menu_items.${originalIndex}.price`] || errors[`menu_items.${originalIndex}.quantity`];
 
                     return (
                       <tr
-                        key={index}
+                        key={originalIndex}
                         className={`transition-colors ${
                           item.removed
                             ? "bg-slate-50 text-slate-400 opacity-60"
@@ -1054,17 +1311,17 @@ export default function PricingAdjustmentsStep({
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     if (val === "Others") {
-                                      handleMenuChange(index, {
+                                      handleMenuChange(originalIndex, {
                                         isCustomUnit: true,
                                         unit: standardUnit || isLegacyPax ? "" : item.unit || "",
                                       });
                                     } else if (val === "") {
-                                      handleMenuChange(index, {
+                                      handleMenuChange(originalIndex, {
                                         unit: "",
                                         isCustomUnit: false,
                                       });
                                     } else {
-                                      handleMenuChange(index, {
+                                      handleMenuChange(originalIndex, {
                                         unit: val,
                                         isCustomUnit: false,
                                       });
@@ -1087,7 +1344,7 @@ export default function PricingAdjustmentsStep({
                                     placeholder="e.g. Per Tub"
                                     value={item.unit || ""}
                                     onChange={(e) =>
-                                      handleMenuChange(index, "unit", e.target.value)
+                                      handleMenuChange(originalIndex, "unit", e.target.value)
                                     }
                                     className="w-full rounded border border-slate-300 px-2 py-1 text-xs bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-slate-100"
                                     autoFocus={item.isCustomUnit && !item.unit}
@@ -1105,7 +1362,7 @@ export default function PricingAdjustmentsStep({
                             min="1"
                             disabled={item.removed}
                             value={item.quantity}
-                            onChange={(e) => handleMenuChange(index, "quantity", e.target.value)}
+                            onChange={(e) => handleMenuChange(originalIndex, "quantity", e.target.value)}
                             className="w-16 rounded border border-slate-300 px-1.5 py-1 text-xs text-center font-mono font-medium focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </td>
@@ -1113,12 +1370,12 @@ export default function PricingAdjustmentsStep({
                         {/* Unit Price */}
                         <td className="py-2 px-2 text-right align-top">
                           <MoneyInput
-                            id={`qb-menu-price-${index}`}
+                            id={`qb-menu-price-${originalIndex}`}
                             value={item.price}
                             disabled={item.removed}
-                            onChange={(val) => handleMenuChange(index, "price", val)}
+                            onChange={(val) => handleMenuChange(originalIndex, "price", val)}
                             placeholder="0.00"
-                            className={`w-32 min-w-[128px] text-right ${errors[`menu_items.${index}.price`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}`}
+                            className={`w-32 min-w-[128px] text-right ${errors[`menu_items.${originalIndex}.price`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}`}
                           />
                         </td>
 
@@ -1133,7 +1390,7 @@ export default function PricingAdjustmentsStep({
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 type="button"
-                                onClick={() => toggleMenuRemoved(index)}
+                                onClick={() => toggleMenuRemoved(originalIndex)}
                                 title="Restore dish"
                                 className="p-1 rounded text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
                               >
@@ -1142,7 +1399,7 @@ export default function PricingAdjustmentsStep({
                               {handleDeleteMenu && (
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteMenu(index)}
+                                  onClick={() => handleDeleteMenu(originalIndex)}
                                   title="Permanently remove dish"
                                   className="p-1 rounded text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
                                 >
@@ -1153,7 +1410,7 @@ export default function PricingAdjustmentsStep({
                           ) : (
                             <button
                               type="button"
-                              onClick={() => toggleMenuRemoved(index)}
+                              onClick={() => toggleMenuRemoved(originalIndex)}
                               title="Remove dish"
                               className="p-1 rounded text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
                             >

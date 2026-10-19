@@ -65,18 +65,28 @@ async function reconcileEquipmentTurnover({
     );
     if (!existing) {
       const bookedQty = Number(item.quantity || 1);
+      const isDamaged = item.issue_type === "damaged";
+      const isMissing = item.issue_type === "missing";
+      const hasIssue = item.status === "incomplete" || item.status === "issue_reported";
+      const issueQty = hasIssue
+        ? Math.min(bookedQty, Math.max(0, Number(item.issue_quantity !== undefined ? item.issue_quantity : (isDamaged ? (item.quantity_damaged ?? bookedQty) : (isMissing ? (item.quantity_missing ?? bookedQty) : bookedQty)))))
+        : 0;
+      const returnedQty = item.status === "inspected_ok" || item.status === "complete"
+        ? (item.quantity_returned !== undefined ? Number(item.quantity_returned) : bookedQty)
+        : (hasIssue ? Math.max(0, bookedQty - issueQty) : 0);
+
       currentReturns.push({
         name: item.name,
         quantity_booked: bookedQty,
-        quantity_returned: item.status === "inspected_ok" || item.status === "complete" ? bookedQty : 0,
-        quantity_damaged: item.issue_type === "damaged" ? bookedQty : 0,
-        quantity_missing: item.issue_type === "missing" ? bookedQty : 0,
+        quantity_returned: returnedQty,
+        quantity_damaged: isDamaged ? issueQty : (!isMissing && hasIssue ? issueQty : 0),
+        quantity_missing: isMissing ? issueQty : 0,
         reconciled_returned: 0,
         reconciled_damaged: 0,
         reconciled_missing: 0,
         notes: item.notes || "",
-        verification_status: item.status === "inspected_ok" || item.status === "complete" ? "verified_ok" : ((item.status === "incomplete" || item.status === "issue_reported") ? "issue_recorded" : "pending"),
-        issue_category: item.issue_type === "damaged" ? "damaged" : (item.issue_type === "missing" ? "missing" : ""),
+        verification_status: item.status === "inspected_ok" || item.status === "complete" ? "verified_ok" : (hasIssue ? "issue_recorded" : "pending"),
+        issue_category: isDamaged ? "damaged" : (isMissing ? "missing" : (hasIssue ? "other" : "")),
         verified_at: item.completed_at || null,
         verified_by: item.completed_by || null,
       });
@@ -125,10 +135,12 @@ async function reconcileEquipmentTurnover({
           newDamaged = 0;
           newMissing = 0;
         } else if (itemStatus === "issue_recorded") {
-          if (match.quantity_damaged !== undefined || match.quantity_missing !== undefined) {
+          if (match.quantity_damaged !== undefined || match.quantity_missing !== undefined || match.quantity_returned !== undefined) {
             newDamaged = Math.max(0, Number(match.quantity_damaged || 0));
             newMissing = Math.max(0, Number(match.quantity_missing || 0));
-            newReturned = Math.max(0, bookedQty - (newDamaged + newMissing));
+            newReturned = match.quantity_returned !== undefined
+              ? Math.max(0, Math.min(bookedQty - (newDamaged + newMissing), Number(match.quantity_returned)))
+              : Math.max(0, bookedQty - (newDamaged + newMissing));
           } else {
             newReturned = bookedQty;
             newDamaged = 0;

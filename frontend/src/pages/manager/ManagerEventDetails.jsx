@@ -121,6 +121,10 @@ function buildDynamicChecklist(booking) {
       is_inspected: saved ? Boolean(saved.is_inspected) : false,
       status: saved?.status || "not_inspected",
       issue_type: saved?.issue_type || "none",
+      issue_quantity: saved?.issue_quantity !== undefined ? saved.issue_quantity : undefined,
+      quantity_returned: saved?.quantity_returned !== undefined ? saved.quantity_returned : undefined,
+      quantity_damaged: saved?.quantity_damaged !== undefined ? saved.quantity_damaged : undefined,
+      quantity_missing: saved?.quantity_missing !== undefined ? saved.quantity_missing : undefined,
       notes: saved?.notes || "",
       completed_at: saved?.completed_at || null,
     });
@@ -144,6 +148,10 @@ function buildDynamicChecklist(booking) {
       is_inspected: saved ? Boolean(saved.is_inspected) : false,
       status: saved?.status || "not_inspected",
       issue_type: saved?.issue_type || "none",
+      issue_quantity: saved?.issue_quantity !== undefined ? saved.issue_quantity : undefined,
+      quantity_returned: saved?.quantity_returned !== undefined ? saved.quantity_returned : undefined,
+      quantity_damaged: saved?.quantity_damaged !== undefined ? saved.quantity_damaged : undefined,
+      quantity_missing: saved?.quantity_missing !== undefined ? saved.quantity_missing : undefined,
       notes: saved?.notes || "",
       completed_at: saved?.completed_at || null,
     });
@@ -183,6 +191,8 @@ export default function ManagerEventDetails() {
   // Inline Issue Reporting State per Item
   const [openInlineNotes, setOpenInlineNotes] = useState({});
   const [inlineDrafts, setInlineDrafts] = useState({});
+  const [inlineQuantityDrafts, setInlineQuantityDrafts] = useState({});
+  const [inlineIssueTypeDrafts, setInlineIssueTypeDrafts] = useState({});
   const [savingItemKey, setSavingItemKey] = useState(null);
   const [pendingAction, setPendingAction] = useState({});
 
@@ -362,6 +372,18 @@ export default function ManagerEventDetails() {
         ...prev,
         [itemKey]: prev[itemKey] !== undefined ? prev[itemKey] : (targetItem.notes || "")
       }));
+      setInlineQuantityDrafts((prev) => ({
+        ...prev,
+        [itemKey]: prev[itemKey] !== undefined
+          ? prev[itemKey]
+          : (targetItem.status === "incomplete"
+              ? (targetItem.issue_quantity !== undefined ? targetItem.issue_quantity : (targetItem.quantity_damaged || targetItem.quantity_missing || targetItem.quantity || 1))
+              : (targetItem.quantity_returned !== undefined ? targetItem.quantity_returned : (targetItem.quantity || 1)))
+      }));
+      setInlineIssueTypeDrafts((prev) => ({
+        ...prev,
+        [itemKey]: prev[itemKey] || (targetItem.issue_type && targetItem.issue_type !== "none" ? targetItem.issue_type : "damaged")
+      }));
     }
     setOpenInlineNotes((prev) => ({ ...prev, [itemKey]: !isOpen }));
   };
@@ -371,6 +393,16 @@ export default function ManagerEventDetails() {
     setInlineDrafts((prev) => ({
       ...prev,
       [itemKey]: targetItem?.notes || ""
+    }));
+    setInlineQuantityDrafts((prev) => ({
+      ...prev,
+      [itemKey]: targetItem?.status === "incomplete"
+        ? (targetItem?.issue_quantity ?? targetItem?.quantity ?? 1)
+        : (targetItem?.quantity_returned ?? targetItem?.quantity ?? 1)
+    }));
+    setInlineIssueTypeDrafts((prev) => ({
+      ...prev,
+      [itemKey]: targetItem?.issue_type || "damaged"
     }));
     setPendingAction((prev) => ({
       ...prev,
@@ -403,7 +435,17 @@ export default function ManagerEventDetails() {
       ...prev,
       [itemKey]: prev[itemKey] !== undefined ? prev[itemKey] : (targetItem.notes || "")
     }));
-    notify("Please enter an issue description in the notes field and click Save to confirm Incomplete status.", "info");
+    setInlineQuantityDrafts((prev) => ({
+      ...prev,
+      [itemKey]: prev[itemKey] !== undefined
+        ? prev[itemKey]
+        : (targetItem.issue_quantity !== undefined ? targetItem.issue_quantity : (targetItem.quantity_damaged || targetItem.quantity_missing || (targetItem.quantity ? 1 : 1)))
+    }));
+    setInlineIssueTypeDrafts((prev) => ({
+      ...prev,
+      [itemKey]: prev[itemKey] || (targetItem.issue_type && targetItem.issue_type !== "none" ? targetItem.issue_type : "damaged")
+    }));
+    notify("Please enter quantity affected and an issue description, then click Save to confirm Incomplete status.", "info");
   };
 
   const handleSaveInlineNotes = async (itemKey) => {
@@ -425,25 +467,56 @@ export default function ManagerEventDetails() {
       return;
     }
 
-    // Determine target status
+    // Determine target status and quantities
+    const bookedQty = targetItem.quantity !== null && targetItem.quantity !== undefined ? targetItem.quantity : 1;
     let nextStatus = targetItem.status;
     let nextIsInspected = targetItem.is_inspected;
     let nextIssueType = targetItem.issue_type || "none";
+    let issueQty = 0;
+    let returnedQty = 0;
+    let damagedQty = 0;
+    let missingQty = 0;
 
     if (isMarkingIncomplete) {
       nextStatus = "incomplete";
       nextIsInspected = true;
-      nextIssueType = "damaged";
+      nextIssueType = inlineIssueTypeDrafts[itemKey] || (targetItem.issue_type && targetItem.issue_type !== "none" ? targetItem.issue_type : "damaged");
+      
+      const rawQty = inlineQuantityDrafts[itemKey];
+      const parsedQty = rawQty === "" || rawQty === undefined ? 1 : Number(rawQty);
+
+      if (!Number.isInteger(parsedQty) || parsedQty < 1 || (bookedQty > 0 && parsedQty > bookedQty)) {
+        notify(`Quantity affected must be a valid whole number between 1 and ${bookedQty}.`, "error");
+        return;
+      }
+
+      issueQty = parsedQty;
+      returnedQty = Math.max(0, bookedQty - issueQty);
+      if (nextIssueType === "missing") {
+        missingQty = issueQty;
+        damagedQty = 0;
+      } else {
+        damagedQty = issueQty;
+        missingQty = 0;
+      }
     } else if (targetItem.status === "inspected_ok") {
       // Completed item saving optional notes: status stays inspected_ok
       nextStatus = "inspected_ok";
       nextIsInspected = true;
       nextIssueType = "none";
+      issueQty = 0;
+      returnedQty = bookedQty;
+      damagedQty = 0;
+      missingQty = 0;
     } else {
       // Item not inspected yet: saving notes without changing inspection status
       nextStatus = "not_inspected";
       nextIsInspected = false;
       nextIssueType = "none";
+      issueQty = 0;
+      returnedQty = 0;
+      damagedQty = 0;
+      missingQty = 0;
     }
 
     setSavingItemKey(itemKey);
@@ -454,6 +527,10 @@ export default function ManagerEventDetails() {
           is_inspected: nextIsInspected,
           status: nextStatus,
           issue_type: nextIssueType,
+          issue_quantity: issueQty,
+          quantity_returned: returnedQty,
+          quantity_damaged: damagedQty,
+          quantity_missing: missingQty,
           notes: noteText,
           completed_at: nextIsInspected ? (item.completed_at || new Date()) : null
         };
@@ -473,6 +550,10 @@ export default function ManagerEventDetails() {
           is_inspected: nextIsInspected,
           status: nextStatus,
           issue_type: nextIssueType,
+          issue_quantity: issueQty,
+          quantity_returned: returnedQty,
+          quantity_damaged: damagedQty,
+          quantity_missing: missingQty,
           notes: noteText,
           is_complete: true
         }
@@ -483,7 +564,7 @@ export default function ManagerEventDetails() {
       setOpenInlineNotes((prev) => ({ ...prev, [itemKey]: false }));
 
       if (nextStatus === "incomplete") {
-        notify(`Issue report saved for "${targetItem.name}". Marked as Incomplete.`, "success");
+        notify(`Issue report (${issueQty} ${nextIssueType}) saved for "${targetItem.name}". Marked as Incomplete.`, "success");
       } else if (nextStatus === "inspected_ok") {
         notify(`Notes saved for "${targetItem.name}". Item remains Complete.`, "success");
       } else {
@@ -506,6 +587,8 @@ export default function ManagerEventDetails() {
     const targetItem = checklist.find((item) => item.item_key === itemKey);
     if (!targetItem) return;
 
+    const bookedQty = targetItem.quantity !== null && targetItem.quantity !== undefined ? targetItem.quantity : 1;
+
     setSavingItemKey(itemKey);
     const updatedChecklist = checklist.map((item) => {
       if (item.item_key === itemKey) {
@@ -514,6 +597,10 @@ export default function ManagerEventDetails() {
           is_inspected: true,
           status: "inspected_ok",
           issue_type: "none",
+          issue_quantity: 0,
+          quantity_returned: bookedQty,
+          quantity_damaged: 0,
+          quantity_missing: 0,
           notes: targetItem.notes || "",
           completed_at: new Date()
         };
@@ -535,6 +622,10 @@ export default function ManagerEventDetails() {
           is_inspected: true,
           status: "inspected_ok",
           issue_type: "none",
+          issue_quantity: 0,
+          quantity_returned: bookedQty,
+          quantity_damaged: 0,
+          quantity_missing: 0,
           notes: targetItem.notes || "",
           is_complete: true
         }
@@ -578,6 +669,10 @@ export default function ManagerEventDetails() {
           is_inspected: false,
           status: "not_inspected",
           issue_type: "none",
+          issue_quantity: 0,
+          quantity_returned: 0,
+          quantity_damaged: 0,
+          quantity_missing: 0,
           notes: targetItem.notes || "",
           is_complete: true
         }
@@ -590,6 +685,10 @@ export default function ManagerEventDetails() {
             is_inspected: false,
             status: "not_inspected",
             issue_type: "none",
+            issue_quantity: 0,
+            quantity_returned: 0,
+            quantity_damaged: 0,
+            quantity_missing: 0,
             completed_at: null
             // targetItem.notes is preserved!
           };
@@ -1443,6 +1542,21 @@ export default function ManagerEventDetails() {
                                     </span>
                                   )}
 
+                                  {hasIssue && item.issue_quantity ? (
+                                    <span className="text-rose-700 font-semibold">
+                                      · Affected: <strong className="font-bold">{item.issue_quantity} {item.issue_type === "missing" ? "missing" : "damaged"}</strong>
+                                      {item.quantity && item.quantity > item.issue_quantity && (
+                                        <span className="text-emerald-700 font-normal ml-1">
+                                          ({item.quantity - item.issue_quantity} returned good)
+                                        </span>
+                                      )}
+                                    </span>
+                                  ) : isInspected && item.quantity ? (
+                                    <span className="text-emerald-700 font-medium">
+                                      · Returned: <strong className="font-bold">{item.quantity_returned ?? item.quantity} {item.unit || "pcs"}</strong>
+                                    </span>
+                                  ) : null}
+
                                   {/* Status Badge */}
                                   {hasIssue ? (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
@@ -1465,7 +1579,9 @@ export default function ManagerEventDetails() {
                                     <div className="text-[11px] text-slate-700 bg-rose-50/70 p-2 rounded-lg border border-rose-200/70 mt-1 flex items-start gap-1.5">
                                       <AlertTriangle size={12} className="text-rose-600 shrink-0 mt-0.5" />
                                       <div>
-                                        <strong className="text-rose-800 font-semibold">Issue Reported: </strong>
+                                        <strong className="text-rose-800 font-semibold">
+                                          Issue Reported{item.issue_quantity ? ` (${item.issue_quantity} ${item.issue_type === "missing" ? "missing" : "damaged"})` : ""}: 
+                                        </strong>{" "}
                                         <span>{item.notes}</span>
                                       </div>
                                     </div>
@@ -1534,15 +1650,15 @@ export default function ManagerEventDetails() {
                             </div>
                           </div>
 
-                          {/* Inline Notes Field */}
+                          {/* Inline Notes & Quantity Fields */}
                           {openInlineNotes[item.item_key] && (
-                            <div className="mt-3 pt-3 border-t border-slate-200/80 space-y-2 animate-in fade-in duration-150">
+                            <div className="mt-3 pt-3 border-t border-slate-200/80 space-y-3 animate-in fade-in duration-150">
                               <div className="flex items-center justify-between">
                                 <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                                   {(pendingAction[item.item_key] === "incomplete" || item.status === "incomplete") ? (
                                     <>
                                       <AlertTriangle size={13} className="text-amber-600" />
-                                      <span>Issue Reported</span>
+                                      <span>Issue Reported &amp; Quantity Affected</span>
                                     </>
                                   ) : (
                                     <>
@@ -1558,26 +1674,97 @@ export default function ManagerEventDetails() {
                                 </span>
                               </div>
 
-                              <textarea
-                                rows={2}
-                                value={inlineDrafts[item.item_key] !== undefined ? inlineDrafts[item.item_key] : (item.notes || "")}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setInlineDrafts((prev) => ({ ...prev, [item.item_key]: val }));
-                                }}
-                                disabled={isCompleted}
-                                placeholder={
-                                  (pendingAction[item.item_key] === "incomplete" || item.status === "incomplete")
-                                    ? "Describe damage, missing gear, quantity discrepancy, or equipment issues..."
-                                    : "Add any optional notes, remarks, or serial numbers for this item..."
-                                }
-                                className="w-full text-xs p-2.5 rounded-lg border border-slate-300 focus:border-[#4C81E0] focus:ring-1 focus:ring-[#4C81E0] outline-none bg-white text-slate-800 disabled:bg-slate-50"
-                              />
+                              {/* If marking incomplete or is incomplete: show condition selector and quantity input alongside notes */}
+                              {(pendingAction[item.item_key] === "incomplete" || item.status === "incomplete") && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-amber-50/50 border border-amber-200/70 rounded-xl">
+                                  <div className="space-y-1">
+                                    <label className="text-[11px] font-bold text-slate-700 block">
+                                      Issue Condition <span className="text-rose-600">*</span>
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setInlineIssueTypeDrafts((prev) => ({ ...prev, [item.item_key]: "damaged" }))}
+                                        className={`flex-1 py-1 px-2.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all ${
+                                          (inlineIssueTypeDrafts[item.item_key] || "damaged") === "damaged"
+                                            ? "bg-rose-100 text-rose-800 border-rose-300 font-bold shadow-2xs"
+                                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                                        }`}
+                                      >
+                                        Damaged / Broken
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setInlineIssueTypeDrafts((prev) => ({ ...prev, [item.item_key]: "missing" }))}
+                                        className={`flex-1 py-1 px-2.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all ${
+                                          (inlineIssueTypeDrafts[item.item_key] || "damaged") === "missing"
+                                            ? "bg-amber-100 text-amber-900 border-amber-300 font-bold shadow-2xs"
+                                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                                        }`}
+                                      >
+                                        Missing / Lost
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <label htmlFor={`issue-qty-${item.item_key}`} className="text-[11px] font-bold text-slate-700 block">
+                                      Quantity Affected <span className="text-rose-600">*</span>
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        id={`issue-qty-${item.item_key}`}
+                                        type="number"
+                                        min={1}
+                                        max={item.quantity || 1}
+                                        step={1}
+                                        value={inlineQuantityDrafts[item.item_key] !== undefined ? inlineQuantityDrafts[item.item_key] : 1}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setInlineQuantityDrafts((prev) => ({ ...prev, [item.item_key]: val }));
+                                        }}
+                                        className="w-20 text-xs p-1.5 rounded-lg border border-slate-300 focus:border-[#4C81E0] focus:ring-1 focus:ring-[#4C81E0] outline-none bg-white text-slate-900 font-bold text-center"
+                                      />
+                                      <span className="text-xs text-slate-500">
+                                        of <strong className="text-slate-800">{item.quantity || 1}</strong> {item.unit || "pcs"} dispatched
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="space-y-1">
+                                <label className="text-[11px] font-bold text-slate-700 block">
+                                  {(pendingAction[item.item_key] === "incomplete" || item.status === "incomplete") ? "Issue Details & Remarks" : "Notes"}
+                                </label>
+                                <textarea
+                                  rows={2}
+                                  value={inlineDrafts[item.item_key] !== undefined ? inlineDrafts[item.item_key] : (item.notes || "")}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setInlineDrafts((prev) => ({ ...prev, [item.item_key]: val }));
+                                  }}
+                                  disabled={isCompleted}
+                                  placeholder={
+                                    (pendingAction[item.item_key] === "incomplete" || item.status === "incomplete")
+                                      ? "Describe damage, missing gear, quantity discrepancy, or equipment issues..."
+                                      : "Add any optional notes, remarks, or serial numbers for this item..."
+                                  }
+                                  className="w-full text-xs p-2.5 rounded-lg border border-slate-300 focus:border-[#4C81E0] focus:ring-1 focus:ring-[#4C81E0] outline-none bg-white text-slate-800 disabled:bg-slate-50"
+                                />
+                              </div>
 
                               <div className="flex items-center justify-between gap-2 pt-0.5">
                                 <div className="text-[11px] text-slate-500">
                                   {(pendingAction[item.item_key] === "incomplete" || item.status === "incomplete") && (
-                                    <span className="text-rose-700 font-semibold">Will be saved as Incomplete</span>
+                                    <span className="text-rose-700 font-semibold">
+                                      Will save: {inlineQuantityDrafts[item.item_key] || 1} {inlineIssueTypeDrafts[item.item_key] || "damaged"}
+                                      {item.quantity && item.quantity > (Number(inlineQuantityDrafts[item.item_key]) || 1) && (
+                                        <span className="text-emerald-700 ml-1">
+                                          ({Math.max(0, item.quantity - (Number(inlineQuantityDrafts[item.item_key]) || 1))} returned good)
+                                        </span>
+                                      )}
+                                    </span>
                                   )}
                                   {item.status === "inspected_ok" && (
                                     <span className="text-emerald-700 font-semibold">Item is marked Complete</span>

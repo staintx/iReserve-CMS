@@ -304,7 +304,8 @@ const filterAvailableStaff = async (
     Booking.find(query),
     StaffAvailability.find({
       user_id: { $in: staffIds },
-      date: { $gte: dayStart, $lte: dayEnd }
+      date: { $gte: dayStart, $lte: dayEnd },
+      $or: [{ status: "approved" }, { status: { $exists: false } }, { status: null }]
     }).select("user_id")
   ]);
 

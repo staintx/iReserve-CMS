@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { Eye, Plus, Edit3, Trash2, Calendar, ShieldCheck, UserCheck, Users } from "lucide-react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { Eye, Plus, Edit3, Trash2, Calendar, ShieldCheck, UserCheck, Users, Clock } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
@@ -9,6 +9,8 @@ import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { useNavigate } from "react-router-dom";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
+import useAuth from "../../hooks/useAuth";
+import AvailabilityRequestsModal from "../../components/admin/AvailabilityRequestsModal";
 import DataTable from "../../components/admin/table/DataTable";
 import TableToolbar from "../../components/admin/table/TableToolbar";
 import FilterPill from "../../components/admin/table/FilterPill";
@@ -38,6 +40,19 @@ export default function AdminStaff() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [draftStatusFilter, setDraftStatusFilter] = useState("all");
 
+  const auth = useAuth() || {};
+  const currentUser = auth.user || null;
+  const [showRequestsModal, setShowRequestsModal] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const loadPendingCount = useCallback(() => {
+    AdminAPI.getAvailabilityRequests({ status: "pending" })
+      .then((res) => {
+        setPendingCount(Array.isArray(res.data) ? res.data.length : 0);
+      })
+      .catch(() => {});
+  }, []);
+
   const loadData = () => {
     setLoading(true);
     AdminAPI.getStaff()
@@ -48,7 +63,8 @@ export default function AdminStaff() {
 
   useEffect(() => {
     loadData();
-  }, []);
+    loadPendingCount();
+  }, [loadPendingCount]);
 
   const counts = useMemo(() => {
     const managers = staff.filter((s) => s.role === "manager").length;
@@ -180,7 +196,20 @@ export default function AdminStaff() {
           </div>
 
           <div className="flex gap-2 flex-wrap items-center self-start sm:self-auto">
-
+            <Btn
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowRequestsModal(true)}
+              className="relative flex items-center gap-1.5"
+            >
+              <Clock size={13} className="text-amber-600" />
+              <span>Requests</span>
+              {pendingCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[10px] font-bold">
+                  {pendingCount}
+                </span>
+              )}
+            </Btn>
             <Btn variant="secondary" size="sm" onClick={() => navigate("/admin/staff/schedule")}>
               <Calendar size={13} /> View Schedule
             </Btn>
@@ -357,6 +386,16 @@ export default function AdminStaff() {
           </div>
         )}
       </DetailDrawer>
+
+      <AvailabilityRequestsModal
+        open={showRequestsModal}
+        onClose={() => setShowRequestsModal(false)}
+        currentUser={currentUser}
+        onUpdated={() => {
+          loadData();
+          loadPendingCount();
+        }}
+      />
     </AdminLayout>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ManagerAPI } from "../../api/manager";
 import ManagerLayout from "../../components/layout/ManagerLayout";
@@ -6,6 +6,7 @@ import PageHeader from "../../components/admin/ui/PageHeader";
 import KPICard from "../../components/admin/ui/KPICard";
 import Badge from "../../components/admin/ui/Badge";
 import AvailabilityModal from "../../components/common/AvailabilityModal";
+import AvailabilityRequestsModal from "../../components/admin/AvailabilityRequestsModal";
 import useToast from "../../hooks/useToast";
 import useAuth from "../../hooks/useAuth";
 import { getSocket } from "../../api/socket";
@@ -50,8 +51,10 @@ export default function ManagerDashboard() {
   // Calendar & Availability states
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const [availabilityData, setAvailabilityData] = useState({ month: "", unavailable: [], assignments: [] });
+  const [availabilityData, setAvailabilityData] = useState({ month: "", unavailable: [], pending: [], assignments: [] });
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+  const [showRequestsModal, setShowRequestsModal] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   const monthKey = useMemo(() => {
     return `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, "0")}`;
@@ -61,18 +64,27 @@ export default function ManagerDashboard() {
     return calendarMonth.toLocaleString("default", { month: "long", year: "numeric" });
   }, [calendarMonth]);
 
+  const loadPendingRequests = useCallback(() => {
+    ManagerAPI.getAvailabilityRequests({ status: "pending" })
+      .then((res) => {
+        setPendingRequestsCount(Array.isArray(res.data) ? res.data.length : 0);
+      })
+      .catch(() => {});
+  }, []);
+
   const loadData = async () => {
     setLoading(true);
     try {
       const [upcomingRes, completedRes, availRes] = await Promise.all([
         ManagerAPI.getBookings("upcoming").catch(() => ({ data: [] })),
         ManagerAPI.getBookings("completed").catch(() => ({ data: [] })),
-        ManagerAPI.getAvailability(monthKey).catch(() => ({ data: { month: monthKey, unavailable: [], assignments: [] } }))
+        ManagerAPI.getAvailability(monthKey).catch(() => ({ data: { month: monthKey, unavailable: [], pending: [], assignments: [] } }))
       ]);
 
       setUpcomingBookings(Array.isArray(upcomingRes.data) ? upcomingRes.data : []);
       setCompletedBookings(Array.isArray(completedRes.data) ? completedRes.data : []);
-      setAvailabilityData(availRes.data || { month: monthKey, unavailable: [], assignments: [] });
+      setAvailabilityData(availRes.data || { month: monthKey, unavailable: [], pending: [], assignments: [] });
+      loadPendingRequests();
     } catch {
       notify("Failed to load manager operations data.", "error");
     } finally {
@@ -82,7 +94,8 @@ export default function ManagerDashboard() {
 
   useEffect(() => {
     loadData();
-  }, [monthKey]);
+    loadPendingRequests();
+  }, [monthKey, loadPendingRequests]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -91,6 +104,7 @@ export default function ManagerDashboard() {
     const handleRefresh = (data) => {
       if (!data || data.type === "booking" || data.type === "staff") {
         loadData();
+        loadPendingRequests();
       }
     };
 
@@ -100,7 +114,7 @@ export default function ManagerDashboard() {
       socket.off("system:refresh", handleRefresh);
       socket.off("notification:new", handleRefresh);
     };
-  }, []);
+  }, [loadPendingRequests]);
 
   const handleSaveAvailability = async (payload, dates) => {
     try {
@@ -163,6 +177,7 @@ export default function ManagerDashboard() {
   const selectedDateKey = toDateKey(selectedDate);
   const selectedDateEvents = eventsByDate.get(selectedDateKey) || [];
   const isSelectedDateUnavailable = (availabilityData.unavailable || []).includes(selectedDateKey);
+  const isSelectedDatePending = (availabilityData.pending || []).includes(selectedDateKey);
 
   const openEvent = (id) => navigate(`/manager/events/${id}`);
 
@@ -176,7 +191,7 @@ export default function ManagerDashboard() {
         />
 
         {/* SECTION A: Summary Cards (Top) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
           <KPICard
             label="Assigned Events"
             value={loading ? "—" : upcomingBookings.length}
@@ -192,6 +207,14 @@ export default function ManagerDashboard() {
             icon={CheckCircle2}
             tone="success"
             onClick={() => navigate("/manager/bookings?tab=completed")}
+          />
+          <KPICard
+            label="Staff Requests"
+            value={loading ? "—" : pendingRequestsCount}
+            sub={pendingRequestsCount === 1 ? "1 request requires review" : `${pendingRequestsCount} requests pending review`}
+            icon={Clock}
+            tone={pendingRequestsCount > 0 ? "warning" : "default"}
+            onClick={() => setShowRequestsModal(true)}
           />
         </div>
 
@@ -212,6 +235,19 @@ export default function ManagerDashboard() {
             </div>
 
             <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setShowRequestsModal(true)}
+                className="inline-flex min-h-[38px] items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer shadow-2xs relative"
+              >
+                <Clock size={14} className="text-amber-600" />
+                <span>Staff Requests</span>
+                {pendingRequestsCount > 0 && (
+                  <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[10px] font-bold">
+                    {pendingRequestsCount}
+                  </span>
+                )}
+              </button>
               <button
                 type="button"
                 onClick={() => setShowAvailabilityModal(true)}
@@ -287,6 +323,7 @@ export default function ManagerDashboard() {
                   const isToday = toDateKey(new Date()) === dateKey;
                   const hasAssigned = eventsByDate.has(dateKey);
                   const isUnavailable = (availabilityData.unavailable || []).includes(dateKey);
+                  const isPending = (availabilityData.pending || []).includes(dateKey);
                   const dayEvents = eventsByDate.get(dateKey) || [];
 
                   return (
@@ -301,6 +338,8 @@ export default function ManagerDashboard() {
                           ? "border-amber-300 bg-amber-50/40 hover:bg-amber-50/70"
                           : isUnavailable
                           ? "border-rose-200 bg-rose-50/50 hover:bg-rose-50/80"
+                          : isPending
+                          ? "border-amber-300 bg-amber-50/50 hover:bg-amber-50/80"
                           : "border-slate-200/80 bg-white hover:bg-slate-50"
                       } ${isToday && !isSelected ? "ring-1 ring-slate-400" : ""}`}
                     >
@@ -315,6 +354,9 @@ export default function ManagerDashboard() {
                         {!hasAssigned && isUnavailable && (
                           <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" title="Unavailable" />
                         )}
+                        {!hasAssigned && !isUnavailable && isPending && (
+                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Pending Approval" />
+                        )}
                       </div>
 
                       <div className="space-y-0.5 min-w-0">
@@ -325,6 +367,10 @@ export default function ManagerDashboard() {
                         ) : isUnavailable ? (
                           <span className="block truncate text-[9px] sm:text-[10px] font-bold text-rose-700 bg-rose-100/80 px-1 py-0.2 rounded leading-tight">
                             Off-duty
+                          </span>
+                        ) : isPending ? (
+                          <span className="block truncate text-[9px] sm:text-[10px] font-bold text-amber-700 bg-amber-100/80 px-1 py-0.2 rounded leading-tight">
+                            Pending off
                           </span>
                         ) : null}
                       </div>
@@ -346,6 +392,11 @@ export default function ManagerDashboard() {
                     {isSelectedDateUnavailable && (
                       <span className="px-2 py-0.5 rounded bg-rose-100 border border-rose-200 text-rose-800 text-[11px] font-semibold">
                         Marked Off-Duty (Unavailable)
+                      </span>
+                    )}
+                    {isSelectedDatePending && (
+                      <span className="px-2 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-900 text-[11px] font-semibold">
+                        Pending Off-Duty Request
                       </span>
                     )}
                     {selectedDateEvents.length > 0 && (
@@ -536,6 +587,17 @@ export default function ManagerDashboard() {
             userRole="manager"
           />
         )}
+
+        {/* Staff Availability Requests Reviewer Modal */}
+        <AvailabilityRequestsModal
+          open={showRequestsModal}
+          onClose={() => setShowRequestsModal(false)}
+          currentUser={user}
+          onUpdated={() => {
+            loadData();
+            loadPendingRequests();
+          }}
+        />
       </div>
     </ManagerLayout>
   );

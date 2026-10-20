@@ -24,5 +24,10 @@ export const ManagerAPI = {
   verifyEquipment: (id, data) => api.put(`/manager/bookings/${id}/verify-equipment`, data),
   markCompleted: (id, data) => api.put(`/manager/bookings/${id}/complete`, data),
   getStaff: (params) => api.get("/manager/staff", { params }),
-  getStaffCalendar: (id, month) => api.get(`/manager/staff/${id}/calendar`, { params: { month } })
+  getStaffCalendar: (id, month) => api.get(`/manager/staff/${id}/calendar`, { params: { month } }),
+  getAvailabilityRequests: (params) => api.get("/manager/availability-requests", { params }),
+  approveAvailabilityRequest: (id) => api.put(`/manager/availability-requests/${id}/approve`),
+  rejectAvailabilityRequest: (id, data) => api.put(`/manager/availability-requests/${id}/reject`, data),
+  batchApproveAvailabilityRequests: (data) => api.post("/manager/availability-requests/batch-approve", data),
+  batchRejectAvailabilityRequests: (data) => api.post("/manager/availability-requests/batch-reject", data)
 };

@@ -170,6 +170,7 @@ export default function StaffDashboard() {
   const selectedDateKey = toDateKey(selectedDate);
   const selectedDateEvents = eventsByDate.get(selectedDateKey) || [];
   const isSelectedDateUnavailable = (availabilityData.unavailable || []).includes(selectedDateKey);
+  const isSelectedDatePending = (availabilityData.pending || []).includes(selectedDateKey);
 
   return (
     <StaffLayout>
@@ -231,10 +232,26 @@ export default function StaffDashboard() {
 
           <div className="p-3.5 sm:p-5 space-y-4">
             {/* Month Navigation Toolbar */}
-            <div className="flex items-center justify-between border rounded-xl p-2 sm:p-2.5 bg-slate-50/60 border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border rounded-xl p-2 sm:p-2.5 bg-slate-50/60 border-slate-200">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-slate-900">{monthLabel}</h3>
                 <span className="text-xs text-slate-400 font-mono hidden sm:inline">({monthKey})</span>
+              </div>
+
+              {/* Legend */}
+              <div className="flex items-center gap-2.5 text-xs flex-wrap">
+                <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#4C81E0]" />
+                  <span className="text-slate-600 text-[10.5px]">Assigned</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                  <span className="text-slate-600 text-[10.5px]">Off-Duty</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                  <span className="text-slate-600 text-[10.5px]">Pending</span>
+                </span>
               </div>
 
               <div className="flex items-center gap-1">
@@ -293,6 +310,7 @@ export default function StaffDashboard() {
                   const isToday = toDateKey(new Date()) === dateKey;
                   const hasAssigned = eventsByDate.has(dateKey);
                   const isUnavailable = (availabilityData.unavailable || []).includes(dateKey);
+                  const isPending = (availabilityData.pending || []).includes(dateKey);
                   const dayEvents = eventsByDate.get(dateKey) || [];
 
                   return (
@@ -307,6 +325,8 @@ export default function StaffDashboard() {
                           ? "border-blue-200 bg-blue-50/30 hover:bg-blue-50/60"
                           : isUnavailable
                           ? "border-rose-200 bg-rose-50/50 hover:bg-rose-50/80"
+                          : isPending
+                          ? "border-amber-200 bg-amber-50/40 hover:bg-amber-50/70"
                           : "border-slate-200/80 bg-white hover:bg-slate-50"
                       } ${isToday && !isSelected ? "ring-1 ring-slate-400" : ""}`}
                     >
@@ -319,7 +339,10 @@ export default function StaffDashboard() {
                           <span className="w-2 h-2 rounded-full bg-[#4C81E0] shrink-0" title="Assigned Event" />
                         )}
                         {!hasAssigned && isUnavailable && (
-                          <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" title="Unavailable" />
+                          <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" title="Off-Duty" />
+                        )}
+                        {!hasAssigned && !isUnavailable && isPending && (
+                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Pending Off-Duty Request" />
                         )}
                       </div>
 
@@ -331,6 +354,10 @@ export default function StaffDashboard() {
                         ) : isUnavailable ? (
                           <span className="block truncate text-[9px] sm:text-[10px] font-bold text-rose-700 bg-rose-100/80 px-1 py-0.2 rounded leading-tight">
                             Off-duty
+                          </span>
+                        ) : isPending ? (
+                          <span className="block truncate text-[9px] sm:text-[10px] font-bold text-amber-700 bg-amber-100/80 px-1 py-0.2 rounded leading-tight">
+                            Pending
                           </span>
                         ) : null}
                       </div>
@@ -351,7 +378,12 @@ export default function StaffDashboard() {
                   <div className="flex items-center gap-2">
                     {isSelectedDateUnavailable && (
                       <span className="px-2 py-0.5 rounded bg-rose-100 border border-rose-200 text-rose-800 text-[11px] font-semibold">
-                        Marked Off-Duty (Unavailable)
+                        Marked Off-Duty (Approved)
+                      </span>
+                    )}
+                    {isSelectedDatePending && !isSelectedDateUnavailable && (
+                      <span className="px-2 py-0.5 rounded bg-amber-100 border border-amber-200 text-amber-800 text-[11px] font-semibold">
+                        Pending Availability Request
                       </span>
                     )}
                     {selectedDateEvents.length > 0 && (

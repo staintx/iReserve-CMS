@@ -323,7 +323,7 @@ function AvailabilityModalContent({
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            Record Unavailability
+            Request Unavailability
           </button>
           <button
             type="button"
@@ -334,9 +334,9 @@ function AvailabilityModalContent({
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            <span>Saved Off-Duty Dates</span>
+            <span>My Requests &amp; Schedule</span>
             {records.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-100 text-rose-700 font-bold">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-muted text-foreground border border-border/70 font-bold">
                 {records.length}
               </span>
             )}
@@ -346,6 +346,16 @@ function AvailabilityModalContent({
         {activeTab === "form" ? (
           /* Form Content: Modeled directly after Admin Block Calendar Date(s) Modal */
           <form onSubmit={handleSubmit} className="space-y-3.5">
+            {/* Role-based approval policy note */}
+            <div className="p-2.5 rounded-lg bg-blue-50/70 border border-blue-200 text-xs text-blue-900 font-medium flex items-start gap-2">
+              <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
+              <span>
+                {userRole === "manager"
+                  ? "Manager availability requests are submitted as Pending and require Admin review before taking effect."
+                  : "Staff availability requests are submitted as Pending and require Manager or Admin review before taking effect."}
+              </span>
+            </div>
+
             {formError && (
               <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 font-medium flex items-start gap-2">
                 <Info size={14} className="text-rose-600 shrink-0 mt-0.5" />
@@ -448,8 +458,8 @@ function AvailabilityModalContent({
 
             {/* Existing Assignment / Duplicate Conflict Notice */}
             {conflictWarning && !rangeValidationError && (
-              <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-800 font-medium flex items-start gap-2">
-                <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
+              <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 font-medium flex items-start gap-2">
+                <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
                 <span>{conflictWarning}</span>
               </div>
             )}
@@ -495,13 +505,13 @@ function AvailabilityModalContent({
             {/* Helper link to view saved dates if any exist */}
             {records.length > 0 && (
               <div className="pt-1 text-xs text-muted-foreground flex items-center justify-between">
-                <span>You currently have <strong>{records.length}</strong> saved off-duty date(s).</span>
+                <span>You have <strong>{records.length}</strong> recorded request(s) or saved date(s).</span>
                 <button
                   type="button"
                   onClick={() => setActiveTab("saved")}
                   className="text-primary hover:underline font-semibold cursor-pointer"
                 >
-                  View All &rarr;
+                  View Status &rarr;
                 </button>
               </div>
             )}
@@ -526,7 +536,7 @@ function AvailabilityModalContent({
                 }
                 className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary-hover text-white transition-all shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
-                {submitting ? "Saving..." : "Save Availability"}
+                {submitting ? "Submitting..." : "Submit Request"}
               </button>
             </div>
           </form>
@@ -535,91 +545,122 @@ function AvailabilityModalContent({
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-foreground">
-                Your Recorded Unavailable Dates ({records.length})
+                Your Availability Requests ({records.length})
               </span>
               <button
                 type="button"
                 onClick={() => setActiveTab("form")}
                 className="text-primary hover:underline font-semibold cursor-pointer text-xs"
               >
-                + Add New Date
+                + New Request
               </button>
             </div>
 
             {loadingRecords ? (
               <div className="py-8 text-center text-xs text-muted-foreground">
-                Loading saved schedule...
+                Loading schedule...
               </div>
             ) : records.length === 0 ? (
               <div className="py-8 text-center text-xs text-muted-foreground space-y-2">
                 <Calendar className="mx-auto text-muted-foreground/50" size={28} />
-                <p>No unavailable dates recorded.</p>
+                <p>No availability requests or off-duty dates recorded.</p>
                 <p className="text-[11px]">You are currently marked as available for event assignments.</p>
                 <button
                   type="button"
                   onClick={() => setActiveTab("form")}
                   className="mt-2 px-3 py-1 bg-primary text-white rounded-md text-xs font-semibold cursor-pointer hover:bg-primary-hover transition-colors"
                 >
-                  Record Unavailable Date
+                  Submit Request
                 </button>
               </div>
             ) : (
-              <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+              <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
                 {records.map((rec) => {
                   const isConfirming = recordToDelete === rec._id;
                   const isDeleting = deletingId === rec._id;
+                  const status = rec.status || "approved";
 
                   return (
                     <div
                       key={rec._id || rec.date}
-                      className="p-2.5 rounded-lg border border-border/70 bg-card hover:bg-muted/30 transition-colors flex items-center justify-between gap-2"
+                      className="p-2.5 rounded-lg border border-border/70 bg-card hover:bg-muted/30 transition-colors space-y-1.5"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-bold text-foreground">
-                            {formatDateDisplay(rec.date)}
-                          </span>
-                          {rec.reason ? (
-                            <span className="text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.2 rounded">
-                              {rec.reason}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-foreground">
+                              {formatDateDisplay(rec.date)}
                             </span>
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground italic">
-                              Off-Duty
-                            </span>
-                          )}
+
+                            {/* Status Badge */}
+                            {status === "pending" ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 px-1.5 py-0.2 rounded-md">
+                                <Clock size={10} className="text-amber-600" /> Pending Approval
+                              </span>
+                            ) : status === "rejected" ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-300 px-1.5 py-0.2 rounded-md">
+                                <X size={10} className="text-rose-600" /> Rejected
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 px-1.5 py-0.2 rounded-md">
+                                <Check size={10} className="text-emerald-600" /> Approved
+                              </span>
+                            )}
+
+                            {rec.reason && (
+                              <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.2 rounded border border-border/60">
+                                {rec.reason}
+                              </span>
+                            )}
+                          </div>
                         </div>
+
+                        {isConfirming ? (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] text-rose-700 font-semibold">Cancel request?</span>
+                            <button
+                              type="button"
+                              disabled={isDeleting}
+                              onClick={() => handleDeleteRecord(rec)}
+                              className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                            >
+                              {isDeleting ? "..." : "Yes"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isDeleting}
+                              onClick={() => setRecordToDelete(null)}
+                              className="px-1.5 py-0.5 rounded border border-border text-[11px] text-muted-foreground hover:bg-muted cursor-pointer"
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setRecordToDelete(rec._id)}
+                            title={status === "pending" ? "Cancel request" : "Remove unavailable date"}
+                            className="text-muted-foreground hover:text-rose-600 p-1 rounded-md transition-colors cursor-pointer"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </div>
 
-                      {isConfirming ? (
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-[10px] text-rose-700 font-semibold">Remove?</span>
-                          <button
-                            type="button"
-                            disabled={isDeleting}
-                            onClick={() => handleDeleteRecord(rec)}
-                            className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold cursor-pointer disabled:opacity-50"
-                          >
-                            {isDeleting ? "..." : "Yes"}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isDeleting}
-                            onClick={() => setRecordToDelete(null)}
-                            className="px-1.5 py-0.5 rounded border border-border text-[11px] text-muted-foreground hover:bg-muted cursor-pointer"
-                          >
-                            No
-                          </button>
+                      {/* Rejection reason or reviewer metadata */}
+                      {status === "rejected" && rec.rejection_reason && (
+                        <div className="text-[11px] text-rose-800 bg-rose-50 border border-rose-200/80 rounded px-2 py-1">
+                          <strong>Rejection reason:</strong> {rec.rejection_reason}
                         </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setRecordToDelete(rec._id)}
-                          title="Remove unavailable date"
-                          className="text-muted-foreground hover:text-rose-600 p-1 rounded-md transition-colors cursor-pointer"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                      )}
+
+                      {status === "approved" && rec.reviewed_by && (
+                        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                          <span>Reviewed &amp; approved by {rec.reviewed_by}</span>
+                          {rec.reviewed_at && (
+                            <span>• {new Date(rec.reviewed_at).toLocaleDateString()}</span>
+                          )}
+                        </div>
                       )}
                     </div>
                   );

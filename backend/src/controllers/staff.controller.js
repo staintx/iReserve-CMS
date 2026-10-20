@@ -517,7 +517,9 @@ exports.getMyAvailability = asyncHandler(async (req, res) => {
   }
 
   const [availability, assignments] = await Promise.all([
-    StaffAvailability.find(dateFilter).sort({ date: 1 }).select("date reason"),
+    StaffAvailability.find(dateFilter)
+      .sort({ date: 1 })
+      .populate("reviewed_by", "full_name role"),
     Booking.find({
       $or: [
         { "staff_assignments.user_id": req.user._id },
@@ -528,13 +530,27 @@ exports.getMyAvailability = asyncHandler(async (req, res) => {
     }).select("event_date status")
   ]);
 
+  const approvedAvailability = availability.filter(
+    (item) => !item.status || item.status === "approved"
+  );
+  const pendingAvailability = availability.filter(
+    (item) => item.status === "pending"
+  );
+
   res.json({
     month: month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`,
-    unavailable: availability.map((item) => toDateKey(item.date)),
+    unavailable: approvedAvailability.map((item) => toDateKey(item.date)),
+    pending: pendingAvailability.map((item) => toDateKey(item.date)),
     records: availability.map((item) => ({
       _id: item._id,
       date: toDateKey(item.date),
-      reason: item.reason || ""
+      reason: item.reason || "",
+      status: item.status || "approved",
+      reviewed_by: item.reviewed_by?.full_name || null,
+      reviewed_at: item.reviewed_at || null,
+      rejection_reason: item.rejection_reason || "",
+      request_id: item.request_id || null,
+      created_at: item.createdAt
     })),
     assignments: assignments.map((booking) => ({
       date: booking.event_date,
@@ -550,6 +566,41 @@ exports.setMyAvailability = asyncHandler(async (req, res) => {
   if ((date || (startDate && endDate)) && !reasonText) {
     return res.status(400).json({ message: "Reason / Notes is required for recording unavailability." });
   }
+
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const { notifyAdmins, createNotification, getIo } = require("../utils/notify");
+
+  const notifyReviewers = async (dateDesc) => {
+    try {
+      const staffName = req.user.full_name || "Staff Member";
+      await notifyAdmins({
+        title: "New Staff Availability Request",
+        body: `${staffName} requested unavailable status for ${dateDesc}.`,
+        type: "info",
+        link: "/admin/staff/schedule",
+        meta: { request_id: requestId, user_id: req.user._id }
+      });
+      const managers = await User.find({ role: "manager", is_active: true }).lean();
+      await Promise.all(
+        managers.map((m) =>
+          createNotification({
+            userId: m._id,
+            title: "New Staff Availability Request",
+            body: `${staffName} requested unavailable status for ${dateDesc}.`,
+            type: "info",
+            link: "/manager/dashboard",
+            meta: { request_id: requestId, user_id: req.user._id }
+          })
+        )
+      );
+      const io = getIo();
+      if (io) {
+        io.emit("system:refresh", { type: "staff", action: "availability_request_created", user_id: req.user._id });
+      }
+    } catch (e) {
+      console.error("Failed to dispatch availability request notifications:", e.message);
+    }
+  };
 
   // 1. Single Day mode
   if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -569,15 +620,21 @@ exports.setMyAvailability = asyncHandler(async (req, res) => {
     const created = await StaffAvailability.create({
       user_id: req.user._id,
       date: parsed,
-      reason: reasonText
+      reason: reasonText,
+      status: "pending",
+      request_id: requestId
     });
 
+    notifyReviewers(date);
+
     return res.status(201).json({
-      message: "Availability saved successfully",
+      message: "Availability request submitted for approval",
+      status: "pending",
       record: {
         _id: created._id,
         date: toDateKey(created.date),
-        reason: created.reason
+        reason: created.reason,
+        status: created.status
       }
     });
   }
@@ -607,15 +664,26 @@ exports.setMyAvailability = asyncHandler(async (req, res) => {
     });
 
     await StaffAvailability.insertMany(
-      rangeDates.map((d) => ({
-        user_id: req.user._id,
-        date: d,
-        reason: reasonText
-      }))
+      rangeDates.map((d) => {
+        const yr = d.getUTCFullYear();
+        const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+        return {
+          user_id: req.user._id,
+          date: d,
+          month: `${yr}-${mo}`,
+          reason: reasonText,
+          status: "pending",
+          request_id: requestId
+        };
+      })
     );
 
+    notifyReviewers(`${startDate} to ${endDate}`);
+
     return res.status(201).json({
-      message: `Saved ${rangeDates.length} unavailable dates successfully`,
+      message: `Submitted ${rangeDates.length} unavailable date request(s) for approval`,
+      status: "pending",
+      pending: rangeDates.map(toDateKey),
       dates: rangeDates.map(toDateKey)
     });
   }
@@ -644,17 +712,28 @@ exports.setMyAvailability = asyncHandler(async (req, res) => {
       }
 
       await StaffAvailability.insertMany(
-        parsedDates.map((d) => ({
-          user_id: req.user._id,
-          date: d,
-          reason: reasonText
-        }))
+        parsedDates.map((d) => {
+          const yr = d.getUTCFullYear();
+          const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+          return {
+            user_id: req.user._id,
+            date: d,
+            month: month || `${yr}-${mo}`,
+            reason: reasonText,
+            status: "pending",
+            request_id: requestId
+          };
+        })
       );
+
+      notifyReviewers(`${parsedDates.length} date(s)`);
     }
 
     return res.json({
-      message: "Availability updated successfully",
-      unavailable: parsedDates.map(toDateKey)
+      message: "Availability request(s) submitted for approval",
+      status: "pending",
+      unavailable: [],
+      pending: parsedDates.map(toDateKey)
     });
   }
 
@@ -669,6 +748,8 @@ exports.removeMyAvailability = asyncHandler(async (req, res) => {
   const date = isDateStr(rawDate) ? rawDate : (isDateStr(rawId) ? rawId : null);
   const id = (!isDateStr(rawId) && mongoose.Types.ObjectId.isValid(rawId)) ? rawId : null;
 
+  const { getIo } = require("../utils/notify");
+
   if (id) {
     const deleted = await StaffAvailability.findOneAndDelete({
       _id: id,
@@ -676,6 +757,10 @@ exports.removeMyAvailability = asyncHandler(async (req, res) => {
     });
     if (!deleted) {
       return res.status(404).json({ message: "Availability record not found" });
+    }
+    const io = getIo();
+    if (io) {
+      io.emit("system:refresh", { type: "staff", action: "availability_removed", user_id: req.user._id });
     }
     return res.json({ message: "Availability record removed successfully" });
   }
@@ -692,9 +777,13 @@ exports.removeMyAvailability = asyncHandler(async (req, res) => {
         user_id: req.user._id,
         date: { $gte: dayStart, $lte: dayEnd }
       });
+      const io = getIo();
+      if (io) {
+        io.emit("system:refresh", { type: "staff", action: "availability_removed", user_id: req.user._id });
+      }
       return res.json({ message: "Availability record removed successfully" });
     }
   }
 
   return res.status(400).json({ message: "Please provide a valid record ID or date to remove" });
-});
+});

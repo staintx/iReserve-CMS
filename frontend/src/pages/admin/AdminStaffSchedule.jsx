@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import {
   Calendar as CalendarIcon,
@@ -23,6 +23,8 @@ import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
+import useAuth from "../../hooks/useAuth";
+import AvailabilityRequestsModal from "../../components/admin/AvailabilityRequestsModal";
 
 const buildCalendar = (year, monthIndex) => {
   const firstDay = new Date(year, monthIndex, 1);
@@ -55,6 +57,8 @@ export default function AdminStaffSchedule() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { notify } = useToast();
+  const auth = useAuth() || {};
+  const currentUser = auth.user || null;
 
   const [members, setMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
@@ -67,11 +71,27 @@ export default function AdminStaffSchedule() {
     member: null,
     month: "",
     unavailable: [],
+    pending: [],
     conflicts: [],
     assignments: []
   });
   const [loadingCalendar, setLoadingCalendar] = useState(false);
   const [selectedDayKey, setSelectedDayKey] = useState(null);
+
+  const [showRequestsModal, setShowRequestsModal] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
+  const loadPendingCount = useCallback(() => {
+    AdminAPI.getAvailabilityRequests({ status: "pending" })
+      .then((res) => {
+        setPendingRequestsCount(Array.isArray(res.data) ? res.data.length : 0);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadPendingCount();
+  }, [loadPendingCount]);
 
   // 1. Fetch team members (staff + managers)
   useEffect(() => {
@@ -144,6 +164,10 @@ export default function AdminStaffSchedule() {
     return new Set(calendarData.unavailable || []);
   }, [calendarData.unavailable]);
 
+  const pendingSet = useMemo(() => {
+    return new Set(calendarData.pending || []);
+  }, [calendarData.pending]);
+
   const conflictSet = useMemo(() => {
     return new Set(calendarData.conflicts || []);
   }, [calendarData.conflicts]);
@@ -209,6 +233,20 @@ export default function AdminStaffSchedule() {
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto">
+            <Btn
+              variant="primary"
+              size="sm"
+              onClick={() => setShowRequestsModal(true)}
+              className="relative flex items-center gap-1.5"
+            >
+              <Clock size={13} />
+              <span>Availability Requests</span>
+              {pendingRequestsCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[10px] font-bold">
+                  {pendingRequestsCount}
+                </span>
+              )}
+            </Btn>
             <Btn variant="secondary" size="sm" onClick={() => navigate("/admin/staff")}>
               <ArrowLeft size={13} /> Back to Directory
             </Btn>
@@ -435,6 +473,10 @@ export default function AdminStaffSchedule() {
                   <span className="text-muted-foreground text-[10.5px]">Off-Day</span>
                 </span>
                 <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded bg-amber-100 border border-amber-300 inline-block" />
+                  <span className="text-muted-foreground text-[10.5px]">Pending Off</span>
+                </span>
+                <span className="flex items-center gap-1">
                   <span className="w-2.5 h-2.5 rounded bg-rose-200 border border-rose-400 inline-block" />
                   <span className="text-muted-foreground text-[10.5px] font-bold text-rose-700">Conflict</span>
                 </span>
@@ -456,6 +498,7 @@ export default function AdminStaffSchedule() {
                 const dateKey = day.date ? toDateKey(day.date) : null;
                 const eventsOnDay = dateKey ? assignmentsByDateKey.get(dateKey) || [] : [];
                 const isUnavailable = dateKey ? unavailableSet.has(dateKey) : false;
+                const isPending = dateKey ? pendingSet.has(dateKey) : false;
                 const isConflict = dateKey ? conflictSet.has(dateKey) : false;
                 const isToday = dateKey === todayKey;
                 const isSelected = dateKey && dateKey === selectedDayKey;
@@ -471,6 +514,9 @@ export default function AdminStaffSchedule() {
                 } else if (isUnavailable) {
                   cellStyle =
                     "border-rose-200 bg-rose-50/70 text-rose-900 font-medium hover:bg-rose-100/50";
+                } else if (isPending) {
+                  cellStyle =
+                    "border-amber-300 bg-amber-50/80 text-amber-900 font-medium hover:bg-amber-100/60";
                 }
 
                 if (isSelected) {
@@ -517,6 +563,10 @@ export default function AdminStaffSchedule() {
                           ) : isUnavailable ? (
                             <div className="truncate text-[9.5px] font-bold leading-tight text-rose-700">
                               Off-Duty
+                            </div>
+                          ) : isPending ? (
+                            <div className="truncate text-[9.5px] font-bold leading-tight text-amber-700 bg-amber-100/80 px-1 py-0.5 rounded border border-amber-200">
+                              Pending Off
                             </div>
                           ) : null}
                         </div>
@@ -664,7 +714,7 @@ export default function AdminStaffSchedule() {
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                   <CalendarOff size={13} className="text-rose-600" />
-                  Declared Off-Days for {monthLabel} ({calendarData.unavailable?.length || 0})
+                  Approved Off-Days for {monthLabel} ({calendarData.unavailable?.length || 0})
                 </h4>
               </div>
 
@@ -698,9 +748,55 @@ export default function AdminStaffSchedule() {
                   })}
                 </div>
               )}
+
+              {/* Pending Requests */}
+              {calendarData.pending?.length > 0 && (
+                <div className="pt-2.5 border-t border-border/60 space-y-1.5">
+                  <h5 className="text-[11px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1">
+                    <Clock size={12} className="text-amber-600" />
+                    Pending Approval Requests ({calendarData.pending.length})
+                  </h5>
+                  <div className="flex flex-wrap gap-1.5">
+                    {calendarData.pending.map((dateKey) => {
+                      const d = new Date(dateKey + "T00:00:00");
+                      const dateFormatted = !isNaN(d.getTime())
+                        ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                        : dateKey;
+
+                      return (
+                        <span
+                          key={dateKey}
+                          onClick={() => setSelectedDayKey(selectedDayKey === dateKey ? null : dateKey)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-300 cursor-pointer hover:bg-amber-100 transition-colors"
+                        >
+                          <span>{dateFormatted}</span>
+                          <span className="text-[9px] uppercase font-bold text-amber-600">(Pending)</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </AdminCard>
           </div>
         </div>
+
+        {/* Availability Requests Modal */}
+        <AvailabilityRequestsModal
+          open={showRequestsModal}
+          onClose={() => setShowRequestsModal(false)}
+          currentUser={currentUser}
+          onUpdated={() => {
+            loadPendingCount();
+            if (selectedMemberId) {
+              AdminAPI.getMemberCalendar(selectedMemberId, monthKey)
+                .then((res) => {
+                  setCalendarData(res.data || { member: null, month: monthKey, unavailable: [], pending: [], conflicts: [], assignments: [] });
+                })
+                .catch(() => {});
+            }
+          }}
+        />
       </div>
     </AdminLayout>
   );

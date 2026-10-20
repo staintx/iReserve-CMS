@@ -26,4 +26,11 @@ router.put("/bookings/:id/complete", protect, authorize("admin"), ctrl.markCompl
 router.get("/staff", protect, authorize("manager", "admin"), ctrl.getStaff);
 router.get("/staff/:id/calendar", protect, authorize("manager", "admin"), ctrl.getStaffCalendar);
 
+router.get("/availability-requests", protect, authorize("manager", "admin"), ctrl.getAvailabilityRequests);
+router.put("/availability-requests/:id/approve", protect, authorize("manager", "admin"), ctrl.approveAvailabilityRequest);
+router.put("/availability-requests/:id/reject", protect, authorize("manager", "admin"), ctrl.rejectAvailabilityRequest);
+router.post("/availability-requests/batch-approve", protect, authorize("manager", "admin"), ctrl.batchApproveAvailabilityRequests);
+router.post("/availability-requests/batch-reject", protect, authorize("manager", "admin"), ctrl.batchRejectAvailabilityRequests);
+
 module.exports = router;
+

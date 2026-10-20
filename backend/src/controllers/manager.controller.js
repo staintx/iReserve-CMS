@@ -4,6 +4,9 @@ const Payment = require("../models/Payment");
 const StaffAvailability = require("../models/StaffAvailability");
 const asyncHandler = require("../utils/asyncHandler");
 const mongoose = require("mongoose");
+const { checkStaffConflicts, APPROVED_AVAILABILITY_QUERY } = require("../utils/availabilityConflicts");
+const logAction = require("../utils/logAction");
+const { notifyAdmins, createNotification, getIo } = require("../utils/notify");
 
 const parseMonth = (month) => {
   if (!month || !/^\d{4}-\d{2}$/.test(month)) return null;
@@ -117,7 +120,9 @@ exports.getAvailability = asyncHandler(async (req, res) => {
   }
 
   const [availability, assignments] = await Promise.all([
-    StaffAvailability.find(dateFilter).sort({ date: 1 }).select("date reason"),
+    StaffAvailability.find(dateFilter)
+      .sort({ date: 1 })
+      .populate("reviewed_by", "full_name role"),
     Booking.find({
       event_manager_id: req.user._id,
       ...(range ? { event_date: { $gte: range.start, $lte: range.end } } : {}),
@@ -125,13 +130,27 @@ exports.getAvailability = asyncHandler(async (req, res) => {
     }).select("event_date status")
   ]);
 
+  const approvedAvailability = availability.filter(
+    (item) => !item.status || item.status === "approved"
+  );
+  const pendingAvailability = availability.filter(
+    (item) => item.status === "pending"
+  );
+
   res.json({
     month: month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`,
-    unavailable: availability.map((item) => toDateKey(item.date)),
+    unavailable: approvedAvailability.map((item) => toDateKey(item.date)),
+    pending: pendingAvailability.map((item) => toDateKey(item.date)),
     records: availability.map((item) => ({
       _id: item._id,
       date: toDateKey(item.date),
-      reason: item.reason || ""
+      reason: item.reason || "",
+      status: item.status || "approved",
+      reviewed_by: item.reviewed_by?.full_name || null,
+      reviewed_at: item.reviewed_at || null,
+      rejection_reason: item.rejection_reason || "",
+      request_id: item.request_id || null,
+      created_at: item.createdAt
     })),
     assignments: assignments.map((booking) => ({
       date: booking.event_date,
@@ -147,6 +166,27 @@ exports.setAvailability = asyncHandler(async (req, res) => {
   if ((date || (startDate && endDate)) && !reasonText) {
     return res.status(400).json({ message: "Reason / Notes is required for recording unavailability." });
   }
+
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+  const notifyAdminReviewers = async (dateDesc) => {
+    try {
+      const managerName = req.user.full_name || "Event Manager";
+      await notifyAdmins({
+        title: "New Manager Availability Request",
+        body: `${managerName} (Event Manager) requested unavailable status for ${dateDesc}.`,
+        type: "info",
+        link: "/admin/staff/schedule",
+        meta: { request_id: requestId, user_id: req.user._id }
+      });
+      const io = getIo();
+      if (io) {
+        io.emit("system:refresh", { type: "staff", action: "availability_request_created", user_id: req.user._id });
+      }
+    } catch (e) {
+      console.error("Failed to dispatch manager availability notifications:", e.message);
+    }
+  };
 
   // 1. Single Day mode
   if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -166,15 +206,21 @@ exports.setAvailability = asyncHandler(async (req, res) => {
     const created = await StaffAvailability.create({
       user_id: req.user._id,
       date: parsed,
-      reason: reasonText
+      reason: reasonText,
+      status: "pending",
+      request_id: requestId
     });
 
+    notifyAdminReviewers(date);
+
     return res.status(201).json({
-      message: "Availability saved successfully",
+      message: "Availability request submitted for approval",
+      status: "pending",
       record: {
         _id: created._id,
         date: toDateKey(created.date),
-        reason: created.reason
+        reason: created.reason,
+        status: created.status
       }
     });
   }
@@ -204,15 +250,26 @@ exports.setAvailability = asyncHandler(async (req, res) => {
     });
 
     await StaffAvailability.insertMany(
-      rangeDates.map((d) => ({
-        user_id: req.user._id,
-        date: d,
-        reason: reasonText
-      }))
+      rangeDates.map((d) => {
+        const yr = d.getUTCFullYear();
+        const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+        return {
+          user_id: req.user._id,
+          date: d,
+          month: `${yr}-${mo}`,
+          reason: reasonText,
+          status: "pending",
+          request_id: requestId
+        };
+      })
     );
 
+    notifyAdminReviewers(`${startDate} to ${endDate}`);
+
     return res.status(201).json({
-      message: `Saved ${rangeDates.length} unavailable dates successfully`,
+      message: `Submitted ${rangeDates.length} unavailable date request(s) for approval`,
+      status: "pending",
+      pending: rangeDates.map(toDateKey),
       dates: rangeDates.map(toDateKey)
     });
   }
@@ -243,17 +300,28 @@ exports.setAvailability = asyncHandler(async (req, res) => {
       }
 
       await StaffAvailability.insertMany(
-        parsedDates.map((d) => ({
-          user_id: req.user._id,
-          date: d,
-          reason: reasonText
-        }))
+        parsedDates.map((d) => {
+          const yr = d.getUTCFullYear();
+          const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+          return {
+            user_id: req.user._id,
+            date: d,
+            month: month || `${yr}-${mo}`,
+            reason: reasonText,
+            status: "pending",
+            request_id: requestId
+          };
+        })
       );
+
+      notifyAdminReviewers(`${parsedDates.length} date(s)`);
     }
 
     return res.json({
-      message: "Availability updated successfully",
-      unavailable: parsedDates.map(toDateKey)
+      message: "Availability request(s) submitted for approval",
+      status: "pending",
+      unavailable: [],
+      pending: parsedDates.map(toDateKey)
     });
   }
 
@@ -276,6 +344,10 @@ exports.removeAvailability = asyncHandler(async (req, res) => {
     if (!deleted) {
       return res.status(404).json({ message: "Availability record not found" });
     }
+    const io = getIo();
+    if (io) {
+      io.emit("system:refresh", { type: "staff", action: "availability_removed", user_id: req.user._id });
+    }
     return res.json({ message: "Availability record removed successfully" });
   }
 
@@ -291,11 +363,433 @@ exports.removeAvailability = asyncHandler(async (req, res) => {
         user_id: req.user._id,
         date: { $gte: dayStart, $lte: dayEnd }
       });
+      const io = getIo();
+      if (io) {
+        io.emit("system:refresh", { type: "staff", action: "availability_removed", user_id: req.user._id });
+      }
       return res.json({ message: "Availability date removed successfully" });
     }
   }
 
   return res.status(400).json({ message: "Please provide a valid record ID or date to remove" });
+});
+
+exports.getAvailabilityRequests = asyncHandler(async (req, res) => {
+  const { status, role, month, user_id } = req.query;
+  const reviewerRole = req.user.role; // "admin" or "manager"
+
+  // Base user query depending on reviewer role
+  let userQuery = {};
+  if (reviewerRole === "manager") {
+    // Managers can only review Staff requests
+    userQuery.role = "staff";
+  } else if (role && ["staff", "manager"].includes(role)) {
+    userQuery.role = role;
+  }
+
+  if (user_id && mongoose.Types.ObjectId.isValid(user_id)) {
+    userQuery._id = user_id;
+  }
+
+  const eligibleUsers = await User.find(userQuery).select("_id role full_name email phone position is_active").lean();
+  const eligibleUserIds = eligibleUsers.map((u) => u._id);
+
+  if (eligibleUserIds.length === 0) {
+    return res.json([]);
+  }
+
+  const filter = {
+    user_id: { $in: eligibleUserIds }
+  };
+
+  if (status && ["pending", "approved", "rejected"].includes(status)) {
+    filter.status = status;
+  }
+
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    const range = parseMonth(month);
+    if (range) {
+      filter.date = { $gte: range.start, $lte: range.end };
+    }
+  }
+
+  const requests = await StaffAvailability.find(filter)
+    .sort({ date: 1, createdAt: -1 })
+    .populate("user_id", "full_name email phone role position is_active")
+    .populate("reviewed_by", "full_name role email")
+    .lean();
+
+  const requestsWithConflicts = await Promise.all(
+    requests.map(async (item) => {
+      const conflicts = await checkStaffConflicts(item.user_id?._id, item.date);
+      return {
+        _id: item._id,
+        user_id: item.user_id,
+        requester_role: item.user_id?.role || "staff",
+        date: toDateKey(item.date),
+        raw_date: item.date,
+        reason: item.reason || "",
+        status: item.status || "approved",
+        reviewed_by: item.reviewed_by ? {
+          _id: item.reviewed_by._id,
+          full_name: item.reviewed_by.full_name,
+          role: item.reviewed_by.role
+        } : null,
+        reviewed_at: item.reviewed_at || null,
+        rejection_reason: item.rejection_reason || "",
+        request_id: item.request_id || null,
+        created_at: item.createdAt,
+        conflicts
+      };
+    })
+  );
+
+  res.json(requestsWithConflicts);
+});
+
+exports.approveAvailabilityRequest = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid availability request ID" });
+  }
+
+  const record = await StaffAvailability.findById(id).populate("user_id", "full_name role email");
+  if (!record) {
+    return res.status(404).json({ message: "Availability request not found" });
+  }
+
+  const requester = record.user_id;
+  const reviewer = req.user;
+
+  // 1. Staff and managers must not approve their own requests
+  if (String(reviewer._id) === String(requester._id)) {
+    return res.status(403).json({ message: "You cannot approve your own availability request." });
+  }
+
+  // 2. Role permission check:
+  // - Staff requests: Only Admin or Manager may approve
+  // - Manager requests: Only Admin may approve (Managers cannot approve Manager requests)
+  if (requester.role === "manager") {
+    if (reviewer.role !== "admin") {
+      return res.status(403).json({ message: "Only administrators can approve Manager availability requests." });
+    }
+  } else if (requester.role === "staff") {
+    if (!["admin", "manager"].includes(reviewer.role)) {
+      return res.status(403).json({ message: "Unauthorized to approve staff availability requests." });
+    }
+  } else {
+    if (reviewer.role !== "admin") {
+      return res.status(403).json({ message: "Only administrators can approve availability requests." });
+    }
+  }
+
+  // 3. Scheduling conflict check:
+  // Prevent approval while unresolved conflicting assignments exist
+  const conflicts = await checkStaffConflicts(requester._id, record.date);
+  if (conflicts.length > 0) {
+    const dateStr = toDateKey(record.date);
+    return res.status(409).json({
+      message: `Cannot approve request: ${requester.full_name} is assigned to ${conflicts.length} event(s) on ${dateStr}. Please resolve or reassign conflicting booking(s) before approving.`,
+      conflicts
+    });
+  }
+
+  // 4. Update status and audit metadata
+  record.status = "approved";
+  record.reviewed_by = reviewer._id;
+  record.reviewed_at = new Date();
+  record.rejection_reason = "";
+  await record.save();
+
+  const dateStr = toDateKey(record.date);
+
+  // 5. System audit log
+  await logAction({
+    user_id: reviewer._id,
+    action: "availability_approved",
+    entity_type: "staff_availability",
+    entity_id: record._id,
+    details: `${reviewer.full_name} (${reviewer.role}) approved availability request for ${requester.full_name} on ${dateStr}`,
+    changes: { status: "approved" },
+    ip_address: req.ip
+  });
+
+  // 6. Notify requester
+  await createNotification({
+    userId: requester._id,
+    title: "Availability Request Approved",
+    body: `Your request for unavailable status on ${dateStr} has been approved.`,
+    type: "success",
+    link: requester.role === "manager" ? "/manager/dashboard" : "/staff/dashboard",
+    meta: { request_id: record.request_id, availability_id: record._id }
+  }).catch(() => {});
+
+  // 7. Socket refresh
+  const io = getIo();
+  if (io) {
+    io.emit("system:refresh", { type: "staff", action: "availability_approved", user_id: requester._id });
+  }
+
+  res.json({
+    message: "Availability request approved successfully",
+    record: {
+      _id: record._id,
+      date: dateStr,
+      status: record.status,
+      reviewed_by: reviewer.full_name,
+      reviewed_at: record.reviewed_at
+    }
+  });
+});
+
+exports.rejectAvailabilityRequest = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const rejectionReason = (req.body?.rejection_reason || req.body?.reason || "").trim();
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid availability request ID" });
+  }
+
+  const record = await StaffAvailability.findById(id).populate("user_id", "full_name role email");
+  if (!record) {
+    return res.status(404).json({ message: "Availability request not found" });
+  }
+
+  const requester = record.user_id;
+  const reviewer = req.user;
+
+  // 1. Staff and managers must not reject their own requests
+  if (String(reviewer._id) === String(requester._id)) {
+    return res.status(403).json({ message: "You cannot reject your own availability request." });
+  }
+
+  // 2. Role permission check:
+  // - Staff requests: Only Admin or Manager may reject
+  // - Manager requests: Only Admin may reject
+  if (requester.role === "manager") {
+    if (reviewer.role !== "admin") {
+      return res.status(403).json({ message: "Only administrators can reject Manager availability requests." });
+    }
+  } else if (requester.role === "staff") {
+    if (!["admin", "manager"].includes(reviewer.role)) {
+      return res.status(403).json({ message: "Unauthorized to reject staff availability requests." });
+    }
+  } else {
+    if (reviewer.role !== "admin") {
+      return res.status(403).json({ message: "Only administrators can reject availability requests." });
+    }
+  }
+
+  // 3. Update status and audit metadata
+  record.status = "rejected";
+  record.reviewed_by = reviewer._id;
+  record.reviewed_at = new Date();
+  record.rejection_reason = rejectionReason;
+  await record.save();
+
+  const dateStr = toDateKey(record.date);
+
+  // 4. System audit log
+  await logAction({
+    user_id: reviewer._id,
+    action: "availability_rejected",
+    entity_type: "staff_availability",
+    entity_id: record._id,
+    details: `${reviewer.full_name} (${reviewer.role}) rejected availability request for ${requester.full_name} on ${dateStr}${rejectionReason ? `: ${rejectionReason}` : ""}`,
+    changes: { status: "rejected", rejection_reason: rejectionReason },
+    ip_address: req.ip
+  });
+
+  // 5. Notify requester
+  await createNotification({
+    userId: requester._id,
+    title: "Availability Request Rejected",
+    body: `Your request for unavailable status on ${dateStr} was rejected${rejectionReason ? `: ${rejectionReason}` : ""}.`,
+    type: "error",
+    link: requester.role === "manager" ? "/manager/dashboard" : "/staff/dashboard",
+    meta: { request_id: record.request_id, availability_id: record._id }
+  }).catch(() => {});
+
+  // 6. Socket refresh
+  const io = getIo();
+  if (io) {
+    io.emit("system:refresh", { type: "staff", action: "availability_rejected", user_id: requester._id });
+  }
+
+  res.json({
+    message: "Availability request rejected",
+    record: {
+      _id: record._id,
+      date: dateStr,
+      status: record.status,
+      reviewed_by: reviewer.full_name,
+      reviewed_at: record.reviewed_at,
+      rejection_reason: record.rejection_reason
+    }
+  });
+});
+
+exports.batchApproveAvailabilityRequests = asyncHandler(async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ message: "Please provide an array of request IDs to approve." });
+  }
+
+  const validIds = ids.filter((id) => mongoose.Types.ObjectId.isValid(id));
+  const records = await StaffAvailability.find({ _id: { $in: validIds } }).populate("user_id", "full_name role email");
+
+  const results = { approved: [], conflicts: [], unauthorized: [], notFound: [] };
+
+  for (const record of records) {
+    const requester = record.user_id;
+    const reviewer = req.user;
+
+    // Self-approval
+    if (String(reviewer._id) === String(requester._id)) {
+      results.unauthorized.push({ id: record._id, reason: "Self-approval forbidden" });
+      continue;
+    }
+
+    // Role check
+    if (requester.role === "manager" && reviewer.role !== "admin") {
+      results.unauthorized.push({ id: record._id, reason: "Only admin can approve manager requests" });
+      continue;
+    }
+    if (requester.role === "staff" && !["admin", "manager"].includes(reviewer.role)) {
+      results.unauthorized.push({ id: record._id, reason: "Unauthorized" });
+      continue;
+    }
+
+    // Conflicts check
+    const conflicts = await checkStaffConflicts(requester._id, record.date);
+    if (conflicts.length > 0) {
+      results.conflicts.push({
+        id: record._id,
+        date: toDateKey(record.date),
+        requester: requester.full_name,
+        conflicts
+      });
+      continue;
+    }
+
+    // Approve
+    record.status = "approved";
+    record.reviewed_by = reviewer._id;
+    record.reviewed_at = new Date();
+    record.rejection_reason = "";
+    await record.save();
+
+    const dateStr = toDateKey(record.date);
+
+    await logAction({
+      user_id: reviewer._id,
+      action: "availability_approved",
+      entity_type: "staff_availability",
+      entity_id: record._id,
+      details: `${reviewer.full_name} (${reviewer.role}) approved availability request for ${requester.full_name} on ${dateStr}`,
+      changes: { status: "approved" },
+      ip_address: req.ip
+    });
+
+    await createNotification({
+      userId: requester._id,
+      title: "Availability Request Approved",
+      body: `Your request for unavailable status on ${dateStr} has been approved.`,
+      type: "success",
+      link: requester.role === "manager" ? "/manager/dashboard" : "/staff/dashboard"
+    }).catch(() => {});
+
+    results.approved.push({ id: record._id, date: dateStr });
+  }
+
+  const io = getIo();
+  if (io && results.approved.length > 0) {
+    io.emit("system:refresh", { type: "staff", action: "availability_approved_batch" });
+  }
+
+  if (results.approved.length === 0 && results.conflicts.length > 0) {
+    return res.status(409).json({
+      message: `Could not approve request(s) due to ${results.conflicts.length} conflicting booking assignment(s).`,
+      results
+    });
+  }
+
+  res.json({
+    message: `Approved ${results.approved.length} request(s). ${results.conflicts.length ? `${results.conflicts.length} conflict(s) skipped.` : ""}`,
+    results
+  });
+});
+
+exports.batchRejectAvailabilityRequests = asyncHandler(async (req, res) => {
+  const { ids, rejection_reason } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ message: "Please provide an array of request IDs to reject." });
+  }
+
+  const reasonText = (rejection_reason || "").trim();
+  const validIds = ids.filter((id) => mongoose.Types.ObjectId.isValid(id));
+  const records = await StaffAvailability.find({ _id: { $in: validIds } }).populate("user_id", "full_name role email");
+
+  const results = { rejected: [], unauthorized: [] };
+
+  for (const record of records) {
+    const requester = record.user_id;
+    const reviewer = req.user;
+
+    // Self-rejection
+    if (String(reviewer._id) === String(requester._id)) {
+      results.unauthorized.push({ id: record._id, reason: "Self-rejection forbidden" });
+      continue;
+    }
+
+    // Role check
+    if (requester.role === "manager" && reviewer.role !== "admin") {
+      results.unauthorized.push({ id: record._id, reason: "Only admin can reject manager requests" });
+      continue;
+    }
+    if (requester.role === "staff" && !["admin", "manager"].includes(reviewer.role)) {
+      results.unauthorized.push({ id: record._id, reason: "Unauthorized" });
+      continue;
+    }
+
+    record.status = "rejected";
+    record.reviewed_by = reviewer._id;
+    record.reviewed_at = new Date();
+    record.rejection_reason = reasonText;
+    await record.save();
+
+    const dateStr = toDateKey(record.date);
+
+    await logAction({
+      user_id: reviewer._id,
+      action: "availability_rejected",
+      entity_type: "staff_availability",
+      entity_id: record._id,
+      details: `${reviewer.full_name} (${reviewer.role}) rejected availability request for ${requester.full_name} on ${dateStr}`,
+      changes: { status: "rejected", rejection_reason: reasonText },
+      ip_address: req.ip
+    });
+
+    await createNotification({
+      userId: requester._id,
+      title: "Availability Request Rejected",
+      body: `Your request for unavailable status on ${dateStr} was rejected${reasonText ? `: ${reasonText}` : ""}.`,
+      type: "error",
+      link: requester.role === "manager" ? "/manager/dashboard" : "/staff/dashboard"
+    }).catch(() => {});
+
+    results.rejected.push({ id: record._id, date: dateStr });
+  }
+
+  const io = getIo();
+  if (io && results.rejected.length > 0) {
+    io.emit("system:refresh", { type: "staff", action: "availability_rejected_batch" });
+  }
+
+  res.json({
+    message: `Rejected ${results.rejected.length} request(s).`,
+    results
+  });
 });
 
 exports.getBookings = asyncHandler(async (req, res) => {
@@ -493,7 +987,8 @@ exports.assignStaff = asyncHandler(async (req, res) => {
 
     const unavailabilities = await StaffAvailability.find({
       user_id: { $in: assignedUserIds },
-      date: { $gte: dayStart, $lte: dayEnd }
+      date: { $gte: dayStart, $lte: dayEnd },
+      $or: [{ status: "approved" }, { status: { $exists: false } }, { status: null }]
     }).populate("user_id", "full_name");
 
     if (unavailabilities.length > 0 && !req.body.override_unavailability) {
@@ -1491,7 +1986,8 @@ exports.getStaff = asyncHandler(async (req, res) => {
     const [unavailabilities, bookedEvents] = await Promise.all([
       StaffAvailability.find({
         user_id: { $in: staffIds },
-        date: { $gte: startOfDay, $lte: endOfDay }
+        date: { $gte: startOfDay, $lte: endOfDay },
+        $or: [{ status: "approved" }, { status: { $exists: false } }, { status: null }]
       }).select("user_id reason"),
       Booking.find({
         $or: [
@@ -1585,7 +2081,7 @@ exports.getStaffCalendar = asyncHandler(async (req, res) => {
     StaffAvailability.find({
       user_id: staffId,
       date: { $gte: range.start, $lte: range.end }
-    }).select("date"),
+    }).populate("reviewed_by", "full_name role").lean(),
     Booking.find({
       $or: [
         { "staff_assignments.user_id": staffId },
@@ -1602,8 +2098,17 @@ exports.getStaffCalendar = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Staff member or manager not found" });
   }
 
-  const unavailableDates = availability.map((item) => toDateKey(item.date));
+  const approvedAvailability = availability.filter(
+    (item) => !item.status || item.status === "approved"
+  );
+  const pendingAvailability = availability.filter(
+    (item) => item.status === "pending"
+  );
+
+  const unavailableDates = approvedAvailability.map((item) => toDateKey(item.date));
+  const pendingDates = pendingAvailability.map((item) => toDateKey(item.date));
   const unavailableSet = new Set(unavailableDates);
+  const pendingSet = new Set(pendingDates);
 
   const parsedAssignments = assignments.map((booking) => {
     const custName = booking.customer_id?.full_name 
@@ -1614,6 +2119,7 @@ exports.getStaffCalendar = asyncHandler(async (req, res) => {
     const assignedAs = isManager ? "Event Manager" : (staffEntry?.role || member.position || "Staff");
     const dateKey = toDateKey(new Date(booking.event_date));
     const isConflict = unavailableSet.has(dateKey);
+    const hasPendingRequest = pendingSet.has(dateKey);
 
     return {
       _id: booking._id,
@@ -1626,7 +2132,8 @@ exports.getStaffCalendar = asyncHandler(async (req, res) => {
       customer_name: custName,
       status: booking.status,
       assigned_as: assignedAs,
-      is_conflict: isConflict
+      is_conflict: isConflict,
+      has_pending_request: hasPendingRequest
     };
   });
 
@@ -1638,6 +2145,22 @@ exports.getStaffCalendar = asyncHandler(async (req, res) => {
     member,
     month,
     unavailable: unavailableDates,
+    pending: pendingDates,
+    records: availability.map((item) => ({
+      _id: item._id,
+      date: toDateKey(item.date),
+      reason: item.reason || "",
+      status: item.status || "approved",
+      reviewed_by: item.reviewed_by ? {
+        _id: item.reviewed_by._id,
+        full_name: item.reviewed_by.full_name,
+        role: item.reviewed_by.role
+      } : null,
+      reviewed_at: item.reviewed_at || null,
+      rejection_reason: item.rejection_reason || "",
+      request_id: item.request_id || null,
+      created_at: item.createdAt
+    })),
     conflicts: conflictDates,
     assignments: parsedAssignments
   });

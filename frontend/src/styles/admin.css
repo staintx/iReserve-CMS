@@ -469,20 +469,30 @@ input.search {
 .modal-body input,
 .modal-body select {
   width: 100%;
-  padding: 8px;
+  padding: 8px 12px;
   margin: 6px 0;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
+  font-size: 15px;
+  font-family: inherit;
 }
 
 .modal-body textarea {
   width: 100%;
-  padding: 8px;
+  padding: 8px 12px;
   margin: 6px 0;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   min-height: 80px;
   resize: none;
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.modal-body label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
 }
 
 .modal-body input:focus,

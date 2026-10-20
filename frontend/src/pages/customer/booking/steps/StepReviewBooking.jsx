@@ -28,10 +28,10 @@ import {
 function Row({ label, value, wide = false }) {
   return (
     <div className={cn("min-w-0 overflow-hidden", wide && "sm:col-span-2")}>
-      <dt className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+      <dt className="text-xs font-bold tracking-wider text-slate-500 uppercase">
         {label}
       </dt>
-      <dd className="mt-0.5 text-xs font-semibold text-slate-800 leading-snug break-words">
+      <dd className="mt-0.5 text-sm sm:text-[15px] font-semibold text-slate-800 leading-snug break-words">
         {value || <span className="text-slate-400 font-normal">Not provided</span>}
       </dd>
     </div>
@@ -45,7 +45,7 @@ function Section({ title, onEdit, children }) {
   return (
     <section className="px-3.5 py-2.5 sm:px-4 sm:py-3">
       <div className="mb-2 flex items-center justify-between gap-2 border-b border-slate-100 pb-1">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+        <h3 className="text-xs sm:text-[13px] font-bold uppercase tracking-wider text-slate-800">
           {title}
         </h3>
         {onEdit && (
@@ -53,11 +53,11 @@ function Section({ title, onEdit, children }) {
             type="button"
             onClick={onEdit}
             className={cn(
-              "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-[#4C81E0] transition-colors hover:bg-blue-50 cursor-pointer",
+              "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-[#4C81E0] transition-colors hover:bg-blue-50 cursor-pointer",
               focusRing,
             )}
           >
-            <Pencil size={11} />
+            <Pencil size={12} />
             Edit
             <span className="sr-only"> {title}</span>
           </button>
@@ -538,10 +538,10 @@ export default function StepReviewBooking({
 
           <section className="px-3.5 py-2.5 sm:px-4 sm:py-3 border-t border-slate-100">
             <div className="mb-2 border-b border-slate-100 pb-1">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+              <h3 className="text-xs sm:text-[13px] font-bold uppercase tracking-wider text-slate-800">
                 Preferred Payment Method
               </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5">
                 Choose how you intend to pay for your deposit once your quotation is issued. No payment is taken today.
               </p>
             </div>
@@ -559,7 +559,7 @@ export default function StepReviewBooking({
                     <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
                       <Banknote size={15} />
                     </span>
-                    <span className="text-xs font-bold text-slate-900">Cash Payment</span>
+                    <span className="text-sm font-bold text-slate-900">Cash Payment</span>
                   </div>
                   <input
                     type="radio"
@@ -570,7 +570,7 @@ export default function StepReviewBooking({
                     className="h-4 w-4 text-amber-600 focus:ring-amber-500 cursor-pointer"
                   />
                 </div>
-                <p className="text-[11px] text-slate-500 leading-snug">
+                <p className="text-xs text-slate-500 leading-snug">
                   Pay cash deposit in person at our office or on-site upon coordination with our team.
                 </p>
               </label>
@@ -588,7 +588,7 @@ export default function StepReviewBooking({
                     <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
                       <CreditCard size={15} />
                     </span>
-                    <span className="text-xs font-bold text-slate-900">Online Payment</span>
+                    <span className="text-sm font-bold text-slate-900">Online Payment</span>
                   </div>
                   <input
                     type="radio"
@@ -599,7 +599,7 @@ export default function StepReviewBooking({
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
                   />
                 </div>
-                <p className="text-[11px] text-slate-500 leading-snug">
+                <p className="text-xs text-slate-500 leading-snug">
                   Pay deposit online via GCash, Maya, or Credit/Debit Card through PayMongo.
                 </p>
               </label>
@@ -612,11 +612,11 @@ export default function StepReviewBooking({
           <EstimateSummary estimate={estimate} variant="review" />
 
           <Card id="booking-agreements" className="p-3.5 sm:p-4">
-            <h3 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-slate-800">
+            <h3 className="mb-2.5 text-xs sm:text-[13px] font-bold uppercase tracking-wider text-slate-800">
               Before you submit
             </h3>
 
-            <p className="mb-3 text-xs text-slate-500 leading-relaxed">
+            <p className="mb-3 text-[13px] text-slate-500 leading-relaxed">
               Please review and accept our policies before submitting your quotation request.
             </p>
 
@@ -626,9 +626,9 @@ export default function StepReviewBooking({
               </InfoNote>
             )}
 
-            <div className="space-y-2 border-t border-slate-100 pt-2.5">
+            <div className="space-y-2.5 border-t border-slate-100 pt-2.5">
               <div>
-                <label className="flex cursor-pointer items-start gap-2 rounded-md p-1 transition-colors hover:bg-slate-50">
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-md p-1 transition-colors hover:bg-slate-50">
                   <input
                     type="checkbox"
                     className={checkboxClass}
@@ -637,7 +637,7 @@ export default function StepReviewBooking({
                       setAgreements({ ...agreements, terms: event.target.checked })
                     }
                   />
-                  <span className="text-xs text-slate-600 leading-snug">
+                  <span className="text-sm text-slate-700 leading-snug">
                     I agree to the{" "}
                     <button
                       type="button"
@@ -653,21 +653,21 @@ export default function StepReviewBooking({
                       Terms &amp; Conditions
                     </button>
                     {" "}
-                    <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
+                    <span className="font-bold text-red-500 text-sm" title="Required" aria-hidden="true">
                       *
                     </span>
                     .
                   </span>
                 </label>
                 {errors.terms && (
-                  <p className="text-xs font-semibold text-red-600 pl-6 mt-0.5">
+                  <p className="text-[13px] font-semibold text-red-600 pl-6 mt-0.5">
                     {errors.terms}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="flex cursor-pointer items-start gap-2 rounded-md p-1 transition-colors hover:bg-slate-50">
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-md p-1 transition-colors hover:bg-slate-50">
                   <input
                     type="checkbox"
                     className={checkboxClass}
@@ -679,7 +679,7 @@ export default function StepReviewBooking({
                       })
                     }
                   />
-                  <span className="text-xs text-slate-600 leading-snug">
+                  <span className="text-sm text-slate-700 leading-snug">
                     I have read and understood the{" "}
                     <button
                       type="button"
@@ -695,14 +695,14 @@ export default function StepReviewBooking({
                       Privacy Policy
                     </button>
                     {" "}
-                    <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
+                    <span className="font-bold text-red-500 text-sm" title="Required" aria-hidden="true">
                       *
                     </span>
                     .
                   </span>
                 </label>
                 {errors.privacy && (
-                  <p className="text-xs font-semibold text-red-600 pl-6 mt-0.5">
+                  <p className="text-[13px] font-semibold text-red-600 pl-6 mt-0.5">
                     {errors.privacy}
                   </p>
                 )}

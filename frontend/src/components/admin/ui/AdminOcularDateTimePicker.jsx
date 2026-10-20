@@ -288,27 +288,27 @@ export default function AdminOcularDateTimePicker({
       
       {/* Compact Event Context Pill */}
       {!hideContextPill && selectedBooking && (
-        <div className="p-2.5 bg-blue-50/80 border border-blue-200/80 rounded-lg text-xs space-y-1 text-slate-800 shadow-2xs">
+        <div className="p-2.5 bg-blue-50/80 border border-blue-200/80 rounded-lg text-[13px] space-y-1 text-slate-800 shadow-2xs">
           <div className="flex items-center justify-between font-bold text-blue-950">
             <span className="truncate">
               {selectedBooking.reference || `BK-${selectedBooking._id.substring(selectedBooking._id.length - 6).toUpperCase()}`} — {selectedBooking.contact_first_name || ""} {selectedBooking.contact_last_name || ""}
             </span>
-            <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded shrink-0">
+            <span className="text-xs bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded shrink-0">
               {selectedBooking.event_type || "Event"}
             </span>
           </div>
-          <div className="flex flex-wrap items-center justify-between text-[11px] text-blue-900 gap-x-3 gap-y-0.5">
+          <div className="flex flex-wrap items-center justify-between text-xs text-blue-900 gap-x-3 gap-y-0.5">
             <span>Target Event Date: <strong>{formattedEventDate || "N/A"}</strong> ({selectedBooking.start_time || "TBA"})</span>
             {selectedBooking.venue_type && (
               <span className="truncate flex items-center gap-1">
-                <MapPin size={11} className="text-blue-600 shrink-0" /> {selectedBooking.venue_type}
+                <MapPin size={12} className="text-blue-600 shrink-0" /> {selectedBooking.venue_type}
               </span>
             )}
           </div>
           {isWedding && !disableEventDateLimit && (
-            <div className="mt-1 pt-1.5 border-t border-blue-200/60 flex items-center justify-between text-[11px] text-amber-900 bg-amber-50/80 -mx-2.5 -mb-2.5 px-2.5 py-1.5 rounded-b-lg">
+            <div className="mt-1 pt-1.5 border-t border-blue-200/60 flex items-center justify-between text-xs text-amber-900 bg-amber-50/80 -mx-2.5 -mb-2.5 px-2.5 py-1.5 rounded-b-lg">
               <span className="flex items-center gap-1.5 font-medium">
-                <Sparkles size={12} className="text-amber-600 shrink-0" />
+                <Sparkles size={13} className="text-amber-600 shrink-0" />
                 <span>
                   <strong>Wedding Ocular Policy:</strong> Site visits must be scheduled at least 1 week (7 days) before the event date
                   {maxAllowedOcularDateObj ? ` (on or before ${maxAllowedOcularDateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})` : ""}.
@@ -321,11 +321,11 @@ export default function AdminOcularDateTimePicker({
 
       {/* Wedding Within 7 Days Warning */}
       {isWedding && !disableEventDateLimit && maxAllowedOcularDateObj && maxAllowedOcularDateObj < startOfToday && (
-        <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2 shadow-2xs">
-          <AlertCircle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+        <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs sm:text-[13px] text-amber-900 flex items-start gap-2 shadow-2xs">
+          <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
           <div className="space-y-0.5">
             <p className="font-semibold text-amber-950">Wedding Preparation Window Active (&lt; 7 Days Remaining)</p>
-            <p className="text-[11px] text-amber-800">
+            <p className="text-xs text-amber-800">
               The standard 1-week lead time for wedding ocular site visits has passed. Dates are disabled to ensure sufficient floral and stage styling lead time.
             </p>
           </div>
@@ -334,8 +334,8 @@ export default function AdminOcularDateTimePicker({
 
       {/* Blocked Date Warning */}
       {dateValue && blockedDates.includes(dateValue) && (
-        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-900 flex items-start gap-2 shadow-2xs">
-          <AlertCircle size={15} className="text-rose-600 shrink-0 mt-0.5" />
+        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs sm:text-[13px] text-rose-900 flex items-start gap-2 shadow-2xs">
+          <AlertCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
           <span>This date is currently unavailable because it has been blocked by the administrator. Please select another date.</span>
         </div>
       )}
@@ -343,8 +343,8 @@ export default function AdminOcularDateTimePicker({
       {/* Interactive Calendar Grid */}
       <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2.5 shadow-2xs">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-            <CalendarIcon size={13} className="text-blue-600" /> {dateLabel}
+          <span className="text-xs sm:text-[13px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+            <CalendarIcon size={14} className="text-blue-600" /> {dateLabel}
           </span>
           <div className="flex items-center gap-1">
             <button
@@ -355,7 +355,7 @@ export default function AdminOcularDateTimePicker({
             >
               <ChevronLeft size={14} />
             </button>
-            <span className="text-xs font-bold text-slate-800 min-w-[95px] text-center">
+            <span className="text-sm font-bold text-slate-800 min-w-[105px] text-center">
               {MONTH_NAMES[currentMonth.getMonth()]} {currentMonth.getFullYear()}
             </span>
             <button
@@ -369,14 +369,14 @@ export default function AdminOcularDateTimePicker({
         </div>
 
         {/* Days Header */}
-        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400">
+        <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-400">
           <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
         </div>
 
         {/* Days Grid */}
         <div className="grid grid-cols-7 gap-1">
           {calendarDays.map((d, idx) => {
-            if (!d) return <div key={`empty-${idx}`} className="h-7 sm:h-8" />;
+            if (!d) return <div key={`empty-${idx}`} className="h-8 sm:h-9" />;
 
             const dateKey = getDateKey(d);
             const isSelected = dateValue === dateKey;
@@ -393,7 +393,7 @@ export default function AdminOcularDateTimePicker({
                 onClick={() => handleSelectDay(d)}
                 title={isBlocked ? "Date blocked by admin" : eventFlag ? "Target Event Date" : undefined}
                 className={cn(
-                  "h-7 sm:h-8 rounded-lg text-xs font-semibold transition-all flex items-center justify-center relative",
+                  "h-8 sm:h-9 rounded-lg text-xs sm:text-[13px] font-semibold transition-all flex items-center justify-center relative",
                   isBlocked
                     ? "text-rose-400 bg-rose-50/80 border border-rose-200 cursor-not-allowed line-through"
                     : disabled
@@ -412,7 +412,7 @@ export default function AdminOcularDateTimePicker({
         </div>
 
         {/* Calendar Legend */}
-        <div className="flex items-center gap-3 pt-1 text-[10px] text-slate-500">
+        <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-500">
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
             <span>Blocked Date</span>
@@ -429,13 +429,13 @@ export default function AdminOcularDateTimePicker({
       {/* Time Slot Picker */}
       <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2.5 shadow-2xs">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-            <Clock size={13} className="text-blue-600" /> {timeLabel}
+          <span className="text-xs sm:text-[13px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+            <Clock size={14} className="text-blue-600" /> {timeLabel}
           </span>
           <button
             type="button"
             onClick={() => setIsCustomTimeMode(!isCustomTimeMode)}
-            className="text-[11px] text-blue-600 hover:underline font-semibold cursor-pointer"
+            className="text-xs text-blue-600 hover:underline font-semibold cursor-pointer"
           >
             {isCustomTimeMode ? "Use Preset Slots" : "Custom Time"}
           </button>
@@ -453,7 +453,7 @@ export default function AdminOcularDateTimePicker({
                   disabled={disabled}
                   onClick={() => handlePresetTimeSelect(slot)}
                   className={cn(
-                    "py-1.5 px-2 rounded-lg text-[11px] font-semibold border transition-all flex items-center justify-center gap-1",
+                    "py-2 px-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1 min-h-[36px]",
                     disabled
                       ? "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed line-through"
                       : isSelected
@@ -461,7 +461,7 @@ export default function AdminOcularDateTimePicker({
                         : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700"
                   )}
                 >
-                  {isSelected && <CheckCircle2 size={12} className="text-white shrink-0" />}
+                  {isSelected && <CheckCircle2 size={13} className="text-white shrink-0" />}
                   <span>{slot}</span>
                 </button>
               );
@@ -473,17 +473,17 @@ export default function AdminOcularDateTimePicker({
               type="time"
               value={customTime}
               onChange={(e) => handleCustomTimeInput(e.target.value)}
-              className="w-full text-xs rounded-lg border border-slate-200 p-2 bg-white text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full text-[15px] rounded-lg border border-slate-200 px-3 py-2 min-h-[38px] bg-white text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />
-            {timeValue && <span className="text-[11px] text-blue-700 font-medium block">Selected: {timeValue}</span>}
+            {timeValue && <span className="text-xs text-blue-700 font-semibold block">Selected: {timeValue}</span>}
           </div>
         )}
       </div>
 
       {/* Same-Day Time Conflict Alert */}
       {!disableEventDateLimit && sameDayEventTimeConflict && (
-        <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-start gap-2">
-          <AlertCircle size={14} className="text-rose-600 shrink-0 mt-0.5" />
+        <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs sm:text-[13px] text-rose-800 flex items-start gap-2">
+          <AlertCircle size={15} className="text-rose-600 shrink-0 mt-0.5" />
           <span>
             <strong>Invalid Schedule Time:</strong> On the event date, ocular inspection must occur <em>earlier</em> than event start time ({selectedBooking?.start_time}).
           </span>
@@ -492,13 +492,13 @@ export default function AdminOcularDateTimePicker({
 
       {/* Selection Summary Banner */}
       {!hideSummaryBanner && (
-        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs text-slate-700 shadow-2xs">
+        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs sm:text-sm text-slate-700 shadow-2xs">
           <div className="flex items-center gap-2">
-            <CalendarIcon size={14} className="text-blue-600 shrink-0" />
+            <CalendarIcon size={15} className="text-blue-600 shrink-0" />
             <span>
               {dateValue && timeValue ? (
                 <>
-                  <strong className="text-slate-900">Scheduled:</strong> {formattedSelectedDate} @ <strong className="text-blue-700">{timeValue}</strong>
+                  <strong className="text-slate-900">Scheduled:</strong> {formattedSelectedDate} @ <strong className="text-blue-700 font-bold">{timeValue}</strong>
                 </>
               ) : (
                 <span className="text-slate-400 italic">Select an inspection date and time slot above.</span>

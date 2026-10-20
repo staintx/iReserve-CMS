@@ -61,7 +61,7 @@ export default function StepServiceType({ form, setForm, errors = {} }) {
       />
 
       {errors.service_type && (
-        <div className="mb-3.5 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs font-semibold text-red-700">
+        <div className="mb-3.5 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-[13px] font-semibold text-red-700">
           <AlertCircle size={15} className="shrink-0 text-red-500" />
           <span>{errors.service_type}</span>
         </div>
@@ -96,10 +96,10 @@ export default function StepServiceType({ form, setForm, errors = {} }) {
                     <Icon size={18} />
                   </span>
                   <div className="min-w-0 pr-4">
-                    <span className="block font-bold text-sm text-slate-900 leading-tight">
+                    <span className="block font-bold text-[15px] text-slate-900 leading-tight">
                       {path.title}
                     </span>
-                    <span className="block text-[11px] text-slate-500 line-clamp-1">
+                    <span className="block text-xs text-slate-500 line-clamp-1 mt-0.5">
                       {path.description}
                     </span>
                   </div>
@@ -107,9 +107,9 @@ export default function StepServiceType({ form, setForm, errors = {} }) {
 
                 <div className="border-t border-slate-100 pt-2.5 space-y-1.5">
                   {features.map((feat) => (
-                    <div key={feat} className="flex items-start gap-1.5 text-xs text-slate-600">
+                    <div key={feat} className="flex items-start gap-1.5 text-[13px] text-slate-600">
                       <Check
-                        size={13}
+                        size={14}
                         className={cn(
                           "mt-0.5 shrink-0",
                           selected ? "text-[#4C81E0]" : "text-slate-400",
@@ -121,10 +121,10 @@ export default function StepServiceType({ form, setForm, errors = {} }) {
                 </div>
               </div>
 
-              <div className="mt-3.5 pt-2 border-t border-slate-100 text-[11px] text-slate-400 font-medium flex items-center justify-between">
+              <div className="mt-3.5 pt-2 border-t border-slate-100 text-xs text-slate-500 font-medium flex items-center justify-between">
                 <span>{path.pricing}</span>
                 {selected && (
-                  <span className="text-[#4C81E0] font-bold text-[10px] uppercase tracking-wider">
+                  <span className="text-[#4C81E0] font-bold text-xs uppercase tracking-wider">
                     Selected
                   </span>
                 )}
@@ -135,7 +135,7 @@ export default function StepServiceType({ form, setForm, errors = {} }) {
       </div>
 
       {/* High-density workflow guarantee & trust note */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3.5 py-2 text-xs text-slate-600">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3.5 py-2 text-[13px] text-slate-600">
         <div className="flex items-center gap-2">
           <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
           <span>

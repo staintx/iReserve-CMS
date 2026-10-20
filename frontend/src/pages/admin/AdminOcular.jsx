@@ -702,20 +702,20 @@ export default function AdminOcular() {
         <DialogContent className="sm:max-w-[490px] max-h-[90vh] overflow-y-auto">
           <form onSubmit={handleConfirmSchedule}>
             <DialogHeader>
-              <DialogTitle className="text-base font-bold text-slate-900">Schedule Ocular Visit</DialogTitle>
-              <DialogDescription className="text-xs text-slate-500">
+              <DialogTitle className="text-lg font-bold text-slate-900">Schedule Ocular Visit</DialogTitle>
+              <DialogDescription className="text-[13px] text-slate-500">
                 Set or confirm the site inspection date and time.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3.5 py-3">
               <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Select Event Booking</label>
+                <label className="text-sm font-semibold text-slate-700 block mb-1.5">Select Event Booking</label>
                 <select
                   value={selectedBookingId}
                   onChange={(e) => setSelectedBookingId(e.target.value)}
                   required
-                  className="w-full text-xs rounded-lg border border-slate-200 p-2.5 bg-white font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
+                  className="w-full text-[15px] rounded-lg border border-slate-200 p-2.5 bg-white font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
                 >
                   <option value="">-- Select Booking --</option>
                   {scheduleEligibleBookings.map((b) => (
@@ -727,9 +727,9 @@ export default function AdminOcular() {
               </div>
 
               {scheduleEligibleBookings.length === 0 && (
-                <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-lg text-xs text-blue-900 leading-relaxed space-y-1">
+                <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-lg text-[13px] text-blue-900 leading-relaxed space-y-1">
                   <span className="font-bold">No eligible upcoming events available</span>
-                  <p className="text-[11px] text-blue-700">
+                  <p className="text-xs text-blue-700">
                     Ocular visits are intended for upcoming bookings requiring on-site setup or physical site inspection.
                   </p>
                 </div>
@@ -766,16 +766,16 @@ export default function AdminOcular() {
             <DialogHeader>
               <div className="flex items-center gap-2 text-blue-700">
                 <Edit3 className="w-5 h-5 text-blue-600" />
-                <DialogTitle className="text-base font-bold text-slate-900">Request Booking Revision from Ocular Review</DialogTitle>
+                <DialogTitle className="text-lg font-bold text-slate-900">Request Booking Revision from Ocular Review</DialogTitle>
               </div>
-              <DialogDescription className="text-xs text-slate-500">
+              <DialogDescription className="text-[13px] text-slate-500">
                 Log inspection findings and propose booking adjustments (e.g. scaffold sizing, guest count, place dimensions) to the customer.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-3">
               {revisionBooking && (
-                <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-lg shadow-2xs text-xs space-y-1">
+                <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-lg shadow-2xs text-sm space-y-1">
                   <div className="flex justify-between font-bold text-blue-950">
                     <span>Booking: {revisionBooking.id} ({revisionBooking.customer})</span>
                     <span>{revisionBooking.eventType}</span>
@@ -788,69 +788,69 @@ export default function AdminOcular() {
 
               {/* Preset Helper Button */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-2xs gap-2">
-                <span className="text-[11px] text-slate-600 font-medium flex items-center gap-1">
-                  <Sparkles size={13} className="text-blue-600 shrink-0" /> Fast preset helper for site measurements:
+                <span className="text-xs sm:text-[13px] text-slate-600 font-medium flex items-center gap-1">
+                  <Sparkles size={14} className="text-blue-600 shrink-0" /> Fast preset helper for site measurements:
                 </span>
                 <button
                   type="button"
                   onClick={applyScaffoldPreset}
-                  className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors border border-blue-200 shrink-0 cursor-pointer shadow-2xs"
+                  className="px-3 py-1.5 text-xs sm:text-[13px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors border border-blue-200 shrink-0 cursor-pointer shadow-2xs"
                 >
                   ⚡ Scaffold Resize Example (20x20 → 30x40)
                 </button>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">
-                  Ocular Inspection & Place Measurement Notes <span className="text-rose-500">*</span>
+                <label className="text-sm font-semibold text-slate-700 block mb-1.5">
+                  Ocular Inspection &amp; Place Measurement Notes <span className="text-rose-500">*</span>
                 </label>
                 <textarea
                   rows={3}
                   value={ocularNotes}
                   onChange={(e) => setOcularNotes(e.target.value)}
                   placeholder="Record venue dimensions, terrain checks, scaffold size requirements (e.g. 20x20 needs to be 30x40)..."
-                  className="w-full text-xs rounded-lg border border-slate-200 p-2.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
+                  className="w-full text-[15px] leading-relaxed rounded-lg border border-slate-200 p-3 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Adjusted Guest Count</label>
+                  <label className="text-sm font-semibold text-slate-700 block mb-1.5">Adjusted Guest Count</label>
                   <Input
                     type="number"
                     value={revisedGuestCount}
                     onChange={(e) => setRevisedGuestCount(e.target.value)}
                     placeholder="e.g. 150"
-                    className="text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    className="focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Adjusted Total Price (₱)</label>
+                  <label className="text-sm font-semibold text-slate-700 block mb-1.5">Adjusted Total Price (₱)</label>
                   <Input
                     type="number"
                     value={revisedTotalPrice}
                     onChange={(e) => setRevisedTotalPrice(e.target.value)}
                     placeholder="Leave blank to keep current price"
-                    className="text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    className="focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Setup & Equipment Adjustments</label>
+                <label className="text-sm font-semibold text-slate-700 block mb-1.5">Setup &amp; Equipment Adjustments</label>
                 <textarea
                   rows={2}
                   value={revisedSetupNotes}
                   onChange={(e) => setRevisedSetupNotes(e.target.value)}
                   placeholder="e.g. Upgraded scaffold structure size from 20x20 to 30x40 to fit venue area"
-                  className="w-full text-xs rounded-lg border border-slate-200 p-2.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
+                  className="w-full text-[15px] leading-relaxed rounded-lg border border-slate-200 p-3 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                <label className="text-sm font-semibold text-slate-700 block mb-1.5">
                   Revision Reason / Message to Customer <span className="text-rose-500">*</span>
                 </label>
                 <textarea
@@ -858,7 +858,7 @@ export default function AdminOcular() {
                   value={revisionMessage}
                   onChange={(e) => setRevisionMessage(e.target.value)}
                   placeholder="Explain why this revision is required based on the ocular site inspection..."
-                  className="w-full text-xs rounded-lg border border-slate-200 p-2.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
+                  className="w-full text-[15px] leading-relaxed rounded-lg border border-slate-200 p-3 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
                   required
                 />
               </div>

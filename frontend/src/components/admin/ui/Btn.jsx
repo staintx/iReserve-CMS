@@ -9,9 +9,9 @@ export default function Btn({ children, variant = "primary", onClick, size = "md
   // the template produced the literal class "undefined", so those buttons
   // shipped with no padding or height at all.
   const sizes = {
-    xs: "px-2.5 text-[11px] h-7 max-sm:min-h-[38px]",
-    sm: "px-3 py-1.5 text-xs h-8 max-sm:min-h-[40px]",
-    md: "px-4 py-2 text-xs sm:text-sm h-9 max-sm:min-h-[44px]",
+    xs: "px-2.5 text-xs h-7.5 max-sm:min-h-[38px]",
+    sm: "px-3 py-1.5 text-[13px] sm:text-sm h-8.5 max-sm:min-h-[40px]",
+    md: "px-4 py-2 text-sm sm:text-[15px] h-9.5 max-sm:min-h-[44px]",
   };
   const variants = {
     primary: "bg-primary text-white hover:bg-primary-hover active:scale-[0.98]",

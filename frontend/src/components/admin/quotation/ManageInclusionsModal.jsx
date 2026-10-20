@@ -362,7 +362,7 @@ export default function ManageInclusionsModal({
                       className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
                     />
                     <span
-                      className={`text-[11px] font-semibold uppercase tracking-wider ${
+                      className={`text-xs font-semibold uppercase tracking-wider ${
                         !isExcluded ? "text-emerald-700" : "text-slate-400"
                       }`}
                     >
@@ -372,13 +372,13 @@ export default function ManageInclusionsModal({
 
                   <div className="min-w-0 flex-1">
                     <span
-                      className={`font-semibold block truncate ${
+                      className={`text-sm font-semibold block truncate ${
                         isExcluded ? "line-through text-slate-400" : "text-slate-900"
                       }`}
                     >
                       {item.cleanName}
                     </span>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                    <span className="text-xs text-slate-400 block mt-0.5">
                       {item.category}
                       {item.defaultQty && ` · Package standard: ${item.defaultQty}`}
                     </span>
@@ -389,11 +389,11 @@ export default function ManageInclusionsModal({
                 {isExcluded ? (
                   <div className="flex flex-col items-end self-end sm:self-auto">
                     <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded border border-slate-200">
-                      <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">
+                      <span className="text-xs sm:text-[13px] font-medium text-slate-600 whitespace-nowrap">
                         Price Reduction (₱):
                       </span>
-                      <div className="relative w-24">
-                        <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2 text-xs text-slate-400">
+                      <div className="relative w-28">
+                        <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-sm text-slate-400">
                           ₱
                         </span>
                         <input
@@ -408,7 +408,7 @@ export default function ManageInclusionsModal({
                               e.target.value.replace(/[^0-9.]/g, "")
                             )
                           }
-                          className={`w-full rounded border pl-5 pr-1.5 py-1 text-xs text-right font-mono font-medium focus:outline-none focus:ring-1 focus:ring-primary ${
+                          className={`w-full rounded border pl-6 pr-2 py-1.5 text-sm min-h-[36px] text-right font-mono font-medium focus:outline-none focus:ring-1 focus:ring-primary ${
                             numericStartingPrice > 0 && Number(item.deduction) > numericStartingPrice
                               ? "border-red-400 bg-red-50/50 text-red-900"
                               : "border-slate-300 bg-white"
@@ -417,7 +417,7 @@ export default function ManageInclusionsModal({
                       </div>
                     </div>
                     {numericStartingPrice > 0 && Number(item.deduction) > numericStartingPrice && (
-                      <span className="text-[10px] text-red-600 font-medium mt-0.5">
+                      <span className="text-xs text-red-600 font-medium mt-0.5">
                         Exceeds package base price
                       </span>
                     )}
@@ -425,7 +425,7 @@ export default function ManageInclusionsModal({
                 ) : item.baseQuantity != null ? (
                   <div className="flex items-center gap-2 self-end sm:self-auto">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-slate-500">Qty:</span>
+                      <span className="text-xs sm:text-[13px] font-medium text-slate-600">Qty:</span>
                       <input
                         type="number"
                         min="0"
@@ -433,9 +433,9 @@ export default function ManageInclusionsModal({
                         onChange={(e) =>
                           handleInclusionQuantity(item.originalIndex, e.target.value)
                         }
-                        className="w-16 rounded border border-slate-300 px-1.5 py-1 text-xs text-center font-mono font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="w-18 rounded border border-slate-300 px-2 py-1.5 text-sm min-h-[36px] text-center font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
                       />
-                      <span className="text-[11px] font-medium text-slate-500 min-w-[24px]">
+                      <span className="text-xs sm:text-[13px] font-medium text-slate-500 min-w-[24px]">
                         {item.unit}
                       </span>
                     </div>
@@ -458,7 +458,7 @@ export default function ManageInclusionsModal({
                             }`}
                           >
                             <span
-                              className={`text-[10.5px] font-bold whitespace-nowrap ${
+                              className={`text-xs font-bold whitespace-nowrap ${
                                 isExceeding
                                   ? "text-red-700"
                                   : item.isAdd
@@ -468,9 +468,9 @@ export default function ManageInclusionsModal({
                             >
                               {item.isAdd ? "Add:" : "Less:"}
                             </span>
-                            <div className="relative w-24">
+                            <div className="relative w-28">
                               <span
-                                className={`pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2 text-xs font-mono font-semibold ${
+                                className={`pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-sm font-mono font-semibold ${
                                   isExceeding
                                     ? "text-red-600"
                                     : item.isAdd
@@ -493,7 +493,7 @@ export default function ManageInclusionsModal({
                                     e.target.value.replace(/[^0-9.]/g, "")
                                   )
                                 }
-                                className={`w-full rounded border pl-5 pr-1.5 py-1 text-xs text-right font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-primary ${
+                                className={`w-full rounded border pl-6 pr-2 py-1.5 text-sm min-h-[36px] text-right font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-primary ${
                                   isExceeding
                                     ? "border-red-400 bg-white text-red-900 focus:ring-red-400"
                                     : (!item.unitPrice && !item.adjustmentAmount) ||
@@ -515,7 +515,7 @@ export default function ManageInclusionsModal({
                               className="text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer transition-colors"
                               title="Reset quantity to package default"
                             >
-                              <Undo2 size={12} />
+                              <Undo2 size={13} />
                             </button>
                           </div>
                           {isExceeding ? (

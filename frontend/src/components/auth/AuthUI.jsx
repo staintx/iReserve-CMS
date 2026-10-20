@@ -20,7 +20,7 @@ export const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C4B8A] focus-visible:ring-offset-2 focus-visible:ring-offset-white";
 
 const controlBase =
-  "w-full rounded-xl text-sm text-[#1E293B] placeholder-[#94A3B8] transition-all duration-200 focus:outline-none focus:ring-2";
+  "w-full rounded-xl text-[15px] text-[#1E293B] placeholder-[#94A3B8] transition-all duration-200 focus:outline-none focus:ring-2";
 const controlIdle =
   "border border-[#E2E8F0] bg-[#F8FAFC] hover:border-[#CBD5E1] focus:border-[#2C4B8A] focus:ring-[#2C4B8A]/25 focus:bg-white";
 const controlError =
@@ -42,7 +42,7 @@ export function AuthHeading({ title, subtitle, step, align = "left", className =
       {step ? (
         <p
           className={cn(
-            "mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-[#64748B]",
+            "mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#64748B]",
             align === "center" && "justify-center"
           )}
         >
@@ -84,12 +84,12 @@ export function AuthField({ id, label, hint, error, optionalLabel, children, cla
       <div className="mb-1 flex items-baseline justify-between gap-3">
         <label
           htmlFor={id}
-          className="block text-[11px] font-semibold uppercase tracking-wider text-[#64748B]"
+          className="block text-xs sm:text-[13px] font-semibold uppercase tracking-wider text-[#64748B]"
         >
           {label}
         </label>
         {optionalLabel && (
-          <span className="text-[11px] font-medium text-[#64748B]">{optionalLabel}</span>
+          <span className="text-xs font-medium text-[#64748B]">{optionalLabel}</span>
         )}
       </div>
       {children}
@@ -97,13 +97,13 @@ export function AuthField({ id, label, hint, error, optionalLabel, children, cla
         <p
           id={`${id}-error`}
           role="alert"
-          className="mt-1 flex items-start gap-1.5 text-xs font-medium text-[#DC2626]"
+          className="mt-1 flex items-start gap-1.5 text-[13px] font-medium text-[#DC2626]"
         >
-          <AlertCircle size={13} className="mt-px shrink-0" aria-hidden="true" />
+          <AlertCircle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
           <span>{error}</span>
         </p>
       ) : hint ? (
-        <p id={`${id}-hint`} className="mt-1 text-xs text-[#64748B]">
+        <p id={`${id}-hint`} className="mt-1 text-[13px] text-[#64748B]">
           {hint}
         </p>
       ) : null}
@@ -223,8 +223,8 @@ export function AuthButton({
   ...rest
 }) {
   const sizes = {
-    sm: "h-9 px-4 text-[13px]",
-    md: "h-10 sm:h-[42px] px-6 text-sm",
+    sm: "h-9.5 px-4 text-sm font-semibold",
+    md: "h-10.5 sm:h-11 px-6 text-[15px] font-semibold",
   };
   const variants = {
     primary:
@@ -436,7 +436,7 @@ export function AuthSection({ label, children, className = "" }) {
   return (
     <section className={className}>
       {/* font-sans is explicit: the base layer gives every h2 the Playfair serif. */}
-      <h2 className="mb-2.5 flex items-center gap-2.5 font-sans text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
+      <h2 className="mb-2.5 flex items-center gap-2.5 font-sans text-xs sm:text-[13px] font-semibold uppercase tracking-wider text-[#64748B]">
         {label}
         <span className="h-px flex-1 bg-[#E2E8F0]" aria-hidden="true" />
       </h2>

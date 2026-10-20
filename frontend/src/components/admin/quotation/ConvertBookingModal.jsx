@@ -252,11 +252,11 @@ export default function ConvertBookingModal({ quote, isDepositPaidProp = false, 
 
         {/* Event Manager Assignment Box */}
         <div className="w-full bg-slate-50 rounded-xl p-4 border border-slate-200/80 text-left space-y-2">
-          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-            <UserCheck size={15} className="text-primary-600" />
+          <label className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+            <UserCheck size={16} className="text-primary-600" />
             Assign Event Manager <span className="text-red-500">*</span>
           </label>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[13px] text-slate-500">
             Select the manager responsible for coordinating staff and event logistics:
           </p>
           {loadingManagers ? (
@@ -269,7 +269,7 @@ export default function ConvertBookingModal({ quote, isDepositPaidProp = false, 
             <select
               value={selectedManagerId}
               onChange={(e) => setSelectedManagerId(e.target.value)}
-              className="w-full p-2.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-primary-500 text-slate-900"
+              className="w-full p-2.5 text-[15px] font-medium rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-primary-500 text-slate-900"
             >
               {managers.map((m) => (
                 <option key={m._id} value={m._id}>

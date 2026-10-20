@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { focusRing } from "../lib/bookingUI";
 
 const controlBase =
-  "w-full rounded-md text-sm text-slate-800 placeholder:text-slate-500 transition-all focus:outline-none focus:ring-2";
+  "w-full rounded-md text-[15px] text-slate-800 placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2";
 const controlIdle =
   "border border-slate-200 bg-white focus:ring-[#4C81E0]/20 focus:border-[#4C81E0] hover:border-slate-300";
 const controlError =
@@ -26,8 +26,8 @@ export function PrimaryBtn({
   const base =
     "inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-all duration-150 cursor-pointer select-none whitespace-nowrap";
   const sizes = {
-    sm: "h-8.5 px-3 text-xs",
-    md: "h-10 px-4 sm:px-5 text-xs sm:text-sm",
+    sm: "h-9 px-3.5 text-sm",
+    md: "h-10.5 px-4 sm:px-5 text-sm sm:text-[15px]",
   };
   const v = {
     primary:
@@ -77,11 +77,11 @@ export function FL({ children, required = false, htmlFor }) {
   return (
     <label
       htmlFor={htmlFor}
-      className="mb-1 block text-xs font-semibold text-slate-800"
+      className="mb-1.5 block text-sm font-semibold text-slate-800"
     >
       {children}
       {required && (
-        <span className="ml-1 font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
+        <span className="ml-1 font-bold text-red-500 text-sm" title="Required" aria-hidden="true">
           *
         </span>
       )}
@@ -96,9 +96,9 @@ export function Field({ label, required, hint, error, children, className = "" }
       {label && <FL required={required}>{label}</FL>}
       {children}
       {error ? (
-        <p className="mt-1 text-xs font-semibold text-red-600">{error}</p>
+        <p className="mt-1.5 text-[13px] font-semibold text-red-600 leading-normal">{error}</p>
       ) : hint ? (
-        <p className="mt-1 text-xs text-slate-500 leading-normal">{hint}</p>
+        <p className="mt-1.5 text-[13px] text-slate-500 leading-normal">{hint}</p>
       ) : null}
     </div>
   );
@@ -238,7 +238,7 @@ export function TTextarea({
         {...rest}
       />
       {maxLength && (
-        <div className="mt-1 flex justify-end text-[11px] text-[#94A3B8]">
+        <div className="mt-1 flex justify-end text-[13px] text-[#94A3B8]">
           <span>
             {currentLength}/{maxLength}
           </span>
@@ -253,12 +253,12 @@ export function TTextarea({
  */
 export function SH({ title, sub, aside }) {
   return (
-    <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2 border-b border-slate-100 pb-2">
+    <div className="mb-3 flex flex-wrap items-end justify-between gap-2 border-b border-slate-100 pb-2.5">
       <div className="min-w-0">
         <h2 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 leading-snug">
           {title}
         </h2>
-        {sub && <p className="mt-0.5 text-xs text-slate-500 leading-normal">{sub}</p>}
+        {sub && <p className="mt-1 text-[13px] sm:text-sm text-slate-500 leading-normal">{sub}</p>}
       </div>
       {aside && <div className="shrink-0">{aside}</div>}
     </div>
@@ -274,8 +274,8 @@ export function SectionTitle({ icon: Icon, children, className = "", right }) {
         className,
       )}
     >
-      <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
-        {Icon && <Icon size={14} className="text-[#4C81E0]" />}
+      <h3 className="flex items-center gap-1.5 text-[13px] sm:text-sm font-bold uppercase tracking-wider text-slate-700">
+        {Icon && <Icon size={15} className="text-[#4C81E0]" />}
         {children}
       </h3>
       {right}
@@ -291,10 +291,10 @@ export function FieldStatusPill({ value, optionalLabel = "Optional" }) {
   return (
     <span
       className={cn(
-        "inline-flex max-w-[220px] items-center gap-1 truncate rounded-md px-2 py-0.5 text-[11px] font-semibold",
+        "inline-flex max-w-[220px] items-center gap-1 truncate rounded-md px-2.5 py-0.5 text-xs font-semibold",
         filled
           ? "bg-[#4C81E0]/10 text-[#4C81E0]"
-          : "bg-slate-100 text-slate-400",
+          : "bg-slate-100 text-slate-500",
       )}
       title={filled ? value : undefined}
     >
@@ -306,10 +306,10 @@ export function FieldStatusPill({ value, optionalLabel = "Optional" }) {
 /** Informational callout used across steps. */
 export function InfoNote({ icon: Icon, title, children, tone = "info", className = "" }) {
   const tones = {
-    info: "border-blue-200 bg-blue-50/60 text-slate-600",
-    warn: "border-amber-200 bg-amber-50/70 text-amber-900",
-    success: "border-emerald-200 bg-emerald-50/70 text-emerald-900",
-    danger: "border-red-200 bg-red-50/70 text-red-700",
+    info: "border-blue-200 bg-blue-50/60 text-slate-700",
+    warn: "border-amber-200 bg-amber-50/70 text-amber-950",
+    success: "border-emerald-200 bg-emerald-50/70 text-emerald-950",
+    danger: "border-red-200 bg-red-50/70 text-red-800",
   };
   const iconTones = {
     info: "text-[#4C81E0]",
@@ -320,13 +320,13 @@ export function InfoNote({ icon: Icon, title, children, tone = "info", className
   return (
     <div
       className={cn(
-        "flex gap-2.5 rounded-lg border p-2.5 text-xs leading-relaxed",
+        "flex gap-2.5 rounded-lg border p-3 text-[13px] sm:text-sm leading-relaxed",
         tones[tone],
         className,
       )}
     >
       {Icon && (
-        <Icon size={15} className={cn("mt-0.5 shrink-0", iconTones[tone])} />
+        <Icon size={16} className={cn("mt-0.5 shrink-0", iconTones[tone])} />
       )}
       <div className="min-w-0">
         {title && (
@@ -543,7 +543,7 @@ export function GuestCounter({ value, onChange, min = 1, max = null }) {
           }}
           className={cn(
             controlBase,
-            "h-9.5 flex-1 px-2 text-center text-sm font-bold tabular-nums",
+            "h-10 flex-1 px-2 text-center text-base font-bold tabular-nums",
             controlIdle,
           )}
         />
@@ -567,7 +567,7 @@ export function GuestCounter({ value, onChange, min = 1, max = null }) {
               onClick={() => onChange(clamp(preset))}
               aria-pressed={numeric === preset}
               className={cn(
-                "rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums transition-colors cursor-pointer",
+                "rounded-md border px-2.5 py-1 text-[13px] font-semibold tabular-nums transition-colors cursor-pointer",
                 numeric === preset
                   ? "border-[#4C81E0] bg-[#4C81E0]/10 text-[#4C81E0]"
                   : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",

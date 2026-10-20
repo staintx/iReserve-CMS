@@ -130,15 +130,15 @@ export default function RevisionProposalModal({
       <DialogContent className="max-w-2xl bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader className="border-b border-slate-100 pb-3 shrink-0">
           <div className="flex items-center justify-between gap-2">
-            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#2C4B8A]" />
               Revised Booking Proposal
             </DialogTitle>
-            <span className="text-[10px] bg-slate-100 text-slate-700 font-mono font-bold px-2 py-0.5 rounded border border-slate-200">
+            <span className="text-xs bg-slate-100 text-slate-700 font-mono font-bold px-2 py-0.5 rounded border border-slate-200">
               {booking.reference || `BK-${booking._id.substring(booking._id.length - 6).toUpperCase()}`}
             </span>
           </div>
-          <DialogDescription className="text-xs text-slate-500 mt-0.5">
+          <DialogDescription className="text-[13px] text-slate-500 mt-0.5">
             Proposed by {proposal.proposed_by === "admin" ? "Catering Manager" : "Customer"} on {proposal.requested_at ? new Date(proposal.requested_at).toLocaleDateString() : "Recently"}
           </DialogDescription>
         </DialogHeader>
@@ -150,10 +150,10 @@ export default function RevisionProposalModal({
             <div className="bg-blue-50/90 border border-blue-200 rounded-lg p-3.5 flex items-start gap-2.5 shadow-2xs">
               <MessageSquare className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
               <div className="min-w-0">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-900">
+                <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
                   {proposal.proposed_by === "admin" ? "Manager Revision Note" : "Proposal Note"}
                 </span>
-                <p className="text-xs text-blue-950 leading-relaxed font-medium mt-0.5 italic">
+                <p className="text-sm text-blue-950 leading-relaxed font-medium mt-0.5 italic">
                   "{proposal.message}"
                 </p>
               </div>
@@ -162,40 +162,40 @@ export default function RevisionProposalModal({
 
           {activeTab === "view" && (
             <>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              <p className="text-xs sm:text-[13px] font-bold uppercase tracking-wider text-slate-500">
                 Terms Comparison (Current vs. Proposed)
               </p>
 
               {/* Side-by-Side Comparison Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 
                 {/* Current Terms */}
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-2.5">
                   <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
-                    <span className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Current Active Terms</span>
-                    <span className="bg-slate-200 text-slate-700 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded">Active</span>
+                    <span className="font-bold text-slate-700 uppercase tracking-wider text-xs">Current Active Terms</span>
+                    <span className="bg-slate-200 text-slate-700 text-xs font-mono font-bold px-1.5 py-0.5 rounded">Active</span>
                   </div>
 
                   <div className="space-y-1.5 text-slate-600">
                     <div className="flex items-center gap-2">
-                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                      <Calendar className="w-4 h-4 text-slate-400" />
                       <span>Date: <strong>{formattedCurrentDate}</strong></span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      <Clock className="w-4 h-4 text-slate-400" />
                       <span>Time: <strong>{booking.start_time || "TBA"}</strong></span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Users className="w-3.5 h-3.5 text-slate-400" />
+                      <Users className="w-4 h-4 text-slate-400" />
                       <span>Guests: <strong>{booking.guest_count || 0} pax</strong></span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                      <MapPin className="w-4 h-4 text-slate-400" />
                       <span>Venue: <strong>{booking.venue_type || "N/A"}</strong></span>
                     </div>
-                    <div className="flex items-center gap-2 pt-1 border-t border-slate-200 font-medium">
-                      <DollarSign className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Total Price: <strong className="text-slate-900 font-mono">{fmtCurrency(currentPrice)}</strong></span>
+                    <div className="flex items-center gap-2 pt-1.5 border-t border-slate-200 font-medium">
+                      <DollarSign className="w-4 h-4 text-slate-400" />
+                      <span>Total Price: <strong className="text-slate-900 font-mono text-[15px]">{fmtCurrency(currentPrice)}</strong></span>
                     </div>
                   </div>
                 </div>
@@ -203,30 +203,30 @@ export default function RevisionProposalModal({
                 {/* Proposed Terms */}
                 <div className="bg-blue-50/60 border border-blue-200 rounded-lg p-3.5 space-y-2.5">
                   <div className="flex items-center justify-between pb-1.5 border-b border-blue-200">
-                    <span className="font-bold text-blue-900 uppercase tracking-wider text-[10px]">Proposed Revision</span>
-                    <span className="bg-blue-200 text-blue-900 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded">Proposed</span>
+                    <span className="font-bold text-blue-900 uppercase tracking-wider text-xs">Proposed Revision</span>
+                    <span className="bg-blue-200 text-blue-900 text-xs font-mono font-bold px-1.5 py-0.5 rounded">Proposed</span>
                   </div>
 
                   <div className="space-y-1.5 text-slate-700">
                     <div className="flex items-center gap-2">
-                      <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                      <Calendar className="w-4 h-4 text-blue-600" />
                       <span>Date: <strong className={formattedProposedDate !== formattedCurrentDate ? "text-blue-900 font-bold" : ""}>{formattedProposedDate}</strong></span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 text-blue-600" />
+                      <Clock className="w-4 h-4 text-blue-600" />
                       <span>Time: <strong className={snapshot.start_time && snapshot.start_time !== booking.start_time ? "text-blue-900 font-bold" : ""}>{snapshot.start_time || booking.start_time || "TBA"}</strong></span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Users className="w-3.5 h-3.5 text-blue-600" />
+                      <Users className="w-4 h-4 text-blue-600" />
                       <span>Guests: <strong className={snapshot.guest_count !== undefined && snapshot.guest_count !== booking.guest_count ? "text-blue-900 font-bold" : ""}>{snapshot.guest_count ?? booking.guest_count} pax</strong></span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <MapPin className="w-3.5 h-3.5 text-blue-600" />
+                      <MapPin className="w-4 h-4 text-blue-600" />
                       <span>Venue: <strong>{snapshot.venue_type || booking.venue_type || "N/A"}</strong></span>
                     </div>
-                    <div className="flex items-center gap-2 pt-1 border-t border-blue-200 font-medium">
-                      <DollarSign className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Total Price: <strong className="text-blue-950 font-bold font-mono">{fmtCurrency(proposedPrice)}</strong></span>
+                    <div className="flex items-center gap-2 pt-1.5 border-t border-blue-200 font-medium">
+                      <DollarSign className="w-4 h-4 text-blue-600" />
+                      <span>Total Price: <strong className="text-blue-950 font-bold font-mono text-[15px]">{fmtCurrency(proposedPrice)}</strong></span>
                     </div>
                   </div>
                 </div>
@@ -234,18 +234,18 @@ export default function RevisionProposalModal({
               </div>
 
               {/* Financial Impact Bar */}
-              <div className="bg-white border border-slate-200 rounded-lg p-3 flex items-center justify-between flex-wrap gap-2 text-xs">
+              <div className="bg-white border border-slate-200 rounded-lg p-3 flex items-center justify-between flex-wrap gap-2 text-sm">
                 <span className="font-semibold text-slate-600">Financial Impact:</span>
                 {priceDiff > 0 ? (
-                  <span className="font-mono font-bold text-blue-900 bg-blue-100 px-2 py-0.5 rounded border border-blue-200">
+                  <span className="font-mono font-bold text-blue-900 bg-blue-100 px-2.5 py-0.5 rounded border border-blue-200">
                     + {fmtCurrency(priceDiff)} increase
                   </span>
                 ) : priceDiff < 0 ? (
-                  <span className="font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200">
+                  <span className="font-mono font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded border border-emerald-200">
                     - {fmtCurrency(Math.abs(priceDiff))} price reduction
                   </span>
                 ) : (
-                  <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded border border-slate-200">
                     No price change
                   </span>
                 )}
@@ -255,11 +255,11 @@ export default function RevisionProposalModal({
 
           {/* Decline Form view */}
           {activeTab === "reject" && (
-            <div className="space-y-3 p-3 bg-rose-50/50 border border-rose-200 rounded-lg text-xs">
-              <h4 className="font-bold text-rose-950 flex items-center gap-1.5">
+            <div className="space-y-3 p-3.5 bg-rose-50/50 border border-rose-200 rounded-lg text-sm">
+              <h4 className="font-bold text-rose-950 flex items-center gap-1.5 text-sm sm:text-base">
                 <XCircle className="w-4 h-4 text-rose-600" /> Decline Revision Proposal
               </h4>
-              <p className="text-slate-600 leading-relaxed">
+              <p className="text-slate-600 leading-relaxed text-[13px] sm:text-sm">
                 Active booking terms will remain unchanged. You may provide an optional reason for catering management:
               </p>
               <textarea
@@ -267,23 +267,23 @@ export default function RevisionProposalModal({
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="Optional reason for declining..."
-                className="w-full p-2 bg-white border border-slate-200 rounded text-xs outline-none focus:border-rose-400"
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-[15px] outline-none focus:border-rose-400"
               />
             </div>
           )}
 
           {/* Counter-Propose Form view */}
           {activeTab === "counter" && (
-            <form onSubmit={handleConfirmCounter} className="space-y-3 p-3 bg-[#2C4B8A]/5 border border-[#2C4B8A]/20 rounded-lg text-xs">
-              <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+            <form onSubmit={handleConfirmCounter} className="space-y-3.5 p-3.5 bg-[#2C4B8A]/5 border border-[#2C4B8A]/20 rounded-lg text-sm">
+              <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-sm sm:text-base">
                 <Edit className="w-4 h-4 text-[#2C4B8A]" /> Request Adjustments / Counter-Propose
               </h4>
-              <p className="text-slate-600 leading-relaxed">
+              <p className="text-slate-600 leading-relaxed text-[13px] sm:text-sm">
                 Provide your feedback and preferred adjustments for catering management to review:
               </p>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                   Adjustment Note <span className="text-rose-500">*</span>
                 </label>
                 <textarea
@@ -292,52 +292,52 @@ export default function RevisionProposalModal({
                   value={counterNote}
                   onChange={(e) => setCounterNote(e.target.value)}
                   placeholder="Describe desired adjustments (e.g. change start time to 3:00 PM)..."
-                  className="w-full p-2 bg-white border border-slate-200 rounded text-xs outline-none focus:border-[#2C4B8A]"
+                  className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-[15px] outline-none focus:border-[#2C4B8A]"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] text-slate-600 mb-0.5">Preferred Date</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Preferred Date</label>
                   <input
                     type="date"
                     value={counterDate}
                     onChange={(e) => setCounterDate(e.target.value)}
-                    className="w-full p-1.5 bg-white border border-slate-200 rounded text-xs outline-none"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[15px] outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-600 mb-0.5">Preferred Time</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Preferred Time</label>
                   <input
                     type="text"
                     value={counterTime}
                     onChange={(e) => setCounterTime(e.target.value)}
                     placeholder="e.g. 2:00 PM"
-                    className="w-full p-1.5 bg-white border border-slate-200 rounded text-xs outline-none"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[15px] outline-none"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] text-slate-600 mb-0.5">Guest Count</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Guest Count</label>
                   <input
                     type="number"
                     min="1"
                     value={counterGuests}
                     onChange={(e) => setCounterGuests(e.target.value)}
                     placeholder="e.g. 100"
-                    className="w-full p-1.5 bg-white border border-slate-200 rounded text-xs outline-none"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[15px] outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-600 mb-0.5">Venue Location</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Venue Location</label>
                   <input
                     type="text"
                     value={counterVenue}
                     onChange={(e) => setCounterVenue(e.target.value)}
                     placeholder="e.g. Grand Ballroom"
-                    className="w-full p-1.5 bg-white border border-slate-200 rounded text-xs outline-none"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[15px] outline-none"
                   />
                 </div>
               </div>
@@ -352,22 +352,20 @@ export default function RevisionProposalModal({
               <Button 
                 type="button" 
                 variant="ghost" 
-                size="sm" 
                 onClick={() => setActiveTab("view")} 
                 disabled={loading}
-                className="text-xs"
+                className="text-sm font-medium"
               >
                 Back
               </Button>
               <Button 
                 type="button" 
                 variant="destructive" 
-                size="sm" 
                 onClick={handleConfirmReject} 
                 disabled={loading}
-                className="text-xs bg-rose-600 hover:bg-rose-700 text-white font-bold"
+                className="text-sm bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2"
               >
-                {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "Confirm Decline"}
+                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : "Confirm Decline"}
               </Button>
             </>
           ) : activeTab === "counter" ? (
@@ -375,21 +373,19 @@ export default function RevisionProposalModal({
               <Button 
                 type="button" 
                 variant="ghost" 
-                size="sm" 
                 onClick={() => setActiveTab("view")} 
                 disabled={loading}
-                className="text-xs"
+                className="text-sm font-medium"
               >
                 Back
               </Button>
               <Button 
                 type="button" 
-                size="sm" 
                 onClick={handleConfirmCounter} 
                 disabled={loading || !counterNote.trim()}
-                className="text-xs bg-[#2C4B8A] hover:bg-[#233c6e] text-white font-bold"
+                className="text-sm bg-[#2C4B8A] hover:bg-[#233c6e] text-white font-bold px-4 py-2"
               >
-                {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "Submit Counter-Proposal"}
+                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : "Submit Counter-Proposal"}
               </Button>
             </>
           ) : (
@@ -397,19 +393,17 @@ export default function RevisionProposalModal({
               <Button 
                 type="button" 
                 variant="outline" 
-                size="sm" 
                 onClick={() => setActiveTab("reject")} 
                 disabled={loading}
-                className="text-xs text-rose-700 border-rose-200 hover:bg-rose-50"
+                className="text-sm font-semibold text-rose-700 border-rose-200 hover:bg-rose-50 px-3.5 py-2"
               >
-                <XCircle className="w-3.5 h-3.5 mr-1" /> Decline
+                <XCircle className="w-4 h-4 mr-1.5" /> Decline
               </Button>
 
               {onCounterPropose && isCustomer && (
                 <Button 
                   type="button" 
                   variant="outline" 
-                  size="sm" 
                   onClick={() => {
                     setCounterDate(snapshot.event_date ? new Date(snapshot.event_date).toISOString().split("T")[0] : "");
                     setCounterTime(snapshot.start_time || "");
@@ -419,20 +413,19 @@ export default function RevisionProposalModal({
                     setActiveTab("counter");
                   }} 
                   disabled={loading}
-                  className="text-xs text-slate-700 border-slate-200 hover:bg-slate-100"
+                  className="text-sm font-semibold text-slate-700 border-slate-200 hover:bg-slate-100 px-3.5 py-2"
                 >
-                  <Edit className="w-3.5 h-3.5 mr-1" /> Request Changes
+                  <Edit className="w-4 h-4 mr-1.5" /> Request Changes
                 </Button>
               )}
 
               <Button 
                 type="button" 
-                size="sm" 
                 onClick={handleConfirmAccept} 
                 disabled={loading}
-                className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2"
               >
-                {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1" />}
+                {loading ? <RefreshCw className="w-4 h-4 animate-spin mr-1.5" /> : <CheckCircle2 className="w-4 h-4 mr-1.5" />}
                 Accept &amp; Confirm
               </Button>
             </>

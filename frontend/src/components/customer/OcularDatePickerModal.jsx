@@ -286,13 +286,13 @@ export default function OcularDatePickerModal({
           {/* Header matched with Caezelle Brand Navy (#2C4B8A) & Gold (#D2B67C) */}
           <div className="p-4 sm:p-5 bg-[#2C4B8A] text-white flex items-start justify-between shrink-0 relative">
             <div className="space-y-1">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#D2B67C]/20 text-[#E8D4A8] text-[11px] font-semibold border border-[#D2B67C]/40">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#D2B67C]/20 text-[#E8D4A8] text-xs font-semibold border border-[#D2B67C]/40">
                 <CalendarDays size={13} className="text-[#D2B67C]" /> Site Visit Inspection
               </div>
-              <h3 className="text-lg font-bold text-white tracking-tight pt-0.5">
+              <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight pt-0.5">
                 Schedule Ocular Visit
               </h3>
-              <p className="text-xs text-white/80 font-normal">
+              <p className="text-xs sm:text-[13px] text-white/85 font-normal">
                 Pick a date and time slot to inspect the venue layout for {eventTitle}.
               </p>
             </div>
@@ -310,7 +310,7 @@ export default function OcularDatePickerModal({
             
             {/* Blocked Date or Validation Notice */}
             {validationError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-900 animate-in fade-in">
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs sm:text-[13px] text-rose-900 animate-in fade-in">
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                 <span>{validationError}</span>
               </div>
@@ -318,11 +318,11 @@ export default function OcularDatePickerModal({
 
             {/* Wedding Ocular Lead Time Policy Notice */}
             {isWedding && hasAvailableDates && (
-              <div className="p-3 bg-amber-500/10 border border-amber-300 dark:border-amber-700/60 rounded-xl flex items-start gap-2.5 text-xs text-amber-950 dark:text-amber-200">
+              <div className="p-3 bg-amber-500/10 border border-amber-300 dark:border-amber-700/60 rounded-xl flex items-start gap-2.5 text-xs sm:text-[13px] text-amber-950 dark:text-amber-200">
                 <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div className="space-y-0.5">
-                  <p className="font-bold text-xs text-amber-900 dark:text-amber-300">Wedding Ocular Policy</p>
-                  <p className="text-[11px] text-amber-800 dark:text-amber-300/90 leading-relaxed">
+                  <p className="font-bold text-xs sm:text-[13px] text-amber-900 dark:text-amber-300">Wedding Ocular Policy</p>
+                  <p className="text-xs text-amber-800 dark:text-amber-300/90 leading-relaxed">
                     Venue site visits for weddings must be held <strong className="font-bold">at least 1 week (7 days) before the wedding date</strong> to finalize stage setup, floral styling, and venue coordination.
                   </p>
                 </div>
@@ -334,10 +334,10 @@ export default function OcularDatePickerModal({
               <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-xl flex items-start gap-3 text-amber-900 shadow-2xs">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div className="space-y-0.5">
-                  <p className="font-bold text-xs text-amber-950">
+                  <p className="font-bold text-xs sm:text-[13px] text-amber-950">
                     {isWedding ? "Wedding Preparation Window Notice" : "No Available Dates"}
                   </p>
-                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                  <p className="text-xs text-amber-800 leading-relaxed">
                     {isWedding
                       ? "This wedding is within the 1-week preparation window. Site visits cannot be scheduled online within 7 days of a wedding. Please contact your catering coordinator directly for expedited assistance."
                       : "No available dates for an ocular visit before your event."}
@@ -349,8 +349,8 @@ export default function OcularDatePickerModal({
             {/* Interactive Calendar */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#5C402B] flex items-center gap-1.5">
-                  <CalendarIcon size={13} className="text-[#2C4B8A]" /> 1. Select Inspection Date
+                <span className="text-xs sm:text-[13px] font-bold uppercase tracking-wider text-[#5C402B] flex items-center gap-1.5">
+                  <CalendarIcon size={14} className="text-[#2C4B8A]" /> 1. Select Inspection Date
                 </span>
                 <div className="flex items-center gap-1">
                   <button
@@ -361,7 +361,7 @@ export default function OcularDatePickerModal({
                   >
                     <ChevronLeft size={15} />
                   </button>
-                  <span className="text-xs font-bold text-[#5C402B] min-w-[100px] text-center">
+                  <span className="text-sm font-bold text-[#5C402B] min-w-[105px] text-center">
                     {MONTH_NAMES[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                   </span>
                   <button
@@ -376,7 +376,7 @@ export default function OcularDatePickerModal({
               </div>
 
               {/* Days Header */}
-              <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-slate-400 pb-0.5">
+              <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-400 pb-0.5">
                 <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
               </div>
 
@@ -405,7 +405,7 @@ export default function OcularDatePickerModal({
                           : undefined
                       }
                       className={cn(
-                        "h-8 sm:h-9 rounded-xl text-xs font-semibold transition-all flex items-center justify-center relative select-none",
+                        "h-8 sm:h-9 rounded-xl text-xs sm:text-[13px] font-semibold transition-all flex items-center justify-center relative select-none",
                         isBlocked
                           ? "text-rose-300 bg-rose-50/70 border border-rose-200/50 cursor-not-allowed text-[11px] opacity-60 line-through"
                           : !isValid
@@ -433,7 +433,7 @@ export default function OcularDatePickerModal({
               </div>
 
               {/* Indicator Legend */}
-              <div className="pt-2 flex items-center justify-center gap-3.5 text-[10px] text-slate-400 font-medium">
+              <div className="pt-2 flex items-center justify-center gap-3.5 text-[11px] text-slate-400 font-medium">
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-[#2C4B8A]" /> Selected
                 </span>
@@ -445,8 +445,8 @@ export default function OcularDatePickerModal({
 
             {/* Time Slot Selector */}
             <div className="space-y-2.5 pt-3 border-t border-slate-100">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#5C402B] flex items-center gap-1.5">
-                <Clock size={13} className="text-[#2C4B8A]" /> 2. Select Preferred Time Slot
+              <span className="text-xs sm:text-[13px] font-bold uppercase tracking-wider text-[#5C402B] flex items-center gap-1.5">
+                <Clock size={14} className="text-[#2C4B8A]" /> 2. Select Preferred Time Slot
               </span>
 
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -459,7 +459,7 @@ export default function OcularDatePickerModal({
                       disabled={!hasAvailableDates}
                       onClick={() => setSelectedTime(slot)}
                       className={cn(
-                        "py-2 px-2 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center gap-1.5",
+                        "py-2 px-2.5 rounded-xl text-xs sm:text-[13px] font-semibold border transition-all flex items-center justify-center gap-1.5 min-h-[38px]",
                         !hasAvailableDates
                           ? "opacity-40 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200"
                           : isSelected
@@ -476,7 +476,7 @@ export default function OcularDatePickerModal({
             </div>
 
             {/* Selection Summary Pill */}
-            <div className="p-3 bg-[#F7F4EE] rounded-xl border border-[#D2B67C]/50 flex items-center justify-between text-xs text-[#5C402B] shadow-xs">
+            <div className="p-3 bg-[#F7F4EE] rounded-xl border border-[#D2B67C]/50 flex items-center justify-between text-xs sm:text-sm text-[#5C402B] shadow-xs">
               <div className="flex items-center gap-2">
                 <CalendarIcon size={15} className="text-[#2C4B8A] shrink-0" />
                 <span>
@@ -505,7 +505,7 @@ export default function OcularDatePickerModal({
                   type="button"
                   onClick={onSkip}
                   disabled={isSubmittingForm}
-                  className="text-xs font-semibold text-slate-500 hover:text-slate-800 underline underline-offset-2 cursor-pointer transition-colors"
+                  className="text-xs sm:text-sm font-semibold text-slate-500 hover:text-slate-800 underline underline-offset-2 cursor-pointer transition-colors"
                 >
                   Venue doesn't need ocular (Skip)
                 </button>
@@ -516,7 +516,7 @@ export default function OcularDatePickerModal({
                 type="button"
                 onClick={onClose}
                 disabled={isSubmittingForm}
-                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-[#7B583C] hover:bg-[#F7F4EE] transition-colors cursor-pointer"
+                className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-[#7B583C] hover:bg-[#F7F4EE] transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -529,12 +529,12 @@ export default function OcularDatePickerModal({
                   !selectedTime ||
                   !isDateValid(parseLocalDate(effectiveSelectedDate))
                 }
-                className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#4C81E0] hover:bg-[#3B6EC6] shadow-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none cursor-pointer"
+                className="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-[#4C81E0] hover:bg-[#3B6EC6] shadow-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none cursor-pointer"
               >
                 {isSubmittingForm ? (
                   <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
                 ) : (
-                  <CheckCircle2 size={14} className="text-[#D2B67C]" />
+                  <CheckCircle2 size={15} className="text-[#D2B67C]" />
                 )}
                 {isSubmittingForm ? "Submitting..." : "Confirm Schedule"}
               </button>

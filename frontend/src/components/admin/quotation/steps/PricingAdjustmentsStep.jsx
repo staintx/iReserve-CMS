@@ -49,7 +49,7 @@ function MoneyInput({ value, onChange, placeholder = "0.00", disabled, className
   const isAutoOrFull = !className || className.includes("w-full");
   return (
     <div className={`relative ${isAutoOrFull ? "w-full" : "inline-block text-left"}`}>
-      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-xs text-slate-400 font-medium z-10">
+      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-sm text-slate-400 font-medium z-10">
         ₱
       </span>
       <input
@@ -64,7 +64,7 @@ function MoneyInput({ value, onChange, placeholder = "0.00", disabled, className
         onWheel={(e) => e.target.blur()}
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ""))}
-        className={`rounded-md border border-slate-300 bg-white pl-6 pr-2.5 py-1.5 text-xs text-slate-900 font-mono font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isAutoOrFull ? "w-full" : ""} ${className}`}
+        className={`rounded-md border border-slate-300 bg-white pl-6.5 pr-2.5 py-1.5 min-h-[36px] text-[15px] text-slate-900 font-mono font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-400 placeholder:text-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isAutoOrFull ? "w-full" : ""} ${className}`}
       />
     </div>
   );
@@ -380,14 +380,14 @@ export default function PricingAdjustmentsStep({
       >
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
           <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5 font-sans">
-              <Package size={14} className="text-primary" /> Package / Setup Price
+            <div className="text-sm sm:text-base font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2 font-sans">
+              <Package size={16} className="text-primary" /> Package / Setup Price
             </div>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[13px] text-slate-500 mt-0.5">
               The base rate covering the event setup, custom styling, and core service.
             </p>
           </div>
-          <span className="text-xs font-semibold text-primary">{packageName}</span>
+          <span className="text-sm font-semibold text-primary">{packageName}</span>
         </div>
 
         {/* Customer Custom Styling Brief & Inspiration Photos Reference */}
@@ -471,10 +471,10 @@ export default function PricingAdjustmentsStep({
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 items-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 items-start">
           {/* Base Starting Price */}
           <div>
-            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
               {isSpecial
                 ? "Special Offer Fixed Total (₱) *"
                 : isCustomSetup
@@ -491,11 +491,11 @@ export default function PricingAdjustmentsStep({
               className={errors.package_starting_price || errors.startingPrice || errors.package_price || errors.package_name || errors.removed_inclusions ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}
             />
             {(errors.package_starting_price || errors.startingPrice || errors.package_price || errors.removed_inclusions) && (
-              <p className="text-[11px] text-red-600 mt-0.5 font-medium">
+              <p className="text-[13px] text-red-600 mt-1 font-medium">
                 {errors.package_starting_price || errors.startingPrice || errors.package_price || errors.removed_inclusions}
               </p>
             )}
-            <span className="text-[10px] text-slate-500 mt-1 block">
+            <span className="text-[13px] text-slate-500 mt-1.5 block">
               {offerContext
                 ? `Combo rate: ${formatCurrency(offerContext.perPax)} / guest × ${offerContext.guests} guests = ${formatCurrency(offerContext.basePrice)}`
                 : isCustomSetup
@@ -509,14 +509,14 @@ export default function PricingAdjustmentsStep({
           {/* Event Space Size Selector if applicable */}
           {!isFoodOnly && !offerContext && (scaffoldOptions.length > 0 || isCustomScaffold || scaffoldWidth || scaffoldLength) && (
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 {scaffoldOptions.length > 0 ? "Event Space Dimensions" : "Event Space Dimensions / Scaffold Size"}
               </label>
               {scaffoldOptions.length > 0 && (
                 <select
                   value={isCustomScaffold ? "custom" : selectedScaffoldId}
                   onChange={(e) => handleScaffoldOptionChange(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[15px] min-h-[38px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/40"
                 >
                   {scaffoldOptions.map((opt, idx) => (
                     <option key={String(opt._id || idx)} value={String(opt._id || idx)}>
@@ -529,26 +529,26 @@ export default function PricingAdjustmentsStep({
               )}
 
               {(isCustomScaffold || scaffoldOptions.length === 0) && (
-                <div className={`flex items-center gap-1.5 ${scaffoldOptions.length > 0 ? "mt-1.5" : ""}`}>
+                <div className={`flex items-center gap-1.5 ${scaffoldOptions.length > 0 ? "mt-2" : ""}`}>
                   <input
                     type="number"
                     placeholder="Width (ft)"
                     value={scaffoldWidth}
                     onChange={(e) => handleCustomScaffoldChange(e.target.value, scaffoldLength)}
-                    className="w-1/2 rounded border border-slate-300 px-2 py-1 text-xs"
+                    className="w-1/2 rounded border border-slate-300 px-2.5 py-1.5 text-[15px] min-h-[36px]"
                   />
-                  <span className="text-slate-400 text-xs">×</span>
+                  <span className="text-slate-400 text-sm">×</span>
                   <input
                     type="number"
                     placeholder="Length (ft)"
                     value={scaffoldLength}
                     onChange={(e) => handleCustomScaffoldChange(scaffoldWidth, e.target.value)}
-                    className="w-1/2 rounded border border-slate-300 px-2 py-1 text-xs"
+                    className="w-1/2 rounded border border-slate-300 px-2.5 py-1.5 text-[15px] min-h-[36px]"
                   />
                 </div>
               )}
               {(isCustomScaffold || scaffoldOptions.length === 0) && scaffoldWidth && scaffoldLength ? (
-                <span className="text-[10px] text-slate-500 mt-1 block">
+                <span className="text-[13px] text-slate-500 mt-1.5 block">
                   Requested setup: {scaffoldWidth}×{scaffoldLength} ft ({Number(scaffoldWidth) * Number(scaffoldLength)} sq ft)
                 </span>
               ) : null}
@@ -568,17 +568,17 @@ export default function PricingAdjustmentsStep({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5 font-sans">
-                  <Check size={14} className="text-primary" /> Included Items
+                <div className="text-sm sm:text-base font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2 font-sans">
+                  <Check size={16} className="text-primary" /> Included Items
                 </div>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                   {totalInclusionsCount - excludedInclusions.length} included
                   {excludedInclusions.length + modifiedQtyInclusions.length > 0
                     ? ` · ${excludedInclusions.length + modifiedQtyInclusions.length} changed`
                     : " · all standard"}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[13px] text-slate-500 mt-0.5">
                 Dining wares, tables, chairs, staging, and service staff standard to this package.
               </p>
             </div>
@@ -586,9 +586,9 @@ export default function PricingAdjustmentsStep({
             <button
               type="button"
               onClick={() => setIsManageInclusionsOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer shrink-0 shadow-2xs"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold transition-colors cursor-pointer shrink-0 shadow-2xs"
             >
-              <Sliders size={12} className="text-slate-500" />
+              <Sliders size={14} className="text-slate-500" />
               <span>Manage Included Items</span>
             </button>
           </div>
@@ -709,10 +709,10 @@ export default function PricingAdjustmentsStep({
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
             <div>
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5 font-sans">
-                <Utensils size={14} className="text-primary" /> Food Selections ({activeMenuItems.length} Dishes Selected)
+              <div className="text-sm sm:text-base font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2 font-sans">
+                <Utensils size={16} className="text-primary" /> Food Selections ({activeMenuItems.length} Dishes Selected)
               </div>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[13px] text-slate-500 mt-0.5">
                 Dishes included under this Special Offer. You can change a customer’s selection; all replacements are covered by the fixed combo rate.
               </p>
             </div>
@@ -991,10 +991,10 @@ export default function PricingAdjustmentsStep({
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
             <div>
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5 font-sans">
-                <Utensils size={14} className="text-primary" /> Menu Pricing ({activeMenuItems.length} Dishes Quoted)
+              <div className="text-sm sm:text-base font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2 font-sans">
+                <Utensils size={16} className="text-primary" /> Menu Pricing ({activeMenuItems.length} Dishes Quoted)
               </div>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[13px] text-slate-500 mt-0.5">
                 Specify unit price and portion unit (Per Gallon, Per Tray, Per Bilao, etc.) for each dish.
               </p>
             </div>
@@ -1004,9 +1004,9 @@ export default function PricingAdjustmentsStep({
               <button
                 type="button"
                 onClick={() => setIsDishSearchOpen(!isDishSearchOpen)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary hover:bg-primary-hover text-white text-xs font-medium transition-colors cursor-pointer shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary hover:bg-primary-hover text-white text-sm font-semibold transition-colors cursor-pointer shadow-xs"
               >
-                <Plus size={13} />
+                <Plus size={14} />
                 <span>Add Dish from Catalog</span>
               </button>
 
@@ -1243,13 +1243,13 @@ export default function PricingAdjustmentsStep({
             <div className="overflow-x-auto border border-slate-200 rounded-md">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    <th className="py-2 px-3 min-w-[170px]">Dish &amp; Course</th>
-                    <th className="py-2 px-2 w-36 min-w-[140px]">Portion Unit</th>
-                    <th className="py-2 px-2 w-20 text-center">Quantity</th>
-                    <th className="py-2 px-2 w-36 min-w-[140px] text-right">Price per Unit</th>
-                    <th className="py-2 px-2 w-32 min-w-[120px] text-right">Line Total</th>
-                    <th className="py-2 px-2 w-14 text-center">Action</th>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold uppercase tracking-wider text-slate-500">
+                    <th className="py-2.5 px-3 min-w-[170px]">Dish &amp; Course</th>
+                    <th className="py-2.5 px-2 w-36 min-w-[140px]">Portion Unit</th>
+                    <th className="py-2.5 px-2 w-20 text-center">Quantity</th>
+                    <th className="py-2.5 px-2 w-36 min-w-[140px] text-right">Price per Unit</th>
+                    <th className="py-2.5 px-2 w-32 min-w-[120px] text-right">Line Total</th>
+                    <th className="py-2.5 px-2 w-14 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1327,7 +1327,7 @@ export default function PricingAdjustmentsStep({
                                       });
                                     }
                                   }}
-                                  className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm min-h-[36px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer disabled:bg-slate-100 disabled:cursor-not-allowed"
                                 >
                                   <option value="">Select</option>
                                   {STANDARD_PORTION_UNITS.map((u) => (
@@ -1346,7 +1346,7 @@ export default function PricingAdjustmentsStep({
                                     onChange={(e) =>
                                       handleMenuChange(originalIndex, "unit", e.target.value)
                                     }
-                                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-slate-100"
+                                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm min-h-[36px] bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-slate-100"
                                     autoFocus={item.isCustomUnit && !item.unit}
                                   />
                                 )}
@@ -1363,7 +1363,7 @@ export default function PricingAdjustmentsStep({
                             disabled={item.removed}
                             value={item.quantity}
                             onChange={(e) => handleMenuChange(originalIndex, "quantity", e.target.value)}
-                            className="w-16 rounded border border-slate-300 px-1.5 py-1 text-xs text-center font-mono font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-18 rounded border border-slate-300 px-2 py-1.5 text-sm min-h-[36px] text-center font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </td>
 
@@ -1575,7 +1575,7 @@ export default function PricingAdjustmentsStep({
                           disabled={item.removed}
                           value={item.quantity}
                           onChange={(e) => handleAddOnChange(index, "quantity", e.target.value)}
-                          className="w-16 rounded border border-slate-300 px-1.5 py-1 text-xs text-center font-mono font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-18 rounded border border-slate-300 px-2 py-1.5 text-sm min-h-[36px] text-center font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                       </td>
                       <td className="py-2 px-2 text-right">
@@ -1731,18 +1731,18 @@ export default function PricingAdjustmentsStep({
         className="bg-white rounded-lg border border-slate-200 p-4 space-y-3"
       >
         <div className="border-b border-slate-100 pb-2">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5 font-sans">
-            <Truck size={14} className="text-primary" /> Other Charges &amp; Delivery
+          <div className="text-sm sm:text-base font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2 font-sans">
+            <Truck size={16} className="text-primary" /> Other Charges &amp; Delivery
           </div>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[13px] text-slate-500 mt-0.5">
             Delivery fees and any special custom fees for this event.
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           {/* Delivery Fee */}
-          <div className="bg-slate-50 p-3 rounded-md border border-slate-200/80 space-y-1">
-            <label className="block text-[11px] font-semibold text-slate-700">
+          <div className="bg-slate-50 p-3 rounded-md border border-slate-200/80 space-y-1.5">
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
               Delivery / Transportation Fee (₱)
             </label>
             <MoneyInput
@@ -1752,11 +1752,11 @@ export default function PricingAdjustmentsStep({
               placeholder="0.00"
               className={errors.transportation_fee ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}
             />
-            <span className="text-[10px] text-slate-500 block">
+            <span className="text-[13px] text-slate-500 mt-1 block">
               Covers vehicle dispatch and venue logistics
             </span>
             {errors.transportation_fee && (
-              <p className="text-[11px] text-red-600 mt-0.5 font-medium">{errors.transportation_fee}</p>
+              <p className="text-[13px] text-red-600 mt-1 font-medium">{errors.transportation_fee}</p>
             )}
           </div>
         </div>
@@ -1764,20 +1764,20 @@ export default function PricingAdjustmentsStep({
         {/* Additional custom charges */}
         <div className="pt-2 border-t border-slate-100 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-700">
+            <span className="text-sm font-semibold text-slate-700">
               Custom Additional Charges
             </span>
             <button
               type="button"
               onClick={handleAddFee}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline cursor-pointer"
             >
-              <Plus size={12} /> Add Charge
+              <Plus size={14} /> Add Charge
             </button>
           </div>
 
           {additionalFees.length > 0 && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {additionalFees.map((fee, index) => (
                 <div key={index} className="flex items-center gap-2">
                   <input
@@ -1786,21 +1786,21 @@ export default function PricingAdjustmentsStep({
                     placeholder="e.g. Corkage Fee, Standby Generator"
                     value={fee.name}
                     onChange={(e) => handleFeeChange(index, "name", e.target.value)}
-                    className={`flex-1 rounded border ${errors[`additional_fees.${index}.name`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : "border-slate-300"} px-2.5 py-1 text-xs placeholder:text-slate-400`}
+                    className={`flex-1 rounded border ${errors[`additional_fees.${index}.name`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : "border-slate-300"} px-3 py-2 text-[15px] min-h-[38px] placeholder:text-slate-400`}
                   />
                   <MoneyInput
                     id={`qb-fee-amount-${index}`}
                     value={fee.amount}
                     onChange={(val) => handleFeeChange(index, "amount", val)}
                     placeholder="0.00"
-                    className={`w-28 text-right ${errors[`additional_fees.${index}.amount`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}`}
+                    className={`w-32 text-right ${errors[`additional_fees.${index}.amount`] ? "border-red-400 bg-red-50/40 ring-1 ring-red-400" : ""}`}
                   />
                   <button
                     type="button"
                     onClick={() => handleRemoveFee(index)}
-                    className="p-1 text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+                    className="p-1.5 text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={15} />
                   </button>
                 </div>
               ))}

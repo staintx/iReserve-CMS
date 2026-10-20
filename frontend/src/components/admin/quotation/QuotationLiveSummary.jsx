@@ -23,10 +23,10 @@ function SummaryRow({ label, value, detail, tone = "default", strong, indent }) 
       : "text-slate-200";
 
   return (
-    <div className={`flex items-baseline justify-between gap-1.5 text-xs py-0.5 ${indent ? "pl-2" : ""}`}>
+    <div className={`flex items-baseline justify-between gap-1.5 text-[13px] py-0.5 ${indent ? "pl-2" : ""}`}>
       <span className="text-slate-300 truncate">
         {label}
-        {detail && <span className="ml-1 text-[10px] text-slate-400">{detail}</span>}
+        {detail && <span className="ml-1 text-xs text-slate-400">{detail}</span>}
       </span>
       <span className={`shrink-0 font-mono tabular-nums ${toneClass}`}>{value}</span>
     </div>
@@ -252,10 +252,10 @@ export default function QuotationLiveSummary({
           <button
             type="button"
             onClick={onNextStep}
-            className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-md bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+            className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-primary hover:bg-primary-hover text-white text-sm font-bold transition-colors cursor-pointer shadow-xs"
           >
             <span>Proceed to Set Prices</span>
-            <ArrowRight size={13} />
+            <ArrowRight size={14} />
           </button>
         )}
 
@@ -264,18 +264,18 @@ export default function QuotationLiveSummary({
             <button
               type="button"
               onClick={onPrevStep}
-              className="px-2 py-2 rounded-md border border-white/20 bg-white/5 hover:bg-white/10 text-slate-200 text-xs transition-colors cursor-pointer"
+              className="px-2.5 py-2.5 rounded-md border border-white/20 bg-white/5 hover:bg-white/10 text-slate-200 text-sm transition-colors cursor-pointer"
               title="Back to Customer Request"
             >
-              <ArrowLeft size={13} />
+              <ArrowLeft size={14} />
             </button>
             <button
               type="button"
               onClick={onNextStep}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-md bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-md bg-primary hover:bg-primary-hover text-white text-sm font-bold transition-colors cursor-pointer shadow-xs"
             >
               <span>Review &amp; Send</span>
-              <ArrowRight size={13} />
+              <ArrowRight size={14} />
             </button>
           </div>
         )}
@@ -285,12 +285,12 @@ export default function QuotationLiveSummary({
             <button
               type="submit"
               disabled={submitting || savingDraft}
-              className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-md bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-primary hover:bg-primary-hover text-white text-sm font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
             >
               {submitting ? (
-                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
               ) : (
-                <Send size={13} />
+                <Send size={14} />
               )}
               <span>
                 {submitting
@@ -303,9 +303,9 @@ export default function QuotationLiveSummary({
             <button
               type="button"
               onClick={onPrevStep}
-              className="w-full inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-md border border-white/10 hover:bg-white/5 text-slate-300 text-[11px] font-medium transition-colors cursor-pointer"
+              className="w-full inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-md border border-white/10 hover:bg-white/5 text-slate-300 text-xs sm:text-[13px] font-medium transition-colors cursor-pointer"
             >
-              <ArrowLeft size={12} />
+              <ArrowLeft size={13} />
               <span>Back to Set Prices</span>
             </button>
           </div>
@@ -316,12 +316,12 @@ export default function QuotationLiveSummary({
           type="button"
           onClick={onSaveDraft}
           disabled={submitting || savingDraft}
-          className="w-full inline-flex items-center justify-center gap-1.5 py-1 px-2 rounded-md border border-white/15 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-[11px] font-medium transition-colors disabled:opacity-50 cursor-pointer"
+          className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md border border-white/15 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs sm:text-[13px] font-medium transition-colors disabled:opacity-50 cursor-pointer"
         >
           {savingDraft ? (
-            <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
           ) : (
-            <Save size={11} />
+            <Save size={12} />
           )}
           <span>{savingDraft ? "Saving..." : "Save Draft"}</span>
         </button>

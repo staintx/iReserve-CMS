@@ -499,10 +499,10 @@ export default function EstimateSummary({
 
             {quotedSeparately?.length > 0 && (
               <div>
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-slate-400">
                   Quoted Separately
                 </p>
-                <ul className="space-y-0.5 text-slate-400 text-[11px]">
+                <ul className="space-y-0.5 text-slate-400 text-xs">
                   {quotedSeparately.map((entry) => (
                     <li key={entry} className="flex gap-1.5">
                       <span aria-hidden="true" className="text-slate-500">+</span>
@@ -519,11 +519,11 @@ export default function EstimateSummary({
       {/* ── Fixed / Pinned Total Footer ────────────────────────────── */}
       <div className="shrink-0 border-t border-slate-800 bg-slate-900">
         <div className="flex items-baseline justify-between gap-2 px-3.5 py-2.5">
-          <span className="text-xs font-semibold text-slate-300">{totalLabel}</span>
+          <span className="text-sm font-semibold text-slate-200">{totalLabel}</span>
           <span
             className={cn(
               "tabular-nums font-bold",
-              hasTotal ? "text-lg text-white" : "text-xs text-slate-400",
+              hasTotal ? "text-lg text-white" : "text-sm text-slate-400",
             )}
             aria-live="polite"
           >
@@ -532,7 +532,7 @@ export default function EstimateSummary({
         </div>
 
         {hasTotal && (
-          <div className="border-t border-slate-800/80 bg-slate-950/70 px-3.5 py-2 text-[11px] leading-relaxed text-slate-400">
+          <div className="border-t border-slate-800/80 bg-slate-950/70 px-3.5 py-2 text-xs leading-relaxed text-slate-400">
             {offerName ? (
               <>
                 Combo base price. Extra rentals & services will be itemized on quotation. {depositPercentage}% deposit reserves date.

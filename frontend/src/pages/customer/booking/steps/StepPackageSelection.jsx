@@ -80,14 +80,14 @@ function PackageCard({ pkg, isSelected, showPerGuestPrice, onSelect }) {
 
         <span className="block min-w-0 flex-1">
           <span className="flex items-start justify-between gap-1.5">
-            <span className="truncate text-sm font-bold text-slate-900">
+            <span className="truncate text-[15px] font-bold text-slate-900">
               {pkg.name}
             </span>
             {isSelected && (
-              <CheckCircle2 size={15} className="shrink-0 text-[#4C81E0]" />
+              <CheckCircle2 size={16} className="shrink-0 text-[#4C81E0]" />
             )}
           </span>
-          <span className="mt-0.5 block text-xs font-semibold text-[#4C81E0]">
+          <span className="mt-0.5 block text-[13px] font-semibold text-[#4C81E0]">
             {showPerGuestPrice && pkg.price_per_guest > 0
               ? `${formatPeso(pkg.price_per_guest)} per guest`
               : pkg.setup_price > 0
@@ -95,7 +95,7 @@ function PackageCard({ pkg, isSelected, showPerGuestPrice, onSelect }) {
                 : "Price provided in quotation"}
           </span>
           {pkg.description && (
-            <span className="mt-0.5 line-clamp-1 block text-[11px] text-slate-500">
+            <span className="mt-0.5 line-clamp-1 block text-xs text-slate-500">
               {pkg.description}
             </span>
           )}
@@ -105,7 +105,7 @@ function PackageCard({ pkg, isSelected, showPerGuestPrice, onSelect }) {
       {/* Inclusions summary — collapsed to PREVIEW items */}
       {preview.length > 0 && (
         <div className="border-t border-slate-100 bg-slate-50/50 px-3 py-2 text-xs rounded-b-lg">
-          <ul className="space-y-0.5 text-slate-600 text-[11px]">
+          <ul className="space-y-0.5 text-slate-600 text-xs">
             {preview.map((line, idx) => (
               <li key={`${line}-${idx}`} className="flex gap-1.5 items-start">
                 <Check size={12} className="mt-0.5 shrink-0 text-[#4C81E0]" />
@@ -119,7 +119,7 @@ function PackageCard({ pkg, isSelected, showPerGuestPrice, onSelect }) {
               onClick={() => setExpanded((open) => !open)}
               aria-expanded={expanded}
               className={cn(
-                "mt-1 inline-flex items-center gap-0.5 text-[11px] font-semibold text-[#4C81E0] hover:underline cursor-pointer",
+                "mt-1 inline-flex items-center gap-0.5 text-xs font-semibold text-[#4C81E0] hover:underline cursor-pointer",
                 focusRing,
               )}
             >
@@ -137,7 +137,7 @@ function PackageCard({ pkg, isSelected, showPerGuestPrice, onSelect }) {
         type="button"
         onClick={onSelect}
         className={cn(
-          "m-2.5 mt-auto rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer",
+          "m-2.5 mt-auto rounded-lg px-3 py-2 text-xs sm:text-[13px] font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer min-h-[36px]",
           isSelected
             ? "bg-[#4C81E0] text-white hover:bg-red-600"
             : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
@@ -327,7 +327,7 @@ export default function StepPackageSelection({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-xs sm:text-sm text-slate-900 leading-tight">
+              <span className="font-bold text-sm sm:text-[15px] text-slate-900 leading-tight">
                 Pre-made Package{" "}
                 {!isCustomSetup && (
                   <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
@@ -341,7 +341,7 @@ export default function StepPackageSelection({
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-500 leading-tight mt-0.5">
+            <p className="text-xs text-slate-500 leading-tight mt-0.5">
               Ready styled setup packages with scaffold size choices.
             </p>
           </div>
@@ -370,7 +370,7 @@ export default function StepPackageSelection({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-xs sm:text-sm text-slate-900 leading-tight">
+              <span className="font-bold text-sm sm:text-[15px] text-slate-900 leading-tight">
                 Design from Scratch (100% Custom){" "}
                 {isCustomSetup && (
                   <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
@@ -384,7 +384,7 @@ export default function StepPackageSelection({
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-500 leading-tight mt-0.5">
+            <p className="text-xs text-slate-500 leading-tight mt-0.5">
               Specify your dream theme, colors, elements & moodboard pegs.
             </p>
           </div>
@@ -536,10 +536,10 @@ export default function StepPackageSelection({
                             {option.width_ft}×{option.length_ft}
                           </span>
                           <div className="min-w-0">
-                            <span className="block truncate text-xs font-bold text-slate-800 leading-tight">
+                            <span className="block truncate text-[13px] font-bold text-slate-800 leading-tight">
                               {option.label || dimensions}
                             </span>
-                            <span className="block text-[11px] text-slate-400 leading-tight">
+                            <span className="block text-xs text-slate-400 leading-tight">
                               {dimensions}
                             </span>
                           </div>
@@ -549,16 +549,16 @@ export default function StepPackageSelection({
                           <span className="block text-[10px] uppercase font-semibold text-slate-400">
                             Setup Price
                           </span>
-                          <span className="block text-xs font-bold tabular-nums text-slate-900">
+                          <span className="block text-sm font-bold tabular-nums text-slate-900">
                             {formatPeso(option.price)}
                           </span>
                         </div>
                       </div>
 
                       {option.guest_max && (
-                        <div className="mt-1.5 flex items-center gap-1.5 border-t border-slate-100 pt-1.5 text-[11px] text-slate-500">
+                        <div className="mt-1.5 flex items-center gap-1.5 border-t border-slate-100 pt-1.5 text-xs text-slate-500">
                           <Users
-                            size={11}
+                            size={12}
                             className={cn(
                               "shrink-0",
                               isActive ? "text-[#4C81E0]" : "text-slate-400",
@@ -587,7 +587,7 @@ export default function StepPackageSelection({
             <div className="space-y-3">
               <div>
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                  <label className="block text-xs sm:text-[13px] font-semibold uppercase tracking-wider text-slate-700">
                     Theme or styling motif{" "}
                     <span className="font-bold text-red-500 text-xs" title="Required" aria-hidden="true">
                       *
@@ -601,8 +601,8 @@ export default function StepPackageSelection({
                   hasError={!!errors.event_theme}
                 />
                 {errors.event_theme && (
-                  <p className="text-xs font-semibold text-red-600 mt-1.5 flex items-center gap-1.5">
-                    <AlertCircle size={13} className="shrink-0 text-red-500" />
+                  <p className="text-[13px] font-semibold text-red-600 mt-1.5 flex items-center gap-1.5">
+                    <AlertCircle size={14} className="shrink-0 text-red-500" />
                     <span>{errors.event_theme}</span>
                   </p>
                 )}
@@ -610,7 +610,7 @@ export default function StepPackageSelection({
 
               <div className="border-t border-slate-100 pt-2.5">
                 <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                  <label className="block text-xs sm:text-[13px] font-semibold uppercase tracking-wider text-slate-700">
                     Color palette
                   </label>
                   <FieldStatusPill
@@ -628,7 +628,7 @@ export default function StepPackageSelection({
               </div>
 
               <div className="border-t border-slate-100 pt-2.5">
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                <label className="block text-xs sm:text-[13px] font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                   Setup scope elements
                 </label>
                 <div className="grid grid-cols-1 gap-1.5">
@@ -663,11 +663,11 @@ export default function StepPackageSelection({
                             className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-[#4C81E0] focus:ring-[#4C81E0]"
                           />
                           <div className="min-w-0 flex-1">
-                            <span className="block text-xs font-bold text-slate-800 leading-tight">
+                            <span className="block text-sm font-bold text-slate-800 leading-tight">
                               {serviceName}
                             </span>
                             {serviceDesc ? (
-                              <span className="block text-[11px] text-slate-500 leading-tight">
+                              <span className="block text-xs text-slate-500 leading-tight mt-0.5">
                                 {serviceDesc}
                               </span>
                             ) : null}
@@ -686,7 +686,7 @@ export default function StepPackageSelection({
             <SectionTitle icon={ImageIcon}>Moodboard &amp; Vision Notes</SectionTitle>
             <div className="space-y-3">
               <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                <label className="block text-xs sm:text-[13px] font-semibold uppercase tracking-wider text-slate-700 mb-1">
                   Inspiration photos
                 </label>
                 <div className="flex flex-wrap items-center gap-2">
@@ -740,13 +740,13 @@ export default function StepPackageSelection({
                     </div>
                   ))}
                 </div>
-                <p className="mt-1 text-[10px] text-slate-400">
+                <p className="mt-1 text-[11px] text-slate-400">
                   Up to 5 images (JPG, PNG, WEBP).
                 </p>
               </div>
 
               <div className="border-t border-slate-100 pt-2.5">
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                <label className="block text-xs sm:text-[13px] font-semibold uppercase tracking-wider text-slate-700 mb-1">
                   Custom setup vision &amp; notes
                 </label>
                 <textarea
@@ -756,7 +756,7 @@ export default function StepPackageSelection({
                   onChange={(e) => updateForm({ custom_setup_notes: e.target.value })}
                   placeholder="e.g. Warm ambient fairy lights, floral stage backdrop, elegant couple's seating, wooden rustic tables..."
                   className={cn(
-                    "w-full rounded-lg border bg-white p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2",
+                    "w-full rounded-lg border bg-white p-2.5 text-[15px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2",
                     errors.custom_setup_notes
                       ? "border-red-300 bg-red-50/50 focus:ring-red-200 focus:border-red-400"
                       : "border-slate-200 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0]",
@@ -764,8 +764,8 @@ export default function StepPackageSelection({
                   )}
                 />
                 {errors.custom_setup_notes && (
-                  <p className="text-xs font-semibold text-red-600 mt-1 flex items-center gap-1">
-                    <AlertCircle size={13} className="shrink-0 text-red-500" />
+                  <p className="text-[13px] font-semibold text-red-600 mt-1 flex items-center gap-1">
+                    <AlertCircle size={14} className="shrink-0 text-red-500" />
                     <span>{errors.custom_setup_notes}</span>
                   </p>
                 )}

@@ -76,15 +76,15 @@ import InlineMessage from "../../feedback/InlineMessage";
 --------------------------------------------------------------------------- */
 
 const INPUT_BASE =
-  "w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+  "w-full rounded-md border bg-white px-3 py-2 text-[15px] min-h-[38px] text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 const inputClass = (hasError) =>
   `${INPUT_BASE} ${hasError ? "border-red-400 bg-red-50/40" : "border-slate-300"}`;
 
 const LABEL_CLASS =
-  "block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 mb-1.5";
+  "block text-xs sm:text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-600 mb-1.5";
 
 const ROW_ACTION_BASE =
-  "inline-flex shrink-0 items-center gap-1 rounded-md border bg-white px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 cursor-pointer";
+  "inline-flex shrink-0 items-center gap-1 rounded-md border bg-white px-2.5 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 cursor-pointer";
 const ROW_ACTION_TONES = {
   danger: "border-red-200 text-red-700 hover:border-red-400 hover:bg-red-50 focus:ring-red-400",
   success:
@@ -100,7 +100,7 @@ function RowAction({ onClick, icon: Icon, label, tone = "danger", title }) {
       title={title}
       className={`${ROW_ACTION_BASE} ${ROW_ACTION_TONES[tone] || ROW_ACTION_TONES.neutral}`}
     >
-      {Icon ? <Icon size={12} /> : null} {label}
+      {Icon ? <Icon size={13} /> : null} {label}
     </button>
   );
 }
@@ -116,12 +116,12 @@ function Field({ label, required, hint, error, htmlFor, children, className = ""
       )}
       {children}
       {error ? (
-        <p className="mt-1 flex items-start gap-1 text-[11.5px] font-medium leading-snug text-red-700">
-          <AlertCircle size={12} className="mt-[2px] shrink-0" />
+        <p className="mt-1 flex items-start gap-1 text-[13px] font-medium leading-snug text-red-700">
+          <AlertCircle size={14} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </p>
       ) : hint ? (
-        <p className="mt-1 text-[11.5px] leading-snug text-slate-500">{hint}</p>
+        <p className="mt-1 text-[13px] leading-snug text-slate-500">{hint}</p>
       ) : null}
     </div>
   );
@@ -133,7 +133,7 @@ function MoneyInput({ id, value, onChange, error, disabled, placeholder, classNa
   };
   return (
     <div className="relative">
-      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-slate-500">
+      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-[15px] font-semibold text-slate-500">
         ₱
       </span>
       <input
@@ -178,16 +178,16 @@ function SectionCard({ step, title, description, icon: Icon, aside, children, id
             {Icon ? <Icon size={15} /> : null}
           </span>
           <div className="min-w-0">
-            <h3 className="flex items-baseline gap-2 font-sans text-sm font-bold text-slate-900">
+            <h3 className="flex items-baseline gap-2 font-sans text-sm sm:text-base font-bold text-slate-900">
               {step != null && (
-                <span className={`text-[11px] font-semibold tabular-nums ${tone.step}`}>
+                <span className={`text-xs font-semibold tabular-nums ${tone.step}`}>
                   {String(step).padStart(2, "0")}
                 </span>
               )}
               {title}
             </h3>
             {description && (
-              <p className="mt-0.5 text-xs leading-snug text-slate-500">{description}</p>
+              <p className="mt-0.5 text-xs sm:text-[13px] leading-snug text-slate-500">{description}</p>
             )}
           </div>
         </div>

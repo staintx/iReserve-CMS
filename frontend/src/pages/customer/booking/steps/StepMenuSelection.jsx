@@ -68,7 +68,7 @@ function DishCard({ item, selected, onToggle }) {
       <div className="min-w-0 flex-1 py-0.5">
         <h4
           className={cn(
-            "text-xs sm:text-sm font-bold transition-colors leading-snug line-clamp-2 break-words",
+            "text-sm sm:text-[15px] font-bold transition-colors leading-snug line-clamp-2 break-words",
             selected
               ? "text-[#4C81E0]"
               : "text-slate-900 group-hover:text-slate-950",
@@ -78,11 +78,11 @@ function DishCard({ item, selected, onToggle }) {
         </h4>
 
         {item.description ? (
-          <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed mt-0.5 line-clamp-2">
+          <p className="text-xs sm:text-[13px] text-slate-500 leading-relaxed mt-0.5 line-clamp-2">
             {item.description}
           </p>
         ) : (
-          <p className="text-[11px] text-slate-400 italic leading-relaxed mt-0.5">
+          <p className="text-xs text-slate-400 italic leading-relaxed mt-0.5">
             Standard catering preparation
           </p>
         )}
@@ -151,7 +151,7 @@ function CategoryTabs({
               aria-selected={isActive}
               onClick={(e) => handleTabClick(group.id, e)}
               className={cn(
-                "shrink-0 inline-flex items-center gap-1 py-2 px-2.5 text-xs transition-colors cursor-pointer whitespace-nowrap border-b-2 -mb-px",
+                "shrink-0 inline-flex items-center gap-1.5 py-2.5 px-3 text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap border-b-2 -mb-px",
                 isActive
                   ? "border-[#4C81E0] text-[#4C81E0] font-bold"
                   : selectedInThis > 0
@@ -162,7 +162,7 @@ function CategoryTabs({
             >
               <span>{group.label}</span>
               {selectedInThis > 0 && (
-                <span className="text-[10px] font-bold text-[#4C81E0] bg-blue-50 border border-blue-200/80 px-1.5 py-0.2 rounded-full">
+                <span className="text-xs font-bold text-[#4C81E0] bg-blue-50 border border-blue-200/80 px-1.5 py-0.2 rounded-full">
                   {selectedInThis}
                 </span>
               )}
@@ -467,9 +467,9 @@ export default function StepMenuSelection({
             </div>
 
             {/* Quick Search */}
-            <div className="relative w-full sm:w-56 shrink-0">
+            <div className="relative w-full sm:w-60 shrink-0">
               <Search
-                size={13}
+                size={14}
                 className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
                 aria-hidden="true"
               />
@@ -480,7 +480,7 @@ export default function StepMenuSelection({
                 placeholder={`Search ${currentGroup.label.toLowerCase()}...`}
                 aria-label={`Search dishes in ${currentGroup.label}`}
                 className={cn(
-                  "h-8 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-7 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1.5 focus:ring-[#4C81E0]/30 focus:border-[#4C81E0] shadow-2xs",
+                  "h-9 w-full rounded-lg border border-slate-200 bg-white pl-8.5 pr-7 text-[13px] sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1.5 focus:ring-[#4C81E0]/30 focus:border-[#4C81E0] shadow-2xs",
                   focusRing,
                 )}
               />
@@ -491,7 +491,7 @@ export default function StepMenuSelection({
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-700 cursor-pointer"
                   aria-label="Clear search"
                 >
-                  <X size={11} />
+                  <X size={12} />
                 </button>
               )}
             </div>
@@ -950,7 +950,7 @@ export default function StepMenuSelection({
                                   <div className="min-w-0 flex-1">
                                     <span
                                       className={cn(
-                                        "block truncate text-xs font-bold transition-colors leading-snug",
+                                        "block truncate text-xs sm:text-sm font-bold transition-colors leading-snug",
                                         isSelected
                                           ? "text-[#4C81E0]"
                                           : "text-slate-800 group-hover:text-slate-950",
@@ -959,11 +959,11 @@ export default function StepMenuSelection({
                                       {dishName}
                                     </span>
                                     {catalogItem?.description ? (
-                                      <p className="line-clamp-1 text-[11px] text-slate-500 leading-tight mt-0.5">
+                                      <p className="line-clamp-1 text-xs text-slate-500 leading-tight mt-0.5">
                                         {catalogItem.description}
                                       </p>
                                     ) : (
-                                      <p className="text-[11px] text-slate-400 italic leading-tight mt-0.5">
+                                      <p className="text-xs text-slate-400 italic leading-tight mt-0.5">
                                         Course selection option
                                       </p>
                                     )}

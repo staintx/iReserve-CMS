@@ -249,10 +249,10 @@ export default function ReviewSendStep({
       {/* 1. Final Quotation Breakdown Card */}
       <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3.5">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-            <FileCheck2 size={13} className="text-primary" /> Final Quotation Review
+          <span className="text-sm sm:text-base font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <FileCheck2 size={16} className="text-primary" /> Final Quotation Review
           </span>
-          <span className="text-xs font-semibold text-slate-500">
+          <span className="text-sm font-semibold text-slate-500">
             {details.guest_count} Guests &middot; {details.event_date ? formatShortDate(details.event_date) : "TBD"}
           </span>
         </div>
@@ -395,8 +395,8 @@ export default function ReviewSendStep({
       {/* 2. Payment Terms & Expiration */}
       <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3.5">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-            <CreditCard size={13} className="text-primary" /> Payment Terms &amp; Validity
+          <span className="text-sm sm:text-base font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <CreditCard size={16} className="text-primary" /> Payment Terms &amp; Validity
           </span>
         </div>
 
@@ -404,12 +404,12 @@ export default function ReviewSendStep({
           {/* Deposit Amount */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="block text-[11px] font-semibold text-slate-700">
+              <label className="block text-sm font-semibold text-slate-700">
                 Required Deposit Amount (₱) *
               </label>
               {depositShare > 0 && totals.totalCost > 0 && (
                 <span
-                  className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded border ${
+                  className={`text-xs font-bold font-mono px-2 py-0.5 rounded border ${
                     depositShare < 50
                       ? "bg-red-50 text-red-700 border-red-200"
                       : "bg-emerald-50 text-emerald-700 border-emerald-200"
@@ -422,7 +422,7 @@ export default function ReviewSendStep({
 
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-xs text-slate-400 font-medium">
+                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-sm text-slate-400 font-medium">
                   ₱
                 </span>
                 <input
@@ -433,7 +433,7 @@ export default function ReviewSendStep({
                   placeholder="0.00"
                   value={depositAmount}
                   onChange={(e) => handleDepositAmountChange(e.target.value)}
-                  className={`w-full rounded-md border pl-6 pr-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                  className={`w-full rounded-md border pl-6.5 pr-2.5 py-2 text-[15px] font-mono font-bold text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
                     hasDepositError ? "border-red-400 bg-red-50/40" : "border-slate-300"
                   }`}
                 />
@@ -448,32 +448,32 @@ export default function ReviewSendStep({
                   placeholder="50"
                   value={numDeposit > 0 && totals.totalCost > 0 ? depositShare : ""}
                   onChange={(e) => handleDepositPercentChange(e.target.value)}
-                  className={`w-full rounded-md border pl-2.5 pr-6 py-1.5 text-xs font-mono font-bold text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                  className={`w-full rounded-md border pl-3 pr-6 py-2 text-[15px] font-mono font-bold text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
                     hasDepositError ? "border-red-400 bg-red-50/40" : "border-slate-300"
                   }`}
                 />
-                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-xs text-slate-400 font-medium">
+                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-sm text-slate-400 font-medium">
                   %
                 </span>
               </div>
             </div>
 
             {depositErrorMessage && (
-              <p className="text-[11px] font-medium text-red-600 mt-1 flex items-start gap-1">
-                <AlertCircle size={12} className="shrink-0 text-red-500 mt-0.5" />
+              <p className="text-[13px] font-medium text-red-600 mt-1 flex items-start gap-1">
+                <AlertCircle size={14} className="shrink-0 text-red-500 mt-0.5" />
                 <span>{depositErrorMessage}</span>
               </p>
             )}
 
             {/* Quick Percentage Presets */}
             <div className="flex items-center gap-1.5 pt-0.5">
-              <span className="text-[10px] text-slate-500">Quick select:</span>
+              <span className="text-xs text-slate-500">Quick select:</span>
               {[50, 70, 80].map((pct) => (
                 <button
                   key={pct}
                   type="button"
                   onClick={() => setDepositByPercent(pct)}
-                  className={`px-2 py-0.5 rounded text-[10.5px] font-medium border transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1 rounded text-xs font-semibold border transition-colors cursor-pointer ${
                     depositShare === pct
                       ? "bg-primary text-white border-primary font-bold shadow-xs"
                       : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
@@ -484,7 +484,7 @@ export default function ReviewSendStep({
               ))}
             </div>
 
-            <div className="p-2 rounded bg-slate-50 border border-slate-200 mt-2 flex justify-between items-center text-xs">
+            <div className="p-2.5 rounded bg-slate-50 border border-slate-200 mt-2 flex justify-between items-center text-xs sm:text-sm">
               <span className="text-slate-600">Remaining Balance on Event Day:</span>
               <span className="font-mono font-bold text-slate-900 tabular-nums">
                 {formatCurrency(totals.remainingBalance)}
@@ -494,7 +494,7 @@ export default function ReviewSendStep({
 
           {/* Expiration Date */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-semibold text-slate-700">
+            <label className="block text-sm font-semibold text-slate-700">
               Quotation Expiration Date *
             </label>
             <input
@@ -503,14 +503,14 @@ export default function ReviewSendStep({
               max={maxValidityDate || undefined}
               value={expirationDate}
               onChange={(e) => setExpirationDate(e.target.value)}
-              className={`w-full rounded-md border px-2.5 py-1.5 text-xs text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+              className={`w-full rounded-md border px-3 py-2 text-[15px] text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
                 errors.expiration_date ? "border-red-400 bg-red-50/40" : "border-slate-300"
               }`}
             />
             {errors.expiration_date ? (
-              <p className="text-[11px] text-red-600 mt-0.5">{errors.expiration_date}</p>
+              <p className="text-[13px] text-red-600 mt-1 font-medium">{errors.expiration_date}</p>
             ) : maxValidityDate ? (
-              <p className="text-[10.5px] text-slate-500 mt-0.5">
+              <p className="text-[13px] text-slate-500 mt-1">
                 Must expire at least 3 days before the event (latest: {formatShortDate(maxValidityDate)}).
               </p>
             ) : null}
@@ -519,7 +519,7 @@ export default function ReviewSendStep({
 
         {/* Notes to Customer */}
         <div className="pt-2 border-t border-slate-100 space-y-1 text-xs">
-          <label className="block text-[11px] font-semibold text-slate-700">
+          <label className="block text-sm font-semibold text-slate-700">
             Notes to Customer (Optional)
           </label>
           <textarea
@@ -527,7 +527,7 @@ export default function ReviewSendStep({
             placeholder="Include special payment terms, catering reminders, or custom instructions..."
             value={adminNotes}
             onChange={(e) => setAdminNotes(e.target.value)}
-            className="w-full rounded-md border border-slate-300 p-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none placeholder:text-slate-400"
+            className="w-full rounded-md border border-slate-300 p-2.5 text-[15px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none placeholder:text-slate-400"
           />
         </div>
       </div>
@@ -535,8 +535,8 @@ export default function ReviewSendStep({
       {/* 3. Pre-Flight Verification Checklist */}
       <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2.5">
         <div className="flex items-center gap-1.5">
-          <ShieldCheck size={15} className={allChecksPassed ? "text-emerald-600" : "text-slate-500"} />
-          <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-900">
+          <ShieldCheck size={16} className={allChecksPassed ? "text-emerald-600" : "text-slate-500"} />
+          <h4 className="text-sm sm:text-base font-bold uppercase tracking-wider text-slate-900">
             Pre-Send Verification Checklist
           </h4>
         </div>
@@ -545,21 +545,21 @@ export default function ReviewSendStep({
           {checks.map((check, idx) => (
             <div
               key={idx}
-              className={`flex items-center gap-2 p-2 rounded border transition-colors ${
+              className={`flex items-center gap-2 p-2.5 rounded border transition-colors ${
                 check.passed
                   ? "bg-slate-50 border-slate-200 text-slate-800"
                   : "bg-red-50 border-red-200 text-red-900"
               }`}
             >
               {check.passed ? (
-                <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
               ) : (
-                <AlertCircle size={13} className="text-red-600 shrink-0" />
+                <AlertCircle size={15} className="text-red-600 shrink-0" />
               )}
               <div className="min-w-0">
-                <span className="font-medium block leading-tight">{check.label}</span>
+                <span className="text-sm font-medium block leading-tight">{check.label}</span>
                 {!check.passed && (
-                  <span className="text-[10px] text-red-700 block mt-0.5">{check.failMsg}</span>
+                  <span className="text-[13px] text-red-700 block mt-0.5">{check.failMsg}</span>
                 )}
               </div>
             </div>
@@ -572,9 +572,9 @@ export default function ReviewSendStep({
         <button
           type="button"
           onClick={onBackToPrices}
-          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors cursor-pointer"
+          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition-colors cursor-pointer"
         >
-          <ArrowLeft size={13} />
+          <ArrowLeft size={14} />
           <span>Back to Set Prices</span>
         </button>
 
@@ -583,21 +583,21 @@ export default function ReviewSendStep({
             type="button"
             onClick={onSaveDraft}
             disabled={submitting || savingDraft}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
           >
-            <Save size={13} />
+            <Save size={14} />
             <span>{savingDraft ? "Saving..." : "Save Draft"}</span>
           </button>
 
           <button
             type="submit"
             disabled={submitting || savingDraft}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary hover:bg-primary-hover text-white text-sm font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
           >
             {submitting ? (
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
             ) : (
-              <Send size={13} />
+              <Send size={14} />
             )}
             <span>
               {submitting

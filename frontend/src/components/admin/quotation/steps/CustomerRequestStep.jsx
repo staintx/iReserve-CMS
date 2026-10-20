@@ -26,7 +26,7 @@ import { EVENT_TYPES, OTHER_EVENT_TYPE } from "../../../../lib/eventTypes";
 import DishThumbnail from "../DishThumbnail";
 
 const INPUT_BASE =
-  "w-full rounded-md border bg-white px-3 py-1.5 text-xs text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-500 placeholder:text-slate-400";
+  "w-full rounded-md border bg-white px-3 py-2 text-[15px] text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-500 placeholder:text-slate-400";
 const inputClass = (hasError) =>
   `${INPUT_BASE} ${hasError ? "border-red-400 bg-red-50/40" : "border-slate-300"}`;
 
@@ -546,16 +546,16 @@ export default function CustomerRequestStep({
             EDIT MODE: Guarded Form for Customer Details
         ------------------------------------------------------------------ */
         <div className="bg-white rounded-lg border border-slate-300 p-4 space-y-4">
-          <div className="flex items-center gap-2 text-slate-800 bg-slate-50 p-2.5 rounded-md border border-slate-200 text-xs">
-            <AlertCircle size={14} className="shrink-0 text-primary" />
+          <div className="flex items-center gap-2 text-slate-800 bg-slate-50 p-3 rounded-md border border-slate-200 text-xs sm:text-[13px]">
+            <AlertCircle size={15} className="shrink-0 text-primary" />
             <span>
               <strong>Edit Mode:</strong> Make updates here if the customer contacted you with changes. Details will be saved upon sending.
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 First Name *
               </label>
               <input
@@ -565,12 +565,12 @@ export default function CustomerRequestStep({
                 className={inputClass(errors.contact_first_name)}
               />
               {errors.contact_first_name && (
-                <p className="text-[11px] text-red-600 mt-0.5">{errors.contact_first_name}</p>
+                <p className="text-[13px] text-red-600 mt-1 font-medium">{errors.contact_first_name}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Last Name *
               </label>
               <input
@@ -580,12 +580,12 @@ export default function CustomerRequestStep({
                 className={inputClass(errors.contact_last_name)}
               />
               {errors.contact_last_name && (
-                <p className="text-[11px] text-red-600 mt-0.5">{errors.contact_last_name}</p>
+                <p className="text-[13px] text-red-600 mt-1 font-medium">{errors.contact_last_name}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Celebrant / Honoree
               </label>
               <input
@@ -598,7 +598,7 @@ export default function CustomerRequestStep({
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Contact Phone *
               </label>
               <input
@@ -608,12 +608,12 @@ export default function CustomerRequestStep({
                 className={inputClass(errors.contact_phone)}
               />
               {errors.contact_phone && (
-                <p className="text-[11px] text-red-600 mt-0.5">{errors.contact_phone}</p>
+                <p className="text-[13px] text-red-600 mt-1 font-medium">{errors.contact_phone}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Contact Email *
               </label>
               <input
@@ -623,12 +623,12 @@ export default function CustomerRequestStep({
                 className={inputClass(errors.contact_email)}
               />
               {errors.contact_email && (
-                <p className="text-[11px] text-red-600 mt-0.5">{errors.contact_email}</p>
+                <p className="text-[13px] text-red-600 mt-1 font-medium">{errors.contact_email}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Guest Count (Pax) *
               </label>
               <input
@@ -639,12 +639,12 @@ export default function CustomerRequestStep({
                 className={inputClass(errors.guest_count)}
               />
               {errors.guest_count && (
-                <p className="text-[11px] text-red-600 mt-0.5">{errors.guest_count}</p>
+                <p className="text-[13px] text-red-600 mt-1 font-medium">{errors.guest_count}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Event Date *
               </label>
               <input
@@ -655,12 +655,12 @@ export default function CustomerRequestStep({
                 className={inputClass(errors.event_date)}
               />
               {errors.event_date && (
-                <p className="text-[11px] text-red-600 mt-0.5">{errors.event_date}</p>
+                <p className="text-[13px] text-red-600 mt-1 font-medium">{errors.event_date}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Start Time *
               </label>
               <input
@@ -670,12 +670,12 @@ export default function CustomerRequestStep({
                 className={inputClass(errors.start_time)}
               />
               {errors.start_time && (
-                <p className="text-[11px] text-red-600 mt-0.5">{errors.start_time}</p>
+                <p className="text-[13px] text-red-600 mt-1 font-medium">{errors.start_time}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Event Type *
               </label>
               <select
@@ -695,12 +695,12 @@ export default function CustomerRequestStep({
 
           {/* Venue Address */}
           <div className="pt-2 border-t border-slate-100">
-            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">
+            <span className="text-sm font-bold text-slate-700 uppercase tracking-wider block mb-2">
               Venue Location
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
               <div>
-                <label className="block text-[10.5px] font-medium text-slate-500 mb-1">
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                   Municipality
                 </label>
                 <select
@@ -718,7 +718,7 @@ export default function CustomerRequestStep({
               </div>
 
               <div>
-                <label className="block text-[10.5px] font-medium text-slate-500 mb-1">
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                   Barangay
                 </label>
                 <select
@@ -736,7 +736,7 @@ export default function CustomerRequestStep({
               </div>
 
               <div>
-                <label className="block text-[10.5px] font-medium text-slate-500 mb-1">
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                   Street Address
                 </label>
                 <input
@@ -749,7 +749,7 @@ export default function CustomerRequestStep({
               </div>
 
               <div>
-                <label className="block text-[10.5px] font-medium text-slate-500 mb-1">
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                   Landmark
                 </label>
                 <input
@@ -767,7 +767,7 @@ export default function CustomerRequestStep({
             <button
               type="button"
               onClick={() => setIsEditMode(false)}
-              className="px-3.5 py-1.5 rounded-md bg-primary hover:bg-primary-hover text-white text-xs font-semibold transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-md bg-primary hover:bg-primary-hover text-white text-sm font-semibold transition-colors cursor-pointer"
             >
               Save &amp; Return to Review
             </button>

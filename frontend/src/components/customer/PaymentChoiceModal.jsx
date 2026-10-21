@@ -67,7 +67,18 @@ export default function PaymentChoiceModal({
           })
         : "Day After Event");
 
+  const isProposalPending = Boolean(
+    booking?.pending_revision &&
+    booking.pending_revision.status === "pending_customer_approval"
+  );
+
   const handleProceed = async () => {
+    if (isProposalPending) {
+      notify("Balance payment is paused while a revision proposal is pending your review.", "warning");
+      onClose();
+      return;
+    }
+
     if (payable <= 0) {
       notify("No remaining balance found for this booking.", "info");
       onClose();
@@ -155,14 +166,21 @@ export default function PaymentChoiceModal({
         <button
           type="button"
           onClick={handleProceed}
-          disabled={isSubmitting}
-          className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          disabled={isSubmitting || isProposalPending}
+          className={cn(
+            "w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold text-white transition-all flex items-center justify-center gap-2 shadow-xs",
+            isProposalPending
+              ? "bg-slate-200 text-slate-400 cursor-not-allowed hover:bg-slate-200"
+              : "bg-amber-600 hover:bg-amber-700 active:scale-[0.98] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          )}
         >
           {isSubmitting ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin shrink-0" />
               <span>Processing...</span>
             </>
+          ) : isProposalPending ? (
+            <span>Payment Paused (Proposal Pending)</span>
           ) : selectedMethod === "online" ? (
             <>
               <span>Proceed to Online Checkout</span>
@@ -222,12 +240,22 @@ export default function PaymentChoiceModal({
         </div>
 
         {/* 2. Transparent Payment Schedule Policy */}
-        <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 text-xs text-slate-700">
-          <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-          <div className="leading-relaxed">
-            <span className="font-semibold text-slate-900">Payment Schedule Policy:</span> The remaining balance is due a day after your event date. You can pay securely online now, or hand exact cash directly to your assigned Event Manager on-site.
+        {isProposalPending ? (
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200/80 text-xs text-amber-900">
+            <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="leading-relaxed">
+              <span className="font-semibold block text-amber-950">Balance Payment Paused</span>
+              A revised booking proposal has been sent and is awaiting your review. Remaining balance payments are disabled until the revised terms are confirmed.
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 text-xs text-slate-700">
+            <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="leading-relaxed">
+              <span className="font-semibold text-slate-900">Payment Schedule Policy:</span> The remaining balance is due a day after your event date. You can pay securely online now, or hand exact cash directly to your assigned Event Manager on-site.
+            </div>
+          </div>
+        )}
 
         {/* 3. Payment Method Selection */}
         <div className="space-y-2.5 pt-1">

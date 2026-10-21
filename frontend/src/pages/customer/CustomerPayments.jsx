@@ -34,7 +34,8 @@ import {
   Check,
   ArrowRight,
   ShieldCheck,
-  ChevronLeft
+  ChevronLeft,
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MAX_FINANCIAL_AMOUNT } from "@/lib/validationRules";
@@ -239,6 +240,10 @@ export default function CustomerPayments() {
         booking.change_request?.message?.toLowerCase().includes("cancel"))
     ) {
       notify("Payment is paused while a cancellation request is under review.", "warning");
+      return;
+    }
+    if (booking.pending_revision?.status === "pending_customer_approval") {
+      notify("Payment is paused while a revision proposal is pending your review.", "warning");
       return;
     }
     const payAmount = Number(amount || 0);
@@ -858,27 +863,40 @@ export default function CustomerPayments() {
                         >
                           View booking
                         </Link>
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            startPaymentForBooking(
-                              b,
-                              b.remainingBalance,
-                              b.isDepositStage ? "deposit" : "balance"
-                            )
-                          }
-                          disabled={payingTargetId === b._id}
-                          className="h-9 px-4 text-xs font-bold gap-1.5 shadow-xs rounded-xl bg-[#4C81E0] hover:bg-[#3B6EC6] text-white cursor-pointer active:scale-[0.98] transition-all"
-                        >
-                          <CreditCard className="w-3.5 h-3.5" />
-                          <span>
-                            {payingTargetId === b._id
-                              ? "Opening..."
-                              : b.isDepositStage
-                              ? "Pay deposit"
-                              : "Pay balance"}
-                          </span>
-                        </Button>
+                        {b.pending_revision?.status === "pending_customer_approval" ? (
+                          <Button
+                            size="sm"
+                            asChild
+                            className="h-9 px-4 text-xs font-bold gap-1.5 shadow-xs rounded-xl bg-amber-500 hover:bg-amber-600 text-white cursor-pointer active:scale-[0.98] transition-all"
+                          >
+                            <Link to={`/customer/bookings/${b._id}?view=revision`}>
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>Review proposal</span>
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              startPaymentForBooking(
+                                b,
+                                b.remainingBalance,
+                                b.isDepositStage ? "deposit" : "balance"
+                              )
+                            }
+                            disabled={payingTargetId === b._id}
+                            className="h-9 px-4 text-xs font-bold gap-1.5 shadow-xs rounded-xl bg-[#4C81E0] hover:bg-[#3B6EC6] text-white cursor-pointer active:scale-[0.98] transition-all"
+                          >
+                            <CreditCard className="w-3.5 h-3.5" />
+                            <span>
+                              {payingTargetId === b._id
+                                ? "Opening..."
+                                : b.isDepositStage
+                                ? "Pay deposit"
+                                : "Pay balance"}
+                            </span>
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>

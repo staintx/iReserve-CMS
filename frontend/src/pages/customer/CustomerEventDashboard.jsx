@@ -572,6 +572,10 @@ export default function CustomerEventDashboard() {
     booking?.cancellation_request?.status === "pending" ||
     (booking?.change_request?.status === "pending" &&
       booking?.change_request?.message?.toLowerCase().includes("cancel"));
+  const isProposalPending = Boolean(
+    booking?.pending_revision &&
+    booking.pending_revision.status === "pending_customer_approval"
+  );
 
   const canRequestCancellation = Boolean(
     booking &&
@@ -597,7 +601,7 @@ export default function CustomerEventDashboard() {
   };
 
   const handlePayRemainingBalance = () => {
-    if (!booking?._id || outstandingAmount <= 0 || isCancelReqPending || isCancelled) return;
+    if (!booking?._id || outstandingAmount <= 0 || isCancelReqPending || isCancelled || isProposalPending) return;
     setIsChoiceModalOpen(true);
   };
 
@@ -1032,7 +1036,30 @@ export default function CustomerEventDashboard() {
       return null;
     }
 
-    // 2. Overdue balance takes top priority for both Active and Completed events
+    // 2. Proposal awaiting customer approval takes top priority over balance payment / overdue
+    if (isProposalPending) {
+      return {
+        tone: "action",
+        isOverdue: false,
+        badge: "Proposal Under Review",
+        badgeClass: "bg-blue-50 text-[#4C81E0] border-blue-200 font-semibold",
+        title: "Revised Booking Proposal Awaiting Your Confirmation",
+        description: "Our catering team has prepared an updated proposal following the venue ocular inspection or specifications review. Please review and confirm the revised terms.",
+        assignedParty: "Client Decision Required",
+        timeline: "Review & Confirm",
+        action: (
+          <Button
+            onClick={() => setShowProposalModal(true)}
+            className="bg-[#4C81E0] hover:bg-[#3B6EC9] text-white font-bold text-xs h-9 px-4 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Review Proposal</span>
+          </Button>
+        ),
+      };
+    }
+
+    // 3. Overdue balance takes top priority for both Active and Completed events
     const isOverdue = isBookingOverdue(booking, displayPaid);
     if (isOverdue && outstandingAmount > 0) {
       return {
@@ -1227,6 +1254,8 @@ export default function CustomerEventDashboard() {
   };
   if (isCancelReqPending) {
     statusBadge = { label: "Cancellation Pending", variant: "bg-amber-50/80 text-amber-900 border-amber-300/80 font-semibold" };
+  } else if (isProposalPending) {
+    statusBadge = { label: "Revision Proposed", variant: "bg-blue-50/80 text-[#4C81E0] border-blue-200/80 font-semibold" };
   } else if (isOverdue && outstandingAmount > 0 && !isCancelled) {
     statusBadge = { label: "Payment Overdue", variant: "bg-rose-50 text-rose-800 border-rose-200 font-bold" };
   } else if (["confirmed", "converted to booking"].includes(rawStatus)) {
@@ -1888,6 +1917,8 @@ export default function CustomerEventDashboard() {
                             : hasPendingRefund
                               ? "bg-amber-50 text-amber-800 border border-amber-200"
                               : "bg-rose-50 text-rose-800"
+                          : isProposalPending
+                            ? "bg-amber-50 text-amber-800 border border-amber-200"
                           : isFullyPaid
                             ? "bg-emerald-50 text-emerald-800"
                             : "bg-blue-50 text-[#4C81E0]"
@@ -1901,6 +1932,8 @@ export default function CustomerEventDashboard() {
                             : hasPendingRefund
                               ? "Refund Pending"
                               : "Cancelled"
+                        : isProposalPending
+                          ? "Proposal Pending"
                         : isFullyPaid
                           ? "Paid in full"
                           : "Balance Pending"}
@@ -2079,6 +2112,26 @@ export default function CustomerEventDashboard() {
                             <p className="text-amber-800 leading-relaxed">
                               A cancellation request is under review. Remaining balance payments are suspended until resolution.
                             </p>
+                          </div>
+                        ) : isProposalPending ? (
+                          <div className="space-y-2 mt-2">
+                            <div className="p-2.5 rounded-lg bg-amber-50/80 border border-amber-200/80 text-[11px] space-y-1">
+                              <div className="font-semibold text-amber-900 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                                <span>Proposal Review Required</span>
+                              </div>
+                              <p className="text-amber-800 leading-relaxed">
+                                A revised booking proposal has been sent. Balance payments are paused until you confirm or counter the proposal.
+                              </p>
+                            </div>
+                            <Button
+                              disabled
+                              title="Balance payment is disabled while a revision proposal is pending review"
+                              className="w-full bg-slate-100 hover:bg-slate-100 text-slate-400 border border-slate-200 font-semibold text-xs h-9 rounded-lg cursor-not-allowed shadow-none gap-1.5"
+                            >
+                              <CreditCard className="h-3.5 w-3.5 text-slate-400" />
+                              <span>Pay Balance Disabled</span>
+                            </Button>
                           </div>
                         ) : outstandingAmount > 0 ? (
                           <Button
@@ -2484,6 +2537,26 @@ export default function CustomerEventDashboard() {
                           <p className="text-amber-800 leading-relaxed">
                             Payment is suspended while your cancellation request is being processed by catering management.
                           </p>
+                        </div>
+                      ) : isProposalPending ? (
+                        <div className="mt-2 space-y-2">
+                          <div className="p-2.5 rounded-lg bg-amber-50/80 border border-amber-200/80 text-[11px] space-y-1">
+                            <div className="font-semibold text-amber-900 flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Balance Payment Paused</span>
+                            </div>
+                            <p className="text-amber-800 leading-relaxed">
+                              A revised booking proposal has been sent for your review. Balance payments are paused until the updated quotation is confirmed.
+                            </p>
+                          </div>
+                          <Button
+                            disabled
+                            title="Balance payment is disabled while a revision proposal is pending review"
+                            className="w-full h-9 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none gap-1.5"
+                          >
+                            <CreditCard className="h-3.5 w-3.5 text-slate-400" />
+                            <span>Pay Balance Disabled</span>
+                          </Button>
                         </div>
                       ) : outstandingAmount > 0 ? (
                         <Button

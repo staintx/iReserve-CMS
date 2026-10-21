@@ -26,7 +26,7 @@ const { MAX_FINANCIAL_AMOUNT } = require("../validations/rules.common");
 const isSuccessfulPaymentStatus = (status) =>
 	["paid", "succeeded"].includes(String(status || "").toLowerCase());
 
-const getBookingPaymentBlockReason = (booking) => {
+const getBookingPaymentBlockReason = (booking, paymentType = "balance") => {
 	if (!booking) return "Booking not found";
 	const bStatus = String(booking.status || "").trim().toLowerCase();
 	if (bStatus === "completed") {
@@ -41,6 +41,13 @@ const getBookingPaymentBlockReason = (booking) => {
 			booking.change_request?.message?.toLowerCase().includes("cancel"))
 	) {
 		return "Cannot make payment while a cancellation request is pending review.";
+	}
+	if (
+		paymentType === "balance" &&
+		booking.pending_revision &&
+		booking.pending_revision.status === "pending_customer_approval"
+	) {
+		return "Remaining balance payment is paused while a revised booking proposal is awaiting your confirmation. Please review and confirm the proposal first.";
 	}
 	return null;
 };
@@ -958,7 +965,7 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 	if (booking_id) {
 		targetDoc = await Booking.findById(booking_id).populate("customer_id");
 		if (!targetDoc) return res.status(404).json({ message: "Booking not found" });
-		const blockReason = getBookingPaymentBlockReason(targetDoc);
+		const blockReason = getBookingPaymentBlockReason(targetDoc, normalizedPaymentType);
 		if (blockReason) {
 			return res.status(400).json({ message: blockReason });
 		}

@@ -318,6 +318,8 @@ export default function AdminBookingEditModal({
   booking,
   totalPaid = 0,
   onSaved,
+  mode = "edit",
+  ocularContext = null,
 }) {
   const { notify } = useToast();
   const [loadingCatalogs, setLoadingCatalogs] = useState(false);
@@ -500,7 +502,9 @@ export default function AdminBookingEditModal({
       street: booking.street || "",
       landmark: booking.landmark || "",
       zip_code: booking.zip_code || "",
-      special_requests: booking.special_requests || "",
+      special_requests: ocularContext?.setupNotes
+        ? (booking.special_requests ? `${booking.special_requests}\n${ocularContext.setupNotes}` : ocularContext.setupNotes)
+        : (booking.special_requests || ""),
       dietary_restrictions: booking.dietary_restrictions || "",
       allergies: booking.allergies || "",
       include_food: isFood,
@@ -683,11 +687,11 @@ export default function AdminBookingEditModal({
     setTransportationFee(transpo);
     setAdditionalFees(otherFees);
 
-    // Reset revision note
-    setRevisionNote("");
+    // Reset or seed revision note
+    setRevisionNote(ocularContext?.revisionMessage || "");
     setErrors({});
     setShowConfirmDialog(false);
-  }, [open, booking]);
+  }, [open, booking, ocularContext]);
 
   // Selected package object
   const selectedPackage = useMemo(() => {
@@ -845,9 +849,36 @@ export default function AdminBookingEditModal({
   ]);
 
   // Price difference vs original booking
+  const isOcularRevision = Boolean(ocularContext?.isOcular);
+
+  const originalPackagePrice = useMemo(() => {
+    if (!booking) return 0;
+    if (Number(booking.package_price) > 0) return Number(booking.package_price);
+    if (Number(booking.package_starting_price) > 0) return Number(booking.package_starting_price);
+    if (Number(booking.scaffold_price) > 0) return Number(booking.scaffold_price);
+    if (Number(booking.quotation_id?.package_price) > 0) return Number(booking.quotation_id.package_price);
+    if (Number(booking.quotation_id?.package_starting_price) > 0) return Number(booking.quotation_id.package_starting_price);
+    return derivePackageStartingPrice(booking, booking.guest_count) || 0;
+  }, [booking]);
+
   const originalTotalPrice = Number(booking?.total_price) || 0;
-  const priceDifference = money(totals.totalCost - originalTotalPrice);
-  const remainingBalanceAfterPaid = money(Math.max(0, totals.totalCost - (Number(totalPaid) || 0)));
+
+  // The non-package portion of the booking (food catering, menu items, add-ons, etc.)
+  const preservedNonPackageCost = useMemo(() => {
+    if (!isOcularRevision) return 0;
+    return Math.max(0, originalTotalPrice - originalPackagePrice);
+  }, [isOcularRevision, originalTotalPrice, originalPackagePrice]);
+
+  // When revising based on ocular visit, only the package price changes
+  const finalTotalCost = useMemo(() => {
+    if (isOcularRevision) {
+      return money(preservedNonPackageCost + totals.packagePrice);
+    }
+    return totals.totalCost;
+  }, [isOcularRevision, preservedNonPackageCost, totals.packagePrice, totals.totalCost]);
+
+  const priceDifference = money(finalTotalCost - originalTotalPrice);
+  const remainingBalanceAfterPaid = money(Math.max(0, finalTotalCost - (Number(totalPaid) || 0)));
 
   // Scroll to section helper for jump navigation
   const scrollToSection = (id) => {
@@ -1244,6 +1275,11 @@ export default function AdminBookingEditModal({
       if (srErr) newErrors.special_requests = srErr;
     }
 
+    const isRevisionMode = mode === "propose_revision" || Boolean(ocularContext?.isOcular);
+    if (isRevisionMode && (!revisionNote || !revisionNote.trim())) {
+      newErrors.revision_note = "Please enter a revision reason / message to the customer.";
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       if (newErrors.contact_first_name || newErrors.contact_last_name || newErrors.celebrant_name) {
@@ -1251,7 +1287,11 @@ export default function AdminBookingEditModal({
       }
       const firstErrorMessage = Object.values(newErrors)[0];
       notify(`Please resolve required fields: ${firstErrorMessage}`, "error");
-      scrollToSection("qb-section-details");
+      if (newErrors.revision_note) {
+        scrollToSection("qb-section-notes");
+      } else {
+        scrollToSection("qb-section-details");
+      }
       return;
     }
 
@@ -1385,10 +1425,10 @@ export default function AdminBookingEditModal({
           pricing_type: item.pricing_type || "quantity",
         })),
         additional_charges: allCharges,
-        subtotal: totals.subtotal,
+        subtotal: finalTotalCost,
         discount_amount: 0,
         tax_amount: 0,
-        total_price: totals.totalCost,
+        total_price: finalTotalCost,
         revision_note:
           revisionNote.trim() || "Admin updated booking specifications and pricing via Quotation Builder interface",
       };
@@ -1398,8 +1438,37 @@ export default function AdminBookingEditModal({
         return;
       }
 
-      await AdminAPI.updateBooking(booking._id, payload);
-      notify("Booking specifications and pricing updated successfully!", "success");
+      const isRevisionMode = mode === "propose_revision" || Boolean(ocularContext?.isOcular);
+      if (isRevisionMode) {
+        const proposePayload = {
+          ...payload,
+          total_price: finalTotalCost,
+          package_price: totals.packagePrice,
+          package_starting_price: totals.startingPrice,
+          subtotal: finalTotalCost,
+          guest_count: isOcularRevision ? booking.guest_count : payload.guest_count,
+          event_date: isOcularRevision ? booking.event_date : payload.event_date,
+          start_time: isOcularRevision ? booking.start_time : payload.start_time,
+          is_ocular: isOcularRevision,
+          menu_items: isOcularRevision ? (booking.menu_items || []) : payload.menu_items,
+          service_items: isOcularRevision ? (booking.service_items || []) : payload.service_items,
+          additional_charges: isOcularRevision ? (booking.additional_charges || []) : payload.additional_charges,
+          message: revisionNote.trim() || ocularContext?.revisionMessage || "Booking revision proposed following site inspection",
+          complete_ocular: Boolean(ocularContext?.isOcular),
+          ocular_notes: ocularContext?.ocularNotes || undefined,
+          custom_setup_notes: ocularContext?.setupNotes || details.special_requests || undefined,
+        };
+        await AdminAPI.proposeRevision(booking._id, proposePayload);
+        notify(
+          ocularContext?.isOcular
+            ? "Ocular outcome logged & revised proposal sent to customer for review!"
+            : "Revised booking proposal sent to customer for review!",
+          "success"
+        );
+      } else {
+        await AdminAPI.updateBooking(booking._id, payload);
+        notify("Booking specifications and pricing updated successfully!", "success");
+      }
       setShowConfirmDialog(false);
       if (onSaved) onSaved();
       onClose();
@@ -1416,17 +1485,30 @@ export default function AdminBookingEditModal({
   const isFoodOnly = details.service_type === SERVICE_TYPES.FOOD_ONLY;
   const isSetupOnly = details.service_type === SERVICE_TYPES.SETUP_ONLY;
   const cateringIncluded = !isSetupOnly && details.include_food !== false;
+  const isRevisionMode = mode === "propose_revision" || Boolean(ocularContext?.isOcular);
 
   const modalTitle = (
     <div className="flex flex-wrap items-center gap-2">
       <FileText className="w-5 h-5 text-primary shrink-0" />
-      <span className="font-bold">Edit Booking Specifications</span>
+      <span className="font-bold">
+        {ocularContext?.isOcular
+          ? "Request Booking Revision from Ocular Review"
+          : isRevisionMode
+            ? "Propose Booking Revision Specifications"
+            : "Edit Booking Specifications"}
+      </span>
       <span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-mono font-bold text-blue-800 border border-blue-200">
         {booking.reference || `BK-${String(booking._id).slice(-6).toUpperCase()}`}
       </span>
-      <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-200 capitalize">
-        {booking.status}
-      </span>
+      {ocularContext?.isOcular ? (
+        <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 border border-amber-200">
+          Ocular Review
+        </span>
+      ) : (
+        <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-200 capitalize">
+          {booking.status}
+        </span>
+      )}
     </div>
   );
 
@@ -1456,7 +1538,7 @@ export default function AdminBookingEditModal({
                 className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <User size={12} className="text-slate-500" />
-                <span>1. Specs</span>
+                <span>1. Specs {isOcularRevision ? "(Locked)" : ""}</span>
               </button>
               <button
                 type="button"
@@ -1465,7 +1547,7 @@ export default function AdminBookingEditModal({
                 className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Package size={12} className="text-slate-500" />
-                <span>2. Package</span>
+                <span>2. Package &amp; Space</span>
               </button>
               <button
                 type="button"
@@ -1476,7 +1558,7 @@ export default function AdminBookingEditModal({
                 <Check size={12} className="text-slate-500" />
                 <span>3. Inclusions ({keptInclusions.length})</span>
               </button>
-              {cateringIncluded && (
+              {!isOcularRevision && cateringIncluded && (
                 <button
                   type="button"
                   onClick={() => scrollToSection("qb-section-menu")}
@@ -1487,32 +1569,36 @@ export default function AdminBookingEditModal({
                   <span>4. Menu ({activeMenuItems.length})</span>
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => scrollToSection("qb-section-addons")}
-                title="5. Add-ons & Extra Services"
-                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
-              >
-                <Sparkles size={12} className="text-slate-500" />
-                <span>5. Add-ons ({activeAddOns.length})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollToSection("qb-section-adjustments")}
-                title="6. Adjustments & Logistics"
-                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
-              >
-                <Truck size={12} className="text-slate-500" />
-                <span>6. Adjustments</span>
-              </button>
+              {!isOcularRevision && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => scrollToSection("qb-section-addons")}
+                    title="5. Add-ons & Extra Services"
+                    className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Sparkles size={12} className="text-slate-500" />
+                    <span>5. Add-ons ({activeAddOns.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollToSection("qb-section-adjustments")}
+                    title="6. Adjustments & Logistics"
+                    className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Truck size={12} className="text-slate-500" />
+                    <span>6. Adjustments</span>
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => scrollToSection("qb-section-notes")}
-                title="7. Revision Notes & Audit Log"
+                title="Notes & Message"
                 className="px-2 sm:px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11px] sm:text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <FileText size={12} className="text-slate-500" />
-                <span>7. Notes</span>
+                <span>{isOcularRevision ? "4. Ocular Notes" : "7. Notes"}</span>
               </button>
             </div>
 
@@ -1547,6 +1633,16 @@ export default function AdminBookingEditModal({
                 }
               >
                 <div className="space-y-4">
+                  {isOcularRevision && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-800 flex items-start gap-2.5">
+                      <Lock size={15} className="shrink-0 text-amber-600 mt-0.5" />
+                      <div>
+                        <strong className="font-semibold block text-amber-900 mb-0.5">Ocular Inspection Revision Mode</strong>
+                        Event scheduling, guest headcount ({details.guest_count} pax), and catering menus are preserved and locked. Only package inclusions and scaffold/space dimensions can be adjusted based on the site visit measurements.
+                      </div>
+                    </div>
+                  )}
+
                   {/* Primary Event Drivers Grid */}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80">
                     {/* Headcount / Pax */}
@@ -1563,27 +1659,36 @@ export default function AdminBookingEditModal({
                             type="number"
                             min="1"
                             value={details.guest_count}
+                            disabled={isOcularRevision}
                             onWheel={(e) => e.target.blur()}
                             onChange={(e) => setDetail("guest_count", nonNegative(e.target.value))}
-                            className={`${inputClass(errors.guest_count)} font-bold text-base tabular-nums py-1.5`}
+                            className={`${inputClass(errors.guest_count)} font-bold text-base tabular-nums py-1.5 ${
+                              isOcularRevision ? "bg-slate-100 text-slate-500 cursor-not-allowed" : ""
+                            }`}
                           />
                         </div>
-                        <div className="flex items-center gap-1 mt-1.5">
-                          {[50, 100, 150].map((pax) => (
-                            <button
-                              key={pax}
-                              type="button"
-                              onClick={() => setDetail("guest_count", pax)}
-                              className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border transition-colors cursor-pointer ${
-                                Number(details.guest_count) === pax
-                                  ? "bg-primary text-white border-primary"
-                                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                              }`}
-                            >
-                              {pax}
-                            </button>
-                          ))}
-                        </div>
+                        {!isOcularRevision ? (
+                          <div className="flex items-center gap-1 mt-1.5">
+                            {[50, 100, 150].map((pax) => (
+                              <button
+                                key={pax}
+                                type="button"
+                                onClick={() => setDetail("guest_count", pax)}
+                                className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border transition-colors cursor-pointer ${
+                                  Number(details.guest_count) === pax
+                                    ? "bg-primary text-white border-primary"
+                                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                {pax}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-amber-700 font-medium mt-1 flex items-center gap-1">
+                            <Lock size={10} /> Locked for ocular revision
+                          </span>
+                        )}
                       </Field>
                     </div>
 
@@ -1593,8 +1698,11 @@ export default function AdminBookingEditModal({
                         <select
                           id="qb-service_type"
                           value={details.service_type}
+                          disabled={isOcularRevision}
                           onChange={(e) => setDetail("service_type", e.target.value)}
-                          className={`${inputClass(false)} py-2 text-xs font-semibold`}
+                          className={`${inputClass(false)} py-2 text-xs font-semibold ${
+                            isOcularRevision ? "bg-slate-100 text-slate-500 cursor-not-allowed" : ""
+                          }`}
                         >
                           {Object.values(SERVICE_TYPES).map((type) => (
                             <option key={type} value={type}>
@@ -1615,8 +1723,11 @@ export default function AdminBookingEditModal({
                           id="qb-event_date"
                           type="date"
                           value={details.event_date}
+                          disabled={isOcularRevision}
                           onChange={(e) => setDetail("event_date", e.target.value)}
-                          className={`${inputClass(errors.event_date)} py-1.5 text-xs`}
+                          className={`${inputClass(errors.event_date)} py-1.5 text-xs ${
+                            isOcularRevision ? "bg-slate-100 text-slate-500 cursor-not-allowed" : ""
+                          }`}
                         />
                         {details.event_date &&
                           blockedDates.includes(details.event_date) &&
@@ -1636,8 +1747,11 @@ export default function AdminBookingEditModal({
                           id="qb-start_time"
                           type="time"
                           value={details.start_time}
+                          disabled={isOcularRevision}
                           onChange={(e) => setDetail("start_time", e.target.value)}
-                          className={`${inputClass(errors.start_time)} py-1.5 text-xs`}
+                          className={`${inputClass(errors.start_time)} py-1.5 text-xs ${
+                            isOcularRevision ? "bg-slate-100 text-slate-500 cursor-not-allowed" : ""
+                          }`}
                         />
                       </Field>
                     </div>
@@ -1648,8 +1762,11 @@ export default function AdminBookingEditModal({
                         <select
                           id="qb-event_type"
                           value={details.event_type}
+                          disabled={isOcularRevision}
                           onChange={(e) => setDetail("event_type", e.target.value)}
-                          className={`${inputClass(errors.event_type)} py-2 text-xs`}
+                          className={`${inputClass(errors.event_type)} py-2 text-xs ${
+                            isOcularRevision ? "bg-slate-100 text-slate-500 cursor-not-allowed" : ""
+                          }`}
                         >
                           <option value="">Select event type</option>
                           {EVENT_TYPES.map((type) => (
@@ -1665,8 +1782,11 @@ export default function AdminBookingEditModal({
                             type="text"
                             placeholder="Specify event type..."
                             value={details.event_type_other}
+                            disabled={isOcularRevision}
                             onChange={(e) => setDetail("event_type_other", e.target.value)}
-                            className={`${inputClass(errors.event_type_other)} py-1 text-xs mt-1`}
+                            className={`${inputClass(errors.event_type_other)} py-1 text-xs mt-1 ${
+                              isOcularRevision ? "bg-slate-100 text-slate-500 cursor-not-allowed" : ""
+                            }`}
                           />
                         )}
                       </Field>
@@ -2378,42 +2498,67 @@ export default function AdminBookingEditModal({
               </SectionCard>
 
               {/* --- 4. Food Menu Dishes ----------------------------------------- */}
-              <SectionCard
-                step={4}
-                id="qb-section-menu"
-                accent="violet"
-                icon={Utensils}
-                title="Food Menu Dishes"
-                description="Itemized food dishes for catering. Each row carries its unit, pricing mode, and live line total."
-                aside={
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
-                      {activeMenuItems.length} kept{menuItems.length > activeMenuItems.length ? `, ${menuItems.length - activeMenuItems.length} removed` : " dishes"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleAddCustomDish}
-                      className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 cursor-pointer"
-                    >
-                      <Plus size={11} /> Custom dish
-                    </button>
+              {isOcularRevision ? (
+                <SectionCard
+                  step={4}
+                  id="qb-section-menu"
+                  accent="violet"
+                  icon={Utensils}
+                  title="Food Menu Dishes (Preserved)"
+                  description="Food catering selections and per-head catering pricing are locked during ocular review."
+                >
+                  <div className="p-4 rounded-xl bg-violet-50/70 border border-violet-200/80 flex items-start gap-3">
+                    <Lock className="w-5 h-5 text-violet-600 mt-0.5 shrink-0" />
+                    <div className="space-y-1 text-xs text-violet-950">
+                      <div className="font-bold flex items-center gap-2 text-sm">
+                        <span>Food Catering Pricing Preserved</span>
+                        <span className="font-mono bg-white px-2 py-0.5 rounded border border-violet-200 font-bold text-violet-800">
+                          {formatCurrency(preservedNonPackageCost)}
+                        </span>
+                      </div>
+                      <p className="text-violet-800/90 leading-relaxed">
+                        The customer's confirmed food catering menu dishes and headcount pricing are locked during an ocular inspection. Only venue layout, scaffold space dimensions, and setup inclusions are revised.
+                      </p>
+                    </div>
                   </div>
-                }
-              >
-                {/* Catering Toggle */}
-                <label className="mb-3 flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={cateringIncluded}
-                    onChange={(e) => setDetail("include_food", e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/40 cursor-pointer"
-                  />
-                  <span>Include catering menu on this booking</span>
-                </label>
+                </SectionCard>
+              ) : (
+                <SectionCard
+                  step={4}
+                  id="qb-section-menu"
+                  accent="violet"
+                  icon={Utensils}
+                  title="Food Menu Dishes"
+                  description="Itemized food dishes for catering. Each row carries its unit, pricing mode, and live line total."
+                  aside={
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
+                        {activeMenuItems.length} kept{menuItems.length > activeMenuItems.length ? `, ${menuItems.length - activeMenuItems.length} removed` : " dishes"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleAddCustomDish}
+                        className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 cursor-pointer"
+                      >
+                        <Plus size={11} /> Custom dish
+                      </button>
+                    </div>
+                  }
+                >
+                  {/* Catering Toggle */}
+                  <label className="mb-3 flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={cateringIncluded}
+                      onChange={(e) => setDetail("include_food", e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/40 cursor-pointer"
+                    />
+                    <span>Include catering menu on this booking</span>
+                  </label>
 
-                {cateringIncluded && (
-                  <div className="space-y-4">
-                    {/* Catalog Dish Selector Dropdown */}
+                  {cateringIncluded && (
+                    <div className="space-y-4">
+                      {/* Catalog Dish Selector Dropdown */}
                     <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row sm:items-center">
                       <div ref={catalogDropdownRef} className="relative flex-1 min-w-0">
                         <button
@@ -2709,6 +2854,7 @@ export default function AdminBookingEditModal({
                   </div>
                 )}
               </SectionCard>
+            )}
 
               {/* --- 5. Add-ons & Extra Services --------------------------------- */}
               <SectionCard
@@ -2985,22 +3131,52 @@ export default function AdminBookingEditModal({
                 id="qb-section-notes"
                 accent="indigo"
                 icon={FileText}
-                title="Revision Notes &amp; Audit Log"
-                description="Enter the reason for modifying this booking. This will be preserved in the booking revision history."
+                title={isRevisionMode ? "Revision Proposal Message & Ocular Review" : "Revision Notes & Audit Log"}
+                description={
+                  isRevisionMode
+                    ? "Enter the revision explanation for the customer. This will be shown prominently on the customer portal."
+                    : "Enter the reason for modifying this booking. This will be preserved in the booking revision history."
+                }
               >
                 <div className="space-y-3">
+                  {ocularContext?.isOcular && (
+                    <div className="p-3 bg-blue-50/90 border border-blue-200 rounded-lg text-xs space-y-1.5 text-blue-950 mb-1">
+                      <div className="font-bold flex items-center gap-1.5 text-blue-900">
+                        <Sparkles size={14} className="text-blue-600" /> Ocular Inspection Assessment Findings
+                      </div>
+                      <div className="text-slate-700">
+                        <span className="font-semibold text-slate-800">Place Measurement Notes: </span>
+                        <span>{ocularContext.ocularNotes || "None recorded"}</span>
+                      </div>
+                      {ocularContext.setupNotes && (
+                        <div className="text-slate-700">
+                          <span className="font-semibold text-slate-800">Setup &amp; Equipment Adjustments: </span>
+                          <span>{ocularContext.setupNotes}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <Field
-                    label="Revision Note (Logged in History)"
-                    hint="Explain what was changed (e.g. 'Customer added 25 guests and requested extra lechon station')."
+                    label={isRevisionMode ? "Revision Reason / Message to Customer *" : "Revision Note (Logged in History)"}
+                    hint={
+                      isRevisionMode
+                        ? "Explain what changed and why based on the site measurement (e.g. 'Scaffold upgraded to 30x40 to fit 180 guests safely')."
+                        : "Explain what was changed (e.g. 'Customer added 25 guests and requested extra lechon station')."
+                    }
                     htmlFor="qb-revision-note"
+                    error={errors.revision_note}
                   >
                     <textarea
                       id="qb-revision-note"
-                      rows="2"
+                      rows="3"
                       value={revisionNote}
-                      onChange={(e) => setRevisionNote(e.target.value)}
-                      placeholder="e.g. Client requested 20 additional guests and adjusted dessert inclusions"
-                      className={`${inputClass(false)} resize-none text-xs`}
+                      onChange={(e) => {
+                        setRevisionNote(e.target.value);
+                        if (errors.revision_note) setErrors((prev) => ({ ...prev, revision_note: undefined }));
+                      }}
+                      placeholder="e.g. Based on our ocular site visit, scaffold size was upgraded from 20x20 to 30x40 to accommodate your guest count and venue area."
+                      className={`${inputClass(Boolean(errors.revision_note))} resize-none text-xs leading-relaxed`}
                     />
                   </Field>
                 </div>
@@ -3066,44 +3242,63 @@ export default function AdminBookingEditModal({
               </div>
 
               {/* Line Items */}
-              <div className="space-y-2 border-t border-white/10 pt-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Line Items
-                </p>
-                <SummaryRow
-                  label="Menu dishes"
-                  detail={`(${activeMenuItems.length})`}
-                  value={formatCurrency(totals.menuSubtotal)}
-                />
-                <SummaryRow
-                  label="Add-ons &amp; services"
-                  detail={`(${activeAddOns.length})`}
-                  value={formatCurrency(totals.addOnsSubtotal)}
-                />
-              </div>
+              {!isOcularRevision ? (
+                <>
+                  <div className="space-y-2 border-t border-white/10 pt-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      Line Items
+                    </p>
+                    <SummaryRow
+                      label="Menu dishes"
+                      detail={`(${activeMenuItems.length})`}
+                      value={formatCurrency(totals.menuSubtotal)}
+                    />
+                    <SummaryRow
+                      label="Add-ons &amp; services"
+                      detail={`(${activeAddOns.length})`}
+                      value={formatCurrency(totals.addOnsSubtotal)}
+                    />
+                  </div>
 
-              {/* Adjustments & Logistics */}
-              <div className="space-y-2 border-t border-white/10 pt-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Adjustments &amp; Logistics
-                </p>
-                {money(transportationFee) > 0 && (
-                  <SummaryRow label="Transportation" value={formatCurrency(transportationFee)} />
-                )}
-                {additionalFees
-                  .filter((f) => money(f.amount) > 0)
-                  .map((f, idx) => (
-                    <SummaryRow key={idx} label={f.name || "Custom fee"} value={formatCurrency(f.amount)} />
-                  ))}
-              </div>
+                  {/* Adjustments & Logistics */}
+                  <div className="space-y-2 border-t border-white/10 pt-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      Adjustments &amp; Logistics
+                    </p>
+                    {money(transportationFee) > 0 && (
+                      <SummaryRow label="Transportation" value={formatCurrency(transportationFee)} />
+                    )}
+                    {additionalFees
+                      .filter((f) => money(f.amount) > 0)
+                      .map((f, idx) => (
+                        <SummaryRow key={idx} label={f.name || "Custom fee"} value={formatCurrency(f.amount)} />
+                      ))}
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2 border-t border-white/10 pt-3">
+                  <div className="flex items-center justify-between text-xs py-1 text-slate-300">
+                    <span className="flex items-center gap-1.5 text-slate-400 text-[11.5px]">
+                      <Lock size={12} className="text-violet-400" /> Food &amp; Other Services
+                    </span>
+                    <span className="font-semibold text-white font-mono">{formatCurrency(preservedNonPackageCost)}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 italic block">
+                    * Food catering selections &amp; pricing are preserved from confirmed booking.
+                  </span>
+                </div>
+              )}
 
               {/* Subtotal and Total Cost */}
               <div className="space-y-2 border-t border-white/10 pt-3">
-                <SummaryRow label="Subtotal" value={formatCurrency(totals.subtotal)} />
+                <SummaryRow
+                  label={isOcularRevision ? "Adjusted Package Price" : "Subtotal"}
+                  value={formatCurrency(isOcularRevision ? totals.packagePrice : totals.subtotal)}
+                />
                 <div className="flex items-baseline justify-between pt-1">
                   <span className="text-sm font-bold text-white">Updated Total Cost</span>
                   <span className="text-xl font-extrabold tabular-nums text-white">
-                    {formatCurrency(totals.totalCost)}
+                    {formatCurrency(finalTotalCost)}
                   </span>
                 </div>
               </div>
@@ -3145,11 +3340,17 @@ export default function AdminBookingEditModal({
                   </span>
                 </div>
                 <span className="text-[10.5px] opacity-80 mt-0.5 block">
-                  {priceDifference > 0
-                    ? "Updated specs increase the total cost."
-                    : priceDifference < 0
-                      ? "Updated specs reduce the total cost."
-                      : "Total cost is unchanged from original booking."}
+                  {isOcularRevision
+                    ? priceDifference > 0
+                      ? `Package adjustment increases total cost by ${formatCurrency(priceDifference)}.`
+                      : priceDifference < 0
+                        ? `Package adjustment reduces total cost by ${formatCurrency(Math.abs(priceDifference))}.`
+                        : "Package price is identical to current terms."
+                    : priceDifference > 0
+                      ? "Updated specs increase the total cost."
+                      : priceDifference < 0
+                        ? "Updated specs reduce the total cost."
+                        : "Total cost is unchanged from original booking."}
                 </span>
               </div>
             </div>
@@ -3165,6 +3366,10 @@ export default function AdminBookingEditModal({
                 {submitting ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" /> Saving Changes...
+                  </>
+                ) : isRevisionMode ? (
+                  <>
+                    <Send className="w-4 h-4" /> Propose Revision to Customer
                   </>
                 ) : (
                   <>
@@ -3191,9 +3396,13 @@ export default function AdminBookingEditModal({
           open={showConfirmDialog}
           onOpenChange={setShowConfirmDialog}
           tone="warning"
-          title="Confirm Booking Update"
-          description="Are you sure you want to apply these updates to this booking? A revision entry will be created."
-          confirmLabel={submitting ? "Saving..." : "Yes, Update Booking"}
+          title={isRevisionMode ? "Confirm Booking Revision Proposal" : "Confirm Booking Update"}
+          description={
+            isRevisionMode
+              ? "This revision proposal with updated specifications, scaffold dimensions, and pricing will be sent to the customer for review and approval."
+              : "Are you sure you want to apply these updates to this booking? A revision entry will be created."
+          }
+          confirmLabel={submitting ? "Submitting..." : isRevisionMode ? "Send Proposal to Customer" : "Yes, Update Booking"}
           cancelLabel="Review Changes"
           onConfirm={handleConfirmSave}
           onCancel={() => setShowConfirmDialog(false)}

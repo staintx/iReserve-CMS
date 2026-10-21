@@ -317,6 +317,10 @@ export default function CustomerBookings() {
       notify("Payment is paused while a cancellation request is under review.", "warning");
       return;
     }
+    if (booking.pending_revision?.status === "pending_customer_approval") {
+      notify("Payment is paused while a revision proposal is pending your review.", "warning");
+      return;
+    }
     const amount = balanceOf(booking);
     if (amount <= 0) {
       notify("This booking is fully paid.", "info");
@@ -414,7 +418,20 @@ export default function CustomerBookings() {
     const isPendingRevision = bkg.pending_revision && ["pending_customer_approval"].includes(bkg.pending_revision.status);
     const isCompleted = ["completed", "event completed"].includes(rawStatus);
 
-    // 2. Overdue payment takes top priority for both Active and Completed events
+    // 2. Active: Revision proposal awaiting customer approval takes precedence
+    if (isPendingRevision) {
+      return {
+        state: "action_required",
+        badge: "Action Required",
+        badgeClass: "bg-amber-100 text-amber-900 border-amber-300 font-bold",
+        title: "Revised Booking Proposal Awaiting Your Confirmation",
+        description: bkg.pending_revision?.message || "An updated proposal with revised pricing or setup details is ready for your review.",
+        actionType: "proposal",
+        actionLabel: "Review Proposal",
+      };
+    }
+
+    // 3. Overdue payment takes top priority for both Active and Completed events
     if (isOverdue && bal > 0) {
       return {
         state: "overdue",
@@ -430,7 +447,7 @@ export default function CustomerBookings() {
       };
     }
 
-    // 3. Completed Event
+    // 4. Completed Event
     if (isCompleted) {
       // Completed event WITH outstanding balance
       if (bal > 0) {
@@ -449,19 +466,6 @@ export default function CustomerBookings() {
       }
       // Completed event with NO balance: Hide the Next Step section entirely
       return null;
-    }
-
-    // 4. Active: Revision proposal awaiting customer approval
-    if (isPendingRevision) {
-      return {
-        state: "action_required",
-        badge: "Action Required",
-        badgeClass: "bg-amber-100 text-amber-900 border-amber-300 font-bold",
-        title: "Revised Booking Proposal Awaiting Your Confirmation",
-        description: bkg.pending_revision?.message || "An updated proposal with revised pricing or setup details is ready for your review.",
-        actionType: "proposal",
-        actionLabel: "Review Proposal",
-      };
     }
 
     // 5. Active: Deposit needed

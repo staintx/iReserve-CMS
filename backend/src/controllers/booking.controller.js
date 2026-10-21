@@ -3187,6 +3187,8 @@ exports.proposeRevision = asyncHandler(async (req, res) => {
     }
   }
 
+  const isOcular = Boolean(req.body.is_ocular || req.body.complete_ocular || req.body.ocular_notes);
+
   const currentPrice = Number(booking.total_price) || 0;
   const newPrice = total_price !== undefined ? Number(total_price) : currentPrice;
   const priceDifference = newPrice - currentPrice;
@@ -3194,17 +3196,17 @@ exports.proposeRevision = asyncHandler(async (req, res) => {
   // Build changes dictionary
   const changes = proposed_changes || {};
   if (!proposed_changes) {
-    if (event_date) {
+    if (event_date && !isOcular) {
       const fromIso = booking.event_date ? new Date(booking.event_date).toISOString() : null;
       const toIso = new Date(event_date).toISOString();
       if (fromIso !== toIso) {
         changes.event_date = { from: booking.event_date, to: event_date };
       }
     }
-    if (guest_count !== undefined && Number(guest_count) !== Number(booking.guest_count)) {
+    if (!isOcular && guest_count !== undefined && Number(guest_count) !== Number(booking.guest_count)) {
       changes.guest_count = { from: booking.guest_count, to: guest_count };
     }
-    if (start_time && start_time !== booking.start_time) {
+    if (!isOcular && start_time && start_time !== booking.start_time) {
       changes.start_time = { from: booking.start_time, to: start_time };
     }
     if (total_price !== undefined && Number(total_price) !== Number(booking.total_price)) {
@@ -3213,6 +3215,27 @@ exports.proposeRevision = asyncHandler(async (req, res) => {
     if (venue_type && venue_type !== booking.venue_type) {
       changes.venue_type = { from: booking.venue_type, to: venue_type };
     }
+    const oldScaffold = (booking.scaffold_width && booking.scaffold_length) ? `${booking.scaffold_width}x${booking.scaffold_length}` : null;
+    const newScaffold = (req.body.scaffold_width && req.body.scaffold_length) ? `${req.body.scaffold_width}x${req.body.scaffold_length}` : null;
+    if (newScaffold && oldScaffold !== newScaffold) {
+      changes.event_space = { from: oldScaffold ? `${oldScaffold} Setup` : "Standard Setup", to: `${newScaffold} Setup` };
+    }
+  } else if (isOcular) {
+    // When ocular review mode is active, prevent inadvertent changes to date, time, and headcount
+    delete changes.guest_count;
+    delete changes.event_date;
+    delete changes.start_time;
+  }
+
+  // If revision is triggered from an ocular visit review, mark ocular outcome
+  if (isOcular) {
+    if (!booking.ocular_visit) booking.ocular_visit = {};
+    booking.ocular_visit.status = "completed";
+    booking.ocular_visit.outcome = "revise";
+    if (req.body.ocular_notes) {
+      booking.ocular_visit.notes = req.body.ocular_notes;
+    }
+    booking.ocular_visit.completed_at = new Date();
   }
 
   booking.pending_revision = {
@@ -3221,16 +3244,39 @@ exports.proposeRevision = asyncHandler(async (req, res) => {
     proposed_by_user_id: req.user._id,
     proposed_changes: changes,
     proposed_snapshot: {
-      event_date: event_date || booking.event_date,
-      start_time: start_time || booking.start_time,
-      guest_count: guest_count !== undefined ? Number(guest_count) : booking.guest_count,
+      is_ocular: isOcular,
+      event_date: isOcular ? booking.event_date : (event_date || booking.event_date),
+      start_time: isOcular ? booking.start_time : (start_time || booking.start_time),
+      duration_hours: req.body.duration_hours || booking.duration_hours,
+      guest_count: isOcular ? booking.guest_count : (guest_count !== undefined ? Number(guest_count) : booking.guest_count),
       total_price: newPrice,
       venue_type: venue_type || booking.venue_type,
       service_type: service_type || booking.service_type,
-      menu_items: menu_items || booking.menu_items,
-      service_items: service_items || booking.service_items,
-      additional_charges: additional_charges || booking.additional_charges,
+      delivery_method: req.body.delivery_method || booking.delivery_method,
+      province: req.body.province || booking.province,
+      municipality: req.body.municipality || booking.municipality,
+      barangay: req.body.barangay || booking.barangay,
+      street: req.body.street || booking.street,
+      landmark: req.body.landmark || booking.landmark,
+      zip_code: req.body.zip_code || booking.zip_code,
+      package_id: req.body.package_id || booking.package_id,
+      package_name_snapshot: req.body.package_name_snapshot || booking.package_name_snapshot,
+      package_starting_price: req.body.package_starting_price !== undefined ? Number(req.body.package_starting_price) : booking.package_starting_price,
+      package_price: req.body.package_price !== undefined ? Number(req.body.package_price) : booking.package_price,
+      package_inclusions: req.body.package_inclusions || booking.package_inclusions,
+      removed_inclusions: req.body.removed_inclusions || booking.removed_inclusions,
+      inclusion_adjustments: req.body.inclusion_adjustments || booking.inclusion_adjustments,
+      selected_scaffold_option_id: req.body.selected_scaffold_option_id || booking.selected_scaffold_option_id,
+      scaffold_width: req.body.scaffold_width !== undefined ? Number(req.body.scaffold_width) : booking.scaffold_width,
+      scaffold_length: req.body.scaffold_length !== undefined ? Number(req.body.scaffold_length) : booking.scaffold_length,
+      scaffold_price: req.body.scaffold_price !== undefined ? Number(req.body.scaffold_price) : booking.scaffold_price,
+      menu_items: (menu_items && menu_items.length > 0) ? menu_items : (booking.menu_items || []),
+      service_items: (service_items && service_items.length > 0) ? service_items : (booking.service_items || []),
+      additional_charges: (additional_charges && additional_charges.length > 0) ? additional_charges : (booking.additional_charges || []),
+      subtotal: req.body.subtotal !== undefined ? Number(req.body.subtotal) : booking.subtotal,
       special_requests: special_requests !== undefined ? special_requests : booking.special_requests,
+      custom_setup_notes: req.body.custom_setup_notes || req.body.setup_notes || booking.custom_setup_notes,
+      ocular_notes: req.body.ocular_notes || booking.ocular_visit?.notes || undefined,
     },
     message: message || (proposedBy === "admin" ? "Admin proposed booking revisions" : "Customer requested booking revisions"),
     price_difference: priceDifference,
@@ -3323,14 +3369,38 @@ exports.acceptRevision = asyncHandler(async (req, res) => {
   // Apply snapshot to live booking
   if (snapshot.event_date) booking.event_date = snapshot.event_date;
   if (snapshot.start_time) booking.start_time = snapshot.start_time;
+  if (snapshot.duration_hours !== undefined) booking.duration_hours = snapshot.duration_hours;
   if (snapshot.guest_count !== undefined) booking.guest_count = snapshot.guest_count;
   if (snapshot.total_price !== undefined) booking.total_price = snapshot.total_price;
   if (snapshot.venue_type) booking.venue_type = snapshot.venue_type;
   if (snapshot.service_type) booking.service_type = snapshot.service_type;
-  if (snapshot.menu_items) booking.menu_items = snapshot.menu_items;
-  if (snapshot.service_items) booking.service_items = snapshot.service_items;
-  if (snapshot.additional_charges) booking.additional_charges = snapshot.additional_charges;
+  if (snapshot.delivery_method) booking.delivery_method = snapshot.delivery_method;
+  if (snapshot.province) booking.province = snapshot.province;
+  if (snapshot.municipality) booking.municipality = snapshot.municipality;
+  if (snapshot.barangay) booking.barangay = snapshot.barangay;
+  if (snapshot.street) booking.street = snapshot.street;
+  if (snapshot.landmark) booking.landmark = snapshot.landmark;
+  if (snapshot.zip_code) booking.zip_code = snapshot.zip_code;
+
+  if (snapshot.package_id) booking.package_id = snapshot.package_id;
+  if (snapshot.package_name_snapshot) booking.package_name_snapshot = snapshot.package_name_snapshot;
+  if (snapshot.package_starting_price !== undefined) booking.package_starting_price = snapshot.package_starting_price;
+  if (snapshot.package_price !== undefined) booking.package_price = snapshot.package_price;
+  if (snapshot.package_inclusions) booking.package_inclusions = snapshot.package_inclusions;
+  if (snapshot.removed_inclusions) booking.removed_inclusions = snapshot.removed_inclusions;
+  if (snapshot.inclusion_adjustments) booking.inclusion_adjustments = snapshot.inclusion_adjustments;
+
+  if (snapshot.selected_scaffold_option_id !== undefined) booking.selected_scaffold_option_id = snapshot.selected_scaffold_option_id;
+  if (snapshot.scaffold_width !== undefined) booking.scaffold_width = snapshot.scaffold_width;
+  if (snapshot.scaffold_length !== undefined) booking.scaffold_length = snapshot.scaffold_length;
+  if (snapshot.scaffold_price !== undefined) booking.scaffold_price = snapshot.scaffold_price;
+
+  if (snapshot.subtotal !== undefined) booking.subtotal = snapshot.subtotal;
+  if (snapshot.menu_items && snapshot.menu_items.length > 0) booking.menu_items = snapshot.menu_items;
+  if (snapshot.service_items && snapshot.service_items.length > 0) booking.service_items = snapshot.service_items;
+  if (snapshot.additional_charges && snapshot.additional_charges.length > 0) booking.additional_charges = snapshot.additional_charges;
   if (snapshot.special_requests !== undefined) booking.special_requests = snapshot.special_requests;
+  if (snapshot.custom_setup_notes !== undefined) booking.custom_setup_notes = snapshot.custom_setup_notes;
 
   booking.revision_count = (booking.revision_count || 0) + 1;
   booking.is_revised = true;
